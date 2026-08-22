@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="'Заказ #' + ${order.id} + ' — Кондитерская CRM'">Заказ</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <h1 th:text="'Заказ #' + ${order.id}">Заказ</h1>
+                <p class="subtitle">
+                    <a th:href="@{/clients/{id}(id=${order.client.id})}" th:text="${order.client.name}">Клиент</a>
+                    · создан <span th:text="${#temporals.format(order.createdAt, 'dd.MM.yyyy HH:mm')}"></span>
+                    <span th:if="${order.dueDate != null}"> · срок <span th:text="${#temporals.format(order.dueDate, 'dd.MM.yyyy')}"></span></span>
+                </p>
+            </div>
+            <span class="badge" th:classappend="${order.status}" th:text="${order.status.label}" style="font-size:14px"></span>
+        </div>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <div class="panel actions">
+            <form th:if="${order.status.name() == 'NEW'}" th:action="@{/orders/{id}/confirm(id=${order.id})}" method="post">
+                <button class="btn primary" type="submit">Подтвердить и передать в цех</button>
+            </form>
+            <form th:if="${order.status.name() == 'READY'}" th:action="@{/orders/{id}/deliver(id=${order.id})}" method="post">
+                <button class="btn primary" type="submit">Отметить как выданный</button>
+            </form>
+            <form th:if="${order.status.name() == 'NEW' or order.status.name() == 'IN_PRODUCTION' or order.status.name() == 'READY'}"
+                  th:action="@{/orders/{id}/cancel(id=${order.id})}" method="post" onsubmit="return confirm('Отменить заказ?');">
+                <button class="btn danger" type="submit">Отменить заказ</button>
+            </form>
+        </div>
+
+        <div class="grid cols-2">
+            <div class="panel">
+                <h2>Состав заказа</h2>
+                <table>
+                    <tr><th>Товар</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr>
+                    <tr th:each="i : ${order.items}">
+                        <td th:text="${i.product.name}"></td>
+                        <td th:text="${i.quantity}"></td>
+                        <td th:text="${i.price} + ' ₽'"></td>
+                        <td th:text="${i.price * i.quantity} + ' ₽'"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="3"><strong>Итого</strong></td>
+                        <td><strong th:text="${order.totalPrice} + ' ₽'"></strong></td>
+                    </tr>
+                </table>
+                <p th:if="${order.notes}" style="margin-top:12px;color:var(--muted)" th:text="${order.notes}"></p>
+            </div>
+
+            <div class="panel">
+                <h2>Задачи цеха</h2>
+                <table th:if="${not #lists.isEmpty(order.productionTasks)}">
+                    <tr><th>Товар</th><th>Кол-во</th><th>Статус</th></tr>
+                    <tr th:each="t : ${order.productionTasks}">
+                        <td th:text="${t.product.name}"></td>
+                        <td th:text="${t.quantity}"></td>
+                        <td><span class="badge" th:classappend="${t.status}" th:text="${t.status.label}"></span></td>
+                    </tr>
+                </table>
+                <p class="empty" th:if="${#lists.isEmpty(order.productionTasks)}">Задачи появятся после подтверждения заказа</p>
+                <a class="btn small" th:if="${not #lists.isEmpty(order.productionTasks)}" th:href="@{/production}">Открыть доску производства</a>
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>

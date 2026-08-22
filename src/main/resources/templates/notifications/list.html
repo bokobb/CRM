@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Уведомления — Кондитерская CRM</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div><h1>Уведомления</h1><p class="subtitle">Журнал автоматических уведомлений клиентам и складу</p></div>
+        </div>
+
+        <div class="panel">
+            <table th:if="${not #lists.isEmpty(notifications)}">
+                <tr><th>Когда</th><th>Кому</th><th>Сообщение</th><th>Канал</th></tr>
+                <tr th:each="n : ${notifications}">
+                    <td th:text="${#temporals.format(n.createdAt, 'dd.MM.yyyy HH:mm')}"></td>
+                    <td th:text="${n.recipient}"></td>
+                    <td th:text="${n.message}"></td>
+                    <td th:text="${n.channel}"></td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(notifications)}">Уведомлений пока нет</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

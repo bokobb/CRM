@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Производство — Кондитерская CRM</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div><h1>Производство</h1><p class="subtitle">Задачи цеху создаются автоматически при подтверждении заказа</p></div>
+        </div>
+
+        <div class="board">
+            <div class="board-col">
+                <h2>Ожидает <span th:text="${#lists.size(pending)}"></span></h2>
+                <div class="task-card" th:each="t : ${pending}">
+                    <div class="title" th:text="${t.product.name} + ' × ' + ${t.quantity}"></div>
+                    <div class="meta" th:text="'Заказ #' + ${t.order.id} + ' · ' + ${t.order.client.name}"></div>
+                    <form th:action="@{/production/{id}/start(id=${t.id})}" method="post" class="actions">
+                        <input type="text" name="assignedTo" placeholder="Кто делает" class="btn small" style="max-width:120px">
+                        <button class="btn small primary" type="submit">Взять в работу</button>
+                    </form>
+                </div>
+                <p class="empty" th:if="${#lists.isEmpty(pending)}">Пусто</p>
+            </div>
+
+            <div class="board-col">
+                <h2>В работе <span th:text="${#lists.size(inProgress)}"></span></h2>
+                <div class="task-card" th:each="t : ${inProgress}">
+                    <div class="title" th:text="${t.product.name} + ' × ' + ${t.quantity}"></div>
+                    <div class="meta" th:text="'Заказ #' + ${t.order.id} + ' · ' + ${t.order.client.name}
+                        + (${t.assignedTo} != null ? ' · ' + ${t.assignedTo} : '')"></div>
+                    <form th:action="@{/production/{id}/complete(id=${t.id})}" method="post">
+                        <button class="btn small ok" type="submit">Готово</button>
+                    </form>
+                </div>
+                <p class="empty" th:if="${#lists.isEmpty(inProgress)}">Пусто</p>
+            </div>
+
+            <div class="board-col">
+                <h2>Готово <span th:text="${#lists.size(done)}"></span></h2>
+                <div class="task-card" th:each="t : ${done}">
+                    <div class="title" th:text="${t.product.name} + ' × ' + ${t.quantity}"></div>
+                    <div class="meta" th:text="'Заказ #' + ${t.order.id} + ' · ' + ${t.order.client.name}"></div>
+                </div>
+                <p class="empty" th:if="${#lists.isEmpty(done)}">Пусто</p>
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>

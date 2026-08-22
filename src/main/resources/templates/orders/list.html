@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Заказы — Кондитерская CRM</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div><h1>Заказы</h1></div>
+            <a class="btn primary" th:href="@{/orders/new}">+ Новый заказ</a>
+        </div>
+
+        <div class="tabs">
+            <a th:href="@{/orders}" th:classappend="${selectedStatus == null} ? 'active'">Все</a>
+            <a th:each="s : ${statuses}" th:href="@{/orders(status=${s})}"
+               th:classappend="${selectedStatus == s} ? 'active'" th:text="${s.label}"></a>
+        </div>
+
+        <div class="panel">
+            <table th:if="${not #lists.isEmpty(orders)}">
+                <tr><th>№</th><th>Клиент</th><th>Дата</th><th>Срок</th><th>Статус</th><th>Сумма</th><th></th></tr>
+                <tr th:each="o : ${orders}">
+                    <td th:text="'#' + ${o.id}"></td>
+                    <td th:text="${o.client.name}"></td>
+                    <td th:text="${#temporals.format(o.createdAt, 'dd.MM.yyyy')}"></td>
+                    <td th:text="${o.dueDate != null ? #temporals.format(o.dueDate, 'dd.MM.yyyy') : '—'}"></td>
+                    <td><span class="badge" th:classappend="${o.status}" th:text="${o.status.label}"></span></td>
+                    <td th:text="${o.totalPrice} + ' ₽'"></td>
+                    <td><a class="btn small" th:href="@{/orders/{id}(id=${o.id})}">Открыть</a></td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(orders)}">Заказов не найдено</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

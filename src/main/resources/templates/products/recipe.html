@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="'Рецептура: ' + ${product.name} + ' — Кондитерская CRM'">Рецептура</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <h1 th:text="'Рецептура: ' + ${product.name}">Рецептура</h1>
+                <p class="subtitle">Сколько сырья уходит на партию товара. При выполнении цеховой задачи сырьё списывается автоматически пропорционально количеству.</p>
+            </div>
+        </div>
+
+        <form class="panel" th:action="@{/products/{id}/recipe(id=${product.id})}" th:object="${recipeForm}" method="post">
+            <div class="field" style="max-width:260px">
+                <label>Партия рецепта (сколько единиц товара получается из указанных ниже количеств)</label>
+                <input type="number" step="0.001" th:field="*{yieldQuantity}" required>
+            </div>
+
+            <h2>Ингредиенты</h2>
+            <div th:each="item, stat : *{items}" class="item-row">
+                <select th:field="*{items[__${stat.index}__].ingredientId}">
+                    <option value="">— не используется —</option>
+                    <option th:each="ing : ${allIngredients}" th:value="${ing.id}" th:text="${ing.name} + ' (' + ${ing.unit} + ')'"></option>
+                </select>
+                <input type="number" step="0.001" th:field="*{items[__${stat.index}__].quantity}" placeholder="Количество">
+            </div>
+
+            <div class="actions" style="margin-top:16px">
+                <button class="btn primary" type="submit">Сохранить рецептуру</button>
+                <a class="btn" th:href="@{/products}">Назад к товарам</a>
+            </div>
+        </form>
+    </main>
+</div>
+</body>
+</html>

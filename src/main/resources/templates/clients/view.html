@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${client.name} + ' — Кондитерская CRM'">Клиент</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <h1 th:text="${client.name}">Имя</h1>
+                <p class="subtitle" th:text="(${client.phone} ?: '') + ' ' + (${client.email} ?: '')"></p>
+            </div>
+            <a class="btn" th:href="@{/clients/{id}/edit(id=${client.id})}">Изменить</a>
+        </div>
+
+        <div class="panel">
+            <h2>История заказов</h2>
+            <table th:if="${not #lists.isEmpty(client.orders)}">
+                <tr><th>№</th><th>Дата</th><th>Статус</th><th>Сумма</th><th></th></tr>
+                <tr th:each="o : ${client.orders}">
+                    <td th:text="'#' + ${o.id}"></td>
+                    <td th:text="${#temporals.format(o.createdAt, 'dd.MM.yyyy')}"></td>
+                    <td><span class="badge" th:classappend="${o.status}" th:text="${o.status.label}"></span></td>
+                    <td th:text="${o.totalPrice}"></td>
+                    <td><a class="btn small" th:href="@{/orders/{id}(id=${o.id})}">Открыть</a></td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(client.orders)}">Заказов пока не было</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

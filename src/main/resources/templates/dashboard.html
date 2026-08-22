@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Дашборд — Кондитерская CRM</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <h1>Дашборд</h1>
+                <p class="subtitle">Общая картина по кондитерской на сегодня</p>
+            </div>
+        </div>
+
+        <div class="grid cols-4">
+            <div class="stat-card">
+                <div class="value" th:text="${newOrders}">0</div>
+                <div class="label">Новых заказов</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" th:text="${inProduction}">0</div>
+                <div class="label">В производстве</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" th:text="${readyOrders}">0</div>
+                <div class="label">Готовы к выдаче</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" th:text="${pendingTasks}">0</div>
+                <div class="label">Задач в очереди цеха</div>
+            </div>
+        </div>
+
+        <div class="grid cols-2">
+            <div class="panel">
+                <h2>⚠️ Низкие остатки на складе</h2>
+                <table th:if="${not #lists.isEmpty(lowStock)}">
+                    <tr th:each="i : ${lowStock}">
+                        <td th:text="${i.name}">Мука</td>
+                        <td class="low-stock-row" th:text="${i.quantityInStock} + ' ' + ${i.unit}">0</td>
+                        <td>мин. <span th:text="${i.minThreshold} + ' ' + ${i.unit}">0</span></td>
+                    </tr>
+                </table>
+                <p class="empty" th:if="${#lists.isEmpty(lowStock)}">Остатков ниже нормы нет</p>
+            </div>
+
+            <div class="panel">
+                <h2>🔔 Последние уведомления</h2>
+                <table th:if="${not #lists.isEmpty(recentNotifications)}">
+                    <tr th:each="n : ${recentNotifications}">
+                        <td th:text="${n.recipient}">клиент</td>
+                        <td th:text="${n.message}">сообщение</td>
+                    </tr>
+                </table>
+                <p class="empty" th:if="${#lists.isEmpty(recentNotifications)}">Пока нет уведомлений</p>
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>

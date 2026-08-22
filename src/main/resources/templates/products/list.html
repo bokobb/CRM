@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Товары и рецепты — Кондитерская CRM</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div><h1>Товары и рецепты</h1></div>
+            <a class="btn primary" th:href="@{/products/new}">+ Новый товар</a>
+        </div>
+
+        <div class="panel">
+            <table th:if="${not #lists.isEmpty(products)}">
+                <tr><th>Название</th><th>Категория</th><th>Цена</th><th></th></tr>
+                <tr th:each="p : ${products}">
+                    <td th:text="${p.name}"></td>
+                    <td th:text="${p.category}"></td>
+                    <td th:text="${p.price}"></td>
+                    <td class="actions">
+                        <a class="btn small" th:href="@{/products/{id}/recipe(id=${p.id})}">Рецептура</a>
+                        <a class="btn small" th:href="@{/products/{id}/edit(id=${p.id})}">Изменить</a>
+                        <form th:action="@{/products/{id}/delete(id=${p.id})}" method="post" onsubmit="return confirm('Удалить товар?');">
+                            <button class="btn small danger" type="submit">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(products)}">Товаров пока нет</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

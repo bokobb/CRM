@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Клиенты — Кондитерская CRM</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div><h1>Клиенты</h1></div>
+            <a class="btn primary" th:href="@{/clients/new}">+ Новый клиент</a>
+        </div>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <div class="panel">
+            <table th:if="${not #lists.isEmpty(clients)}">
+                <tr><th>Имя</th><th>Телефон</th><th>Email</th><th>Адрес</th><th></th></tr>
+                <tr th:each="c : ${clients}">
+                    <td><a th:href="@{/clients/{id}(id=${c.id})}" th:text="${c.name}">Имя</a></td>
+                    <td th:text="${c.phone}"></td>
+                    <td th:text="${c.email}"></td>
+                    <td th:text="${c.address}"></td>
+                    <td class="actions">
+                        <a class="btn small" th:href="@{/clients/{id}/edit(id=${c.id})}">Изменить</a>
+                        <form th:action="@{/clients/{id}/delete(id=${c.id})}" method="post" onsubmit="return confirm('Удалить клиента?');">
+                            <button class="btn small danger" type="submit">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(clients)}">Клиентов пока нет</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<nav th:fragment="nav" class="sidebar">
+    <div class="brand">🍰 Кондитерская CRM</div>
+    <a th:href="@{/}" class="nav-link" th:classappend="${activePage == 'dashboard'} ? 'active'">Дашборд</a>
+    <a th:href="@{/clients}" class="nav-link" th:classappend="${activePage == 'clients'} ? 'active'">Клиенты</a>
+    <a th:href="@{/products}" class="nav-link" th:classappend="${activePage == 'products'} ? 'active'">Товары и рецепты</a>
+    <a th:href="@{/ingredients}" class="nav-link" th:classappend="${activePage == 'ingredients'} ? 'active'">Склад</a>
+    <a th:href="@{/orders}" class="nav-link" th:classappend="${activePage == 'orders'} ? 'active'">Заказы</a>
+    <a th:href="@{/production}" class="nav-link" th:classappend="${activePage == 'production'} ? 'active'">Производство</a>
+    <a th:href="@{/notifications}" class="nav-link" th:classappend="${activePage == 'notifications'} ? 'active'">Уведомления</a>
+</nav>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Новый заказ — Кондитерская CRM</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <h1>Новый заказ</h1>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <form class="panel" th:action="@{/orders}" th:object="${orderForm}" method="post" style="max-width:680px">
+            <div class="row">
+                <div class="field">
+                    <label>Клиент</label>
+                    <select th:field="*{clientId}" required>
+                        <option value="">— выберите клиента —</option>
+                        <option th:each="c : ${clients}" th:value="${c.id}" th:text="${c.name}"></option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Срок выполнения</label>
+                    <input type="date" th:field="*{dueDate}">
+                </div>
+            </div>
+
+            <h2>Состав заказа</h2>
+            <div th:each="item, stat : *{items}" class="item-row">
+                <select th:field="*{items[__${stat.index}__].productId}">
+                    <option value="">— товар —</option>
+                    <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name} + ' — ' + ${p.price} + ' ₽'"></option>
+                </select>
+                <input type="number" step="0.001" th:field="*{items[__${stat.index}__].quantity}" placeholder="Количество">
+            </div>
+
+            <div class="field">
+                <label>Комментарий</label>
+                <textarea th:field="*{notes}"></textarea>
+            </div>
+
+            <div class="actions" style="margin-top:16px">
+                <button class="btn primary" type="submit">Создать заказ</button>
+                <a class="btn" th:href="@{/orders}">Отмена</a>
+            </div>
+        </form>
+    </main>
+</div>
+</body>
+</html>
