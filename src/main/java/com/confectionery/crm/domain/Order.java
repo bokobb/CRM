@@ -38,6 +38,11 @@ public class Order {
     @Column(length = 2000)
     private String notes;
 
+    // Заполняются складом ГП при отгрузке (см. OrderService.ship)
+    private String vehicleNumber;
+    private LocalDateTime shippedAt;
+    private String shippedByName;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 

@@ -2,25 +2,29 @@ package com.confectionery.crm.config;
 
 import com.confectionery.crm.domain.*;
 import com.confectionery.crm.repository.*;
+import com.confectionery.crm.service.ClientPriceService;
 import com.confectionery.crm.service.OrderService;
-import com.confectionery.crm.service.ProductionTaskService;
 import com.confectionery.crm.web.dto.OrderForm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Наполняет пустую базу демо-данными, чтобы CRM сразу можно было пощупать:
- * склад, товары с рецептурой, клиентов и пару заказов на разных стадиях воронки.
- * Срабатывает только если товаров ещё нет — повторный запуск ничего не дублирует.
+ * склад, товары с рецептурой, клиентов, индивидуальные цены и пару заказов на разных стадиях
+ * дистрибьюторского потока (заказ -> подтверждён/готов -> отгружен). Товары и пользователи
+ * заполняются независимо друг от друга (отдельные guard'ы), чтобы на уже засеянной базе
+ * при добавлении новой фичи (роли) демо-пользователи всё равно создались.
  */
 @Slf4j
 @Component
@@ -31,9 +35,10 @@ public class DataSeeder implements CommandLineRunner {
     private final IngredientRepository ingredientRepository;
     private final RecipeRepository recipeRepository;
     private final ClientRepository clientRepository;
+    private final UserRepository userRepository;
     private final OrderService orderService;
-    private final ProductionTaskService productionTaskService;
-    private final ProductionTaskRepository productionTaskRepository;
+    private final ClientPriceService clientPriceService;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${crm.seed-demo-data:true}")
     private boolean seedEnabled;
@@ -41,7 +46,13 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        if (!seedEnabled || productRepository.count() > 0) {
+        if (!seedEnabled) {
+            return;
+        }
+        if (userRepository.count() == 0) {
+            seedUsers();
+        }
+        if (productRepository.count() > 0) {
             return;
         }
         log.info("Пустая база — заполняю демо-данными");
@@ -49,8 +60,24 @@ public class DataSeeder implements CommandLineRunner {
         Map<String, Ingredient> ingredients = seedIngredients();
         Map<String, Product> products = seedProducts(ingredients);
         seedClients();
-
         seedDemoOrders(products);
+    }
+
+    private void seedUsers() {
+        log.info("Пользователей нет — создаю демо-учётки по одной на роль");
+        user("admin", "admin123", Role.ADMIN, "Администратор");
+        user("sales", "sales123", Role.SALES, "Менеджер по продажам");
+        user("warehouse", "warehouse123", Role.WAREHOUSE_FG, "Кладовщик (склад ГП)");
+        user("accountant", "accountant123", Role.ACCOUNTANT, "Бухгалтер");
+    }
+
+    private void user(String username, String rawPassword, Role role, String fullName) {
+        User u = new User();
+        u.setUsername(username);
+        u.setPasswordHash(passwordEncoder.encode(rawPassword));
+        u.setRole(role);
+        u.setFullName(fullName);
+        userRepository.save(u);
     }
 
     private Map<String, Ingredient> seedIngredients() {
@@ -145,12 +172,17 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedDemoOrders(Map<String, Product> products) {
-        var clients = clientRepository.findAll();
+        List<Client> clients = clientRepository.findAll();
         if (clients.size() < 3) {
             return;
         }
+        Client cafeUyut = clients.get(2);
 
-        // Заказ 1: новый, ждёт подтверждения
+        // У "Кафе «Уют»" — индивидуальная цена на тарт с клубникой (450 -> 400), демонстрирует
+        // как OrderService.createOrder подставляет клиентский прайс вместо базовой цены товара.
+        clientPriceService.upsert(cafeUyut.getId(), products.get("tart").getId(), new BigDecimal("400"));
+
+        // Заказ 1: новый, ждёт подтверждения менеджером по продажам
         OrderForm form1 = new OrderForm();
         form1.setClientId(clients.get(0).getId());
         form1.setDueDate(LocalDate.now().plusDays(3));
@@ -158,7 +190,7 @@ public class DataSeeder implements CommandLineRunner {
         form1.getItems().add(itemForm(products.get("medovik"), "1"));
         orderService.createOrder(form1);
 
-        // Заказ 2: подтверждён и передан в производство (частично выполнен)
+        // Заказ 2: подтверждён, готов к отгрузке складом ГП
         OrderForm form2 = new OrderForm();
         form2.setClientId(clients.get(1).getId());
         form2.setDueDate(LocalDate.now().plusDays(1));
@@ -166,20 +198,15 @@ public class DataSeeder implements CommandLineRunner {
         form2.getItems().add(itemForm(products.get("brownie"), "16"));
         var order2 = orderService.createOrder(form2);
         orderService.confirm(order2.getId());
-        var tasks2 = productionTaskRepository.findByOrderId(order2.getId());
-        productionTaskService.start(tasks2.get(0).getId(), "Мария (цех)");
 
-        // Заказ 3: полностью выполнен и выдан клиенту
+        // Заказ 3: отгружен (для клиента с индивидуальной ценой) — виден бухгалтеру с гос. номером ТС
         OrderForm form3 = new OrderForm();
-        form3.setClientId(clients.get(2).getId());
+        form3.setClientId(cafeUyut.getId());
         form3.setDueDate(LocalDate.now().minusDays(1));
         form3.getItems().add(itemForm(products.get("tart"), "8"));
         var order3 = orderService.createOrder(form3);
         orderService.confirm(order3.getId());
-        for (var task : productionTaskRepository.findByOrderId(order3.getId())) {
-            productionTaskService.complete(task.getId());
-        }
-        orderService.markDelivered(order3.getId());
+        orderService.ship(order3.getId(), "А123ВС799", "Кладовщик (демо)");
     }
 
     private OrderForm.OrderItemForm itemForm(Product product, String qty) {

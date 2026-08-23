@@ -4,18 +4,21 @@ import com.confectionery.crm.domain.*;
 import com.confectionery.crm.repository.ClientRepository;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductRepository;
-import com.confectionery.crm.repository.ProductionTaskRepository;
 import com.confectionery.crm.web.dto.OrderForm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Управляет жизненным циклом заказа и автоматизацией, привязанной к смене статуса:
- * подтверждение заказа -> генерация цеховых задач + уведомление клиента.
+ * Управляет жизненным циклом дистрибьюторского заказа (= накладной): цена каждой позиции
+ * берётся из индивидуального прайса клиента (см. ClientPriceService), подтверждение заказа
+ * сразу переводит его в статус "готов к отгрузке" (готовая продукция всегда есть на складе —
+ * цеховое производство под заказ не создаётся), а отгрузка склада ГП (ship) фиксирует
+ * гос. номер ТС и переводит заказ в финальный статус.
  */
 @Slf4j
 @Service
@@ -25,7 +28,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ClientRepository clientRepository;
     private final ProductRepository productRepository;
-    private final ProductionTaskRepository productionTaskRepository;
+    private final ClientPriceService clientPriceService;
     private final NotificationService notificationService;
 
     public List<Order> findAll() {
@@ -61,7 +64,7 @@ public class OrderService {
             OrderItem item = new OrderItem();
             item.setProduct(product);
             item.setQuantity(itemForm.getQuantity());
-            item.setPrice(product.getPrice());
+            item.setPrice(clientPriceService.resolvePrice(client, product));
             order.addItem(item);
         }
 
@@ -72,26 +75,15 @@ public class OrderService {
         return orderRepository.save(order);
     }
 
-    /** Подтверждение заказа: автоматически создаёт задачи цеху и уведомляет клиента. */
+    /** Подтверждение заказа: готовая продукция всегда в наличии, поэтому заказ сразу готов к отгрузке. */
     @Transactional
     public Order confirm(Long orderId) {
         Order order = findById(orderId);
         if (order.getStatus() != OrderStatus.NEW) {
             throw new IllegalStateException("Подтвердить можно только новый заказ");
         }
-        order.setStatus(OrderStatus.CONFIRMED);
-
-        for (OrderItem item : order.getItems()) {
-            ProductionTask task = new ProductionTask();
-            task.setOrder(order);
-            task.setProduct(item.getProduct());
-            task.setQuantity(item.getQuantity());
-            task.setStatus(ProductionTaskStatus.PENDING);
-            productionTaskRepository.save(task);
-        }
-        order.setStatus(OrderStatus.IN_PRODUCTION);
-
-        notificationService.notify(recipientOf(order), "Заказ #" + order.getId() + " принят и передан в производство", order);
+        order.setStatus(OrderStatus.READY);
+        notificationService.notify(recipientOf(order), "Заказ #" + order.getId() + " подтверждён, готов к отгрузке", order);
         return order;
     }
 
@@ -99,21 +91,29 @@ public class OrderService {
     public Order cancel(Long orderId) {
         Order order = findById(orderId);
         if (order.getStatus() == OrderStatus.DELIVERED) {
-            throw new IllegalStateException("Выданный заказ нельзя отменить");
+            throw new IllegalStateException("Отгруженный заказ нельзя отменить");
         }
         order.setStatus(OrderStatus.CANCELLED);
         notificationService.notify(recipientOf(order), "Заказ #" + order.getId() + " отменён", order);
         return order;
     }
 
+    /** Отгрузка складом ГП: фиксирует гос. номер ТС и переводит заказ в статус "отгружен". */
     @Transactional
-    public Order markDelivered(Long orderId) {
+    public Order ship(Long orderId, String vehicleNumber, String shippedByName) {
         Order order = findById(orderId);
         if (order.getStatus() != OrderStatus.READY) {
-            throw new IllegalStateException("Выдать можно только готовый заказ");
+            throw new IllegalStateException("Отгрузить можно только заказ, готовый к отгрузке");
+        }
+        if (vehicleNumber == null || vehicleNumber.isBlank()) {
+            throw new IllegalArgumentException("Укажите гос. номер ТС");
         }
         order.setStatus(OrderStatus.DELIVERED);
-        notificationService.notify(recipientOf(order), "Заказ #" + order.getId() + " выдан клиенту", order);
+        order.setVehicleNumber(vehicleNumber.trim());
+        order.setShippedAt(LocalDateTime.now());
+        order.setShippedByName(shippedByName);
+        notificationService.notify(recipientOf(order),
+                "Заказ #" + order.getId() + " отгружен, ТС " + order.getVehicleNumber(), order);
         return order;
     }
 

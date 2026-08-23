@@ -24,7 +24,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getDashboard());
+    setState(() {
+      _future = _api.getDashboard();
+    });
     await _future;
   }
 

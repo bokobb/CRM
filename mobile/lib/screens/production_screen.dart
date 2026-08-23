@@ -24,7 +24,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getProductionTasks());
+    setState(() {
+      _future = _api.getProductionTasks();
+    });
     await _future;
   }
 

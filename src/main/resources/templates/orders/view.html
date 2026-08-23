@@ -25,10 +25,11 @@
 
         <div class="panel actions">
             <form th:if="${order.status.name() == 'NEW'}" th:action="@{/orders/{id}/confirm(id=${order.id})}" method="post">
-                <button class="btn primary" type="submit">Подтвердить и передать в цех</button>
+                <button class="btn primary" type="submit">Подтвердить (готов к отгрузке)</button>
             </form>
             <form th:if="${order.status.name() == 'READY'}" th:action="@{/orders/{id}/deliver(id=${order.id})}" method="post">
-                <button class="btn primary" type="submit">Отметить как выданный</button>
+                <input type="text" name="vehicleNumber" placeholder="Гос. номер ТС" required>
+                <button class="btn primary" type="submit">Отгрузил</button>
             </form>
             <form th:if="${order.status.name() == 'NEW' or order.status.name() == 'IN_PRODUCTION' or order.status.name() == 'READY'}"
                   th:action="@{/orders/{id}/cancel(id=${order.id})}" method="post" onsubmit="return confirm('Отменить заказ?');">
@@ -53,6 +54,11 @@
                     </tr>
                 </table>
                 <p th:if="${order.notes}" style="margin-top:12px;color:var(--muted)" th:text="${order.notes}"></p>
+                <p th:if="${order.vehicleNumber}" style="margin-top:12px">
+                    <strong>Отгружено:</strong> ТС <span th:text="${order.vehicleNumber}"></span>
+                    · <span th:text="${#temporals.format(order.shippedAt, 'dd.MM.yyyy HH:mm')}"></span>
+                    · <span th:text="${order.shippedByName}"></span>
+                </p>
             </div>
 
             <div class="panel">

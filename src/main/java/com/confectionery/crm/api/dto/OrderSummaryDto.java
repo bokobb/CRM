@@ -13,6 +13,8 @@ public record OrderSummaryDto(
         String statusLabel,
         LocalDateTime createdAt,
         LocalDate dueDate,
-        BigDecimal totalPrice
+        BigDecimal totalPrice,
+        String vehicleNumber,
+        LocalDateTime shippedAt
 ) {
 }

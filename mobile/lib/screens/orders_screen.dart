@@ -22,12 +22,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void initState() {
     super.initState();
-    _future = _api.getOrders();
+    // Склад ГП по умолчанию видит только готовые к отгрузке заказы, бухгалтер — уже отгруженные.
+    // Фильтр остаётся переключаемым — это только удобный дефолт, не ограничение доступа.
+    switch (ApiClient.currentSession?.role) {
+      case 'WAREHOUSE_FG':
+        _status = 'READY';
+      case 'ACCOUNTANT':
+        _status = 'DELIVERED';
+    }
+    _future = _api.getOrders(status: _status);
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getOrders(status: _status));
+    setState(() {
+      _future = _api.getOrders(status: _status);
+    });
     await _future;
+  }
+
+  bool _canCreate() {
+    final role = ApiClient.currentSession?.role;
+    return role == 'SALES' || role == 'ADMIN';
   }
 
   @override
@@ -35,13 +50,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Заказы')),
       drawer: const AppDrawer(currentRoute: '/orders'),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.of(context).pushNamed('/orders/new');
-          _refresh();
-        },
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _canCreate()
+          ? FloatingActionButton(
+              onPressed: () async {
+                await Navigator.of(context).pushNamed('/orders/new');
+                _refresh();
+              },
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: Column(
         children: [
           SizedBox(

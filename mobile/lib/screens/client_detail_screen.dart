@@ -34,7 +34,9 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
     await _future;
   }
 
@@ -88,6 +90,12 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                   const SizedBox(height: 8),
                   Text(client.notes!, style: const TextStyle(fontStyle: FontStyle.italic)),
                 ],
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed('/clients/prices', arguments: widget.clientId),
+                  icon: const Icon(Icons.sell_outlined),
+                  label: const Text('Индивидуальные цены'),
+                ),
                 const SizedBox(height: 20),
                 Text('История заказов', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),

@@ -23,7 +23,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getClients());
+    setState(() {
+      _future = _api.getClients();
+    });
     await _future;
   }
 

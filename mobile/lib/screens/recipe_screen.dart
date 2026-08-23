@@ -91,7 +91,12 @@ class _RecipeScreenState extends State<RecipeScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return ErrorView(error: snapshot.error.toString(), onRetry: () => setState(() => _future = _load()));
+            return ErrorView(
+              error: snapshot.error.toString(),
+              onRetry: () => setState(() {
+                _future = _load();
+              }),
+            );
           }
           final (product, ingredients) = snapshot.data!;
           return StatefulBuilder(

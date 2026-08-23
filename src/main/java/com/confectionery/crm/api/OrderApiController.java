@@ -3,11 +3,14 @@ package com.confectionery.crm.api;
 import com.confectionery.crm.api.dto.OrderDto;
 import com.confectionery.crm.api.dto.OrderRequest;
 import com.confectionery.crm.api.dto.OrderSummaryDto;
+import com.confectionery.crm.api.dto.ShipRequest;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,6 +34,7 @@ public class OrderApiController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('SALES','ADMIN')")
     public OrderDto create(@Valid @RequestBody OrderRequest req) {
         OrderForm form = new OrderForm();
         form.setClientId(req.clientId());
@@ -46,17 +50,20 @@ public class OrderApiController {
     }
 
     @PostMapping("/{id}/confirm")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN')")
     public OrderDto confirm(@PathVariable Long id) {
         return OrderDto.from(orderService.confirm(id));
     }
 
     @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN')")
     public OrderDto cancel(@PathVariable Long id) {
         return OrderDto.from(orderService.cancel(id));
     }
 
-    @PostMapping("/{id}/deliver")
-    public OrderDto deliver(@PathVariable Long id) {
-        return OrderDto.from(orderService.markDelivered(id));
+    @PostMapping("/{id}/ship")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN')")
+    public OrderDto ship(@PathVariable Long id, @Valid @RequestBody ShipRequest req, Authentication authentication) {
+        return OrderDto.from(orderService.ship(id, req.vehicleNumber(), authentication.getName()));
     }
 }

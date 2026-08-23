@@ -24,7 +24,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getProducts());
+    setState(() {
+      _future = _api.getProducts();
+    });
     await _future;
   }
 

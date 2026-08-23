@@ -24,7 +24,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getNotifications());
+    setState(() {
+      _future = _api.getNotifications();
+    });
     await _future;
   }
 

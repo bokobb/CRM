@@ -87,9 +87,11 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/deliver")
-    public String deliver(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public String deliver(@PathVariable Long id,
+                           @RequestParam(required = false, defaultValue = "") String vehicleNumber,
+                           RedirectAttributes redirectAttributes) {
         try {
-            orderService.markDelivered(id);
+            orderService.ship(id, vehicleNumber, "веб-интерфейс");
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }

@@ -11,8 +11,8 @@ const Map<String, String> orderStatusLabels = {
   'NEW': 'Новый',
   'CONFIRMED': 'Подтверждён',
   'IN_PRODUCTION': 'В производстве',
-  'READY': 'Готов',
-  'DELIVERED': 'Выдан',
+  'READY': 'Готов к отгрузке',
+  'DELIVERED': 'Отгружен',
   'CANCELLED': 'Отменён',
 };
 
@@ -88,6 +88,8 @@ class OrderSummary {
   final DateTime createdAt;
   final DateTime? dueDate;
   final double totalPrice;
+  final String? vehicleNumber;
+  final DateTime? shippedAt;
 
   OrderSummary({
     required this.id,
@@ -98,6 +100,8 @@ class OrderSummary {
     required this.createdAt,
     this.dueDate,
     required this.totalPrice,
+    this.vehicleNumber,
+    this.shippedAt,
   });
 
   factory OrderSummary.fromJson(Map<String, dynamic> json) => OrderSummary(
@@ -109,6 +113,8 @@ class OrderSummary {
         createdAt: DateTime.parse(json['createdAt'] as String),
         dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate'] as String) : null,
         totalPrice: (json['totalPrice'] as num).toDouble(),
+        vehicleNumber: json['vehicleNumber'] as String?,
+        shippedAt: json['shippedAt'] != null ? DateTime.parse(json['shippedAt'] as String) : null,
       );
 }
 
@@ -122,6 +128,9 @@ class Order {
   final DateTime? dueDate;
   final String? notes;
   final double totalPrice;
+  final String? vehicleNumber;
+  final DateTime? shippedAt;
+  final String? shippedByName;
   final List<OrderItem> items;
   final List<ProductionTask> productionTasks;
 
@@ -135,6 +144,9 @@ class Order {
     this.dueDate,
     this.notes,
     required this.totalPrice,
+    this.vehicleNumber,
+    this.shippedAt,
+    this.shippedByName,
     required this.items,
     required this.productionTasks,
   });
@@ -149,6 +161,9 @@ class Order {
         dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate'] as String) : null,
         notes: json['notes'] as String?,
         totalPrice: (json['totalPrice'] as num).toDouble(),
+        vehicleNumber: json['vehicleNumber'] as String?,
+        shippedAt: json['shippedAt'] != null ? DateTime.parse(json['shippedAt'] as String) : null,
+        shippedByName: json['shippedByName'] as String?,
         items: (json['items'] as List).map((e) => OrderItem.fromJson(e as Map<String, dynamic>)).toList(),
         productionTasks: (json['productionTasks'] as List)
             .map((e) => ProductionTask.fromJson(e as Map<String, dynamic>))

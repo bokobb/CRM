@@ -25,7 +25,9 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getIngredients());
+    setState(() {
+      _future = _api.getIngredients();
+    });
     await _future;
   }
 
