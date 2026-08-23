@@ -24,3 +24,48 @@ class Ingredient {
         lowStock: json['lowStock'] as bool,
       );
 }
+
+/// kind: "INGREDIENT" (сырьё) или "PRODUCT" (готовая продукция) — itemId/itemName относятся к одному из них.
+class StockMovement {
+  final int id;
+  final String kind;
+  final int itemId;
+  final String itemName;
+  final String unit;
+  final String type;
+  final String typeLabel;
+  final double quantity;
+  final String? reason;
+  final String createdBy;
+  final DateTime createdAt;
+
+  bool get isProduct => kind == 'PRODUCT';
+
+  StockMovement({
+    required this.id,
+    required this.kind,
+    required this.itemId,
+    required this.itemName,
+    required this.unit,
+    required this.type,
+    required this.typeLabel,
+    required this.quantity,
+    this.reason,
+    required this.createdBy,
+    required this.createdAt,
+  });
+
+  factory StockMovement.fromJson(Map<String, dynamic> json) => StockMovement(
+        id: json['id'] as int,
+        kind: json['kind'] as String,
+        itemId: json['itemId'] as int,
+        itemName: json['itemName'] as String,
+        unit: json['unit'] as String,
+        type: json['type'] as String,
+        typeLabel: json['typeLabel'] as String,
+        quantity: (json['quantity'] as num).toDouble(),
+        reason: json['reason'] as String?,
+        createdBy: json['createdBy'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
+}

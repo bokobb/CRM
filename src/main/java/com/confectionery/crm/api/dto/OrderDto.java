@@ -20,6 +20,8 @@ public record OrderDto(
         String vehicleNumber,
         LocalDateTime shippedAt,
         String shippedByName,
+        LocalDate debtDueDate,
+        boolean debtPaid,
         List<OrderItemDto> items,
         List<ProductionTaskDto> productionTasks
 ) {
@@ -29,6 +31,7 @@ public record OrderDto(
                 o.getStatus().name(), o.getStatus().getLabel(),
                 o.getCreatedAt(), o.getDueDate(), o.getNotes(), o.getTotalPrice(),
                 o.getVehicleNumber(), o.getShippedAt(), o.getShippedByName(),
+                o.getDebtDueDate(), Boolean.TRUE.equals(o.getDebtPaid()),
                 o.getItems().stream().map(OrderItemDto::from).toList(),
                 o.getProductionTasks().stream().map(ProductionTaskDto::from).toList()
         );
@@ -37,6 +40,6 @@ public record OrderDto(
     public static OrderSummaryDto summary(Order o) {
         return new OrderSummaryDto(o.getId(), o.getClient().getId(), o.getClient().getName(),
                 o.getStatus().name(), o.getStatus().getLabel(), o.getCreatedAt(), o.getDueDate(), o.getTotalPrice(),
-                o.getVehicleNumber(), o.getShippedAt());
+                o.getVehicleNumber(), o.getShippedAt(), o.getDebtDueDate(), Boolean.TRUE.equals(o.getDebtPaid()));
     }
 }

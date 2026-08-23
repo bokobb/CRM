@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Заказы — Кондитерская CRM</title>
+    <title>Заказы — Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -14,22 +14,34 @@
             <a class="btn primary" th:href="@{/orders/new}">+ Новый заказ</a>
         </div>
 
+        <form class="date-range-form" method="get" th:action="@{/orders}" style="margin-bottom:14px">
+            <input type="hidden" name="status" th:if="${selectedStatus != null}" th:value="${selectedStatus}">
+            <input type="date" name="from" th:value="${rangeFrom}">
+            <span>—</span>
+            <input type="date" name="to" th:value="${rangeTo}">
+            <button class="btn primary" type="submit">Показать</button>
+            <a class="btn" th:href="@{/orders(status=${selectedStatus})}" th:if="${rangeFrom != null}">Все даты</a>
+        </form>
+
         <div class="tabs">
-            <a th:href="@{/orders}" th:classappend="${selectedStatus == null} ? 'active'">Все</a>
-            <a th:each="s : ${statuses}" th:href="@{/orders(status=${s})}"
+            <a th:href="@{/orders(from=${rangeFrom}, to=${rangeTo})}" th:classappend="${selectedStatus == null} ? 'active'">Все</a>
+            <a th:each="s : ${statuses}" th:href="@{/orders(status=${s}, from=${rangeFrom}, to=${rangeTo})}"
                th:classappend="${selectedStatus == s} ? 'active'" th:text="${s.label}"></a>
         </div>
 
         <div class="panel">
             <table th:if="${not #lists.isEmpty(orders)}">
-                <tr><th>№</th><th>Клиент</th><th>Дата</th><th>Срок</th><th>Статус</th><th>Сумма</th><th></th></tr>
+                <tr><th>№</th><th>Клиент</th><th>Дата</th><th>Срок</th><th>Статус</th><th>Сумма</th><th></th><th></th></tr>
                 <tr th:each="o : ${orders}">
                     <td th:text="'#' + ${o.id}"></td>
                     <td th:text="${o.client.name}"></td>
                     <td th:text="${#temporals.format(o.createdAt, 'dd.MM.yyyy')}"></td>
                     <td th:text="${o.dueDate != null ? #temporals.format(o.dueDate, 'dd.MM.yyyy') : '—'}"></td>
                     <td><span class="badge" th:classappend="${o.status}" th:text="${o.status.label}"></span></td>
-                    <td th:text="${o.totalPrice} + ' ₽'"></td>
+                    <td th:text="${o.totalPrice} + ' ₸'"></td>
+                    <td>
+                        <span class="badge CANCELLED" th:if="${o.debtDueDate != null and o.debtPaid != true}">Долг</span>
+                    </td>
                     <td><a class="btn small" th:href="@{/orders/{id}(id=${o.id})}">Открыть</a></td>
                 </tr>
             </table>

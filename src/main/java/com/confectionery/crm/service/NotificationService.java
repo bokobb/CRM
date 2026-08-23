@@ -1,8 +1,13 @@
 package com.confectionery.crm.service;
 
+import com.confectionery.crm.api.dto.NotificationDto;
+import com.confectionery.crm.api.dto.OrderNotificationGroupDto;
 import com.confectionery.crm.domain.Notification;
 import com.confectionery.crm.domain.Order;
+import com.confectionery.crm.domain.Role;
 import com.confectionery.crm.repository.NotificationRepository;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.Message;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,7 +16,12 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -60,6 +70,42 @@ public class NotificationService {
         }
     }
 
+    /**
+     * Push-уведомление всем сотрудникам с данной ролью (тема FCM {@code role_<ROLE>}, на неё
+     * подписывается мобильное приложение после логина — см. mobile/lib/services/api_client.dart).
+     * Если Firebase не подключён (см. FirebaseConfig), запись в журнале всё равно создаётся,
+     * просто без реальной отправки push.
+     */
+    public Notification notifyRole(Role role, String message, Order order) {
+        Notification notification = new Notification();
+        notification.setRecipient("role:" + role.name());
+        notification.setMessage(message);
+        notification.setOrder(order);
+        notification.setChannel(sendPush(role, message, order) ? "PUSH" : "LOG");
+        notification.setSent(true);
+
+        log.info("[Уведомление -> роль {}] {}", role, message);
+        return notificationRepository.save(notification);
+    }
+
+    private boolean sendPush(Role role, String message, Order order) {
+        try {
+            Message fcmMessage = Message.builder()
+                    .setTopic("role_" + role.name())
+                    .setNotification(com.google.firebase.messaging.Notification.builder()
+                            .setTitle("Кондитерская CRM")
+                            .setBody(message)
+                            .build())
+                    .putData("orderId", String.valueOf(order.getId()))
+                    .build();
+            FirebaseMessaging.getInstance().send(fcmMessage);
+            return true;
+        } catch (Exception e) {
+            log.debug("Push не отправлен ({}): {}", role, e.getMessage());
+            return false;
+        }
+    }
+
     /** Не дублировать одно и то же предупреждение об остатках чаще, чем раз в сутки. */
     public boolean wasNotifiedRecently(String recipient, String messagePrefix) {
         return notificationRepository
@@ -70,5 +116,57 @@ public class NotificationService {
 
     public List<Notification> recent() {
         return notificationRepository.findTop50ByOrderByCreatedAtDesc();
+    }
+
+    /**
+     * Уведомления, сгруппированные по заказу (одна карточка — один заказ, полная история —
+     * по нажатию, см. дашборд и экран "Уведомления"). Один и тот же текст, отправленный сразу
+     * нескольким ролям (например, ACCOUNTANT и ADMIN при отгрузке), схлопывается в одну запись
+     * истории — иначе каждое событие визуально дублируется.
+     */
+    public Grouped grouped(int orderLimit, int generalLimit) {
+        return groupedFrom(recent(), orderLimit, generalLimit);
+    }
+
+    /** То же самое, но только за один календарный день — для фильтра по дате в приложении. */
+    public Grouped grouped(int orderLimit, int generalLimit, LocalDateTime dayStart, LocalDateTime dayEnd) {
+        return groupedFrom(notificationRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(dayStart, dayEnd), orderLimit, generalLimit);
+    }
+
+    private Grouped groupedFrom(List<Notification> source, int orderLimit, int generalLimit) {
+        Map<Long, List<Notification>> byOrder = new LinkedHashMap<>();
+        List<Notification> general = new ArrayList<>();
+        for (Notification n : source) {
+            if (n.getOrder() != null) {
+                byOrder.computeIfAbsent(n.getOrder().getId(), k -> new ArrayList<>()).add(n);
+            } else {
+                general.add(n);
+            }
+        }
+        List<OrderNotificationGroupDto> groups = byOrder.values().stream()
+                .limit(orderLimit)
+                .map(this::toGroupDto)
+                .toList();
+        return new Grouped(groups, general.stream().limit(generalLimit).map(NotificationDto::from).toList());
+    }
+
+    private OrderNotificationGroupDto toGroupDto(List<Notification> history) {
+        Order order = history.get(0).getOrder();
+        Set<String> seenMessages = new LinkedHashSet<>();
+        List<NotificationDto> deduped = new ArrayList<>();
+        for (Notification n : history) {
+            if (seenMessages.add(n.getMessage())) {
+                deduped.add(NotificationDto.from(n));
+            }
+        }
+        return new OrderNotificationGroupDto(
+                order.getId(), order.getClient().getName(),
+                order.getStatus().name(), order.getStatus().getLabel(),
+                history.get(0).getCreatedAt(),
+                deduped
+        );
+    }
+
+    public record Grouped(List<OrderNotificationGroupDto> orderGroups, List<NotificationDto> general) {
     }
 }

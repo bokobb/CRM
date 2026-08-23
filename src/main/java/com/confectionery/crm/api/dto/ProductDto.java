@@ -9,9 +9,12 @@ public record ProductDto(
         String name,
         String category,
         String description,
-        BigDecimal price
+        BigDecimal price,
+        String unit,
+        BigDecimal quantityInStock
 ) {
     public static ProductDto from(Product p) {
-        return new ProductDto(p.getId(), p.getName(), p.getCategory(), p.getDescription(), p.getPrice());
+        return new ProductDto(p.getId(), p.getName(), p.getCategory(), p.getDescription(), p.getPrice(), p.getUnit(),
+                p.getQuantityInStock());
     }
 }

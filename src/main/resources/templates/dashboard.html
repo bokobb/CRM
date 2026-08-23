@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Дашборд — Кондитерская CRM</title>
+    <title>Дашборд — Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -12,23 +12,35 @@
         <div class="page-header">
             <div>
                 <h1>Дашборд</h1>
-                <p class="subtitle">Общая картина по кондитерской на сегодня</p>
+                <p class="subtitle">Общая картина по кондитерской за выбранный период</p>
             </div>
+            <form class="date-range-form" method="get" th:action="@{/}">
+                <input type="date" name="from" th:value="${rangeFrom}">
+                <span>—</span>
+                <input type="date" name="to" th:value="${rangeTo}">
+                <button class="btn primary" type="submit">Показать</button>
+                <a class="btn" th:href="@{/}">Сегодня</a>
+            </form>
+        </div>
+
+        <div class="hero-card">
+            <div class="value" th:text="${salesTotal} + ' ₸'">0 ₸</div>
+            <div class="label">Продажи за период</div>
         </div>
 
         <div class="grid cols-4">
-            <div class="stat-card">
+            <a class="stat-card" th:href="@{/orders(status='NEW', from=${rangeFrom}, to=${rangeTo})}">
                 <div class="value" th:text="${newOrders}">0</div>
                 <div class="label">Новых заказов</div>
-            </div>
+            </a>
             <div class="stat-card">
                 <div class="value" th:text="${inProduction}">0</div>
                 <div class="label">В производстве</div>
             </div>
-            <div class="stat-card">
+            <a class="stat-card" th:href="@{/orders(status='READY', from=${rangeFrom}, to=${rangeTo})}">
                 <div class="value" th:text="${readyOrders}">0</div>
-                <div class="label">Готовы к выдаче</div>
-            </div>
+                <div class="label">Готовы к отгрузке</div>
+            </a>
             <div class="stat-card">
                 <div class="value" th:text="${pendingTasks}">0</div>
                 <div class="label">Задач в очереди цеха</div>
@@ -49,14 +61,23 @@
             </div>
 
             <div class="panel">
-                <h2>🔔 Последние уведомления</h2>
-                <table th:if="${not #lists.isEmpty(recentNotifications)}">
-                    <tr th:each="n : ${recentNotifications}">
-                        <td th:text="${n.recipient}">клиент</td>
-                        <td th:text="${n.message}">сообщение</td>
-                    </tr>
-                </table>
-                <p class="empty" th:if="${#lists.isEmpty(recentNotifications)}">Пока нет уведомлений</p>
+                <h2>🔔 Уведомления по заказам</h2>
+                <div th:if="${not #lists.isEmpty(orderGroups)}">
+                    <details class="notif-group" th:each="g : ${orderGroups}">
+                        <summary>
+                            <span class="summary-title" th:text="'Заказ №' + ${g.orderId} + ' (' + ${g.clientName} + ')'"></span>
+                            <span class="summary-meta" th:text="${#lists.size(g.history)} + ' событ.'"></span>
+                            <span class="badge" th:classappend="${g.status}" th:text="${g.statusLabel}"></span>
+                        </summary>
+                        <div class="history">
+                            <div class="item" th:each="n : ${g.history}">
+                                <div class="msg" th:text="${n.message}"></div>
+                                <div class="when" th:text="${#temporals.format(n.createdAt, 'dd.MM.yyyy HH:mm')}"></div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <p class="empty" th:if="${#lists.isEmpty(orderGroups)}">Пока нет уведомлений</p>
             </div>
         </div>
     </main>

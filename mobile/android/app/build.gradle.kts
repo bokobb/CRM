@@ -4,6 +4,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// google-services.json подключается пользователем через Firebase Console (см. mobile/README.md
+// / инструкцию в чате) — до тех пор плагин не применяется, чтобы сборка не ломалась.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.confectionery.crm_mobile"
     compileSdk = flutter.compileSdkVersion

@@ -70,6 +70,7 @@ public class ProductApiController {
         product.setCategory(req.category());
         product.setDescription(req.description());
         product.setPrice(req.price());
+        product.setUnit(req.unit());
         return product;
     }
 }

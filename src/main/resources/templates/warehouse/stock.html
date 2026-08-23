@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Остатки — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div><h1>Остатки</h1><p class="subtitle">Готовая продукция на складе ГП</p></div>
+        </div>
+
+        <div class="panel">
+            <table th:if="${not #lists.isEmpty(products)}">
+                <tr><th>Товар</th><th>Категория</th><th>Остаток</th></tr>
+                <tr th:each="p : ${products}">
+                    <td th:text="${p.name}"></td>
+                    <td th:text="${p.category}"></td>
+                    <td th:text="${p.quantityInStock} + ' ' + ${p.unit ?: 'шт'}"></td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(products)}">Товаров пока нет</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

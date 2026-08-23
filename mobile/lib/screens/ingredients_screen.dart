@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/ingredient.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 
@@ -59,7 +60,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Склад'),
+        title: const Text('Сырьё'),
         actions: [
           IconButton(
             icon: Icon(_lowStockOnly ? Icons.filter_alt : Icons.filter_alt_outlined),
@@ -68,7 +69,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
           ),
         ],
       ),
-      drawer: const AppDrawer(currentRoute: '/ingredients'),
+      drawer: const AppDrawer(currentRoute: '/warehouse'),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.of(context).pushNamed('/ingredients/new');
@@ -104,17 +105,16 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
                 ),
               ]);
             }
-            return ListView.separated(
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               itemCount: ingredients.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final i = ingredients[index];
-                return ListTile(
-                  leading: i.lowStock
-                      ? const Icon(Icons.warning_amber_rounded, color: Color(0xFFB8433F))
-                      : const Icon(Icons.inventory_2_outlined, color: Colors.grey),
-                  title: Text(i.name),
-                  subtitle: Text('минимум ${formatQty(i.minThreshold)} ${i.unit}'),
+                return AppListTile(
+                  leadingIcon: i.lowStock ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
+                  leadingColor: i.lowStock ? const Color(0xFFB8433F) : Colors.grey,
+                  title: i.name,
+                  subtitle: 'минимум ${formatQty(i.minThreshold)} ${i.unit}',
                   trailing: Text(
                     '${formatQty(i.quantityInStock)} ${i.unit}',
                     style: TextStyle(

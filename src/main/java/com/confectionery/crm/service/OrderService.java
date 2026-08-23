@@ -10,8 +10,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Управляет жизненным циклом дистрибьюторского заказа (= накладной): цена каждой позиции
@@ -37,6 +40,20 @@ public class OrderService {
 
     public List<Order> findByStatus(OrderStatus status) {
         return orderRepository.findByStatusOrderByCreatedAtDesc(status);
+    }
+
+    public List<Order> findByClient(Long clientId) {
+        return orderRepository.findByClientIdOrderByCreatedAtDesc(clientId);
+    }
+
+    /** Заказы, созданные в диапазоне дат [from, to] включительно — для фильтра по дате в приложении. */
+    public List<Order> findByDateRange(LocalDate from, LocalDate to) {
+        return orderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+    }
+
+    public List<Order> findByStatusAndDateRange(OrderStatus status, LocalDate from, LocalDate to) {
+        return orderRepository.findByStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
+                status, from.atStartOfDay(), to.plusDays(1).atStartOfDay());
     }
 
     public Order findById(Long id) {
@@ -72,25 +89,61 @@ public class OrderService {
             throw new IllegalArgumentException("В заказе должна быть хотя бы одна позиция");
         }
 
-        return orderRepository.save(order);
+        order = orderRepository.save(order);
+        notificationService.notifyRole(Role.WAREHOUSE_FG,
+                "Новый заказ №" + order.getId() + " (" + client.getName() + ") — нужно собрать", order);
+        notificationService.notifyRole(Role.ACCOUNTANT,
+                "Новый заказ №" + order.getId() + " (" + client.getName() + ") на сумму " + order.getTotalPrice(), order);
+        return order;
     }
 
-    /** Подтверждение заказа: готовая продукция всегда в наличии, поэтому заказ сразу готов к отгрузке. */
+    /** Сборка завершена: готовая продукция всегда в наличии, поэтому заказ сразу готов к отгрузке. */
     @Transactional
     public Order confirm(Long orderId) {
         Order order = findById(orderId);
         if (order.getStatus() != OrderStatus.NEW) {
-            throw new IllegalStateException("Подтвердить можно только новый заказ");
+            throw new IllegalStateException("Отметить собранным можно только заказ в процессе сборки");
         }
         order.setStatus(OrderStatus.READY);
-        notificationService.notify(recipientOf(order), "Заказ #" + order.getId() + " подтверждён, готов к отгрузке", order);
+        String message = "Заказ №" + order.getId() + " (" + order.getClient().getName() + ") собран, готов к отгрузке";
+        notificationService.notifyRole(Role.ACCOUNTANT, message, order);
+        notificationService.notifyRole(Role.ADMIN, message, order);
         return order;
+    }
+
+    /**
+     * Корректировка количества по позициям при сборке склада ГП: часть товара может
+     * оказаться не в наличии или в меньшем количестве, чем заказано. Позиция с количеством
+     * <= 0 удаляется из заказа целиком. Доступно, пока заказ ещё не отгружен/не закрыт/не отменён.
+     */
+    @Transactional
+    public Order updateItems(Long orderId, Map<Long, BigDecimal> quantityByItemId) {
+        Order order = findById(orderId);
+        if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED
+                || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("Состав заказа в этом статусе изменить нельзя");
+        }
+        for (Map.Entry<Long, BigDecimal> entry : quantityByItemId.entrySet()) {
+            OrderItem item = order.getItems().stream()
+                    .filter(i -> i.getId().equals(entry.getKey()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Позиция не найдена в заказе: " + entry.getKey()));
+            if (entry.getValue().signum() <= 0) {
+                order.getItems().remove(item);
+            } else {
+                item.setQuantity(entry.getValue());
+            }
+        }
+        if (order.getItems().isEmpty()) {
+            throw new IllegalArgumentException("В заказе должна остаться хотя бы одна позиция");
+        }
+        return orderRepository.save(order);
     }
 
     @Transactional
     public Order cancel(Long orderId) {
         Order order = findById(orderId);
-        if (order.getStatus() == OrderStatus.DELIVERED) {
+        if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED) {
             throw new IllegalStateException("Отгруженный заказ нельзя отменить");
         }
         order.setStatus(OrderStatus.CANCELLED);
@@ -112,9 +165,61 @@ public class OrderService {
         order.setVehicleNumber(vehicleNumber.trim());
         order.setShippedAt(LocalDateTime.now());
         order.setShippedByName(shippedByName);
-        notificationService.notify(recipientOf(order),
-                "Заказ #" + order.getId() + " отгружен, ТС " + order.getVehicleNumber(), order);
+        for (OrderItem item : order.getItems()) {
+            Product product = item.getProduct();
+            product.setQuantityInStock(product.getQuantityInStock().subtract(item.getQuantity()));
+        }
+        String message = "Заказ " + order.getClient().getName() + " " + order.getVehicleNumber() + " отгружен";
+        notificationService.notifyRole(Role.ACCOUNTANT, message, order);
+        notificationService.notifyRole(Role.ADMIN, message, order);
         return order;
+    }
+
+    /**
+     * Бухгалтер закрывает заказ после отгрузки (сверка оплаты и т.п.). Если на заказе висел
+     * непогашенный долг — считаем его автоматически оплаченным: кнопка "Завершить заказ" одна
+     * и на неё не нужно отдельно жать "Оплачено" (см. также setDebt/markDebtPaid).
+     */
+    @Transactional
+    public Order complete(Long orderId) {
+        Order order = findById(orderId);
+        if (order.getStatus() != OrderStatus.DELIVERED) {
+            throw new IllegalStateException("Завершить можно только отгруженный заказ");
+        }
+        order.setStatus(OrderStatus.COMPLETED);
+        if (order.getDebtDueDate() != null) {
+            order.setDebtPaid(true);
+        }
+        notificationService.notifyRole(Role.ADMIN,
+                "Заказ №" + order.getId() + " (" + order.getClient().getName() + ") завершён", order);
+        return order;
+    }
+
+    /** Бухгалтер отмечает заказ как неоплаченный — вместо (или до) "Завершить заказ". */
+    @Transactional
+    public Order setDebt(Long orderId, LocalDate dueDate) {
+        if (dueDate == null) {
+            throw new IllegalArgumentException("Укажите срок оплаты");
+        }
+        Order order = findById(orderId);
+        order.setDebtDueDate(dueDate);
+        order.setDebtPaid(false);
+        return order;
+    }
+
+    @Transactional
+    public Order markDebtPaid(Long orderId) {
+        Order order = findById(orderId);
+        order.setDebtPaid(true);
+        return order;
+    }
+
+    public List<Order> findUnpaidDebts() {
+        return orderRepository.findUnpaidDebts();
+    }
+
+    public List<Order> findOverdueDebts() {
+        return orderRepository.findOverdueDebts(LocalDate.now());
     }
 
     static String recipientOf(Order order) {

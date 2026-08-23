@@ -18,7 +18,7 @@ class ClientDetailScreen extends StatefulWidget {
 
 class _ClientDetailScreenState extends State<ClientDetailScreen> {
   final _api = ApiClient();
-  late Future<(Client, List<OrderSummary>)> _future;
+  late Future<(Client, List<OrderSummary>, num)> _future;
 
   @override
   void initState() {
@@ -26,11 +26,11 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
     _future = _load();
   }
 
-  Future<(Client, List<OrderSummary>)> _load() async {
+  Future<(Client, List<OrderSummary>, num)> _load() async {
     final client = await _api.getClient(widget.clientId);
-    final orders = await _api.getOrders();
-    final clientOrders = orders.where((o) => o.clientId == widget.clientId).toList();
-    return (client, clientOrders);
+    final orders = await _api.getOrders(clientId: widget.clientId);
+    final monthlySales = await _api.getClientMonthlySales(widget.clientId);
+    return (client, orders, monthlySales);
   }
 
   Future<void> _refresh() async {
@@ -46,7 +46,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
       appBar: AppBar(
         title: const Text('Клиент'),
         actions: [
-          FutureBuilder<(Client, List<OrderSummary>)>(
+          FutureBuilder<(Client, List<OrderSummary>, num)>(
             future: _future,
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const SizedBox.shrink();
@@ -63,7 +63,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: FutureBuilder<(Client, List<OrderSummary>)>(
+        child: FutureBuilder<(Client, List<OrderSummary>, num)>(
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -72,7 +72,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
             if (snapshot.hasError) {
               return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
             }
-            final (client, orders) = snapshot.data!;
+            final (client, orders, monthlySales) = snapshot.data!;
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -95,6 +95,22 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                   onPressed: () => Navigator.of(context).pushNamed('/clients/prices', arguments: widget.clientId),
                   icon: const Icon(Icons.sell_outlined),
                   label: const Text('Индивидуальные цены'),
+                ),
+                const SizedBox(height: 20),
+                Card(
+                  color: const Color(0xFFB8324A),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(formatMoney(monthlySales.toDouble()),
+                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 2),
+                        const Text('Покупки за этот месяц', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Text('История заказов', style: Theme.of(context).textTheme.titleMedium),

@@ -27,3 +27,32 @@ class AppNotification {
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
 }
+
+/// Группа уведомлений одного заказа для дашборда: один заказ — одна строка,
+/// вся история открывается по нажатию.
+class OrderNotificationGroup {
+  final int orderId;
+  final String clientName;
+  final String status;
+  final String statusLabel;
+  final DateTime lastNotifiedAt;
+  final List<AppNotification> history;
+
+  OrderNotificationGroup({
+    required this.orderId,
+    required this.clientName,
+    required this.status,
+    required this.statusLabel,
+    required this.lastNotifiedAt,
+    required this.history,
+  });
+
+  factory OrderNotificationGroup.fromJson(Map<String, dynamic> json) => OrderNotificationGroup(
+        orderId: json['orderId'] as int,
+        clientName: json['clientName'] as String,
+        status: json['status'] as String,
+        statusLabel: json['statusLabel'] as String,
+        lastNotifiedAt: DateTime.parse(json['lastNotifiedAt'] as String),
+        history: (json['history'] as List).map((e) => AppNotification.fromJson(e as Map<String, dynamic>)).toList(),
+      );
+}

@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Новый заказ — Кондитерская CRM</title>
+    <title>Новый заказ — Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -29,15 +29,18 @@
             </div>
 
             <h2>Состав заказа</h2>
-            <div th:each="item, stat : *{items}" class="item-row">
+            <div th:each="item, stat : *{items}" class="item-row"
+                 th:classappend="${stat.index >= visibleItemRows} ? 'hidden-row'">
                 <select th:field="*{items[__${stat.index}__].productId}">
                     <option value="">— товар —</option>
-                    <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name} + ' — ' + ${p.price} + ' ₽'"></option>
+                    <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name} + ' — ' + ${p.price} + ' ₸'"></option>
                 </select>
                 <input type="number" step="0.001" th:field="*{items[__${stat.index}__].quantity}" placeholder="Количество">
             </div>
 
-            <div class="field">
+            <button type="button" class="btn small" onclick="crmAddOrderRow()">+ Добавить позицию</button>
+
+            <div class="field" style="margin-top:16px">
                 <label>Комментарий</label>
                 <textarea th:field="*{notes}"></textarea>
             </div>
@@ -49,5 +52,11 @@
         </form>
     </main>
 </div>
+<script th:inline="none">
+    function crmAddOrderRow() {
+        var hidden = document.querySelector('.item-row.hidden-row');
+        if (hidden) hidden.classList.remove('hidden-row');
+    }
+</script>
 </body>
 </html>

@@ -15,6 +15,8 @@ public record OrderSummaryDto(
         LocalDate dueDate,
         BigDecimal totalPrice,
         String vehicleNumber,
-        LocalDateTime shippedAt
+        LocalDateTime shippedAt,
+        LocalDate debtDueDate,
+        boolean debtPaid
 ) {
 }

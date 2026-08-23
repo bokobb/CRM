@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Товар — Кондитерская CRM</title>
+    <title>Товар — Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -23,9 +23,13 @@
                     <input type="text" th:field="*{category}" placeholder="Торты, капкейки, печенье...">
                 </div>
                 <div class="field">
-                    <label>Цена, ₽</label>
+                    <label>Цена, ₸</label>
                     <input type="number" step="0.01" th:field="*{price}" required>
                 </div>
+            </div>
+            <div class="field">
+                <label>Ед. изм.</label>
+                <input type="text" th:field="*{unit}" placeholder="шт, кг...">
             </div>
             <div class="field">
                 <label>Описание</label>

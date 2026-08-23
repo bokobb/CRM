@@ -43,6 +43,15 @@ public class Order {
     private LocalDateTime shippedAt;
     private String shippedByName;
 
+    /**
+     * Долг по оплате (проставляет бухгалтер вместо/наряду с "Завершить заказ", если клиент
+     * ещё не оплатил). debtDueDate == null — долга нет. Оба поля намеренно nullable без
+     * значения по умолчанию — колонки добавляются поверх уже существующей таблицы с данными,
+     * а NOT NULL там, где нет данных, требует отдельного backfill (см. ScheduledJobs.checkOverdueDebts).
+     */
+    private LocalDate debtDueDate;
+    private Boolean debtPaid;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 

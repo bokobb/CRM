@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 
@@ -80,14 +81,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ),
               ]);
             }
-            return ListView.separated(
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               itemCount: products.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
                 final p = products[i];
-                return ListTile(
-                  title: Text(p.name),
-                  subtitle: Text([if (p.category != null) p.category!, formatMoney(p.price)].join(' · ')),
+                return AppListTile(
+                  leadingIcon: Icons.cake_outlined,
+                  title: p.name,
+                  subtitle: [
+                    if (p.category != null) p.category!,
+                    formatMoney(p.price),
+                    if (p.unit != null && p.unit!.isNotEmpty) p.unit!,
+                  ].join(' · '),
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) async {
                       if (value == 'recipe') {

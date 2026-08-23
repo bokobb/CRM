@@ -18,6 +18,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _category = TextEditingController();
   final _description = TextEditingController();
   final _price = TextEditingController();
+  final _unit = TextEditingController();
   bool _loading = false;
   bool _initialLoading = false;
   String? _error;
@@ -34,6 +35,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _category.text = p.category ?? '';
         _description.text = p.description ?? '';
         _price.text = p.price.toString();
+        _unit.text = p.unit ?? '';
         setState(() => _initialLoading = false);
       });
     }
@@ -50,6 +52,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       'category': _category.text.trim(),
       'description': _description.text.trim(),
       'price': double.tryParse(_price.text.replaceAll(',', '.')) ?? 0,
+      'unit': _unit.text.trim(),
     };
     try {
       if (_isEdit) {
@@ -95,11 +98,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _price,
-                    decoration: const InputDecoration(labelText: 'Цена, ₽'),
+                    decoration: const InputDecoration(labelText: 'Цена, ₸'),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     validator: (v) => (v == null || double.tryParse(v.replaceAll(',', '.')) == null)
                         ? 'Введите число'
                         : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _unit,
+                    decoration: const InputDecoration(labelText: 'Ед. изм.', hintText: 'шт, кг...'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

@@ -48,9 +48,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('🍰', style: TextStyle(fontSize: 48), textAlign: TextAlign.center),
+                    Image.asset('assets/images/logo.png', width: 96, height: 96),
                     const SizedBox(height: 8),
-                    Text('Кондитерская CRM', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
+                    Text('Юг Сладости', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
                     const SizedBox(height: 32),
                     if (_error != null)
                       Padding(

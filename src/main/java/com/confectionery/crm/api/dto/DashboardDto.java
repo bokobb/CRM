@@ -1,13 +1,17 @@
 package com.confectionery.crm.api.dto;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 public record DashboardDto(
+        LocalDate from,
+        LocalDate to,
         long newOrders,
-        long inProduction,
         long readyOrders,
-        int pendingTasks,
+        BigDecimal todaySalesTotal,
         List<IngredientDto> lowStock,
-        List<NotificationDto> recentNotifications
+        List<OrderNotificationGroupDto> orderNotifications,
+        List<NotificationDto> generalNotifications
 ) {
 }

@@ -36,5 +36,8 @@ build/
 # Локальная H2 БД
 data/
 
+# Firebase service-account ключ (секрет, не для git)
+firebase-service-account.json
+
 ### Claude Code ###
 .claude/

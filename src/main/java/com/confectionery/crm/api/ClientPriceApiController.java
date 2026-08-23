@@ -23,14 +23,14 @@ public class ClientPriceApiController {
     }
 
     @PutMapping("/{productId}")
-    @PreAuthorize("hasAnyRole('SALES','ADMIN')")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT')")
     public ClientPriceDto upsert(@PathVariable Long clientId, @PathVariable Long productId,
                                   @Valid @RequestBody ClientPriceRequest req) {
         return ClientPriceDto.from(clientPriceService.upsert(clientId, productId, req.price()));
     }
 
     @DeleteMapping("/{productId}")
-    @PreAuthorize("hasAnyRole('SALES','ADMIN')")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT')")
     public void delete(@PathVariable Long clientId, @PathVariable Long productId) {
         clientPriceService.delete(clientId, productId);
     }

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Вход — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="login-page">
+<div class="login-card">
+    <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
+    <div class="alert error" th:if="${param.error}">Неверный логин или пароль</div>
+    <div class="alert success" th:if="${param.logout}">Вы вышли из системы</div>
+    <form th:action="@{/login}" method="post">
+        <div class="field">
+            <label for="username">Логин</label>
+            <input type="text" id="username" name="username" autofocus required>
+        </div>
+        <div class="field">
+            <label for="password">Пароль</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <button class="btn primary" type="submit">Войти</button>
+    </form>
+</div>
+</body>
+</html>

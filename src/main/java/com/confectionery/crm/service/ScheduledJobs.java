@@ -1,6 +1,8 @@
 package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Ingredient;
+import com.confectionery.crm.domain.Order;
+import com.confectionery.crm.domain.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Component;
 public class ScheduledJobs {
 
     private final IngredientService ingredientService;
+    private final OrderService orderService;
     private final NotificationService notificationService;
 
     @Scheduled(cron = "${crm.stock.low-stock-check-cron}")
@@ -26,6 +29,23 @@ public class ScheduledJobs {
             if (!notificationService.wasNotifiedRecently("склад", prefix)) {
                 notificationService.notify("склад", prefix + " — остаток " + ingredient.getQuantityInStock()
                         + " " + ingredient.getUnit() + ", минимум " + ingredient.getMinThreshold() + " " + ingredient.getUnit(), null);
+            }
+        }
+    }
+
+    /**
+     * Просроченные долги: у нас нет доступа к настоящему SMS-шлюзу (платный внешний сервис,
+     * нужны его API-ключи), поэтому "SMS бухгалтеру" реализовано как push/лог-уведомление роли
+     * ACCOUNTANT — тем же каналом, что и остальные уведомления в приложении.
+     */
+    @Scheduled(cron = "${crm.debts.overdue-check-cron}")
+    public void checkOverdueDebts() {
+        for (Order order : orderService.findOverdueDebts()) {
+            String prefix = "Просрочен долг по заказу №" + order.getId();
+            if (!notificationService.wasNotifiedRecently("role:" + Role.ACCOUNTANT.name(), prefix)) {
+                notificationService.notifyRole(Role.ACCOUNTANT,
+                        prefix + " (" + order.getClient().getName() + ") — срок оплаты был " + order.getDebtDueDate(),
+                        order);
             }
         }
     }

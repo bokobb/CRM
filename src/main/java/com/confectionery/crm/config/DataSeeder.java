@@ -65,10 +65,10 @@ public class DataSeeder implements CommandLineRunner {
 
     private void seedUsers() {
         log.info("Пользователей нет — создаю демо-учётки по одной на роль");
-        user("admin", "admin123", Role.ADMIN, "Администратор");
+        user("admin", "admin123", Role.ADMIN, "Билалов Баходир Бобирович");
         user("sales", "sales123", Role.SALES, "Менеджер по продажам");
-        user("warehouse", "warehouse123", Role.WAREHOUSE_FG, "Кладовщик (склад ГП)");
-        user("accountant", "accountant123", Role.ACCOUNTANT, "Бухгалтер");
+        user("warehouse", "warehouse123", Role.WAREHOUSE_FG, "Пайзахметов Бехруз Гайратович");
+        user("accountant", "accountant123", Role.ACCOUNTANT, "Пайзахметов Илхам Гайратович");
     }
 
     private void user(String username, String rawPassword, Role role, String fullName) {

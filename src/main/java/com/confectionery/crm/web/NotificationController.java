@@ -16,8 +16,10 @@ public class NotificationController {
 
     @GetMapping
     public String list(Model model) {
+        var grouped = notificationService.grouped(50, 50);
         model.addAttribute("activePage", "notifications");
-        model.addAttribute("notifications", notificationService.recent());
+        model.addAttribute("orderGroups", grouped.orderGroups());
+        model.addAttribute("general", grouped.general());
         return "notifications/list";
     }
 }

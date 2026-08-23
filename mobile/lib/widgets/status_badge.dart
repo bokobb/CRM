@@ -20,6 +20,8 @@ class StatusBadge extends StatelessWidget {
         return const Color(0xFFE3F0E6);
       case 'DELIVERED':
         return const Color(0xFFE5E5E5);
+      case 'COMPLETED':
+        return const Color(0xFFEFE3C2);
       case 'CANCELLED':
         return const Color(0xFFF6E0DF);
       default:
@@ -35,12 +37,14 @@ class StatusBadge extends StatelessWidget {
       case 'CONFIRMED':
       case 'IN_PRODUCTION':
       case 'IN_PROGRESS':
-        return const Color(0xFFA8543A);
+        return const Color(0xFF8F2438);
       case 'READY':
       case 'DONE':
         return const Color(0xFF4C8A5E);
       case 'DELIVERED':
         return const Color(0xFF555555);
+      case 'COMPLETED':
+        return const Color(0xFF9A7A1E);
       case 'CANCELLED':
         return const Color(0xFFB8433F);
       default:

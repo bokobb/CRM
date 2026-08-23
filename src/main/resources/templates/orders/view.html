@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title th:text="'Заказ #' + ${order.id} + ' — Кондитерская CRM'">Заказ</title>
+    <title th:text="'Заказ #' + ${order.id} + ' — Юг Сладости'">Заказ</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -35,6 +35,19 @@
                   th:action="@{/orders/{id}/cancel(id=${order.id})}" method="post" onsubmit="return confirm('Отменить заказ?');">
                 <button class="btn danger" type="submit">Отменить заказ</button>
             </form>
+            <form th:if="${order.status.name() == 'DELIVERED'}" th:action="@{/orders/{id}/complete(id=${order.id})}" method="post">
+                <button class="btn primary" type="submit"
+                        th:text="${order.debtDueDate != null and order.debtPaid != true} ? 'Оплачено, завершить' : 'Завершить заказ'">Завершить заказ</button>
+            </form>
+            <form th:if="${order.status.name() == 'DELIVERED' and (order.debtDueDate == null or order.debtPaid == true)}"
+                  th:action="@{/orders/{id}/debt(id=${order.id})}" method="post" style="display:flex;gap:6px;align-items:center">
+                <input type="date" name="dueDate" required>
+                <button class="btn" type="submit">Долг</button>
+            </form>
+        </div>
+
+        <div class="alert warn" th:if="${order.debtDueDate != null and order.debtPaid != true}">
+            Долг до <span th:text="${#temporals.format(order.debtDueDate, 'dd.MM.yyyy')}"></span>
         </div>
 
         <div class="grid cols-2">
@@ -45,12 +58,12 @@
                     <tr th:each="i : ${order.items}">
                         <td th:text="${i.product.name}"></td>
                         <td th:text="${i.quantity}"></td>
-                        <td th:text="${i.price} + ' ₽'"></td>
-                        <td th:text="${i.price * i.quantity} + ' ₽'"></td>
+                        <td th:text="${i.price} + ' ₸'"></td>
+                        <td th:text="${i.price * i.quantity} + ' ₸'"></td>
                     </tr>
                     <tr>
                         <td colspan="3"><strong>Итого</strong></td>
-                        <td><strong th:text="${order.totalPrice} + ' ₽'"></strong></td>
+                        <td><strong th:text="${order.totalPrice} + ' ₸'"></strong></td>
                     </tr>
                 </table>
                 <p th:if="${order.notes}" style="margin-top:12px;color:var(--muted)" th:text="${order.notes}"></p>

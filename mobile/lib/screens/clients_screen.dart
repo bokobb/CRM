@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/client.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 
 class ClientsScreen extends StatefulWidget {
@@ -61,15 +62,16 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 ),
               ]);
             }
-            return ListView.separated(
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               itemCount: clients.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
                 final c = clients[i];
-                return ListTile(
-                  title: Text(c.name),
-                  subtitle: Text([if (c.phone != null) c.phone!, if (c.email != null) c.email!].join(' · ')),
-                  trailing: const Icon(Icons.chevron_right),
+                return AppListTile(
+                  leading: InitialAvatar(text: c.name),
+                  title: c.name,
+                  subtitle: [if (c.phone != null) c.phone!, if (c.email != null) c.email!].join(' · '),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
                   onTap: () async {
                     await Navigator.of(context).pushNamed('/clients/detail', arguments: c.id);
                     _refresh();

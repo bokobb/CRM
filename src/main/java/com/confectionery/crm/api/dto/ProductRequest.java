@@ -9,6 +9,7 @@ public record ProductRequest(
         @NotBlank String name,
         String category,
         String description,
-        @NotNull BigDecimal price
+        @NotNull BigDecimal price,
+        String unit
 ) {
 }

@@ -8,12 +8,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/auth.dart';
 import '../models/client.dart';
 import '../models/client_price.dart';
+import '../models/company_profile.dart';
 import '../models/dashboard.dart';
 import '../models/ingredient.dart';
 import '../models/notification.dart';
 import '../models/order.dart';
 import '../models/product.dart';
+import '../models/user.dart';
 import '../navigation.dart';
+import 'push_service.dart';
 
 /// Ошибка бэкенда (Client 4xx) с человекочитаемым сообщением из ApiError.message.
 class ApiException implements Exception {
@@ -70,7 +73,7 @@ class ApiClient {
   static String defaultBaseUrl() {
     if (kIsWeb) return 'http://localhost:8080/api';
     try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:8080/api';
+      if (Platform.isAndroid) return 'http://192.168.0.8:8080/api';
     } catch (_) {
       // Platform недоступен вне мобильных/десктоп таргетов — считаем это web-подобным случаем.
     }
@@ -116,14 +119,19 @@ class ApiClient {
     if (res.statusCode == 401 && _session != null) {
       // Токен истёк/стал невалидным во время сессии — сбрасываем её и уводим на логин.
       _session = null;
-      SharedPreferences.getInstance().then((p) => Future.wait([
-            p.remove(_tokenKey),
-            p.remove(_usernameKey),
-            p.remove(_fullNameKey),
-            p.remove(_roleKey),
-            p.remove(_roleLabelKey),
-          ]));
-      navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+      SharedPreferences.getInstance().then(
+        (p) => Future.wait([
+          p.remove(_tokenKey),
+          p.remove(_usernameKey),
+          p.remove(_fullNameKey),
+          p.remove(_roleKey),
+          p.remove(_roleLabelKey),
+        ]),
+      );
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/login',
+        (route) => false,
+      );
       message = 'Сессия истекла, войдите заново';
     }
     throw ApiException(message);
@@ -131,15 +139,20 @@ class ApiClient {
 
   // ---- Auth ----
   Future<AuthSession> login(String username, String password) async {
-    final res = await http.post(await _uri('/auth/login'),
-        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'username': username, 'password': password}));
+    final res = await http.post(
+      await _uri('/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'username': username, 'password': password}),
+    );
     final session = AuthSession.fromJson(_decode(res) as Map<String, dynamic>);
     await _saveSession(session);
+    await PushService.subscribeToRole(session.role);
     return session;
   }
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
+    if (_session != null) await PushService.unsubscribeFromRole(_session!.role);
     await prefs.remove(_tokenKey);
     await prefs.remove(_usernameKey);
     await prefs.remove(_fullNameKey);
@@ -149,171 +162,517 @@ class ApiClient {
   }
 
   // ---- Dashboard ----
-  Future<Dashboard> getDashboard() async {
-    final res = await http.get(await _uri('/dashboard'), headers: await _authHeaders());
+  Future<Dashboard> getDashboard({DateTime? from, DateTime? to}) async {
+    final res = await http.get(
+      await _uri('/dashboard', _rangeQuery(from, to)),
+      headers: await _authHeaders(),
+    );
     return Dashboard.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
+  static String _isoDate(DateTime d) => d.toIso8601String().split('T').first;
+
+  static Map<String, String>? _rangeQuery(DateTime? from, DateTime? to) {
+    if (from == null || to == null) return null;
+    return {'from': _isoDate(from), 'to': _isoDate(to)};
   }
 
   // ---- Clients ----
   Future<List<Client>> getClients() async {
-    final res = await http.get(await _uri('/clients'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/clients'),
+      headers: await _authHeaders(),
+    );
     return (_decode(res) as List).map((e) => Client.fromJson(e)).toList();
   }
 
   Future<Client> getClient(int id) async {
-    final res = await http.get(await _uri('/clients/$id'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/clients/$id'),
+      headers: await _authHeaders(),
+    );
     return Client.fromJson(_decode(res));
   }
 
   Future<Client> createClient(Map<String, dynamic> body) async {
-    final res = await http.post(await _uri('/clients'), headers: await _authHeaders(), body: jsonEncode(body));
+    final res = await http.post(
+      await _uri('/clients'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
     return Client.fromJson(_decode(res));
   }
 
   Future<Client> updateClient(int id, Map<String, dynamic> body) async {
-    final res = await http.put(await _uri('/clients/$id'), headers: await _authHeaders(), body: jsonEncode(body));
+    final res = await http.put(
+      await _uri('/clients/$id'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
     return Client.fromJson(_decode(res));
   }
 
   Future<void> deleteClient(int id) async {
-    final res = await http.delete(await _uri('/clients/$id'), headers: await _authHeaders());
+    final res = await http.delete(
+      await _uri('/clients/$id'),
+      headers: await _authHeaders(),
+    );
     _decode(res);
   }
 
   // ---- Индивидуальные цены клиента ----
   Future<List<ClientPrice>> getClientPrices(int clientId) async {
-    final res = await http.get(await _uri('/clients/$clientId/prices'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/clients/$clientId/prices'),
+      headers: await _authHeaders(),
+    );
     return (_decode(res) as List).map((e) => ClientPrice.fromJson(e)).toList();
   }
 
-  Future<ClientPrice> setClientPrice(int clientId, int productId, double price) async {
-    final res = await http.put(await _uri('/clients/$clientId/prices/$productId'),
-        headers: await _authHeaders(), body: jsonEncode({'price': price}));
+  Future<ClientPrice> setClientPrice(
+    int clientId,
+    int productId,
+    double price,
+  ) async {
+    final res = await http.put(
+      await _uri('/clients/$clientId/prices/$productId'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'price': price}),
+    );
     return ClientPrice.fromJson(_decode(res));
   }
 
   Future<void> deleteClientPrice(int clientId, int productId) async {
-    final res = await http.delete(await _uri('/clients/$clientId/prices/$productId'), headers: await _authHeaders());
+    final res = await http.delete(
+      await _uri('/clients/$clientId/prices/$productId'),
+      headers: await _authHeaders(),
+    );
     _decode(res);
   }
 
   // ---- Products ----
   Future<List<Product>> getProducts() async {
-    final res = await http.get(await _uri('/products'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/products'),
+      headers: await _authHeaders(),
+    );
     return (_decode(res) as List).map((e) => Product.fromJson(e)).toList();
   }
 
   Future<Product> getProduct(int id) async {
-    final res = await http.get(await _uri('/products/$id'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/products/$id'),
+      headers: await _authHeaders(),
+    );
     return Product.fromJson(_decode(res));
   }
 
   Future<Product> createProduct(Map<String, dynamic> body) async {
-    final res = await http.post(await _uri('/products'), headers: await _authHeaders(), body: jsonEncode(body));
+    final res = await http.post(
+      await _uri('/products'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
     return Product.fromJson(_decode(res));
   }
 
   Future<Product> updateProduct(int id, Map<String, dynamic> body) async {
-    final res = await http.put(await _uri('/products/$id'), headers: await _authHeaders(), body: jsonEncode(body));
+    final res = await http.put(
+      await _uri('/products/$id'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
     return Product.fromJson(_decode(res));
   }
 
   Future<void> deleteProduct(int id) async {
-    final res = await http.delete(await _uri('/products/$id'), headers: await _authHeaders());
+    final res = await http.delete(
+      await _uri('/products/$id'),
+      headers: await _authHeaders(),
+    );
     _decode(res);
   }
 
   Future<Recipe> getRecipe(int productId) async {
-    final res = await http.get(await _uri('/products/$productId/recipe'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/products/$productId/recipe'),
+      headers: await _authHeaders(),
+    );
     return Recipe.fromJson(_decode(res));
   }
 
   Future<Recipe> saveRecipe(int productId, Map<String, dynamic> body) async {
-    final res = await http.put(await _uri('/products/$productId/recipe'), headers: await _authHeaders(), body: jsonEncode(body));
+    final res = await http.put(
+      await _uri('/products/$productId/recipe'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
     return Recipe.fromJson(_decode(res));
   }
 
   // ---- Ingredients ----
   Future<List<Ingredient>> getIngredients() async {
-    final res = await http.get(await _uri('/ingredients'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/ingredients'),
+      headers: await _authHeaders(),
+    );
     return (_decode(res) as List).map((e) => Ingredient.fromJson(e)).toList();
   }
 
   Future<Ingredient> getIngredient(int id) async {
-    final res = await http.get(await _uri('/ingredients/$id'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/ingredients/$id'),
+      headers: await _authHeaders(),
+    );
     return Ingredient.fromJson(_decode(res));
   }
 
   Future<Ingredient> createIngredient(Map<String, dynamic> body) async {
-    final res = await http.post(await _uri('/ingredients'), headers: await _authHeaders(), body: jsonEncode(body));
+    final res = await http.post(
+      await _uri('/ingredients'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
     return Ingredient.fromJson(_decode(res));
   }
 
   Future<Ingredient> updateIngredient(int id, Map<String, dynamic> body) async {
-    final res = await http.put(await _uri('/ingredients/$id'), headers: await _authHeaders(), body: jsonEncode(body));
+    final res = await http.put(
+      await _uri('/ingredients/$id'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
     return Ingredient.fromJson(_decode(res));
   }
 
   Future<void> deleteIngredient(int id) async {
-    final res = await http.delete(await _uri('/ingredients/$id'), headers: await _authHeaders());
+    final res = await http.delete(
+      await _uri('/ingredients/$id'),
+      headers: await _authHeaders(),
+    );
     _decode(res);
   }
 
+  // ---- Stock movements ----
+  Future<List<StockMovement>> getStockMovements({String? type}) async {
+    final res = await http.get(
+      await _uri('/stock/movements', type != null ? {'type': type} : null),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List)
+        .map((e) => StockMovement.fromJson(e))
+        .toList();
+  }
+
+  Future<StockMovement> receiveStock(
+    int ingredientId,
+    double quantity,
+    String? reason,
+  ) async {
+    final res = await http.post(
+      await _uri('/stock/receipts'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'ingredientId': ingredientId,
+        'quantity': quantity,
+        'reason': reason,
+      }),
+    );
+    return StockMovement.fromJson(_decode(res));
+  }
+
+  Future<StockMovement> writeOffStock(
+    int ingredientId,
+    double quantity,
+    String? reason,
+  ) async {
+    final res = await http.post(
+      await _uri('/stock/writeoffs'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'ingredientId': ingredientId,
+        'quantity': quantity,
+        'reason': reason,
+      }),
+    );
+    return StockMovement.fromJson(_decode(res));
+  }
+
+  Future<StockMovement> receiveProductStock(
+    int productId,
+    double quantity,
+    String? reason,
+  ) async {
+    final res = await http.post(
+      await _uri('/stock/receipts'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'productId': productId,
+        'quantity': quantity,
+        'reason': reason,
+      }),
+    );
+    return StockMovement.fromJson(_decode(res));
+  }
+
+  Future<StockMovement> writeOffProductStock(
+    int productId,
+    double quantity,
+    String? reason,
+  ) async {
+    final res = await http.post(
+      await _uri('/stock/writeoffs'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'productId': productId,
+        'quantity': quantity,
+        'reason': reason,
+      }),
+    );
+    return StockMovement.fromJson(_decode(res));
+  }
+
   // ---- Orders ----
-  Future<List<OrderSummary>> getOrders({String? status}) async {
-    final res =
-        await http.get(await _uri('/orders', status != null ? {'status': status} : null), headers: await _authHeaders());
+  /// from/to не заданы — все даты; экран заказов по умолчанию передаёт сегодняшний день.
+  Future<List<OrderSummary>> getOrders({
+    String? status,
+    int? clientId,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final query = {
+      if (status != null) 'status': status,
+      if (clientId != null) 'clientId': '$clientId',
+      if (from != null && to != null) 'from': _isoDate(from),
+      if (from != null && to != null) 'to': _isoDate(to),
+    };
+    final res = await http.get(
+      await _uri('/orders', query.isEmpty ? null : query),
+      headers: await _authHeaders(),
+    );
     return (_decode(res) as List).map((e) => OrderSummary.fromJson(e)).toList();
   }
 
   Future<Order> getOrder(int id) async {
-    final res = await http.get(await _uri('/orders/$id'), headers: await _authHeaders());
+    final res = await http.get(
+      await _uri('/orders/$id'),
+      headers: await _authHeaders(),
+    );
     return Order.fromJson(_decode(res));
   }
 
   Future<Order> createOrder(Map<String, dynamic> body) async {
-    final res = await http.post(await _uri('/orders'), headers: await _authHeaders(), body: jsonEncode(body));
+    final res = await http.post(
+      await _uri('/orders'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
     return Order.fromJson(_decode(res));
   }
 
   Future<Order> confirmOrder(int id) async {
-    final res = await http.post(await _uri('/orders/$id/confirm'), headers: await _authHeaders());
+    final res = await http.post(
+      await _uri('/orders/$id/confirm'),
+      headers: await _authHeaders(),
+    );
     return Order.fromJson(_decode(res));
   }
 
   Future<Order> cancelOrder(int id) async {
-    final res = await http.post(await _uri('/orders/$id/cancel'), headers: await _authHeaders());
+    final res = await http.post(
+      await _uri('/orders/$id/cancel'),
+      headers: await _authHeaders(),
+    );
     return Order.fromJson(_decode(res));
   }
 
   Future<Order> shipOrder(int id, String vehicleNumber) async {
-    final res = await http.post(await _uri('/orders/$id/ship'),
-        headers: await _authHeaders(), body: jsonEncode({'vehicleNumber': vehicleNumber}));
+    final res = await http.post(
+      await _uri('/orders/$id/ship'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'vehicleNumber': vehicleNumber}),
+    );
     return Order.fromJson(_decode(res));
+  }
+
+  Future<Order> completeOrder(int id) async {
+    final res = await http.post(
+      await _uri('/orders/$id/complete'),
+      headers: await _authHeaders(),
+    );
+    return Order.fromJson(_decode(res));
+  }
+
+  Future<List<OrderSummary>> getDebts() async {
+    final res = await http.get(
+      await _uri('/orders/debts'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List).map((e) => OrderSummary.fromJson(e)).toList();
+  }
+
+  Future<Order> setOrderDebt(int id, DateTime dueDate) async {
+    final res = await http.post(
+      await _uri('/orders/$id/debt'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'dueDate': _isoDate(dueDate)}),
+    );
+    return Order.fromJson(_decode(res));
+  }
+
+  Future<Order> markOrderDebtPaid(int id) async {
+    final res = await http.post(
+      await _uri('/orders/$id/debt/paid'),
+      headers: await _authHeaders(),
+    );
+    return Order.fromJson(_decode(res));
+  }
+
+  /// quantities: itemId -> новое количество (0 или меньше — убрать позицию из заказа).
+  Future<Order> updateOrderItems(int id, Map<int, double> quantities) async {
+    final res = await http.put(
+      await _uri('/orders/$id/items'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'items': quantities.entries
+            .map((e) => {'itemId': e.key, 'quantity': e.value})
+            .toList(),
+      }),
+    );
+    return Order.fromJson(_decode(res));
+  }
+
+  Future<num> getClientMonthlySales(int clientId) async {
+    final res = await http.get(
+      await _uri('/clients/$clientId/monthly-sales'),
+      headers: await _authHeaders(),
+    );
+    return _decode(res) as num;
   }
 
   // ---- Production tasks ----
   Future<List<ProductionTask>> getProductionTasks({String? status}) async {
-    final res = await http.get(await _uri('/production-tasks', status != null ? {'status': status} : null),
-        headers: await _authHeaders());
-    return (_decode(res) as List).map((e) => ProductionTask.fromJson(e)).toList();
+    final res = await http.get(
+      await _uri(
+        '/production-tasks',
+        status != null ? {'status': status} : null,
+      ),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List)
+        .map((e) => ProductionTask.fromJson(e))
+        .toList();
   }
 
   Future<ProductionTask> startTask(int id, {String? assignedTo}) async {
     final res = await http.post(
-        await _uri('/production-tasks/$id/start', assignedTo != null && assignedTo.isNotEmpty ? {'assignedTo': assignedTo} : null),
-        headers: await _authHeaders());
+      await _uri(
+        '/production-tasks/$id/start',
+        assignedTo != null && assignedTo.isNotEmpty
+            ? {'assignedTo': assignedTo}
+            : null,
+      ),
+      headers: await _authHeaders(),
+    );
     return ProductionTask.fromJson(_decode(res));
   }
 
   Future<ProductionTask> completeTask(int id) async {
-    final res = await http.post(await _uri('/production-tasks/$id/complete'), headers: await _authHeaders());
+    final res = await http.post(
+      await _uri('/production-tasks/$id/complete'),
+      headers: await _authHeaders(),
+    );
     return ProductionTask.fromJson(_decode(res));
   }
 
   // ---- Notifications ----
   Future<List<AppNotification>> getNotifications() async {
-    final res = await http.get(await _uri('/notifications'), headers: await _authHeaders());
-    return (_decode(res) as List).map((e) => AppNotification.fromJson(e)).toList();
+    final res = await http.get(
+      await _uri('/notifications'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List)
+        .map((e) => AppNotification.fromJson(e))
+        .toList();
+  }
+
+  /// Уведомления, сгруппированные по заказу (то же, что использует дашборд), без лимита в 8 штук.
+  /// from/to не заданы — все даты; экран уведомлений по умолчанию передаёт сегодняшний день.
+  Future<(List<OrderNotificationGroup>, List<AppNotification>)>
+  getNotificationsGrouped({DateTime? from, DateTime? to}) async {
+    final res = await http.get(
+      await _uri('/notifications/grouped', _rangeQuery(from, to)),
+      headers: await _authHeaders(),
+    );
+    final json = _decode(res) as Map<String, dynamic>;
+    final groups = (json['orderGroups'] as List)
+        .map((e) => OrderNotificationGroup.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final general = (json['general'] as List)
+        .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return (groups, general);
+  }
+
+  // ---- Company profile ----
+  Future<CompanyProfile> getCompanyProfile() async {
+    final res = await http.get(
+      await _uri('/company-profile'),
+      headers: await _authHeaders(),
+    );
+    return CompanyProfile.fromJson(_decode(res));
+  }
+
+  Future<CompanyProfile> updateCompanyProfile(CompanyProfile profile) async {
+    final res = await http.put(
+      await _uri('/company-profile'),
+      headers: await _authHeaders(),
+      body: jsonEncode(profile.toJson()),
+    );
+    return CompanyProfile.fromJson(_decode(res));
+  }
+
+  // ---- Users ----
+  Future<List<AppUser>> getUsers() async {
+    final res = await http.get(
+      await _uri('/users'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List).map((e) => AppUser.fromJson(e)).toList();
+  }
+
+  Future<AppUser> getUser(int id) async {
+    final res = await http.get(
+      await _uri('/users/$id'),
+      headers: await _authHeaders(),
+    );
+    return AppUser.fromJson(_decode(res));
+  }
+
+  Future<AppUser> createUser(Map<String, dynamic> body) async {
+    final res = await http.post(
+      await _uri('/users'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
+    return AppUser.fromJson(_decode(res));
+  }
+
+  Future<AppUser> updateUser(int id, Map<String, dynamic> body) async {
+    final res = await http.put(
+      await _uri('/users/$id'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
+    return AppUser.fromJson(_decode(res));
+  }
+
+  Future<void> resetUserPassword(int id, String newPassword) async {
+    final res = await http.post(
+      await _uri('/users/$id/reset-password'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'newPassword': newPassword}),
+    );
+    _decode(res);
   }
 }

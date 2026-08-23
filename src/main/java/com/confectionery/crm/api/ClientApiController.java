@@ -3,11 +3,15 @@ package com.confectionery.crm.api;
 import com.confectionery.crm.api.dto.ClientDto;
 import com.confectionery.crm.api.dto.ClientRequest;
 import com.confectionery.crm.domain.Client;
+import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.service.ClientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -16,6 +20,7 @@ import java.util.List;
 public class ClientApiController {
 
     private final ClientService clientService;
+    private final OrderRepository orderRepository;
 
     @GetMapping
     public List<ClientDto> list() {
@@ -41,6 +46,15 @@ public class ClientApiController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         clientService.delete(id);
+    }
+
+    /** Сумма покупок клиента за текущий календарный месяц (по дате отгрузки/завершения). */
+    @GetMapping("/{id}/monthly-sales")
+    public BigDecimal monthlySales(@PathVariable Long id) {
+        LocalDate monthStart = LocalDate.now().withDayOfMonth(1);
+        LocalDateTime start = monthStart.atStartOfDay();
+        LocalDateTime end = monthStart.plusMonths(1).atStartOfDay();
+        return orderRepository.sumSalesForClientBetween(id, start, end);
     }
 
     private Client toEntity(Client client, ClientRequest req) {

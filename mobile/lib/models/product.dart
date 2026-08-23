@@ -4,6 +4,8 @@ class Product {
   final String? category;
   final String? description;
   final double price;
+  final String? unit;
+  final double quantityInStock;
 
   Product({
     required this.id,
@@ -11,6 +13,8 @@ class Product {
     this.category,
     this.description,
     required this.price,
+    this.unit,
+    required this.quantityInStock,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -19,6 +23,8 @@ class Product {
         category: json['category'] as String?,
         description: json['description'] as String?,
         price: (json['price'] as num).toDouble(),
+        unit: json['unit'] as String?,
+        quantityInStock: (json['quantityInStock'] as num).toDouble(),
       );
 }
 

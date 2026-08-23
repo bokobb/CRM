@@ -10,6 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Controller
 @RequiredArgsConstructor
@@ -20,15 +24,26 @@ public class DashboardController {
     private final NotificationService notificationService;
     private final ProductionTaskService productionTaskService;
 
+    /** from/to не заданы — по умолчанию сегодня (совпадает с поведением мобильного дашборда). */
     @GetMapping("/")
-    public String dashboard(Model model) {
+    public String dashboard(@RequestParam(required = false) LocalDate from,
+                             @RequestParam(required = false) LocalDate to,
+                             Model model) {
+        LocalDate rangeFrom = from != null ? from : LocalDate.now();
+        LocalDate rangeTo = to != null ? to : LocalDate.now();
+        LocalDateTime start = rangeFrom.atStartOfDay();
+        LocalDateTime end = rangeTo.plusDays(1).atStartOfDay();
+
         model.addAttribute("activePage", "dashboard");
-        model.addAttribute("newOrders", orderRepository.countByStatus(OrderStatus.NEW));
+        model.addAttribute("rangeFrom", rangeFrom);
+        model.addAttribute("rangeTo", rangeTo);
+        model.addAttribute("newOrders", orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.NEW, start, end));
         model.addAttribute("inProduction", orderRepository.countByStatus(OrderStatus.IN_PRODUCTION));
-        model.addAttribute("readyOrders", orderRepository.countByStatus(OrderStatus.READY));
+        model.addAttribute("readyOrders", orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.READY, start, end));
         model.addAttribute("pendingTasks", productionTaskService.findByStatus(ProductionTaskStatus.PENDING).size());
+        model.addAttribute("salesTotal", orderRepository.sumSalesBetween(start, end));
         model.addAttribute("lowStock", ingredientService.findLowStock());
-        model.addAttribute("recentNotifications", notificationService.recent().stream().limit(8).toList());
+        model.addAttribute("orderGroups", notificationService.grouped(10, 10, start, end).orderGroups());
         return "dashboard";
     }
 }

@@ -19,9 +19,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Два фильтр-чейна: /api/** — stateless JWT (мобильное приложение), всё остальное (Thymeleaf-веб,
- * H2-консоль) — как и раньше, без авторизации. Веб-часть в эту фичу не входит (см. план),
- * поэтому её поведение сознательно не меняется.
+ * Два фильтр-чейна: /api/** — stateless JWT (мобильное приложение), всё остальное
+ * (Thymeleaf-веб) — сессионный логин через форму, теми же учётками/ролями, что и у
+ * мобильного приложения (см. CrmUserDetailsService — общий для обоих). H2-консоль
+ * оставлена открытой сознательно — это dev-инструмент, не часть бизнес-функциональности.
  */
 @Configuration
 @EnableWebSecurity
@@ -62,7 +63,18 @@ public class SecurityConfig {
     public SecurityFilterChain webFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher("/**")
                 .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/login", "/css/**", "/images/**", "/h2-console/**").permitAll()
+                        .anyRequest().authenticated())
+                .formLogin(form -> form
+                        .loginPage("/login")
+                        .defaultSuccessUrl("/", false)
+                        .failureUrl("/login?error")
+                        .permitAll())
+                .logout(logout -> logout
+                        .logoutUrl("/logout")
+                        .logoutSuccessUrl("/login")
+                        .permitAll())
                 .headers(headers -> headers.frameOptions(frame -> frame.disable())); // нужно для /h2-console
         return http.build();
     }
