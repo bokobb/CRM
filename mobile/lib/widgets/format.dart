@@ -14,3 +14,9 @@ String formatQty(double value) {
 String formatDate(DateTime date) => _dateFormat.format(date);
 
 String formatDateTime(DateTime date) => _dateTimeFormat.format(date);
+
+/// Шаг +/- для количества товара: весовые/объёмные единицы меняются по 0.1, штучные — по 1.
+double quantityStep(String? unit) => switch (unit?.toLowerCase()) {
+      'кг' || 'л' || 'г' => 0.1,
+      _ => 1,
+    };

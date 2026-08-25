@@ -22,6 +22,7 @@ class OrderItem {
   final int id;
   final int productId;
   final String productName;
+  final String? productImageUrl;
   final double quantity;
   final double price;
 
@@ -29,6 +30,7 @@ class OrderItem {
     required this.id,
     required this.productId,
     required this.productName,
+    this.productImageUrl,
     required this.quantity,
     required this.price,
   });
@@ -37,8 +39,20 @@ class OrderItem {
     id: json['id'] as int,
     productId: json['productId'] as int,
     productName: json['productName'] as String,
+    productImageUrl: json['productImageUrl'] as String?,
     quantity: (json['quantity'] as num).toDouble(),
     price: (json['price'] as num).toDouble(),
+  );
+
+  /// Копия с абсолютным productImageUrl — сервер отдаёт относительный путь для загруженных
+  /// файлов, ApiClient превращает его в полный URL (см. ApiClient._withAbsoluteOrderImages).
+  OrderItem withImageUrl(String url) => OrderItem(
+    id: id,
+    productId: productId,
+    productName: productName,
+    productImageUrl: url,
+    quantity: quantity,
+    price: price,
   );
 }
 
@@ -96,6 +110,7 @@ class OrderSummary {
   final DateTime? shippedAt;
   final DateTime? debtDueDate;
   final bool debtPaid;
+  final bool fromWhatsapp;
 
   bool get hasUnpaidDebt => debtDueDate != null && !debtPaid;
 
@@ -112,6 +127,7 @@ class OrderSummary {
     this.shippedAt,
     this.debtDueDate,
     this.debtPaid = false,
+    this.fromWhatsapp = false,
   });
 
   factory OrderSummary.fromJson(Map<String, dynamic> json) => OrderSummary(
@@ -133,6 +149,7 @@ class OrderSummary {
         ? DateTime.parse(json['debtDueDate'] as String)
         : null,
     debtPaid: json['debtPaid'] as bool? ?? false,
+    fromWhatsapp: json['fromWhatsapp'] as bool? ?? false,
   );
 }
 
@@ -151,6 +168,7 @@ class Order {
   final String? shippedByName;
   final DateTime? debtDueDate;
   final bool debtPaid;
+  final bool fromWhatsapp;
   final List<OrderItem> items;
   final List<ProductionTask> productionTasks;
 
@@ -171,6 +189,7 @@ class Order {
     this.shippedByName,
     this.debtDueDate,
     this.debtPaid = false,
+    this.fromWhatsapp = false,
     required this.items,
     required this.productionTasks,
   });
@@ -196,11 +215,33 @@ class Order {
         ? DateTime.parse(json['debtDueDate'] as String)
         : null,
     debtPaid: json['debtPaid'] as bool? ?? false,
+    fromWhatsapp: json['fromWhatsapp'] as bool? ?? false,
     items: (json['items'] as List)
         .map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
         .toList(),
     productionTasks: (json['productionTasks'] as List)
         .map((e) => ProductionTask.fromJson(e as Map<String, dynamic>))
         .toList(),
+  );
+
+  /// Копия с другим списком позиций — см. ApiClient._withAbsoluteOrderImages.
+  Order withItems(List<OrderItem> items) => Order(
+    id: id,
+    clientId: clientId,
+    clientName: clientName,
+    status: status,
+    statusLabel: statusLabel,
+    createdAt: createdAt,
+    dueDate: dueDate,
+    notes: notes,
+    totalPrice: totalPrice,
+    vehicleNumber: vehicleNumber,
+    shippedAt: shippedAt,
+    shippedByName: shippedByName,
+    debtDueDate: debtDueDate,
+    debtPaid: debtPaid,
+    fromWhatsapp: fromWhatsapp,
+    items: items,
+    productionTasks: productionTasks,
   );
 }

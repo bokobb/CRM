@@ -1,6 +1,7 @@
 package com.confectionery.crm.web;
 
 import com.confectionery.crm.domain.Product;
+import com.confectionery.crm.service.FileStorageService;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.RecipeForm;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 
@@ -20,6 +22,7 @@ public class ProductController {
 
     private final ProductService productService;
     private final IngredientService ingredientService;
+    private final FileStorageService fileStorageService;
 
     @GetMapping
     public String list(Model model) {
@@ -43,12 +46,17 @@ public class ProductController {
     }
 
     @PostMapping
-    public String save(@Valid @ModelAttribute("product") Product product, BindingResult binding, Model model) {
+    public String save(@Valid @ModelAttribute("product") Product product, BindingResult binding, Model model,
+                        @RequestParam(value = "imageFile", required = false) MultipartFile imageFile) {
         if (binding.hasErrors()) {
             model.addAttribute("activePage", "products");
             return "products/form";
         }
-        productService.save(product);
+        Product saved = productService.save(product);
+        if (imageFile != null && !imageFile.isEmpty()) {
+            saved.setImageUrl(fileStorageService.storeProductImage(saved.getId(), imageFile));
+            productService.save(saved);
+        }
         return "redirect:/products";
     }
 

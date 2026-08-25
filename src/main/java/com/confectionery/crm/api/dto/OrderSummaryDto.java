@@ -17,6 +17,7 @@ public record OrderSummaryDto(
         String vehicleNumber,
         LocalDateTime shippedAt,
         LocalDate debtDueDate,
-        boolean debtPaid
+        boolean debtPaid,
+        boolean fromWhatsapp
 ) {
 }

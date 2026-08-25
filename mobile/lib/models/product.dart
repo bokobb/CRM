@@ -6,6 +6,7 @@ class Product {
   final double price;
   final String? unit;
   final double quantityInStock;
+  final String? imageUrl;
 
   Product({
     required this.id,
@@ -15,6 +16,7 @@ class Product {
     required this.price,
     this.unit,
     required this.quantityInStock,
+    this.imageUrl,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -25,6 +27,20 @@ class Product {
         price: (json['price'] as num).toDouble(),
         unit: json['unit'] as String?,
         quantityInStock: (json['quantityInStock'] as num).toDouble(),
+        imageUrl: json['imageUrl'] as String?,
+      );
+
+  /// Копия с другим imageUrl — используется, чтобы превратить относительный путь
+  /// с сервера (загруженные файлы) в абсолютный URL для Image.network (см. ApiClient).
+  Product withImageUrl(String url) => Product(
+        id: id,
+        name: name,
+        category: category,
+        description: description,
+        price: price,
+        unit: unit,
+        quantityInStock: quantityInStock,
+        imageUrl: url,
       );
 }
 

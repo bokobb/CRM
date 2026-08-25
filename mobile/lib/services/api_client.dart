@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/auth.dart';
@@ -15,8 +16,28 @@ import '../models/notification.dart';
 import '../models/order.dart';
 import '../models/product.dart';
 import '../models/user.dart';
+import '../models/whatsapp_inbox.dart';
 import '../navigation.dart';
 import 'push_service.dart';
+
+/// По расширению файла — backend принимает только jpeg/png/webp/gif (см. FileStorageService).
+/// jpg по умолчанию, т.к. это формат камеры на Android/iOS — если расширение незнакомое,
+/// разумнее всего предположить именно фото с камеры, а не молча слать application/octet-stream.
+String _guessImageContentType(String filename) {
+  final ext = filename.toLowerCase().split('.').last;
+  switch (ext) {
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'gif':
+      return 'image/gif';
+    case 'jpg':
+    case 'jpeg':
+    default:
+      return 'image/jpeg';
+  }
+}
 
 /// Ошибка бэкенда (Client 4xx) с человекочитаемым сообщением из ApiError.message.
 class ApiException implements Exception {
@@ -93,6 +114,43 @@ class ApiClient {
   Future<Uri> _uri(String path, [Map<String, String>? query]) async {
     final base = await getBaseUrl();
     return Uri.parse('$base$path').replace(queryParameters: query);
+  }
+
+  /// Схема+хост backend'а (без /api) — нужна, чтобы превратить относительный путь
+  /// загруженного фото товара (например, "/product-images/x.jpg") в абсолютный URL.
+  Future<String> _origin() async {
+    final uri = Uri.parse(await getBaseUrl());
+    return '${uri.scheme}://${uri.authority}';
+  }
+
+  Future<Product> _withAbsoluteImage(Product p) async {
+    final url = p.imageUrl;
+    if (url == null || url.isEmpty || url.startsWith('http')) return p;
+    return p.withImageUrl('${await _origin()}$url');
+  }
+
+  Future<List<Product>> _withAbsoluteImages(List<Product> list) async {
+    final origin = await _origin();
+    return list.map((p) {
+      final url = p.imageUrl;
+      if (url == null || url.isEmpty || url.startsWith('http')) return p;
+      return p.withImageUrl('$origin$url');
+    }).toList();
+  }
+
+  /// То же самое, но для фото товаров внутри позиций заказа (Order.items[].productImageUrl).
+  Future<Order> _withAbsoluteOrderImages(Order order) async {
+    if (order.items.every(
+        (i) => i.productImageUrl == null || i.productImageUrl!.isEmpty || i.productImageUrl!.startsWith('http'))) {
+      return order;
+    }
+    final origin = await _origin();
+    final items = order.items.map((i) {
+      final url = i.productImageUrl;
+      if (url == null || url.isEmpty || url.startsWith('http')) return i;
+      return i.withImageUrl('$origin$url');
+    }).toList();
+    return order.withItems(items);
   }
 
   Future<Map<String, String>> _authHeaders() async {
@@ -256,7 +314,8 @@ class ApiClient {
       await _uri('/products'),
       headers: await _authHeaders(),
     );
-    return (_decode(res) as List).map((e) => Product.fromJson(e)).toList();
+    final list = (_decode(res) as List).map((e) => Product.fromJson(e)).toList();
+    return _withAbsoluteImages(list);
   }
 
   Future<Product> getProduct(int id) async {
@@ -264,7 +323,7 @@ class ApiClient {
       await _uri('/products/$id'),
       headers: await _authHeaders(),
     );
-    return Product.fromJson(_decode(res));
+    return _withAbsoluteImage(Product.fromJson(_decode(res)));
   }
 
   Future<Product> createProduct(Map<String, dynamic> body) async {
@@ -273,7 +332,7 @@ class ApiClient {
       headers: await _authHeaders(),
       body: jsonEncode(body),
     );
-    return Product.fromJson(_decode(res));
+    return _withAbsoluteImage(Product.fromJson(_decode(res)));
   }
 
   Future<Product> updateProduct(int id, Map<String, dynamic> body) async {
@@ -282,7 +341,27 @@ class ApiClient {
       headers: await _authHeaders(),
       body: jsonEncode(body),
     );
-    return Product.fromJson(_decode(res));
+    return _withAbsoluteImage(Product.fromJson(_decode(res)));
+  }
+
+  /// Загружает фото товара с телефона/компьютера (см. FileStorageService на бэкенде)
+  /// и возвращает товар с уже абсолютным imageUrl. Без явного content-type пакет http
+  /// шлёт "application/octet-stream" — backend такое отклоняет как неизвестный формат
+  /// (проверяет именно content-type, не расширение файла), поэтому определяем его сами.
+  Future<Product> uploadProductImage(int id,
+      {required List<int> bytes, required String filename, String? contentType}) async {
+    final request = http.MultipartRequest('POST', await _uri('/products/$id/image'));
+    final token = _session?.token;
+    if (token != null) request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+      contentType: MediaType.parse(contentType ?? _guessImageContentType(filename)),
+    ));
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    return _withAbsoluteImage(Product.fromJson(_decode(res)));
   }
 
   Future<void> deleteProduct(int id) async {
@@ -458,7 +537,7 @@ class ApiClient {
       await _uri('/orders/$id'),
       headers: await _authHeaders(),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   Future<Order> createOrder(Map<String, dynamic> body) async {
@@ -467,7 +546,7 @@ class ApiClient {
       headers: await _authHeaders(),
       body: jsonEncode(body),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   Future<Order> confirmOrder(int id) async {
@@ -475,7 +554,7 @@ class ApiClient {
       await _uri('/orders/$id/confirm'),
       headers: await _authHeaders(),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   Future<Order> cancelOrder(int id) async {
@@ -483,7 +562,7 @@ class ApiClient {
       await _uri('/orders/$id/cancel'),
       headers: await _authHeaders(),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   Future<Order> shipOrder(int id, String vehicleNumber) async {
@@ -492,7 +571,7 @@ class ApiClient {
       headers: await _authHeaders(),
       body: jsonEncode({'vehicleNumber': vehicleNumber}),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   Future<Order> completeOrder(int id) async {
@@ -500,7 +579,7 @@ class ApiClient {
       await _uri('/orders/$id/complete'),
       headers: await _authHeaders(),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   Future<List<OrderSummary>> getDebts() async {
@@ -517,7 +596,7 @@ class ApiClient {
       headers: await _authHeaders(),
       body: jsonEncode({'dueDate': _isoDate(dueDate)}),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   Future<Order> markOrderDebtPaid(int id) async {
@@ -525,7 +604,7 @@ class ApiClient {
       await _uri('/orders/$id/debt/paid'),
       headers: await _authHeaders(),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   /// quantities: itemId -> новое количество (0 или меньше — убрать позицию из заказа).
@@ -539,7 +618,7 @@ class ApiClient {
             .toList(),
       }),
     );
-    return Order.fromJson(_decode(res));
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
   Future<num> getClientMonthlySales(int clientId) async {
@@ -548,6 +627,34 @@ class ApiClient {
       headers: await _authHeaders(),
     );
     return _decode(res) as num;
+  }
+
+  // ---- WhatsApp: заказы, которые ИИ не смог распознать полностью ----
+  Future<List<WhatsAppInboundMessage>> getWhatsAppInbox() async {
+    final res = await http.get(
+      await _uri('/whatsapp-inbox'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List).map((e) => WhatsAppInboundMessage.fromJson(e)).toList();
+  }
+
+  /// [resolutions]: id позиции -> id выбранного товара, только для нераспознанных позиций.
+  Future<void> resolveWhatsAppInbox(int messageId, Map<int, int> resolutions) async {
+    final body = resolutions.map((itemId, productId) => MapEntry(itemId.toString(), productId));
+    final res = await http.post(
+      await _uri('/whatsapp-inbox/$messageId/resolve'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
+    _decode(res);
+  }
+
+  Future<void> ignoreWhatsAppInbox(int messageId) async {
+    final res = await http.post(
+      await _uri('/whatsapp-inbox/$messageId/ignore'),
+      headers: await _authHeaders(),
+    );
+    _decode(res);
   }
 
   // ---- Production tasks ----

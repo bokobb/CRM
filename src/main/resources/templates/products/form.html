@@ -11,7 +11,7 @@
     <main class="content">
         <h1 th:text="${product.id} != null ? 'Редактировать товар' : 'Новый товар'">Товар</h1>
 
-        <form class="panel" th:action="@{/products}" th:object="${product}" method="post" style="max-width:520px">
+        <form class="panel" th:action="@{/products}" th:object="${product}" method="post" enctype="multipart/form-data" style="max-width:520px">
             <input type="hidden" th:field="*{id}">
             <div class="field">
                 <label>Название</label>
@@ -34,6 +34,18 @@
             <div class="field">
                 <label>Описание</label>
                 <textarea th:field="*{description}"></textarea>
+            </div>
+            <div class="field" th:if="${product.imageUrl != null and !product.imageUrl.isEmpty()}">
+                <label>Текущее фото</label>
+                <img th:src="${product.imageUrl}" alt="Фото товара" style="max-width:200px;max-height:200px;border-radius:8px">
+            </div>
+            <div class="field">
+                <label>Ссылка на фото</label>
+                <input type="url" th:field="*{imageUrl}" placeholder="https://...">
+            </div>
+            <div class="field">
+                <label>Загрузить фото с телефона/компьютера</label>
+                <input type="file" name="imageFile" accept="image/*">
             </div>
             <div class="actions">
                 <button class="btn primary" type="submit">Сохранить</button>

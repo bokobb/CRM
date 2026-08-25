@@ -15,6 +15,9 @@ public class OrderForm {
 
     private String notes;
 
+    /** Заполняется только WhatsAppOrderIntakeService — не выставляется формами ручного ввода. */
+    private boolean fromWhatsapp;
+
     private List<OrderItemForm> items = new ArrayList<>();
 
     public Long getClientId() {
@@ -47,6 +50,14 @@ public class OrderForm {
 
     public void setItems(List<OrderItemForm> items) {
         this.items = items;
+    }
+
+    public boolean isFromWhatsapp() {
+        return fromWhatsapp;
+    }
+
+    public void setFromWhatsapp(boolean fromWhatsapp) {
+        this.fromWhatsapp = fromWhatsapp;
     }
 
     public static class OrderItemForm {

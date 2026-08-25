@@ -1,0 +1,179 @@
+package com.confectionery.crm.service;
+
+import com.confectionery.crm.domain.*;
+import com.confectionery.crm.repository.WhatsAppInboundMessageRepository;
+import com.confectionery.crm.web.dto.OrderForm;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Приём заказов из WhatsApp: сообщение клиента -> распознавание позиций через
+ * OrderParser (Claude или локальная Ollama — см. crm.order-parser.engine) -> либо сразу
+ * заказ (все позиции распознаны уверенно), либо
+ * запись PENDING на экране /whatsapp-inbox, где администратор доопределяет непонятные
+ * позиции вручную. Каждое такое ручное уточнение запоминается как ProductAlias — так
+ * распознавание "учится" на разговорных названиях конкретных клиентов ("розочка" и т.п.).
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class WhatsAppOrderIntakeService {
+
+    private final ClientService clientService;
+    private final ProductService productService;
+    private final OrderService orderService;
+    private final NotificationService notificationService;
+    private final OrderParser parserService;
+    private final WhatsAppGatewayClient gatewayClient;
+    private final WhatsAppInboundMessageRepository inboundRepository;
+
+    /**
+     * Дешёвый локальный фильтр до вызова Claude API: реальный заказ у наших клиентов всегда
+     * содержит хотя бы одну цифру (количество) — "кекс 2", "маффины 150" и т.п. Обычная
+     * переписка ("привет", "спасибо", вопросы) отсекается бесплатно, без обращения к ИИ и
+     * без создания клиента в базе на пустом месте.
+     */
+    private static final java.util.regex.Pattern LOOKS_LIKE_ORDER = java.util.regex.Pattern.compile("\\d");
+
+    @Transactional
+    public void handleIncomingMessage(String fromPhone, String text, String contactName) {
+        if (!LOOKS_LIKE_ORDER.matcher(text).find()) {
+            log.debug("Сообщение от {} не похоже на заказ (нет цифр) — Claude API не вызываем: {}", fromPhone, text);
+            return;
+        }
+
+        Client client = clientService.findByPhone(fromPhone)
+                .orElseGet(() -> clientService.save(newClientFromWhatsApp(fromPhone, contactName)));
+
+        OrderParser.ParsedOrder parsed;
+        try {
+            parsed = parserService.parse(text, productService.findAll(), productService.aliasesGroupedByProduct());
+        } catch (Exception e) {
+            log.warn("Не удалось распознать заказ из WhatsApp от {}: {}", fromPhone, e.getMessage());
+            notificationService.notifyRole(Role.ADMIN,
+                    "WhatsApp: не удалось распознать заказ от " + client.getName() + " (" + fromPhone + "): " + text, null);
+            gatewayClient.sendMessage(fromPhone,
+                    "Здравствуйте! Не получилось автоматически распознать заказ — мы уже смотрим сообщение и скоро свяжемся с вами.");
+            return;
+        }
+
+        if (parsed.lines().isEmpty()) {
+            notificationService.notifyRole(Role.ADMIN,
+                    "WhatsApp: не удалось найти позиции заказа в сообщении от " + client.getName()
+                            + " (" + fromPhone + "): " + text, null);
+            gatewayClient.sendMessage(fromPhone,
+                    "Здравствуйте! Не смогли распознать товары в вашем сообщении — уточните, пожалуйста, названия позиций, и мы оформим заказ.");
+            return;
+        }
+
+        WhatsAppInboundMessage inbound = new WhatsAppInboundMessage();
+        inbound.setClient(client);
+        inbound.setFromPhone(fromPhone);
+        inbound.setRawText(text);
+        for (OrderParser.ParsedLine line : parsed.lines()) {
+            WhatsAppInboundItem item = new WhatsAppInboundItem();
+            item.setRawProductText(line.rawProductText());
+            item.setQuantity(line.quantity());
+            item.setProduct(line.product());
+            inbound.addItem(item);
+        }
+
+        if (parsed.allMatched()) {
+            Order order = createOrderFrom(inbound);
+            inbound.setStatus(WhatsAppInboundStatus.RESOLVED);
+            inbound.setResolvedOrderId(order.getId());
+            inboundRepository.save(inbound);
+            notificationService.notifyRole(Role.ADMIN,
+                    "Новый заказ №" + order.getId() + " через WhatsApp от " + client.getName()
+                            + " на сумму " + order.getTotalPrice(),
+                    order);
+            gatewayClient.sendMessage(fromPhone, confirmationText(order));
+        } else {
+            inboundRepository.save(inbound);
+            // Клиенту уже отправили ответ ниже; на этом этапе сообщаем ТОЛЬКО админу (реальный
+            // push, не лог) — склад и бухгалтер узнают о заказе только когда он реально появится,
+            // после того как админ уточнит позиции (см. resolvePending -> createOrderFrom).
+            notificationService.notifyRole(Role.ADMIN,
+                    "WhatsApp: нужно уточнить товары в заказе от " + client.getName() + " (" + fromPhone
+                            + ") — откройте раздел «WhatsApp-заказы»", null);
+            gatewayClient.sendMessage(fromPhone,
+                    "Здравствуйте! Ваше сообщение получили, уточняем пару позиций — подтвердим заказ в ближайшее время.");
+        }
+    }
+
+    /**
+     * Администратор доопределил товар для нераспознанных позиций (см. web/WhatsAppInboxController
+     * и api/WhatsAppInboxApiController — общая логика для веб- и мобильного экрана уточнения).
+     * @param productIdByItemId id позиции WhatsAppInboundItem -&gt; id выбранного товара, только
+     *                          для позиций без товара (уже сопоставленные — пропускаются).
+     */
+    @Transactional
+    public void resolvePending(Long messageId, Map<Long, Long> productIdByItemId) {
+        WhatsAppInboundMessage inbound = inboundRepository.findById(messageId)
+                .orElseThrow(() -> new IllegalArgumentException("Сообщение не найдено: " + messageId));
+        if (inbound.getStatus() != WhatsAppInboundStatus.PENDING) {
+            throw new IllegalStateException("Сообщение уже обработано");
+        }
+        for (WhatsAppInboundItem item : inbound.getItems()) {
+            if (item.getProduct() != null) continue;
+            Long productId = productIdByItemId.get(item.getId());
+            if (productId == null) {
+                throw new IllegalArgumentException("Выберите товар для позиции \"" + item.getRawProductText() + "\"");
+            }
+            Product product = productService.findById(productId);
+            item.setProduct(product);
+            productService.saveAliasIfNew(product, item.getRawProductText());
+        }
+
+        // createOrderFrom -> OrderService.createOrder уже уведомляет WAREHOUSE_FG и ACCOUNTANT
+        // (тот же путь, что у обычного ручного заказа) — админа здесь повторно не пушим, он и
+        // так знает: это он только что подтвердил уточнение.
+        Order order = createOrderFrom(inbound);
+        inbound.setStatus(WhatsAppInboundStatus.RESOLVED);
+        inbound.setResolvedOrderId(order.getId());
+        gatewayClient.sendMessage(inbound.getFromPhone(), confirmationText(order));
+    }
+
+    @Transactional
+    public void ignore(Long messageId) {
+        WhatsAppInboundMessage inbound = inboundRepository.findById(messageId)
+                .orElseThrow(() -> new IllegalArgumentException("Сообщение не найдено: " + messageId));
+        inbound.setStatus(WhatsAppInboundStatus.IGNORED);
+    }
+
+    private Order createOrderFrom(WhatsAppInboundMessage inbound) {
+        OrderForm form = new OrderForm();
+        form.setClientId(inbound.getClient().getId());
+        form.setNotes("Заказ через WhatsApp:\n" + inbound.getRawText());
+        form.setFromWhatsapp(true);
+        for (WhatsAppInboundItem item : inbound.getItems()) {
+            OrderForm.OrderItemForm itemForm = new OrderForm.OrderItemForm();
+            itemForm.setProductId(item.getProduct().getId());
+            itemForm.setQuantity(item.getQuantity());
+            form.getItems().add(itemForm);
+        }
+        return orderService.createOrder(form);
+    }
+
+    private Client newClientFromWhatsApp(String phone, String contactName) {
+        Client client = new Client();
+        client.setName(contactName != null && !contactName.isBlank() ? contactName : "Клиент " + phone);
+        client.setPhone(phone);
+        client.setNotes("Создан автоматически из WhatsApp");
+        return client;
+    }
+
+    private String confirmationText(Order order) {
+        String items = order.getItems().stream()
+                .map(i -> "- " + i.getProduct().getName() + " x" + i.getQuantity().stripTrailingZeros().toPlainString())
+                .collect(Collectors.joining("\n"));
+        return "Здравствуйте! Ваш заказ №" + order.getId() + " принят:\n" + items
+                + "\n\nИтого: " + order.getTotalPrice() + " ₸"
+                + "\n\nМы свяжемся с вами для уточнения деталей.";
+    }
+}

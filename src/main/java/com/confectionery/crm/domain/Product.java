@@ -32,6 +32,10 @@ public class Product {
     /** Единица измерения (шт, кг и т.д.) — для складского учёта и накладной. */
     private String unit;
 
+    /** Ссылка на фото товара (внешний URL) — показывается в мобильном приложении при оформлении заказа. */
+    @Column(length = 2000)
+    private String imageUrl;
+
     @NotNull
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price = BigDecimal.ZERO;

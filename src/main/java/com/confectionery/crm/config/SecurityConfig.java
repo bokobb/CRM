@@ -19,8 +19,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Два фильтр-чейна: /api/** — stateless JWT (мобильное приложение), всё остальное
- * (Thymeleaf-веб) — сессионный логин через форму, теми же учётками/ролями, что и у
+ * Три фильтр-чейна: /api/** — stateless JWT (мобильное приложение), /product-images/** —
+ * публичная статика со своим Cache-Control (см. ниже, почему отдельным чейном), всё
+ * остальное (Thymeleaf-веб) — сессионный логин через форму, теми же учётками/ролями, что и у
  * мобильного приложения (см. CrmUserDetailsService — общий для обоих). H2-консоль
  * оставлена открытой сознательно — это dev-инструмент, не часть бизнес-функциональности.
  */
@@ -49,7 +50,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/whatsapp/incoming").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(eh -> eh
                         .authenticationEntryPoint((req, res, ex) -> writeApiError(res, HttpServletResponse.SC_UNAUTHORIZED, "Требуется авторизация"))
@@ -58,8 +59,41 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Отдельным чейном (не просто permitAll в webFilterChain), потому что Spring Security по
+     * умолчанию ставит на КАЖДЫЙ ответ заголовки против кеширования ("Cache-Control:
+     * no-store" и т.п.) — это правильно для HTML/API с чувствительными данными, но ломает
+     * HTTP-кеширование фото товаров, из-за которого мобильное приложение перекачивало бы
+     * их заново при каждом запуске вместо переиспользования сохранённых на диске (см.
+     * UploadConfig.setCacheControl). .cacheControl().disable() убирает только эти заголовки,
+     * не саму защиту (доступ всё равно только на чтение статики из заранее известной папки).
+     */
     @Bean
     @Order(2)
+    public SecurityFilterChain productImagesFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/product-images/**")
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .headers(headers -> headers.cacheControl(cache -> cache.disable()));
+        return http.build();
+    }
+
+    /**
+     * Публичная витрина для клиентов (см. web.ShopController) — без логина, свой чейн по
+     * тому же образцу, что и productImagesFilterChain, чтобы не трогать anyRequest().authenticated()
+     * в основном webFilterChain и не плодить исключения в его permitAll()-списке.
+     */
+    @Bean
+    @Order(3)
+    public SecurityFilterChain shopFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/shop/**")
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Order(4)
     public SecurityFilterChain webFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher("/**")
                 .csrf(csrf -> csrf.disable())

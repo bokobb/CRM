@@ -60,7 +60,7 @@ public class NotificationService {
         try {
             SimpleMailMessage mail = new SimpleMailMessage();
             mail.setTo(recipient);
-            mail.setSubject("Кондитерская CRM");
+            mail.setSubject("Юг Сладости");
             mail.setText(message);
             mailSender.send(mail);
             return true;
@@ -88,17 +88,19 @@ public class NotificationService {
         return notificationRepository.save(notification);
     }
 
+    /** [order] может быть null — например, пуш "нужно уточнить заказ из WhatsApp" шлётся ещё до его создания. */
     private boolean sendPush(Role role, String message, Order order) {
         try {
-            Message fcmMessage = Message.builder()
+            Message.Builder builder = Message.builder()
                     .setTopic("role_" + role.name())
                     .setNotification(com.google.firebase.messaging.Notification.builder()
-                            .setTitle("Кондитерская CRM")
+                            .setTitle("Юг Сладости")
                             .setBody(message)
-                            .build())
-                    .putData("orderId", String.valueOf(order.getId()))
-                    .build();
-            FirebaseMessaging.getInstance().send(fcmMessage);
+                            .build());
+            if (order != null) {
+                builder.putData("orderId", String.valueOf(order.getId()));
+            }
+            FirebaseMessaging.getInstance().send(builder.build());
             return true;
         } catch (Exception e) {
             log.debug("Push не отправлен ({}): {}", role, e.getMessage());

@@ -144,7 +144,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     itemBuilder: (context, i) {
                       final o = orders[i];
                       return AppListTile(
-                        leadingIcon: Icons.receipt_long_outlined,
+                        leadingIcon: o.fromWhatsapp ? Icons.chat_bubble_rounded : Icons.receipt_long_outlined,
+                        leadingColor: o.fromWhatsapp ? const Color(0xFF25D366) : null,
                         title: '#${o.id} · ${o.clientName}',
                         subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}',
                         trailing: StatusBadge(status: o.status, label: o.statusLabel),

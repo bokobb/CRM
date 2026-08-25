@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Выбор товара — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="shop-page">
+    <header class="shop-topbar">
+        <a th:href="@{/shop/catalog}" class="shop-hero-close" style="position:static;">←</a>
+        <div class="brand" style="flex:1; justify-content:center;">Выбор товара</div>
+        <span style="width:40px;"></span>
+    </header>
+
+    <main style="padding-bottom: 20px;">
+        <a class="shop-list-row" th:each="row : ${rows}" th:href="@{'/shop/products/' + ${row.product().id}}">
+            <img th:if="${row.product().imageUrl != null}" th:src="${row.product().imageUrl}" alt="" class="shop-avatar">
+            <div th:unless="${row.product().imageUrl != null}" class="shop-avatar shop-avatar-placeholder"
+                 th:text="${#strings.substring(row.product().name, 0, 1)}"></div>
+            <div class="shop-row-info">
+                <div class="shop-row-name" th:text="${row.product().name}"></div>
+                <div class="shop-row-price" th:text="${row.priceLabel()}"></div>
+            </div>
+        </a>
+        <div class="empty" th:if="${#lists.isEmpty(rows)}">Товаров пока нет</div>
+    </main>
+</div>
+</body>
+</html>

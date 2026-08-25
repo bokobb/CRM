@@ -10,6 +10,7 @@ public record ProductRequest(
         String category,
         String description,
         @NotNull BigDecimal price,
-        String unit
+        String unit,
+        String imageUrl
 ) {
 }

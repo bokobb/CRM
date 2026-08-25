@@ -52,6 +52,9 @@ public class Order {
     private LocalDate debtDueDate;
     private Boolean debtPaid;
 
+    /** Заказ пришёл автоматически из WhatsApp (см. WhatsAppOrderIntakeService) — для иконки в списках. */
+    private Boolean fromWhatsapp;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 

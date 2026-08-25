@@ -33,6 +33,8 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final ClientPriceService clientPriceService;
     private final NotificationService notificationService;
+    private final InvoicePdfService invoicePdfService;
+    private final WhatsAppGatewayClient whatsAppGatewayClient;
 
     public List<Order> findAll() {
         return orderRepository.findAllByOrderByCreatedAtDesc();
@@ -71,6 +73,7 @@ public class OrderService {
         order.setDueDate(form.getDueDate());
         order.setNotes(form.getNotes());
         order.setStatus(OrderStatus.NEW);
+        order.setFromWhatsapp(form.isFromWhatsapp());
 
         for (OrderForm.OrderItemForm itemForm : form.getItems()) {
             if (itemForm.getProductId() == null || itemForm.getQuantity() == null) {
@@ -172,7 +175,27 @@ public class OrderService {
         String message = "Заказ " + order.getClient().getName() + " " + order.getVehicleNumber() + " отгружен";
         notificationService.notifyRole(Role.ACCOUNTANT, message, order);
         notificationService.notifyRole(Role.ADMIN, message, order);
+        sendInvoiceToClient(order);
         return order;
+    }
+
+    /**
+     * Накладную клиенту в WhatsApp шлём best-effort: если номер телефона не указан или
+     * шлюз недоступен — просто пропускаем, отгрузка при этом уже состоялась и откатывать
+     * её из-за проблемы с отправкой документа не нужно.
+     */
+    private void sendInvoiceToClient(Order order) {
+        String phone = order.getClient().getPhone();
+        if (phone == null || phone.isBlank()) {
+            return;
+        }
+        try {
+            byte[] pdf = invoicePdfService.generate(order);
+            String caption = "Накладная № " + order.getId() + ". Гос. номер ТС: " + order.getVehicleNumber();
+            whatsAppGatewayClient.sendDocument(phone, pdf, "nakladnaya_" + order.getId() + ".pdf", caption);
+        } catch (Exception e) {
+            log.warn("Не удалось отправить накладную по заказу №{} клиенту в WhatsApp: {}", order.getId(), e.getMessage());
+        }
     }
 
     /**

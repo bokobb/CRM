@@ -6,7 +6,9 @@ import '../services/api_client.dart';
 import '../services/invoice_pdf.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/product_avatar.dart';
 import '../widgets/status_badge.dart';
+import '../widgets/success_feedback.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -36,18 +38,28 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     await _future;
   }
 
-  Future<void> _runAction(Future<Order> Function() action) async {
+  /// [celebrate] — звук + анимация + переход в список заказов на ключевых шагах жизненного
+  /// цикла (подтверждение сборки, отгрузка, завершение, долг); на "Отменить"/"Редактировать
+  /// состав" не уместна, поэтому по умолчанию выключена — там просто обновляем экран.
+  Future<void> _runAction(Future<Order> Function() action, {bool celebrate = false}) async {
     setState(() {
       _actionInProgress = true;
       _error = null;
     });
     try {
       await action();
+      if (celebrate) {
+        if (!mounted) return;
+        await playSuccessFeedback(context);
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil('/orders', (route) => false);
+        return;
+      }
       await _refresh();
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = e.toString());
     } finally {
-      setState(() => _actionInProgress = false);
+      if (mounted) setState(() => _actionInProgress = false);
     }
   }
 
@@ -76,7 +88,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ),
     );
     if (plate != null && plate.isNotEmpty) {
-      _runAction(() => _api.shipOrder(o.id, plate));
+      _runAction(() => _api.shipOrder(o.id, plate), celebrate: true);
     }
   }
 
@@ -243,7 +255,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       helpText: 'Срок оплаты долга',
     );
     if (dueDate != null) {
-      _runAction(() => _api.setOrderDebt(o.id, dueDate));
+      _runAction(() => _api.setOrderDebt(o.id, dueDate), celebrate: true);
     }
   }
 
@@ -256,7 +268,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final canComplete = role == 'ACCOUNTANT' || role == 'ADMIN';
     return Scaffold(
       appBar: AppBar(
-        title: Text('Заказ #${widget.orderId}'),
+        title: FutureBuilder<Order>(
+          future: _future,
+          builder: (context, snapshot) {
+            final fromWhatsapp = snapshot.data?.fromWhatsapp ?? false;
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Заказ #${widget.orderId}'),
+                if (fromWhatsapp) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chat_bubble_rounded, size: 18, color: Color(0xFF25D366)),
+                ],
+              ],
+            );
+          },
+        ),
         actions: [
           FutureBuilder<Order>(
             future: _future,
@@ -344,27 +371,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     children: [
                       for (final item in o.items)
                         ListTile(
-                          leading: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFB8324A)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              formatQty(item.quantity),
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF8F2438),
-                              ),
-                            ),
+                          leading: ProductAvatar(
+                            name: item.productName,
+                            imageUrl: item.productImageUrl,
                           ),
                           title: Text(item.productName),
-                          subtitle: Text('× ${formatMoney(item.price)}'),
+                          subtitle: RichText(
+                            text: TextSpan(
+                              style: DefaultTextStyle.of(context).style.copyWith(color: Colors.grey),
+                              children: [
+                                TextSpan(
+                                  text: formatQty(item.quantity),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF8F2438),
+                                  ),
+                                ),
+                                TextSpan(text: ' × ${formatMoney(item.price)}'),
+                              ],
+                            ),
+                          ),
                           trailing: Text(
                             formatMoney(item.price * item.quantity),
                           ),
@@ -428,7 +454,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       child: FilledButton.icon(
                         onPressed: _actionInProgress
                             ? null
-                            : () => _runAction(() => _api.confirmOrder(o.id)),
+                            : () => _runAction(() => _api.confirmOrder(o.id), celebrate: true),
                         icon: const Icon(Icons.check_circle_outline),
                         label: const Text('Заказ собран'),
                       ),
@@ -465,7 +491,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       child: FilledButton.icon(
                         onPressed: _actionInProgress
                             ? null
-                            : () => _runAction(() => _api.completeOrder(o.id)),
+                            : () => _runAction(() => _api.completeOrder(o.id), celebrate: true),
                         icon: const Icon(Icons.task_alt),
                         label: Text(o.hasUnpaidDebt ? 'Оплачено, завершить' : 'Завершить заказ'),
                       ),

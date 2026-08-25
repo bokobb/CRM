@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Заказ оформлен — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="login-page">
+<div class="login-card">
+    <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
+    <div class="alert success">
+        Спасибо! Заказ № <span th:text="${order.id}"></span> принят на сумму
+        <span th:text="${totalLabel}"></span> ₸. Мы свяжемся с вами для подтверждения.
+    </div>
+    <a class="btn primary" th:href="@{/shop/catalog}">Сделать ещё один заказ</a>
+</div>
+</body>
+</html>

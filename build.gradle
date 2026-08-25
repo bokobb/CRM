@@ -27,6 +27,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'com.google.firebase:firebase-admin:9.4.1'
+	// PDF-накладная при отгрузке заказа (см. InvoicePdfService) — Apache License 2.0.
+	implementation 'org.apache.pdfbox:pdfbox:3.0.3'
+	// Обходной путь для известного бага google-http-client (NetHttpTransport) "Not in GZIP
+	// format" на некоторых JDK/окружениях — см. FirebaseConfig, переключаемся на Apache-транспорт.
+	implementation 'com.google.http-client:google-http-client-apache-v2:1.45.0'
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'

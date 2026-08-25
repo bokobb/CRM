@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Ваш заказ — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="shop-page">
+    <header class="shop-topbar">
+        <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
+        <div class="shop-topbar-right">
+            <span th:text="${clientName}"></span>
+            <form th:action="@{/shop/reset}" method="post">
+                <button class="btn small" type="submit">Сменить номер</button>
+            </form>
+        </div>
+    </header>
+
+    <main class="shop-content">
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <div class="shop-title" id="shopTitle" th:text="${headerLabel}"></div>
+
+        <div id="shopRows">
+            <div class="shop-row" th:each="row : ${rows}" th:attr="data-row-id=${row.product().id}">
+                <img th:if="${row.product().imageUrl != null}" th:src="${row.product().imageUrl}" alt="" class="shop-avatar">
+                <div th:unless="${row.product().imageUrl != null}" class="shop-avatar shop-avatar-placeholder"
+                     th:text="${#strings.substring(row.product().name, 0, 1)}"></div>
+                <div class="shop-row-body">
+                    <div class="shop-row-top">
+                        <div class="shop-row-name" th:text="${row.product().name}"></div>
+                        <form class="shop-step-form" th:action="@{/shop/cart/item/{id}/remove(id=${row.product().id})}" method="post">
+                            <button class="shop-row-remove" type="submit">×</button>
+                        </form>
+                    </div>
+                    <div class="shop-row-bottom">
+                        <div class="shop-row-price" th:text="${row.priceLabel()}"></div>
+                        <div class="shop-stepper">
+                            <form class="shop-step-form" th:action="@{/shop/cart/item/{id}/dec(id=${row.product().id})}" method="post">
+                                <button type="submit">−</button>
+                            </form>
+                            <span class="qty" th:text="${row.qtyLabel()}"></span>
+                            <form class="shop-step-form" th:action="@{/shop/cart/item/{id}/inc(id=${row.product().id})}" method="post">
+                                <button type="submit">+</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="empty" id="shopEmpty" th:if="${#lists.isEmpty(rows)}">Пока пусто — добавьте товары</div>
+
+        <a class="shop-add-btn" th:href="@{/shop/products}">+ Добавить позицию</a>
+    </main>
+
+    <div class="shop-bottom-bar" id="shopBottomBar">
+        <form th:if="${canOrder}" th:action="@{/shop/cart/submit}" method="post">
+            <button class="btn primary" type="submit" th:text="${bottomButtonLabel}"></button>
+        </form>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    (function () {
+        var submitUrl = /*[[@{/shop/cart/submit}]]*/ '/shop/cart/submit';
+
+        function bindStepForms(root) {
+            root.querySelectorAll('.shop-step-form').forEach(function (form) {
+                form.addEventListener('submit', onStepSubmit);
+            });
+        }
+
+        function onStepSubmit(e) {
+            e.preventDefault();
+            var form = e.currentTarget;
+            fetch(form.action, {method: 'POST', headers: {'X-Requested-With': 'fetch'}})
+                .then(function (res) {
+                    if (!res.ok) throw new Error('bad status');
+                    return res.json();
+                })
+                .then(applyUpdate)
+                .catch(function () {
+                    window.location.reload();
+                });
+        }
+
+        function applyUpdate(data) {
+            document.getElementById('shopTitle').textContent = data.headerLabel;
+
+            var row = document.querySelector('[data-row-id="' + data.productId + '"]');
+            if (data.removed) {
+                if (row) row.remove();
+                if (data.empty) {
+                    var rows = document.getElementById('shopRows');
+                    if (!document.getElementById('shopEmpty')) {
+                        var div = document.createElement('div');
+                        div.className = 'empty';
+                        div.id = 'shopEmpty';
+                        div.textContent = 'Пока пусто — добавьте товары';
+                        rows.after(div);
+                    }
+                }
+            } else if (row) {
+                row.querySelector('.qty').textContent = data.qtyLabel;
+            }
+
+            var bar = document.getElementById('shopBottomBar');
+            if (data.canOrder) {
+                bar.innerHTML = '<form method="post" action="' + submitUrl + '">' +
+                    '<button class="btn primary" type="submit"></button></form>';
+                bar.querySelector('button').textContent = data.bottomButtonLabel;
+            } else {
+                bar.innerHTML = '';
+            }
+        }
+
+        bindStepForms(document);
+    })();
+</script>
+</body>
+</html>

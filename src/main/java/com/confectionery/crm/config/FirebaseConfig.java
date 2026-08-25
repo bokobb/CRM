@@ -1,5 +1,6 @@
 package com.confectionery.crm.config;
 
+import com.google.api.client.http.apache.v2.ApacheHttpTransport;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
@@ -42,6 +43,7 @@ public class FirebaseConfig {
         try (InputStream in = resource.getInputStream()) {
             FirebaseOptions options = FirebaseOptions.builder()
                     .setCredentials(GoogleCredentials.fromStream(in))
+                    .setHttpTransport(new ApacheHttpTransport())
                     .build();
             if (FirebaseApp.getApps().isEmpty()) {
                 FirebaseApp.initializeApp(options);

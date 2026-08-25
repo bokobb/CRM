@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/product_avatar.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -87,7 +88,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               itemBuilder: (context, i) {
                 final p = products[i];
                 return AppListTile(
-                  leadingIcon: Icons.cake_outlined,
+                  leading: ProductAvatar(name: p.name, imageUrl: p.imageUrl),
                   title: p.name,
                   subtitle: [
                     if (p.category != null) p.category!,

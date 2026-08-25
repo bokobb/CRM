@@ -4,6 +4,7 @@ import '../models/ingredient.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/error_view.dart';
+import '../widgets/product_avatar.dart';
 
 class _RecipeRow {
   int? ingredientId;
@@ -104,7 +105,15 @@ class _RecipeScreenState extends State<RecipeScreen> {
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Text(product.name, style: Theme.of(context).textTheme.titleLarge),
+                  Row(
+                    children: [
+                      ProductAvatar(name: product.name, imageUrl: product.imageUrl, radius: 26),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(product.name, style: Theme.of(context).textTheme.titleLarge),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 4),
                   const Text(
                     'Сколько сырья уходит на партию. При завершении цеховой задачи сырьё '

@@ -13,6 +13,7 @@ const _warehouse = ('/warehouse', 'Склад', Icons.inventory_2_outlined);
 const _ingredients = ('/ingredients', 'Сырьё', Icons.grain_outlined);
 const _production = ('/production', 'Производство', Icons.factory_outlined);
 const _debts = ('/debts', 'Долги', Icons.hourglass_bottom_outlined);
+const _whatsappInbox = ('/whatsapp-inbox', 'WhatsApp-заказы', Icons.chat_bubble_outline);
 const _notifications = (
   '/notifications',
   'Уведомления',
@@ -39,10 +40,11 @@ class AppDrawer extends StatelessWidget {
           _ingredients,
           _production,
           _debts,
+          _whatsappInbox,
           _notifications,
         ];
       case 'SALES':
-        return [_dashboard, _orders, _clients, _products, _notifications];
+        return [_dashboard, _orders, _clients, _products, _whatsappInbox, _notifications];
       case 'WAREHOUSE_FG':
         return [_orders, _warehouse, _ingredients, _notifications];
       default:

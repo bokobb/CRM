@@ -11,6 +11,7 @@
     <a th:href="@{/orders}" class="nav-link" th:classappend="${activePage == 'orders'} ? 'active'">Заказы</a>
     <a th:href="@{/production}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'production'} ? 'active'">Производство</a>
     <a th:href="@{/debts}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'debts'} ? 'active'">Долги</a>
+    <a th:href="@{/whatsapp-inbox}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'whatsapp-inbox'} ? 'active'">WhatsApp-заказы</a>
     <a th:href="@{/notifications}" class="nav-link" th:classappend="${activePage == 'notifications'} ? 'active'">Уведомления</a>
     <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">
         <div sec:authentication="name" style="margin-bottom:8px"></div>

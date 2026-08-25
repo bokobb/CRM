@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Уточнить заказ из WhatsApp — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <h1>Уточнить заказ — <span th:text="${message.client.name}"></span></h1>
+        <p class="subtitle" th:text="${message.fromPhone}"></p>
+
+        <div class="panel" style="max-width:640px">
+            <div class="field">
+                <label>Сообщение клиента</label>
+                <pre th:text="${message.rawText}" style="white-space:pre-wrap;font:inherit;margin:0"></pre>
+            </div>
+
+            <p th:if="${error}" style="color:var(--danger)" th:text="${error}"></p>
+
+            <form th:action="@{/whatsapp-inbox/{id}/resolve(id=${message.id})}" method="post">
+                <table>
+                    <tr><th>Написал клиент</th><th>Кол-во</th><th>Товар</th></tr>
+                    <tr th:each="item : ${message.items}">
+                        <td th:text="${item.rawProductText}"></td>
+                        <td th:text="${item.quantity}"></td>
+                        <td>
+                            <span th:if="${item.product != null}" th:text="${item.product.name}"></span>
+                            <select th:if="${item.product == null}" th:name="'item_' + ${item.id}" required>
+                                <option value="">— выберите товар —</option>
+                                <option th:each="p : ${allProducts}" th:value="${p.id}" th:text="${p.name}"></option>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+                <div class="actions" style="margin-top:16px">
+                    <button class="btn primary" type="submit">Подтвердить и создать заказ</button>
+                </div>
+            </form>
+            <form th:action="@{/whatsapp-inbox/{id}/ignore(id=${message.id})}" method="post"
+                  onsubmit="return confirm('Проигнорировать это сообщение? Заказ создан не будет.');" style="margin-top:8px">
+                <button class="btn small danger" type="submit">Игнорировать сообщение</button>
+            </form>
+        </div>
+    </main>
+</div>
+</body>
+</html>

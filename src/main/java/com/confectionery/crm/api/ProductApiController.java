@@ -2,12 +2,14 @@ package com.confectionery.crm.api;
 
 import com.confectionery.crm.api.dto.*;
 import com.confectionery.crm.domain.Product;
+import com.confectionery.crm.service.FileStorageService;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.RecipeForm;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -18,6 +20,7 @@ public class ProductApiController {
 
     private final ProductService productService;
     private final IngredientService ingredientService;
+    private final FileStorageService fileStorageService;
 
     @GetMapping
     public List<ProductDto> list() {
@@ -43,6 +46,13 @@ public class ProductApiController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         productService.delete(id);
+    }
+
+    @PostMapping("/{id}/image")
+    public ProductDto uploadImage(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        Product product = productService.findById(id);
+        product.setImageUrl(fileStorageService.storeProductImage(id, file));
+        return ProductDto.from(productService.save(product));
     }
 
     @GetMapping("/{id}/recipe")
@@ -71,6 +81,7 @@ public class ProductApiController {
         product.setDescription(req.description());
         product.setPrice(req.price());
         product.setUnit(req.unit());
+        product.setImageUrl(req.imageUrl());
         return product;
     }
 }

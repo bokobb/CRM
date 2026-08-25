@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'models/whatsapp_inbox.dart';
 import 'navigation.dart';
 import 'screens/client_detail_screen.dart';
 import 'screens/client_form_screen.dart';
@@ -28,6 +29,8 @@ import 'screens/stock_movement_screen.dart';
 import 'screens/user_form_screen.dart';
 import 'screens/users_screen.dart';
 import 'screens/warehouse_screen.dart';
+import 'screens/whatsapp_inbox_resolve_screen.dart';
+import 'screens/whatsapp_inbox_screen.dart';
 import 'services/api_client.dart';
 import 'services/push_service.dart';
 
@@ -195,6 +198,11 @@ class CrmApp extends StatelessWidget {
               builder: (_) => const DebtsScreen(),
               settings: settings,
             );
+          case '/whatsapp-inbox':
+            return MaterialPageRoute(
+              builder: (_) => const WhatsAppInboxScreen(),
+              settings: settings,
+            );
           case '/settings':
             return MaterialPageRoute(
               builder: (_) => const SettingsScreen(),
@@ -262,6 +270,12 @@ class CrmApp extends StatelessWidget {
         if (settings.name == '/orders/detail' && args is int) {
           return MaterialPageRoute(
             builder: (_) => OrderDetailScreen(orderId: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/whatsapp-inbox/detail' && args is WhatsAppInboundMessage) {
+          return MaterialPageRoute(
+            builder: (_) => WhatsAppInboxResolveScreen(message: args),
             settings: settings,
           );
         }

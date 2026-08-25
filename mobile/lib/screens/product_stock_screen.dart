@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/product_avatar.dart';
 
 /// Остатки готовой продукции на складе ГП (не сырьё — то теперь отдельным разделом "Сырьё").
 class ProductStockScreen extends StatefulWidget {
@@ -63,7 +64,7 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
               itemBuilder: (context, i) {
                 final p = products[i];
                 return AppListTile(
-                  leadingIcon: Icons.cake_outlined,
+                  leading: ProductAvatar(name: p.name, imageUrl: p.imageUrl),
                   title: p.name,
                   subtitle: p.category,
                   trailing: Text(

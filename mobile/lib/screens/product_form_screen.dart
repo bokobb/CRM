@@ -1,5 +1,10 @@
-import 'package:flutter/material.dart';
+import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../main.dart';
 import '../services/api_client.dart';
 
 class ProductFormScreen extends StatefulWidget {
@@ -19,9 +24,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _description = TextEditingController();
   final _price = TextEditingController();
   final _unit = TextEditingController();
+  final _imageUrl = TextEditingController();
   bool _loading = false;
   bool _initialLoading = false;
   String? _error;
+  String? _existingImageUrl;
+  XFile? _pickedImage;
+  Uint8List? _pickedImageBytes;
 
   bool get _isEdit => widget.productId != null;
 
@@ -36,9 +45,46 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _description.text = p.description ?? '';
         _price.text = p.price.toString();
         _unit.text = p.unit ?? '';
+        _imageUrl.text = p.imageUrl ?? '';
+        _existingImageUrl = p.imageUrl;
         setState(() => _initialLoading = false);
       });
     }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picked = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1600);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _pickedImage = picked;
+      _pickedImageBytes = bytes;
+    });
+  }
+
+  Future<void> _choosePhotoSource() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: accent),
+              title: const Text('Выбрать из галереи'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined, color: accent),
+              title: const Text('Сделать фото'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null) await _pickImage(source);
   }
 
   Future<void> _save() async {
@@ -53,12 +99,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       'description': _description.text.trim(),
       'price': double.tryParse(_price.text.replaceAll(',', '.')) ?? 0,
       'unit': _unit.text.trim(),
+      'imageUrl': _imageUrl.text.trim(),
     };
     try {
-      if (_isEdit) {
-        await _api.updateProduct(widget.productId!, body);
-      } else {
-        await _api.createProduct(body);
+      final product =
+          _isEdit ? await _api.updateProduct(widget.productId!, body) : await _api.createProduct(body);
+      if (_pickedImageBytes != null) {
+        await _api.uploadProductImage(
+          product.id,
+          bytes: _pickedImageBytes!,
+          filename: _pickedImage!.name,
+          contentType: _pickedImage!.mimeType,
+        );
       }
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -85,6 +137,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(_error!, style: const TextStyle(color: Colors.red)),
                     ),
+                  Center(child: _photoPreview()),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: OutlinedButton.icon(
+                      onPressed: _choosePhotoSource,
+                      icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                      label: Text(_pickedImageBytes == null ? 'Загрузить фото с телефона' : 'Заменить фото'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _name,
                     decoration: const InputDecoration(labelText: 'Название'),
@@ -115,6 +177,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     decoration: const InputDecoration(labelText: 'Описание'),
                     maxLines: 3,
                   ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _imageUrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Или ссылка на фото',
+                      hintText: 'https://...',
+                      helperText: 'Используется, если фото с телефона не выбрано',
+                    ),
+                    keyboardType: TextInputType.url,
+                  ),
                   const SizedBox(height: 20),
                   FilledButton(
                     onPressed: _loading ? null : _save,
@@ -125,6 +197,31 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _photoPreview() {
+    Widget child;
+    if (_pickedImageBytes != null) {
+      child = Image.memory(_pickedImageBytes!, fit: BoxFit.cover);
+    } else if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
+      child = CachedNetworkImage(
+        imageUrl: _existingImageUrl!,
+        fit: BoxFit.cover,
+        errorWidget: (context, url, error) => const Icon(Icons.image_not_supported_outlined, color: Colors.grey),
+      );
+    } else {
+      child = const Icon(Icons.image_outlined, size: 36, color: Colors.grey);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 140,
+        height: 140,
+        color: bg,
+        alignment: Alignment.center,
+        child: child,
+      ),
     );
   }
 }
