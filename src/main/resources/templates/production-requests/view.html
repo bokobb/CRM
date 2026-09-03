@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="'Заявка №' + ${request.id} + ' — Юг Сладости'"></title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <h1>Заявка №<span th:text="${request.id}"></span></h1>
+                <p class="subtitle">
+                    <span th:text="${request.product.name}"></span> ·
+                    <span th:text="${request.batches}"></span> замес.
+                    · создал <span th:text="${request.createdBy}"></span>
+                    · <span th:text="${#temporals.format(request.createdAt, 'dd.MM.yyyy HH:mm')}"></span>
+                </p>
+            </div>
+            <span class="badge" th:classappend="${request.status}" th:text="${request.status.label}" style="font-size:14px"></span>
+        </div>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <div th:if="${request.status.name() == 'COLLECTED' or request.status.name() == 'RECEIVED'}"
+             class="alert" style="background:var(--accent-soft);color:var(--accent-dark)">
+            Собрал: <span th:text="${request.collectedBy}"></span> ·
+            <span th:text="${#temporals.format(request.collectedAt, 'dd.MM.yyyy HH:mm')}"></span>
+        </div>
+        <div th:if="${request.status.name() == 'RECEIVED'}" class="alert success">
+            Оприходовано <strong th:text="${request.receivedQuantity}"></strong>
+            <span th:text="${request.product.unit ?: 'шт'}"></span> —
+            <span th:text="${request.receivedBy}"></span> ·
+            <span th:text="${#temporals.format(request.receivedAt, 'dd.MM.yyyy HH:mm')}"></span>
+        </div>
+
+        <div class="panel">
+            <h2>Состав заявки</h2>
+            <table>
+                <tr><th>Сырьё</th><th>Количество</th></tr>
+                <tr th:each="i : ${request.items}">
+                    <td th:text="${i.ingredient.name}"></td>
+                    <td th:text="${i.requiredQuantity} + ' ' + ${i.ingredient.unit}"></td>
+                </tr>
+            </table>
+        </div>
+
+        <form th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')"
+              class="panel" th:action="@{/production-requests/{id}/collect(id=${request.id})}" method="post">
+            <h2>Собрать по чек-листу</h2>
+            <p class="subtitle" style="margin:0 0 12px">Отметьте каждую позицию, чтобы не перепутать — кнопка активируется, когда все отмечены</p>
+            <table>
+                <tr><th></th><th>Сырьё</th><th>Нужно</th></tr>
+                <tr th:each="i : ${request.items}">
+                    <td><input type="checkbox" class="crm-collect-check" name="itemIds" th:value="${i.id}" onchange="crmCheckAllCollected()"></td>
+                    <td th:text="${i.ingredient.name}"></td>
+                    <td th:text="${i.requiredQuantity} + ' ' + ${i.ingredient.unit}"></td>
+                </tr>
+            </table>
+            <button class="btn primary" type="submit" id="crmCollectBtn" disabled style="margin-top:14px">Собрано</button>
+        </form>
+
+        <form th:if="${request.status.name() == 'COLLECTED'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_FG')"
+              class="panel" th:action="@{/production-requests/{id}/receive(id=${request.id})}" method="post" style="max-width:420px">
+            <h2>Оприходовать готовую продукцию</h2>
+            <div class="field">
+                <label>Сколько фактически получили</label>
+                <input type="number" step="0.001" min="0.001" name="quantity" required>
+            </div>
+            <button class="btn primary" type="submit">Оприходовать</button>
+        </form>
+    </main>
+</div>
+<script th:inline="none">
+    function crmCheckAllCollected() {
+        var boxes = document.querySelectorAll('.crm-collect-check');
+        var allChecked = boxes.length > 0 && Array.prototype.every.call(boxes, function (b) { return b.checked; });
+        document.getElementById('crmCollectBtn').disabled = !allChecked;
+    }
+</script>
+</body>
+</html>

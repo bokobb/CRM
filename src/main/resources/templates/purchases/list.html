@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Покупки — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div><h1>Покупки</h1><p class="subtitle">Закупки сырья у поставщиков</p></div>
+        </div>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <form class="panel" th:action="@{/purchases}" method="post" style="max-width:560px">
+            <h2>Новая закупка</h2>
+            <div class="field">
+                <label>Сырьё</label>
+                <select name="ingredientId" required>
+                    <option value="">— выберите сырьё —</option>
+                    <option th:each="i : ${ingredients}" th:value="${i.id}"
+                            th:text="${i.name} + ' (' + ${i.quantityInStock} + ' ' + ${i.unit} + ')'"></option>
+                </select>
+            </div>
+            <div class="row">
+                <div class="field">
+                    <label>Количество</label>
+                    <input type="number" step="0.001" min="0.001" name="quantity" required>
+                </div>
+                <div class="field">
+                    <label>Поставщик</label>
+                    <input type="text" name="supplier" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="field">
+                    <label>Сумма закупки, ₸ (необязательно)</label>
+                    <input type="number" step="0.01" min="0" name="totalPrice">
+                </div>
+                <div class="field">
+                    <label>Дата</label>
+                    <input type="date" name="purchaseDate">
+                </div>
+            </div>
+            <button class="btn primary" type="submit">Оприходовать закупку</button>
+        </form>
+
+        <div class="panel">
+            <h2>История закупок</h2>
+            <table th:if="${not #lists.isEmpty(purchases)}">
+                <tr><th>Дата</th><th>Сырьё</th><th>Количество</th><th>Поставщик</th><th>Сумма</th><th>Кто</th></tr>
+                <tr th:each="p : ${purchases}">
+                    <td th:text="${#temporals.format(p.purchaseDate, 'dd.MM.yyyy')}"></td>
+                    <td th:text="${p.ingredient.name}"></td>
+                    <td th:text="${p.quantity} + ' ' + ${p.ingredient.unit}"></td>
+                    <td th:text="${p.supplier}"></td>
+                    <td th:text="${p.totalPrice != null ? p.totalPrice + ' ₸' : '—'}"></td>
+                    <td th:text="${p.createdBy}"></td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(purchases)}">Закупок пока нет</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

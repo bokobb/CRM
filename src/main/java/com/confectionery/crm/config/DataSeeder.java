@@ -68,6 +68,7 @@ public class DataSeeder implements CommandLineRunner {
         user("admin", "admin123", Role.ADMIN, "Билалов Баходир Бобирович");
         user("sales", "sales123", Role.SALES, "Менеджер по продажам");
         user("warehouse", "warehouse123", Role.WAREHOUSE_FG, "Пайзахметов Бехруз Гайратович");
+        user("warehouse_raw", "warehouse_raw123", Role.WAREHOUSE_RAW, "Зав. склада сырья");
         user("accountant", "accountant123", Role.ACCOUNTANT, "Пайзахметов Илхам Гайратович");
     }
 

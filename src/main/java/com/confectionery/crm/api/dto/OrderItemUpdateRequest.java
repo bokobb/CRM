@@ -8,6 +8,7 @@ import java.util.List;
 public record OrderItemUpdateRequest(
         @NotNull List<ItemUpdate> items
 ) {
-    public record ItemUpdate(@NotNull Long itemId, @NotNull BigDecimal quantity) {
+    /** productId — null, если товар в позиции не меняется (меняется только количество). */
+    public record ItemUpdate(@NotNull Long itemId, @NotNull BigDecimal quantity, Long productId) {
     }
 }

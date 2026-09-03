@@ -2,12 +2,16 @@ package com.confectionery.crm.web;
 
 import com.confectionery.crm.domain.Client;
 import com.confectionery.crm.domain.Order;
+import com.confectionery.crm.domain.OrderItem;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.service.ClientPriceService;
 import com.confectionery.crm.service.ClientService;
 import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.OrderForm;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +23,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Публичная витрина для клиентов — без логина, клиент идентифицируется по номеру телефона
@@ -41,6 +49,11 @@ import java.util.Set;
  * заголовком X-Requested-With; без JS (или если заголовка нет) — обычный редирект назад на
  * /shop/catalog, как раньше. Степпер на экране товара вообще не ходит на сервер — значение
  * меняется в браузере, сервер узнаёт о нём только по нажатию "Добавить"/"Сохранить".</p>
+ *
+ * <p>Номер телефона запоминается в cookie {@link #PHONE_COOKIE} на 180 дней — иначе клиенту
+ * пришлось бы вводить его заново при каждом визите (сессия живёт только пока открыт браузер
+ * или до перезапуска backend). Кнопка "Сменить номер" (см. {@link #reset}) стирает и сессию,
+ * и эту cookie.</p>
  */
 @Controller
 @RequestMapping("/shop")
@@ -51,6 +64,15 @@ public class ShopController {
     private static final String SESSION_CLIENT_NAME = "shopClientName";
     private static final String SESSION_CART = "shopCart";
     private static final String AJAX_MARKER = "fetch";
+
+    /**
+     * Номер телефона запоминается в отдельной долгоживущей cookie (не в сессии — та живёт
+     * только пока открыт браузер/до истечения таймаута на сервере, а после перезапуска
+     * backend сессии вообще пропадают). Так клиенту не нужно вводить номер заново при
+     * каждом визите — только один раз, дальше сессия на /shop поднимается автоматически.
+     */
+    private static final String PHONE_COOKIE = "shop_phone";
+    private static final int PHONE_COOKIE_MAX_AGE = 60 * 60 * 24 * 180; // 180 дней
 
     private static final Set<String> FRACTIONAL_UNITS = Set.of("кг", "л", "г");
 
@@ -70,16 +92,25 @@ public class ShopController {
     private final OrderService orderService;
 
     @GetMapping
-    public String phoneForm(HttpSession session) {
+    public String phoneForm(HttpSession session, HttpServletRequest request) {
         if (session.getAttribute(SESSION_CLIENT_ID) != null) {
             return "redirect:/shop/catalog";
+        }
+        String rememberedPhone = readPhoneCookie(request);
+        if (rememberedPhone != null) {
+            Client client = clientService.findByPhone(rememberedPhone).orElse(null);
+            if (client != null) {
+                session.setAttribute(SESSION_CLIENT_ID, client.getId());
+                session.setAttribute(SESSION_CLIENT_NAME, client.getName());
+                return "redirect:/shop/catalog";
+            }
         }
         return "shop/phone";
     }
 
     @PostMapping("/start")
     public String start(@RequestParam String phone, @RequestParam(required = false) String name,
-                         HttpSession session, RedirectAttributes redirectAttributes) {
+                         HttpSession session, HttpServletResponse response, RedirectAttributes redirectAttributes) {
         if (phone == null || phone.replaceAll("\\D", "").isEmpty()) {
             redirectAttributes.addFlashAttribute("error", "Укажите номер телефона");
             return "redirect:/shop";
@@ -92,15 +123,46 @@ public class ShopController {
         });
         session.setAttribute(SESSION_CLIENT_ID, client.getId());
         session.setAttribute(SESSION_CLIENT_NAME, client.getName());
+        writePhoneCookie(response, client.getPhone());
         return "redirect:/shop/catalog";
     }
 
     @PostMapping("/reset")
-    public String reset(HttpSession session) {
+    public String reset(HttpSession session, HttpServletResponse response) {
         session.removeAttribute(SESSION_CLIENT_ID);
         session.removeAttribute(SESSION_CLIENT_NAME);
         session.removeAttribute(SESSION_CART);
+        clearPhoneCookie(response);
         return "redirect:/shop";
+    }
+
+    private String readPhoneCookie(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+        for (Cookie cookie : cookies) {
+            if (PHONE_COOKIE.equals(cookie.getName()) && !cookie.getValue().isBlank()) {
+                return URLDecoder.decode(cookie.getValue(), StandardCharsets.UTF_8);
+            }
+        }
+        return null;
+    }
+
+    private void writePhoneCookie(HttpServletResponse response, String phone) {
+        Cookie cookie = new Cookie(PHONE_COOKIE, URLEncoder.encode(phone, StandardCharsets.UTF_8));
+        cookie.setPath("/shop");
+        cookie.setMaxAge(PHONE_COOKIE_MAX_AGE);
+        cookie.setHttpOnly(true);
+        response.addCookie(cookie);
+    }
+
+    private void clearPhoneCookie(HttpServletResponse response) {
+        Cookie cookie = new Cookie(PHONE_COOKIE, "");
+        cookie.setPath("/shop");
+        cookie.setMaxAge(0);
+        cookie.setHttpOnly(true);
+        response.addCookie(cookie);
     }
 
     /** Экран заказа — аналог order_form_screen.dart: позиции корзины + степпер + итог. */
@@ -149,6 +211,24 @@ public class ShopController {
         return respond(client, session, productId, ajax);
     }
 
+    /**
+     * Прямой ввод количества (тап по цифре в степпере — см. shop/catalog.html) вместо
+     * многократного нажатия +/-: незаменимо для оптовых заказов на сотни/тысячи штук.
+     */
+    @PostMapping("/cart/item/{productId}/set")
+    public ResponseEntity<Object> setQuantity(@PathVariable Long productId, @RequestParam BigDecimal qty,
+                                               HttpSession session,
+                                               @RequestHeader(value = "X-Requested-With", required = false) String ajax) {
+        Client client = currentClient(session);
+        if (client == null) {
+            return redirectToShop();
+        }
+        Product product = productService.findById(productId);
+        BigDecimal step = step(product);
+        cart(session).put(productId, qty.compareTo(step) < 0 ? step : qty);
+        return respond(client, session, productId, ajax);
+    }
+
     @PostMapping("/cart/item/{productId}/remove")
     public ResponseEntity<Object> remove(@PathVariable Long productId, HttpSession session,
                                           @RequestHeader(value = "X-Requested-With", required = false) String ajax) {
@@ -167,7 +247,7 @@ public class ShopController {
         if (client == null) {
             return "redirect:/shop";
         }
-        List<ProductRow> rows = productService.findAll().stream()
+        List<ProductRow> rows = productService.findAllActive().stream()
                 .map(p -> new ProductRow(p, priceUnitLabel(clientPriceService.resolvePrice(client, p), p.getUnit())))
                 .toList();
         model.addAttribute("rows", rows);
@@ -239,6 +319,57 @@ public class ShopController {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
             return "redirect:/shop/catalog";
         }
+    }
+
+    /** История заказов клиента — все каналы (сама витрина, WhatsApp, ручной ввод), не только /shop. */
+    @GetMapping("/orders")
+    public String orders(HttpSession session, Model model) {
+        Client client = currentClient(session);
+        if (client == null) {
+            return "redirect:/shop";
+        }
+        List<OrderHistoryRow> rows = orderService.findByClient(client.getId()).stream()
+                .map(o -> new OrderHistoryRow(o, itemsSummary(o), MONEY_FORMAT.format(o.getTotalPrice()) + " ₸"))
+                .toList();
+        model.addAttribute("clientName", client.getName());
+        model.addAttribute("rows", rows);
+        return "shop/orders";
+    }
+
+    /**
+     * Повторить прошлый заказ — заменяет текущую корзину его составом и отправляет на
+     * /shop/catalog, где можно поправить количество/состав перед оформлением (переиспользует
+     * весь существующий UI редактирования корзины, отдельного экрана не нужно).
+     */
+    @PostMapping("/orders/{id}/repeat")
+    public String repeat(@PathVariable Long id, HttpSession session, RedirectAttributes redirectAttributes) {
+        Client client = currentClient(session);
+        if (client == null) {
+            return "redirect:/shop";
+        }
+        Order order;
+        try {
+            order = orderService.findById(id);
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("error", "Заказ не найден");
+            return "redirect:/shop/orders";
+        }
+        if (!order.getClient().getId().equals(client.getId())) {
+            redirectAttributes.addFlashAttribute("error", "Заказ не найден");
+            return "redirect:/shop/orders";
+        }
+        Map<Long, BigDecimal> cart = cart(session);
+        cart.clear();
+        for (OrderItem item : order.getItems()) {
+            cart.put(item.getProduct().getId(), item.getQuantity());
+        }
+        return "redirect:/shop/catalog";
+    }
+
+    private String itemsSummary(Order order) {
+        return order.getItems().stream()
+                .map(i -> i.getProduct().getName() + " × " + QTY_FORMAT.format(i.getQuantity()))
+                .collect(Collectors.joining(", "));
     }
 
     @GetMapping("/confirmation/{orderId}")
@@ -350,6 +481,9 @@ public class ShopController {
     }
 
     public record ProductRow(Product product, String priceLabel) {
+    }
+
+    public record OrderHistoryRow(Order order, String itemsSummary, String totalLabel) {
     }
 
     private record CartSummary(List<CartRow> rows, String headerLabel, boolean canOrder, String bottomButtonLabel) {

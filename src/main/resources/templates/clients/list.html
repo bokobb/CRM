@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <title>Клиенты — Юг Сладости</title>
@@ -26,7 +26,8 @@
                     <td th:text="${c.address}"></td>
                     <td class="actions">
                         <a class="btn small" th:href="@{/clients/{id}/edit(id=${c.id})}">Изменить</a>
-                        <form th:action="@{/clients/{id}/delete(id=${c.id})}" method="post" onsubmit="return confirm('Удалить клиента?');">
+                        <form sec:authorize="hasRole('ADMIN')" th:action="@{/clients/{id}/delete(id=${c.id})}" method="post"
+                              onsubmit="return confirm('Удалить клиента вместе со всеми его заказами и историей? Это необратимо.');">
                             <button class="btn small danger" type="submit">Удалить</button>
                         </form>
                     </td>

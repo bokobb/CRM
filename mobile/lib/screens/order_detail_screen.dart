@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
+import '../main.dart';
 import '../models/order.dart';
+import '../models/product.dart';
 import '../services/api_client.dart';
 import '../services/invoice_pdf.dart';
+import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/product_avatar.dart';
@@ -123,10 +126,91 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  /// Открывает выбор товара вместо позиции [item] — нужен, когда ИИ при разборе заказа из
+  /// WhatsApp распознал не тот товар (например, "Коржик" вместо "Коржик Сдоба"). Список
+  /// товаров подгружается один раз при открытии диалога редактирования состава.
+  Future<void> _pickProduct(
+    Map<int, Product> productOverrides,
+    Map<int, String> productNames,
+    StateSetter setSheetState,
+    OrderItem item,
+    List<Product> products,
+  ) async {
+    final picked = await showModalBottomSheet<Product>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        var query = '';
+        return StatefulBuilder(
+          builder: (context, setPickerState) {
+            final filtered = query.isEmpty
+                ? products
+                : products.where((p) => p.name.toLowerCase().contains(query.toLowerCase())).toList();
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.75,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: TextField(
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          labelText: 'Товар вместо "${productNames[item.id]}"',
+                          prefixIcon: const Icon(Icons.search),
+                        ),
+                        onChanged: (v) => setPickerState(() => query = v),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) {
+                          final p = filtered[i];
+                          return AppListTile(
+                            leading: ProductAvatar(name: p.name, imageUrl: p.imageUrl),
+                            title: p.name,
+                            subtitle: formatMoney(p.price),
+                            onTap: () => Navigator.pop(context, p),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (picked != null) {
+      setSheetState(() {
+        productOverrides[item.id] = picked;
+        productNames[item.id] = picked.name;
+      });
+    }
+  }
+
   Future<void> _editItemsDialog(Order o) async {
+    List<Product> products;
+    try {
+      products = await _api.getProducts();
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+      return;
+    }
+    if (!mounted) return;
     final controllers = {
       for (final item in o.items)
         item.id: TextEditingController(text: formatQty(item.quantity)),
+    };
+    final productOverrides = <int, Product>{};
+    final productNames = {
+      for (final item in o.items) item.id: item.productName,
     };
     String? sheetError;
     final saved = await showModalBottomSheet<bool>(
@@ -162,12 +246,33 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, i) {
                       final item = o.items[i];
+                      final isOverridden = productOverrides.containsKey(item.id);
                       return Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              item.productName,
-                              overflow: TextOverflow.ellipsis,
+                            child: InkWell(
+                              onTap: () => _pickProduct(
+                                productOverrides,
+                                productNames,
+                                setSheetState,
+                                item,
+                                products,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      productNames[item.id]!,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: isOverridden
+                                          ? const TextStyle(color: accent, fontWeight: FontWeight.w600)
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.edit, size: 15, color: Colors.grey),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -224,8 +329,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               );
                               return;
                             }
+                            final productIdByItemId = {
+                              for (final e in productOverrides.entries) e.key: e.value.id,
+                            };
                             try {
-                              await _api.updateOrderItems(o.id, quantities);
+                              await _api.updateOrderItems(
+                                o.id,
+                                quantities,
+                                productIdByItemId: productIdByItemId.isEmpty ? null : productIdByItemId,
+                              );
                               if (context.mounted) Navigator.pop(context, true);
                             } catch (e) {
                               setSheetState(() => sheetError = e.toString());

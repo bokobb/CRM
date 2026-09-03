@@ -11,6 +11,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     List<Notification> findTop50ByOrderByCreatedAtDesc();
 
+    List<Notification> findByOrderId(Long orderId);
+
     List<Notification> findByCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime start, LocalDateTime end);
 
     Optional<Notification> findFirstByRecipientAndMessageStartingWithAndCreatedAtAfterOrderByCreatedAtDesc(

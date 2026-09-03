@@ -25,6 +25,11 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден: " + id));
     }
 
+    /** Роль пользователя по логину — для фильтрации уведомлений по роли текущего сотрудника. */
+    public Role roleOf(String username) {
+        return userRepository.findByUsername(username).map(User::getRole).orElse(null);
+    }
+
     public User create(String username, String rawPassword, String fullName, Role role) {
         if (userRepository.findByUsername(username).isPresent()) {
             throw new IllegalArgumentException("Логин уже занят: " + username);

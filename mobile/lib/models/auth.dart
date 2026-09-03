@@ -2,6 +2,7 @@ const Map<String, String> roleLabels = {
   'ADMIN': 'Администратор',
   'SALES': 'Менеджер по продажам',
   'WAREHOUSE_FG': 'Кладовщик (склад ГП)',
+  'WAREHOUSE_RAW': 'Кладовщик (склад сырья)',
   'ACCOUNTANT': 'Бухгалтер',
 };
 

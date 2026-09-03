@@ -46,6 +46,36 @@ class _ProductQuantityScreenState extends State<ProductQuantityScreen> {
     _qty.value = next < _step ? _step : next;
   }
 
+  /// Ввод количества напрямую цифрами — без этого при больших опт-заказах (сотни/тысячи
+  /// штук) пришлось бы тапать +/- буквально сотни раз. Тот же паттерн диалога уже
+  /// используется в order_form_screen.dart (_editQty).
+  Future<void> _editQty() async {
+    final controller = TextEditingController(text: formatQty(_qty.value));
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Количество'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(isDense: true),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Готово'),
+          ),
+        ],
+      ),
+    );
+    if (value == null) return;
+    final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
+    if (parsed == null) return;
+    _qty.value = parsed < _step ? _step : parsed;
+  }
+
   @override
   Widget build(BuildContext context) {
     final product = widget.product;
@@ -98,7 +128,7 @@ class _ProductQuantityScreenState extends State<ProductQuantityScreen> {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: -26,
+                  bottom: -32,
                   child: Center(
                     child: ValueListenableBuilder<double>(
                       valueListenable: _qty,
@@ -106,6 +136,7 @@ class _ProductQuantityScreenState extends State<ProductQuantityScreen> {
                         quantity: qty,
                         onDecrement: () => _change(-_step),
                         onIncrement: () => _change(_step),
+                        onTapQuantity: _editQty,
                       ),
                     ),
                   ),
@@ -113,7 +144,7 @@ class _ProductQuantityScreenState extends State<ProductQuantityScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 42),
+          const SizedBox(height: 48),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -147,13 +178,27 @@ class _ProductQuantityScreenState extends State<ProductQuantityScreen> {
                   '${formatMoney(widget.unitPrice)}${product.unit != null && product.unit!.isNotEmpty ? ' / ${product.unit}' : ''}',
                   style: const TextStyle(color: Colors.grey, fontSize: 14),
                 ),
-                if (product.description != null && product.description!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
+                const SizedBox(height: 14),
+                if (product.description != null && product.description!.isNotEmpty)
                   Text(
                     product.description!,
                     style: const TextStyle(color: Color(0xFF6B5E52), height: 1.4),
+                  )
+                else
+                  // У товара ещё не заполнено описание (см. "Редактировать товар") — вместо
+                  // пустого места показываем остаток на складе, это тоже полезно при выборе
+                  // количества для заказа.
+                  Row(
+                    children: [
+                      const Icon(Icons.inventory_2_outlined, size: 16, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Text(
+                        'В наличии: ${formatQty(product.quantityInStock)}'
+                        '${product.unit != null && product.unit!.isNotEmpty ? ' ${product.unit}' : ''}',
+                        style: const TextStyle(color: Colors.grey, fontSize: 13.5),
+                      ),
+                    ],
                   ),
-                ],
               ],
             ),
           ),
@@ -249,8 +294,14 @@ class _QuantityStepper extends StatelessWidget {
   final double quantity;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
+  final VoidCallback onTapQuantity;
 
-  const _QuantityStepper({required this.quantity, required this.onDecrement, required this.onIncrement});
+  const _QuantityStepper({
+    required this.quantity,
+    required this.onDecrement,
+    required this.onIncrement,
+    required this.onTapQuantity,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -265,12 +316,21 @@ class _QuantityStepper extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _button(Icons.remove, onDecrement),
-          SizedBox(
-            width: 32,
-            child: Text(
-              formatQty(quantity),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          InkWell(
+            onTap: onTapQuantity,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 44),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  formatQty(quantity),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                ),
+              ),
             ),
           ),
           _button(Icons.add, onIncrement),
@@ -286,11 +346,11 @@ class _QuantityStepper extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: Container(
-          width: 44,
-          height: 44,
+          width: 56,
+          height: 56,
           alignment: Alignment.center,
           decoration: const BoxDecoration(color: bg, shape: BoxShape.circle),
-          child: Icon(icon, size: 18, color: ink),
+          child: Icon(icon, size: 24, color: ink),
         ),
       ),
     );

@@ -18,7 +18,9 @@ public class WarehouseStockController {
     @GetMapping
     public String list(Model model) {
         model.addAttribute("activePage", "warehouse-stock");
-        model.addAttribute("products", productService.findAll());
+        var products = productService.findAll();
+        model.addAttribute("products", products);
+        model.addAttribute("productsByCategory", productService.groupByCategory(products));
         return "warehouse/stock";
     }
 }

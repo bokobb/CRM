@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${isReceipt ? 'Поступления' : 'Списание'} + ' — Юг Сладости'"></title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <h1 th:text="${isReceipt ? 'Поступления' : 'Списание'}"></h1>
+                <p class="subtitle" th:text="${isReceipt
+                        ? 'Приход сырья и готовой продукции на склад'
+                        : 'Списание порчи, недостачи и т.п. со склада'}"></p>
+            </div>
+        </div>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <form class="panel" th:action="@{${isReceipt ? '/warehouse/receipts' : '/warehouse/writeoffs'}}"
+              method="post" style="max-width:520px">
+            <h2 th:text="${isReceipt ? 'Новое поступление' : 'Новое списание'}"></h2>
+
+            <div class="field">
+                <label>Вид</label>
+                <div class="row">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);flex:none">
+                        <input type="radio" name="kind" value="INGREDIENT" checked
+                               onchange="crmToggleStockKind(this)" style="width:auto"> Сырьё
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);flex:none">
+                        <input type="radio" name="kind" value="PRODUCT"
+                               onchange="crmToggleStockKind(this)" style="width:auto"> Готовая продукция
+                    </label>
+                </div>
+            </div>
+
+            <div class="field" id="crm-kind-ingredient">
+                <label>Сырьё</label>
+                <select name="ingredientId">
+                    <option value="">— выберите сырьё —</option>
+                    <option th:each="i : ${ingredients}" th:value="${i.id}"
+                            th:text="${i.name} + ' (' + ${i.quantityInStock} + ' ' + ${i.unit} + ')'"></option>
+                </select>
+            </div>
+            <div class="field hidden-row" id="crm-kind-product">
+                <label>Товар</label>
+                <select name="productId">
+                    <option value="">— выберите товар —</option>
+                    <option th:each="p : ${products}" th:value="${p.id}"
+                            th:text="${p.name} + ' (' + ${p.quantityInStock} + ' ' + ${p.unit ?: 'шт'} + ')'"></option>
+                </select>
+            </div>
+
+            <div class="row">
+                <div class="field">
+                    <label>Количество</label>
+                    <input type="number" step="0.001" min="0.001" name="quantity" required>
+                </div>
+                <div class="field">
+                    <label th:text="${isReceipt ? 'Причина (поставщик и т.п.)' : 'Причина (порча, недостача...)'}"></label>
+                    <input type="text" name="reason">
+                </div>
+            </div>
+
+            <button class="btn primary" type="submit" th:text="${isReceipt ? 'Оприходовать' : 'Списать'}"></button>
+        </form>
+
+        <div class="panel">
+            <h2>История</h2>
+            <table th:if="${not #lists.isEmpty(movements)}">
+                <tr><th>Дата</th><th>Вид</th><th>Позиция</th><th>Количество</th><th>Причина</th><th>Кто</th></tr>
+                <tr th:each="m : ${movements}">
+                    <td th:text="${#temporals.format(m.createdAt, 'dd.MM.yyyy HH:mm')}"></td>
+                    <td th:text="${m.product != null ? 'Товар' : 'Сырьё'}"></td>
+                    <td th:text="${m.product != null ? m.product.name : m.ingredient.name}"></td>
+                    <td th:text="${isReceipt ? '+' : '−'} + ${m.quantity} + ' ' + ${m.product != null ? (m.product.unit ?: 'шт') : m.ingredient.unit}"></td>
+                    <td th:text="${m.reason}"></td>
+                    <td th:text="${m.createdBy}"></td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(movements)}">Записей пока нет</p>
+        </div>
+    </main>
+</div>
+<script th:inline="none">
+    function crmToggleStockKind(radio) {
+        document.getElementById('crm-kind-ingredient').classList.toggle('hidden-row', radio.value !== 'INGREDIENT');
+        document.getElementById('crm-kind-product').classList.toggle('hidden-row', radio.value !== 'PRODUCT');
+    }
+</script>
+</body>
+</html>

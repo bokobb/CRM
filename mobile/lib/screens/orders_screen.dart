@@ -143,9 +143,18 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     itemCount: orders.length,
                     itemBuilder: (context, i) {
                       final o = orders[i];
+                      // Незавершённые заказы сервер отдаёт всегда, даже вне выбранного диапазона
+                      // дат (см. OrderService.findByDateRange) — подсвечиваем такие отдельно,
+                      // чтобы было видно, что это "хвост" из прошлых дней, а не заказ за период.
+                      final isOutOfRange = o.createdAt.isBefore(_range.start) ||
+                          o.createdAt.isAfter(_range.end.add(const Duration(days: 1)));
                       return AppListTile(
-                        leadingIcon: o.fromWhatsapp ? Icons.chat_bubble_rounded : Icons.receipt_long_outlined,
-                        leadingColor: o.fromWhatsapp ? const Color(0xFF25D366) : null,
+                        leadingIcon: isOutOfRange
+                            ? Icons.history_outlined
+                            : (o.fromWhatsapp ? Icons.chat_bubble_rounded : Icons.receipt_long_outlined),
+                        leadingColor: isOutOfRange
+                            ? const Color(0xFFC99A2E)
+                            : (o.fromWhatsapp ? const Color(0xFF25D366) : null),
                         title: '#${o.id} · ${o.clientName}',
                         subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}',
                         trailing: StatusBadge(status: o.status, label: o.statusLabel),

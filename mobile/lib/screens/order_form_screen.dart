@@ -8,6 +8,7 @@ import '../services/api_client.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/product_avatar.dart';
 import '../widgets/success_feedback.dart';
 import 'product_quantity_screen.dart';
 
@@ -117,6 +118,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
         items: products,
         label: (p) => p.name,
         subtitle: (p) => formatMoney(_priceFor(p)),
+        leading: (p) => ProductAvatar(name: p.name, imageUrl: p.imageUrl),
       );
       if (product == null || !mounted) return;
     }
@@ -225,6 +227,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
     required List<T> items,
     required String Function(T) label,
     String Function(T)? subtitle,
+    Widget Function(T)? leading,
   }) {
     return showModalBottomSheet<T>(
       context: context,
@@ -269,7 +272,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                         itemBuilder: (context, i) {
                           final item = filtered[i];
                           return AppListTile(
-                            leading: InitialAvatar(text: label(item)),
+                            leading: leading != null ? leading(item) : InitialAvatar(text: label(item)),
                             title: label(item),
                             subtitle: subtitle != null ? subtitle(item) : null,
                             onTap: () => Navigator.pop(context, item),
@@ -381,7 +384,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
       ),
       child: Row(
         children: [
-          InitialAvatar(text: product.name),
+          ProductAvatar(name: product.name, imageUrl: product.imageUrl),
           const SizedBox(width: 12),
           Expanded(
             child: InkWell(

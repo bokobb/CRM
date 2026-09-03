@@ -1,5 +1,6 @@
 package com.confectionery.crm.service;
 
+import com.confectionery.crm.api.dto.OrderItemUpdateRequest;
 import com.confectionery.crm.domain.*;
 import com.confectionery.crm.repository.ClientRepository;
 import com.confectionery.crm.repository.OrderRepository;
@@ -14,7 +15,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Управляет жизненным циклом дистрибьюторского заказа (= накладной): цена каждой позиции
@@ -48,14 +48,20 @@ public class OrderService {
         return orderRepository.findByClientIdOrderByCreatedAtDesc(clientId);
     }
 
-    /** Заказы, созданные в диапазоне дат [from, to] включительно — для фильтра по дате в приложении. */
+    /** Статусы, при которых заказ считается завершённым и подчиняется обычному фильтру по дате. */
+    private static final List<OrderStatus> FINAL_STATUSES = List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED);
+
+    /**
+     * Заказы, созданные в диапазоне дат [from, to] включительно — для фильтра по дате в
+     * приложении. Незавершённые заказы (см. FINAL_STATUSES) возвращаются всегда, даже если их
+     * дата создания вне диапазона — см. комментарий к OrderRepository.findForDateRange.
+     */
     public List<Order> findByDateRange(LocalDate from, LocalDate to) {
-        return orderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+        return orderRepository.findForDateRange(null, from.atStartOfDay(), to.plusDays(1).atStartOfDay(), FINAL_STATUSES);
     }
 
     public List<Order> findByStatusAndDateRange(OrderStatus status, LocalDate from, LocalDate to) {
-        return orderRepository.findByStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
-                status, from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+        return orderRepository.findForDateRange(status, from.atStartOfDay(), to.plusDays(1).atStartOfDay(), FINAL_STATUSES);
     }
 
     public Order findById(Long id) {
@@ -115,27 +121,36 @@ public class OrderService {
     }
 
     /**
-     * Корректировка количества по позициям при сборке склада ГП: часть товара может
-     * оказаться не в наличии или в меньшем количестве, чем заказано. Позиция с количеством
-     * <= 0 удаляется из заказа целиком. Доступно, пока заказ ещё не отгружен/не закрыт/не отменён.
+     * Корректировка состава при сборке склада ГП: часть товара может оказаться не в наличии
+     * или в меньшем количестве, чем заказано — количество можно уменьшить, позиция с
+     * количеством <= 0 удаляется из заказа целиком. Также позволяет поменять сам товар в
+     * позиции (productId), если ИИ при разборе заказа из WhatsApp ошибся с распознаванием
+     * (например, спутал "Коржик" и "Коржик Сдоба") — цена пересчитывается по прайсу клиента
+     * для нового товара. Доступно, пока заказ ещё не отгружен/не закрыт/не отменён.
      */
     @Transactional
-    public Order updateItems(Long orderId, Map<Long, BigDecimal> quantityByItemId) {
+    public Order updateItems(Long orderId, List<OrderItemUpdateRequest.ItemUpdate> updates) {
         Order order = findById(orderId);
         if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED
                 || order.getStatus() == OrderStatus.CANCELLED) {
             throw new IllegalStateException("Состав заказа в этом статусе изменить нельзя");
         }
-        for (Map.Entry<Long, BigDecimal> entry : quantityByItemId.entrySet()) {
+        for (OrderItemUpdateRequest.ItemUpdate update : updates) {
             OrderItem item = order.getItems().stream()
-                    .filter(i -> i.getId().equals(entry.getKey()))
+                    .filter(i -> i.getId().equals(update.itemId()))
                     .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Позиция не найдена в заказе: " + entry.getKey()));
-            if (entry.getValue().signum() <= 0) {
+                    .orElseThrow(() -> new IllegalArgumentException("Позиция не найдена в заказе: " + update.itemId()));
+            if (update.quantity().signum() <= 0) {
                 order.getItems().remove(item);
-            } else {
-                item.setQuantity(entry.getValue());
+                continue;
             }
+            if (update.productId() != null && !update.productId().equals(item.getProduct().getId())) {
+                Product product = productRepository.findById(update.productId())
+                        .orElseThrow(() -> new IllegalArgumentException("Товар не найден: " + update.productId()));
+                item.setProduct(product);
+                item.setPrice(clientPriceService.resolvePrice(order.getClient(), product));
+            }
+            item.setQuantity(update.quantity());
         }
         if (order.getItems().isEmpty()) {
             throw new IllegalArgumentException("В заказе должна остаться хотя бы одна позиция");

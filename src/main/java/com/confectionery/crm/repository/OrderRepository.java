@@ -21,9 +21,23 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByStatus(OrderStatus status);
 
-    List<Order> findByCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime start, LocalDateTime end);
+    /** Есть ли хоть один заказ (любого статуса, любого клиента) с этим товаром — см. ProductService.delete. */
+    boolean existsByItems_Product_Id(Long productId);
 
-    List<Order> findByStatusAndCreatedAtBetweenOrderByCreatedAtDesc(OrderStatus status, LocalDateTime start, LocalDateTime end);
+    /**
+     * Список заказов для фильтра по дате в приложении. Незавершённые заказы (статус не из
+     * finalStatuses) показываются ВСЕГДА, независимо от диапазона дат — иначе заказ, собранный
+     * или отгруженный несколько дней назад, но ещё не закрытый, пропадает из вида при дефолтном
+     * фильтре "сегодня" (см. OrderService). Активные заказы идут первыми (в начале списка),
+     * затем по дате создания.
+     */
+    @Query("SELECT o FROM Order o WHERE (o.createdAt BETWEEN :start AND :end OR o.status NOT IN :finalStatuses) " +
+            "AND (:status IS NULL OR o.status = :status) " +
+            "ORDER BY CASE WHEN o.status NOT IN :finalStatuses THEN 0 ELSE 1 END, o.createdAt DESC")
+    List<Order> findForDateRange(@Param("status") OrderStatus status,
+                                  @Param("start") LocalDateTime start,
+                                  @Param("end") LocalDateTime end,
+                                  @Param("finalStatuses") List<OrderStatus> finalStatuses);
 
     long countByStatusAndCreatedAtBetween(OrderStatus status, LocalDateTime start, LocalDateTime end);
 

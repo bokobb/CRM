@@ -6,7 +6,9 @@ import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.NotificationService;
 import com.confectionery.crm.service.ProductionTaskService;
+import com.confectionery.crm.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,12 +25,14 @@ public class DashboardController {
     private final IngredientService ingredientService;
     private final NotificationService notificationService;
     private final ProductionTaskService productionTaskService;
+    private final UserService userService;
 
     /** from/to не заданы — по умолчанию сегодня (совпадает с поведением мобильного дашборда). */
     @GetMapping("/")
     public String dashboard(@RequestParam(required = false) LocalDate from,
                              @RequestParam(required = false) LocalDate to,
-                             Model model) {
+                             Model model,
+                             Authentication authentication) {
         LocalDate rangeFrom = from != null ? from : LocalDate.now();
         LocalDate rangeTo = to != null ? to : LocalDate.now();
         LocalDateTime start = rangeFrom.atStartOfDay();
@@ -43,7 +47,8 @@ public class DashboardController {
         model.addAttribute("pendingTasks", productionTaskService.findByStatus(ProductionTaskStatus.PENDING).size());
         model.addAttribute("salesTotal", orderRepository.sumSalesBetween(start, end));
         model.addAttribute("lowStock", ingredientService.findLowStock());
-        model.addAttribute("orderGroups", notificationService.grouped(10, 10, start, end).orderGroups());
+        model.addAttribute("orderGroups",
+                notificationService.grouped(10, 10, start, end, userService.roleOf(authentication.getName())).orderGroups());
         return "dashboard";
     }
 }

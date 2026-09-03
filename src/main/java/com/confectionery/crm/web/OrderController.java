@@ -62,7 +62,7 @@ public class OrderController {
         model.addAttribute("orderForm", form);
         model.addAttribute("visibleItemRows", 6);
         model.addAttribute("clients", clientService.findAll());
-        model.addAttribute("products", productService.findAll());
+        model.addAttribute("products", productService.findAllActive());
         return "orders/form";
     }
 

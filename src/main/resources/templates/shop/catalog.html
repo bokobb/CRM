@@ -11,7 +11,7 @@
     <header class="shop-topbar">
         <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
         <div class="shop-topbar-right">
-            <span th:text="${clientName}"></span>
+            <a class="btn small" th:href="@{/shop/orders}">История</a>
             <form th:action="@{/shop/reset}" method="post">
                 <button class="btn small" type="submit">Сменить номер</button>
             </form>
@@ -41,7 +41,7 @@
                             <form class="shop-step-form" th:action="@{/shop/cart/item/{id}/dec(id=${row.product().id})}" method="post">
                                 <button type="submit">−</button>
                             </form>
-                            <span class="qty" th:text="${row.qtyLabel()}"></span>
+                            <input type="text" inputmode="decimal" class="qty qty-input" th:value="${row.qtyLabel()}">
                             <form class="shop-step-form" th:action="@{/shop/cart/item/{id}/inc(id=${row.product().id})}" method="post">
                                 <button type="submit">+</button>
                             </form>
@@ -104,7 +104,7 @@
                     }
                 }
             } else if (row) {
-                row.querySelector('.qty').textContent = data.qtyLabel;
+                row.querySelector('.qty').value = data.qtyLabel;
             }
 
             var bar = document.getElementById('shopBottomBar');
@@ -117,7 +117,46 @@
             }
         }
 
+        // Прямой ввод количества цифрами (тап по числу в степпере строки корзины) — без
+        // этого оптовый заказ на сотни/тысячи штук означал бы сотни тапов по +.
+        function bindQtyInputs(root) {
+            root.querySelectorAll('.qty-input').forEach(function (input) {
+                input.addEventListener('focus', function () { input.select(); });
+                input.addEventListener('keydown', function (e) { if (e.key === 'Enter') input.blur(); });
+                input.addEventListener('change', onQtyChange);
+            });
+        }
+
+        function onQtyChange(e) {
+            var input = e.currentTarget;
+            var row = input.closest('[data-row-id]');
+            if (!row) return;
+            var productId = row.getAttribute('data-row-id');
+            var value = parseFloat(input.value.replace(',', '.').replace(/\s/g, ''));
+            if (!isFinite(value) || value <= 0) {
+                window.location.reload();
+                return;
+            }
+            fetch('/shop/cart/item/' + productId + '/set', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'fetch',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'qty=' + encodeURIComponent(value)
+            })
+                .then(function (res) {
+                    if (!res.ok) throw new Error('bad status');
+                    return res.json();
+                })
+                .then(applyUpdate)
+                .catch(function () {
+                    window.location.reload();
+                });
+        }
+
         bindStepForms(document);
+        bindQtyInputs(document);
     })();
 </script>
 </body>

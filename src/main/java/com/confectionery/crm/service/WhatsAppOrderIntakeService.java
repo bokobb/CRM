@@ -52,7 +52,7 @@ public class WhatsAppOrderIntakeService {
 
         OrderParser.ParsedOrder parsed;
         try {
-            parsed = parserService.parse(text, productService.findAll(), productService.aliasesGroupedByProduct());
+            parsed = parserService.parse(text, productService.findAllActive(), productService.aliasesGroupedByProduct());
         } catch (Exception e) {
             log.warn("Не удалось распознать заказ из WhatsApp от {}: {}", fromPhone, e.getMessage());
             notificationService.notifyRole(Role.ADMIN,

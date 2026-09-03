@@ -28,11 +28,12 @@ class AppUser {
       );
 }
 
-const List<String> userRoles = ['ADMIN', 'SALES', 'WAREHOUSE_FG', 'ACCOUNTANT'];
+const List<String> userRoles = ['ADMIN', 'SALES', 'WAREHOUSE_FG', 'WAREHOUSE_RAW', 'ACCOUNTANT'];
 
 const Map<String, String> userRoleLabels = {
   'ADMIN': 'Администратор',
   'SALES': 'Менеджер по продажам',
   'WAREHOUSE_FG': 'Кладовщик (склад ГП)',
+  'WAREHOUSE_RAW': 'Кладовщик (склад сырья)',
   'ACCOUNTANT': 'Бухгалтер',
 };

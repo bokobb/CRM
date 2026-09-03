@@ -22,9 +22,10 @@ public class ProductApiController {
     private final IngredientService ingredientService;
     private final FileStorageService fileStorageService;
 
+    /** Без архивных — используется мобильным приложением для поиска товара при оформлении заказа. */
     @GetMapping
     public List<ProductDto> list() {
-        return productService.findAll().stream().map(ProductDto::from).toList();
+        return productService.findAllActive().stream().map(ProductDto::from).toList();
     }
 
     @GetMapping("/{id}")

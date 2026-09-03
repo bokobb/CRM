@@ -52,4 +52,14 @@ public class Product {
 
     @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Recipe recipe;
+
+    /**
+     * Архивный товар (false) скрыт из каталога/списков для новых заказов, но остаётся в БД —
+     * так удаление товара, который уже встречался в чьих-то заказах, не портит задним числом
+     * суммы старых заказов (см. ProductService.delete). Колонка добавляется вручную через
+     * ALTER TABLE ... DEFAULT true перед первым запуском с этим полем — тот же приём, что и у
+     * quantityInStock выше, ddl-auto=update не умеет NOT NULL без DEFAULT на непустой таблице.
+     */
+    @Column(nullable = false)
+    private boolean active = true;
 }

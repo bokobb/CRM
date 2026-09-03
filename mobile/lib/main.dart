@@ -22,7 +22,11 @@ import 'screens/prices_screen.dart';
 import 'screens/product_form_screen.dart';
 import 'screens/product_stock_screen.dart';
 import 'screens/products_screen.dart';
+import 'screens/production_request_detail_screen.dart';
+import 'screens/production_request_form_screen.dart';
+import 'screens/production_requests_screen.dart';
 import 'screens/production_screen.dart';
+import 'screens/purchases_screen.dart';
 import 'screens/recipe_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stock_movement_screen.dart';
@@ -188,6 +192,21 @@ class CrmApp extends StatelessWidget {
               builder: (_) => const ProductionScreen(),
               settings: settings,
             );
+          case '/production-requests':
+            return MaterialPageRoute(
+              builder: (_) => const ProductionRequestsScreen(),
+              settings: settings,
+            );
+          case '/production-requests/new':
+            return MaterialPageRoute(
+              builder: (_) => const ProductionRequestFormScreen(),
+              settings: settings,
+            );
+          case '/purchases':
+            return MaterialPageRoute(
+              builder: (_) => const PurchasesScreen(),
+              settings: settings,
+            );
           case '/notifications':
             return MaterialPageRoute(
               builder: (_) => const NotificationsScreen(),
@@ -270,6 +289,12 @@ class CrmApp extends StatelessWidget {
         if (settings.name == '/orders/detail' && args is int) {
           return MaterialPageRoute(
             builder: (_) => OrderDetailScreen(orderId: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/production-requests/detail' && args is int) {
+          return MaterialPageRoute(
+            builder: (_) => ProductionRequestDetailScreen(requestId: args),
             settings: settings,
           );
         }

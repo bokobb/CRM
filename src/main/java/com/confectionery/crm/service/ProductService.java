@@ -5,17 +5,25 @@ import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.ProductAlias;
 import com.confectionery.crm.domain.Recipe;
 import com.confectionery.crm.domain.RecipeItem;
+import com.confectionery.crm.repository.ClientPriceRepository;
 import com.confectionery.crm.repository.IngredientRepository;
+import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductAliasRepository;
 import com.confectionery.crm.repository.ProductRepository;
+import com.confectionery.crm.repository.ProductionRequestRepository;
 import com.confectionery.crm.repository.RecipeRepository;
+import com.confectionery.crm.repository.StockMovementRepository;
+import com.confectionery.crm.repository.WhatsAppInboundMessageRepository;
 import com.confectionery.crm.web.dto.RecipeForm;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,9 +34,19 @@ public class ProductService {
     private final RecipeRepository recipeRepository;
     private final IngredientRepository ingredientRepository;
     private final ProductAliasRepository productAliasRepository;
+    private final ClientPriceRepository clientPriceRepository;
+    private final OrderRepository orderRepository;
+    private final StockMovementRepository stockMovementRepository;
+    private final ProductionRequestRepository productionRequestRepository;
+    private final WhatsAppInboundMessageRepository whatsAppInboundMessageRepository;
 
     public List<Product> findAll() {
         return productRepository.findAll();
+    }
+
+    /** Без архивных — каталог для новых заказов (веб-форма, витрина /shop, мобильное API, разбор WhatsApp). */
+    public List<Product> findAllActive() {
+        return productRepository.findByActiveTrue();
     }
 
     public Product findById(Long id) {
@@ -40,8 +58,60 @@ public class ProductService {
         return productRepository.save(product);
     }
 
-    public void delete(Long id) {
-        productRepository.deleteById(id);
+    public enum DeleteOutcome { DELETED, ARCHIVED }
+
+    /**
+     * Товар, который уже где-то "засветился" (в заказах — включая оплаченные/отгруженные, в
+     * складских движениях, в заявках на производство или в разобранных WhatsApp-сообщениях),
+     * удалить целиком нельзя — это стёрло бы позиции из ЧУЖИХ исторических заказов и задним
+     * числом изменило их суммы. Вместо этого товар архивируется (active=false): пропадает из
+     * каталога для новых заказов, но старые заказы остаются нетронутыми. Полностью удаляются
+     * только "свои" настройки товара — синонимы для WhatsApp и индивидуальные цены клиентов.
+     * Полное удаление из БД доступно только для товара без единого следа использования.
+     */
+    @Transactional
+    public DeleteOutcome delete(Long id) {
+        Product product = findById(id);
+        boolean hasHistory = orderRepository.existsByItems_Product_Id(id)
+                || stockMovementRepository.existsByProductId(id)
+                || productionRequestRepository.existsByProductId(id)
+                || whatsAppInboundMessageRepository.existsByItems_Product_Id(id);
+        if (hasHistory) {
+            product.setActive(false);
+            productRepository.save(product);
+            return DeleteOutcome.ARCHIVED;
+        }
+        clientPriceRepository.deleteAll(clientPriceRepository.findByProductId(id));
+        productAliasRepository.deleteAll(productAliasRepository.findByProductId(id));
+        productRepository.delete(product); // рецепт (Recipe) каскадится автоматически — см. Product.recipe
+        return DeleteOutcome.DELETED;
+    }
+
+    public void restore(Long id) {
+        Product product = findById(id);
+        product.setActive(true);
+        productRepository.save(product);
+    }
+
+    private static final String NO_CATEGORY = "Без категории";
+
+    /**
+     * Товары по категориям для веб-каталога (/products, /warehouse/stock) — категории по
+     * алфавиту, "Без категории" всегда последней. Product.category — обычная свободная
+     * строка (см. Product.java), без отдельной сущности/enum, поэтому группируем прямо тут,
+     * а не в БД.
+     */
+    public Map<String, List<Product>> groupByCategory(List<Product> products) {
+        Map<String, List<Product>> byCategory = products.stream()
+                .collect(Collectors.groupingBy(
+                        p -> p.getCategory() == null || p.getCategory().isBlank() ? NO_CATEGORY : p.getCategory(),
+                        TreeMap::new, Collectors.toList()));
+        List<Product> noCategory = byCategory.remove(NO_CATEGORY);
+        Map<String, List<Product>> result = new LinkedHashMap<>(byCategory);
+        if (noCategory != null) {
+            result.put(NO_CATEGORY, noCategory);
+        }
+        return result;
     }
 
     /** Полностью заменяет рецептуру товара данными из формы. */

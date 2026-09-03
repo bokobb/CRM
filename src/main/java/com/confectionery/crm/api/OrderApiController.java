@@ -16,11 +16,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -83,9 +80,7 @@ public class OrderApiController {
     @PutMapping("/{id}/items")
     @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN')")
     public OrderDto updateItems(@PathVariable Long id, @Valid @RequestBody OrderItemUpdateRequest req) {
-        Map<Long, BigDecimal> quantityByItemId = req.items().stream()
-                .collect(Collectors.toMap(OrderItemUpdateRequest.ItemUpdate::itemId, OrderItemUpdateRequest.ItemUpdate::quantity));
-        return OrderDto.from(orderService.updateItems(id, quantityByItemId));
+        return OrderDto.from(orderService.updateItems(id, req.items()));
     }
 
     @PostMapping("/{id}/ship")

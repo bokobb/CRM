@@ -15,6 +15,8 @@ import '../models/ingredient.dart';
 import '../models/notification.dart';
 import '../models/order.dart';
 import '../models/product.dart';
+import '../models/production_request.dart';
+import '../models/purchase.dart';
 import '../models/user.dart';
 import '../models/whatsapp_inbox.dart';
 import '../navigation.dart';
@@ -511,6 +513,90 @@ class ApiClient {
     return StockMovement.fromJson(_decode(res));
   }
 
+  // ---- Production requests (заявки на сырьё) ----
+  Future<List<ProductionRequestSummary>> getProductionRequests() async {
+    final res = await http.get(
+      await _uri('/production-requests'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List).map((e) => ProductionRequestSummary.fromJson(e)).toList();
+  }
+
+  Future<ProductionRequest> getProductionRequest(int id) async {
+    final res = await http.get(
+      await _uri('/production-requests/$id'),
+      headers: await _authHeaders(),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  /// Товары, у которых уже есть рецептура — только из них можно создать заявку.
+  Future<List<Product>> getEligibleProductsForRequest() async {
+    final res = await http.get(
+      await _uri('/production-requests/eligible-products'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List).map((e) => Product.fromJson(e)).toList();
+  }
+
+  Future<ProductionRequest> createProductionRequest(int productId, double batches) async {
+    final res = await http.post(
+      await _uri('/production-requests'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'productId': productId, 'batches': batches}),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  /// itemIds должны покрывать ВСЕ позиции заявки — иначе сервер отклонит сборку.
+  Future<ProductionRequest> collectProductionRequest(int id, List<int> itemIds) async {
+    final res = await http.post(
+      await _uri('/production-requests/$id/collect'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'itemIds': itemIds}),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  Future<ProductionRequest> receiveProductionRequest(int id, double quantity) async {
+    final res = await http.post(
+      await _uri('/production-requests/$id/receive'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'quantity': quantity}),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  // ---- Purchases (закупки сырья) ----
+  Future<List<Purchase>> getPurchases() async {
+    final res = await http.get(
+      await _uri('/purchases'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List).map((e) => Purchase.fromJson(e)).toList();
+  }
+
+  Future<Purchase> createPurchase({
+    required int ingredientId,
+    required double quantity,
+    required String supplier,
+    double? totalPrice,
+    DateTime? purchaseDate,
+  }) async {
+    final res = await http.post(
+      await _uri('/purchases'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'ingredientId': ingredientId,
+        'quantity': quantity,
+        'supplier': supplier,
+        'totalPrice': totalPrice,
+        'purchaseDate': purchaseDate?.toIso8601String().split('T').first,
+      }),
+    );
+    return Purchase.fromJson(_decode(res));
+  }
+
   // ---- Orders ----
   /// from/to не заданы — все даты; экран заказов по умолчанию передаёт сегодняшний день.
   Future<List<OrderSummary>> getOrders({
@@ -608,13 +694,23 @@ class ApiClient {
   }
 
   /// quantities: itemId -> новое количество (0 или меньше — убрать позицию из заказа).
-  Future<Order> updateOrderItems(int id, Map<int, double> quantities) async {
+  /// [productIdByItemId] — новый товар для позиции (только для тех itemId, где ИИ
+  /// распознал товар неверно), остальные позиции меняют только количество.
+  Future<Order> updateOrderItems(
+    int id,
+    Map<int, double> quantities, {
+    Map<int, int>? productIdByItemId,
+  }) async {
     final res = await http.put(
       await _uri('/orders/$id/items'),
       headers: await _authHeaders(),
       body: jsonEncode({
         'items': quantities.entries
-            .map((e) => {'itemId': e.key, 'quantity': e.value})
+            .map((e) => {
+                  'itemId': e.key,
+                  'quantity': e.value,
+                  if (productIdByItemId?[e.key] != null) 'productId': productIdByItemId![e.key],
+                })
             .toList(),
       }),
     );

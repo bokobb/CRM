@@ -120,19 +120,45 @@ public class NotificationService {
         return notificationRepository.findTop50ByOrderByCreatedAtDesc();
     }
 
+    public List<Notification> recent(Role viewerRole) {
+        return filterForRole(recent(), viewerRole);
+    }
+
     /**
      * Уведомления, сгруппированные по заказу (одна карточка — один заказ, полная история —
      * по нажатию, см. дашборд и экран "Уведомления"). Один и тот же текст, отправленный сразу
      * нескольким ролям (например, ACCOUNTANT и ADMIN при отгрузке), схлопывается в одну запись
      * истории — иначе каждое событие визуально дублируется.
+     *
+     * <p>{@code viewerRole} ограничивает список только тем, что реально адресовано этой роли —
+     * без этого зав. складом ГП видел бы уведомления зав. складом сырья и наоборот. ADMIN и
+     * ACCOUNTANT видят всё (та же логика полного доступа, что и в меню приложения).
      */
-    public Grouped grouped(int orderLimit, int generalLimit) {
-        return groupedFrom(recent(), orderLimit, generalLimit);
+    public Grouped grouped(int orderLimit, int generalLimit, Role viewerRole) {
+        return groupedFrom(filterForRole(recent(), viewerRole), orderLimit, generalLimit);
     }
 
     /** То же самое, но только за один календарный день — для фильтра по дате в приложении. */
-    public Grouped grouped(int orderLimit, int generalLimit, LocalDateTime dayStart, LocalDateTime dayEnd) {
-        return groupedFrom(notificationRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(dayStart, dayEnd), orderLimit, generalLimit);
+    public Grouped grouped(int orderLimit, int generalLimit, LocalDateTime dayStart, LocalDateTime dayEnd, Role viewerRole) {
+        return groupedFrom(
+                filterForRole(notificationRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(dayStart, dayEnd), viewerRole),
+                orderLimit, generalLimit);
+    }
+
+    /**
+     * Уведомление видно роли, если оно адресовано именно ей ({@code role:<ROLE>}), либо роли
+     * ADMIN/ACCOUNTANT (у них полный доступ), либо это предупреждение "склад" о низком остатке
+     * СЫРЬЯ — оно относится к зоне ответственности WAREHOUSE_RAW, а не WAREHOUSE_FG.
+     */
+    private List<Notification> filterForRole(List<Notification> source, Role viewerRole) {
+        if (viewerRole == null || viewerRole == Role.ADMIN || viewerRole == Role.ACCOUNTANT) {
+            return source;
+        }
+        String ownRecipient = "role:" + viewerRole.name();
+        return source.stream()
+                .filter(n -> n.getRecipient().equals(ownRecipient)
+                        || (viewerRole == Role.WAREHOUSE_RAW && n.getRecipient().equals("склад")))
+                .toList();
     }
 
     private Grouped groupedFrom(List<Notification> source, int orderLimit, int generalLimit) {

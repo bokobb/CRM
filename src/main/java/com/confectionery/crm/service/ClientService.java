@@ -1,9 +1,14 @@
 package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Client;
+import com.confectionery.crm.repository.ClientPriceRepository;
 import com.confectionery.crm.repository.ClientRepository;
+import com.confectionery.crm.repository.NotificationRepository;
+import com.confectionery.crm.repository.OrderRepository;
+import com.confectionery.crm.repository.WhatsAppInboundMessageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +18,10 @@ import java.util.Optional;
 public class ClientService {
 
     private final ClientRepository clientRepository;
+    private final OrderRepository orderRepository;
+    private final ClientPriceRepository clientPriceRepository;
+    private final WhatsAppInboundMessageRepository whatsAppInboundMessageRepository;
+    private final NotificationRepository notificationRepository;
 
     public List<Client> findAll() {
         return clientRepository.findAll();
@@ -47,7 +56,22 @@ public class ClientService {
         return clientRepository.save(client);
     }
 
+    /**
+     * Полное каскадное удаление клиента вместе со всей ЕГО историей: заказы (позиции и
+     * производственные задания по ним каскадятся автоматически — см. Order.items/
+     * productionTasks), уведомления по этим заказам, сообщения из WhatsApp и индивидуальные
+     * цены. В отличие от товара — тут нет риска задеть чужие данные, вся эта история и так
+     * принадлежит только этому клиенту, поэтому ограничений на архивирование не делаем.
+     */
+    @Transactional
     public void delete(Long id) {
-        clientRepository.deleteById(id);
+        Client client = findById(id);
+        for (var order : orderRepository.findByClientIdOrderByCreatedAtDesc(id)) {
+            notificationRepository.deleteAll(notificationRepository.findByOrderId(order.getId()));
+            orderRepository.delete(order);
+        }
+        whatsAppInboundMessageRepository.deleteAll(whatsAppInboundMessageRepository.findByClientId(id));
+        clientPriceRepository.deleteAll(clientPriceRepository.findByClientId(id));
+        clientRepository.delete(client);
     }
 }

@@ -17,7 +17,7 @@
 
         <div class="shop-hero-stepper">
             <button type="button" id="stepMinus">−</button>
-            <span class="qty" id="qtyLabel" th:text="${qtyLabel}"></span>
+            <input type="text" inputmode="decimal" class="qty qty-input" id="qtyLabel" th:value="${qtyLabel}">
             <button type="button" id="stepPlus">+</button>
         </div>
     </div>
@@ -57,7 +57,7 @@
         var moneyFmt = new Intl.NumberFormat('ru-RU', {minimumFractionDigits: 0, maximumFractionDigits: 2});
 
         function render() {
-            qtyLabelEl.textContent = qtyFmt.format(qty);
+            qtyLabelEl.value = qtyFmt.format(qty);
             qtyInputEl.value = qty.toFixed(decimals);
             addButtonEl.textContent = prefix + moneyFmt.format(qty * price) + ' ₸';
         }
@@ -68,6 +68,20 @@
         });
         document.getElementById('stepPlus').addEventListener('click', function () {
             qty = qty + step;
+            render();
+        });
+
+        // Прямой ввод количества цифрами — без этого оптовый заказ на сотни/тысячи штук
+        // означал бы сотни тапов по +.
+        qtyLabelEl.addEventListener('focus', function () {
+            qtyLabelEl.select();
+        });
+        qtyLabelEl.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') qtyLabelEl.blur();
+        });
+        qtyLabelEl.addEventListener('change', function () {
+            var parsed = parseFloat(qtyLabelEl.value.replace(',', '.').replace(/\s/g, ''));
+            qty = (!isFinite(parsed) || parsed < step) ? step : parsed;
             render();
         });
     })();

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>История заказов — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="shop-page">
+    <header class="shop-topbar">
+        <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
+        <div class="shop-topbar-right">
+            <a class="btn small" th:href="@{/shop/catalog}">← Заказ</a>
+        </div>
+    </header>
+
+    <main class="shop-content">
+        <div class="shop-title">История заказов</div>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <div th:each="row : ${rows}" class="shop-order-card">
+            <div class="shop-order-top">
+                <div>
+                    <div class="shop-order-date"
+                         th:text="${#temporals.format(row.order.createdAt, 'dd.MM.yyyy')} + ' · №' + ${row.order.id}"></div>
+                    <span class="badge" th:classappend="${row.order.status}" th:text="${row.order.status.label}"></span>
+                </div>
+                <div class="shop-order-total" th:text="${row.totalLabel}"></div>
+            </div>
+            <div class="shop-order-items" th:text="${row.itemsSummary}"></div>
+            <form th:action="@{/shop/orders/{id}/repeat(id=${row.order.id})}" method="post">
+                <button class="btn small" type="submit">Повторить заказ</button>
+            </form>
+        </div>
+
+        <div class="empty" th:if="${#lists.isEmpty(rows)}">У вас пока нет заказов</div>
+    </main>
+</div>
+</body>
+</html>

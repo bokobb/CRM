@@ -10,4 +10,6 @@ public interface ClientPriceRepository extends JpaRepository<ClientPrice, Long> 
     Optional<ClientPrice> findByClientIdAndProductId(Long clientId, Long productId);
 
     List<ClientPrice> findByClientId(Long clientId);
+
+    List<ClientPrice> findByProductId(Long productId);
 }
