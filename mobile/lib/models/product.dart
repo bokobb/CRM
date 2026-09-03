@@ -2,6 +2,7 @@ class Product {
   final int id;
   final String name;
   final String? category;
+  final String? group;
   final String? description;
   final double price;
   final String? unit;
@@ -12,6 +13,7 @@ class Product {
     required this.id,
     required this.name,
     this.category,
+    this.group,
     this.description,
     required this.price,
     this.unit,
@@ -23,6 +25,7 @@ class Product {
         id: json['id'] as int,
         name: json['name'] as String,
         category: json['category'] as String?,
+        group: json['group'] as String?,
         description: json['description'] as String?,
         price: (json['price'] as num).toDouble(),
         unit: json['unit'] as String?,
@@ -36,6 +39,7 @@ class Product {
         id: id,
         name: name,
         category: category,
+        group: group,
         description: description,
         price: price,
         unit: unit,

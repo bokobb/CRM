@@ -21,19 +21,26 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   final _api = ApiClient();
   late Future<ProductionRequest> _future;
   final Set<int> _checked = {};
-  final _receivedQty = TextEditingController();
-  bool _actionInProgress = false;
+  final Map<int, TextEditingController> _receiveControllers = {};
+  int? _actionInProgressLine;
+  bool _collecting = false;
   String? _error;
+
+  bool _cancelling = false;
 
   String? get _role => ApiClient.currentSession?.role;
   bool get _canCollect => _role == 'ADMIN' || _role == 'WAREHOUSE_RAW';
   bool get _canReceive => _role == 'ADMIN' || _role == 'WAREHOUSE_FG';
+  bool get _canEdit => _role == 'ADMIN' || _role == 'ACCOUNTANT';
 
   @override
   void initState() {
     super.initState();
     _future = _api.getProductionRequest(widget.requestId);
   }
+
+  TextEditingController _controllerFor(int lineId) =>
+      _receiveControllers.putIfAbsent(lineId, () => TextEditingController());
 
   Future<void> _refresh() async {
     setState(() {
@@ -45,7 +52,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
 
   Future<void> _collect(ProductionRequest request) async {
     setState(() {
-      _actionInProgress = true;
+      _collecting = true;
       _error = null;
     });
     try {
@@ -55,28 +62,55 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
-      if (mounted) setState(() => _actionInProgress = false);
+      if (mounted) setState(() => _collecting = false);
     }
   }
 
-  Future<void> _receive(ProductionRequest request) async {
-    final qty = double.tryParse(_receivedQty.text.trim().replaceAll(',', '.'));
+  Future<void> _cancel(ProductionRequest r) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Отменить заявку?'),
+        content: Text('«${r.title}» — действие нельзя отменить обратно.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Нет')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Отменить заявку')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _cancelling = true;
+      _error = null;
+    });
+    try {
+      await _api.cancelProductionRequest(widget.requestId);
+      await _refresh();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
+
+  Future<void> _receiveLine(ProductionRequestLine line) async {
+    final qty = double.tryParse(_controllerFor(line.id).text.trim().replaceAll(',', '.'));
     if (qty == null || qty <= 0) {
       setState(() => _error = 'Введите количество');
       return;
     }
     setState(() {
-      _actionInProgress = true;
+      _actionInProgressLine = line.id;
       _error = null;
     });
     try {
-      await _api.receiveProductionRequest(widget.requestId, qty);
+      await _api.receiveProductionRequestLine(widget.requestId, line.id, qty);
       if (mounted) await playSuccessFeedback(context);
       await _refresh();
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
-      if (mounted) setState(() => _actionInProgress = false);
+      if (mounted) setState(() => _actionInProgressLine = null);
     }
   }
 
@@ -106,10 +140,10 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(r.productName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text(r.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Text(
-                            '${formatQty(r.batches)} замес. · ${r.createdBy} · ${formatDateTime(r.createdAt)}',
+                            'Итого ${formatQty(r.totalBatches)} замес. · ${r.createdBy} · ${formatDateTime(r.createdAt)}',
                             style: const TextStyle(color: Colors.grey, fontSize: 13),
                           ),
                         ],
@@ -123,14 +157,6 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                   Text('Собрал: ${r.collectedBy} · ${formatDateTime(r.collectedAt!)}',
                       style: const TextStyle(color: Colors.grey, fontSize: 13)),
                 ],
-                if (r.status == 'RECEIVED') ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Оприходовано ${formatQty(r.receivedQuantity!)} ${r.productUnit ?? 'шт'} — '
-                    '${r.receivedBy} · ${formatDateTime(r.receivedAt!)}',
-                    style: const TextStyle(color: Color(0xFF4C8A5E), fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                ],
                 const SizedBox(height: 18),
                 if (_error != null)
                   Padding(
@@ -138,9 +164,14 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     child: Text(_error!, style: const TextStyle(color: Colors.red)),
                   ),
 
+                const Text('Позиции заявки', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                for (final line in r.lines) _buildLineCard(r, line),
+                const SizedBox(height: 8),
+
                 if (r.status == 'NEW' && _canCollect) ...[
                   ReceiptCard(
-                    title: 'Состав заявки',
+                    title: 'Состав заявки (сырьё)',
                     icon: Icons.checklist_rounded,
                     children: [
                       for (int i = 0; i < r.items.length; i++)
@@ -172,14 +203,14 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                   ),
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: (_actionInProgress || _checked.length != r.items.length) ? null : () => _collect(r),
-                    child: _actionInProgress
+                    onPressed: (_collecting || _checked.length != r.items.length) ? null : () => _collect(r),
+                    child: _collecting
                         ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Text('Собрано'),
                   ),
                 ] else ...[
                   ReceiptCard(
-                    title: 'Состав заявки',
+                    title: 'Состав заявки (сырьё)',
                     children: [
                       for (int i = 0; i < r.items.length; i++)
                         ReceiptRow(
@@ -194,28 +225,114 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     ),
                   ),
                 ],
-
-                if (r.status == 'COLLECTED' && _canReceive) ...[
-                  const Divider(height: 32),
-                  const Text('Оприходовать готовую продукцию', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _receivedQty,
-                    decoration: const InputDecoration(labelText: 'Сколько фактически получили'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                if (r.status == 'NEW' && _canEdit) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final changed = await Navigator.of(context)
+                            .pushNamed('/production-requests/edit', arguments: widget.requestId);
+                        if (changed == true) _refresh();
+                      },
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Редактировать'),
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _actionInProgress ? null : () => _receive(r),
-                    child: _actionInProgress
-                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Оприходовать'),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _cancelling ? null : () => _cancel(r),
+                      style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB8433F)),
+                      icon: _cancelling
+                          ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.cancel_outlined, size: 18),
+                      label: const Text('Отменить'),
+                    ),
                   ),
                 ],
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildLineCard(ProductionRequest r, ProductionRequestLine line) {
+    final unit = line.productUnit ?? 'шт';
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(line.productName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+                Text(
+                  '${formatQty(line.batches)} замес.'
+                  '${line.plannedQuantity != null ? " (≈${formatQty(line.plannedQuantity!)} $unit)" : ""}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                ),
+              ],
+            ),
+            if (line.isReceived) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Оприходовано ${formatQty(line.receivedQuantity!)} $unit — ${line.receivedBy} · '
+                '${formatDateTime(line.receivedAt!)}',
+                style: const TextStyle(color: Color(0xFF4C8A5E), fontWeight: FontWeight.w600, fontSize: 12.5),
+              ),
+            ] else if (r.status == 'COLLECTED' && _canReceive) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controllerFor(line.id),
+                      decoration: InputDecoration(labelText: 'Факт, $unit', isDense: true),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _actionInProgressLine != null ? null : () => _receiveLine(line),
+                    child: _actionInProgressLine == line.id
+                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('OK'),
+                  ),
+                ],
+              ),
+              if (line.plannedQuantity != null && line.plannedQuantity! > 0)
+                Builder(builder: (context) {
+                  final actual = double.tryParse(_controllerFor(line.id).text.replaceAll(',', '.'));
+                  if (actual == null) return const SizedBox.shrink();
+                  final diffPct = ((actual - line.plannedQuantity!) / line.plannedQuantity!) * 100;
+                  final enough = actual >= line.plannedQuantity!;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      enough
+                          ? 'Достаточно — на ${formatQty(diffPct.abs())}% больше нормы'
+                          : 'Меньше нормы на ${formatQty(diffPct.abs())}%',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: enough ? const Color(0xFF4C8A5E) : const Color(0xFFB8433F),
+                      ),
+                    ),
+                  );
+                }),
+            ],
+          ],
+        ),
       ),
     );
   }

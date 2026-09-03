@@ -21,6 +21,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _category = TextEditingController();
+  final _group = TextEditingController();
   final _description = TextEditingController();
   final _price = TextEditingController();
   final _unit = TextEditingController();
@@ -42,6 +43,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _api.getProduct(widget.productId!).then((p) {
         _name.text = p.name;
         _category.text = p.category ?? '';
+        _group.text = p.group ?? '';
         _description.text = p.description ?? '';
         _price.text = p.price.toString();
         _unit.text = p.unit ?? '';
@@ -96,6 +98,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     final body = {
       'name': _name.text.trim(),
       'category': _category.text.trim(),
+      'group': _group.text.trim(),
       'description': _description.text.trim(),
       'price': double.tryParse(_price.text.replaceAll(',', '.')) ?? 0,
       'unit': _unit.text.trim(),
@@ -156,6 +159,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   TextFormField(
                     controller: _category,
                     decoration: const InputDecoration(labelText: 'Категория', hintText: 'Торты, капкейки...'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _group,
+                    decoration: const InputDecoration(labelText: 'Группа', hintText: 'Коржик, Орешки...'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

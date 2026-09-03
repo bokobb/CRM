@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import fs from 'node:fs';
+import path from 'node:path';
 import {
   makeWASocket,
   useMultiFileAuthState,
@@ -27,6 +28,10 @@ if (!WEBHOOK_SECRET) {
 
 const logger = pino({ level: 'warn' });
 let sock;
+// Статус для /status и /qr (см. настройки -> WhatsApp-сессия в приложении):
+// connecting — сокет ещё поднимается/переподключается, qr — ждём сканирования,
+// open — подключено (phone заполнен), closed — вышли из сессии (после /logout).
+let connectionState = { status: 'connecting', phone: null };
 
 async function startSock() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -45,6 +50,7 @@ async function startSock() {
     if (qr) {
       console.log('\nОтсканируйте QR в WhatsApp: Настройки -> Связанные устройства -> Привязать устройство\n');
       qrcode.generate(qr, { small: true });
+      connectionState = { status: 'qr', phone: null };
       QRCode.toFile('./qr.png', qr, { width: 400 }).catch((e) => console.error('Не удалось сохранить qr.png:', e));
     }
     if (connection === 'close') {
@@ -52,12 +58,16 @@ async function startSock() {
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       console.log('Соединение с WhatsApp закрыто, код:', statusCode, '— переподключение:', shouldReconnect);
       if (shouldReconnect) {
+        connectionState = { status: 'connecting', phone: null };
         startSock();
       } else {
+        connectionState = { status: 'closed', phone: null };
         console.log(`Сессия разлогинена. Удалите папку ${AUTH_DIR} и перезапустите шлюз, чтобы отсканировать QR заново.`);
       }
     } else if (connection === 'open') {
-      console.log('WhatsApp подключён и готов принимать заказы.');
+      const phone = (sock.user?.id || '').split(':')[0].split('@')[0] || null;
+      connectionState = { status: 'open', phone };
+      console.log('WhatsApp подключён и готов принимать заказы:', phone);
       fs.rm('./qr.png', { force: true }, () => {});
     }
   });
@@ -118,11 +128,17 @@ function toJid(to) {
   return to.includes('@') ? to : `${to.replace(/\D/g, '')}@s.whatsapp.net`;
 }
 
-function checkAuth(req, res) {
+/** Только секрет, без требования активного sock — статус/QR/logout должны отвечать даже до первого подключения. */
+function checkSecret(req, res) {
   if (!WEBHOOK_SECRET || req.header('X-Webhook-Secret') !== WEBHOOK_SECRET) {
     res.status(403).json({ error: 'forbidden' });
     return false;
   }
+  return true;
+}
+
+function checkAuth(req, res) {
+  if (!checkSecret(req, res)) return false;
   if (!sock) {
     res.status(503).json({ error: 'WhatsApp ещё не подключён' });
     return false;
@@ -169,6 +185,41 @@ app.post('/send-document', async (req, res) => {
   } catch (e) {
     console.error('Ошибка отправки документа:', e);
     res.status(500).json({ error: 'send failed' });
+  }
+});
+
+// --- Управление сессией (см. настройки -> WhatsApp-сессия в приложении) ---
+app.get('/status', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  res.json(connectionState);
+});
+
+app.get('/qr', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (connectionState.status !== 'qr' || !fs.existsSync('./qr.png')) {
+    return res.status(404).json({ error: 'QR недоступен' });
+  }
+  res.sendFile(path.resolve('./qr.png'));
+});
+
+/** Разрывает текущую сессию и сразу же поднимает новую попытку подключения (даст новый QR). */
+app.post('/logout', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  try {
+    if (sock) {
+      try {
+        await sock.logout();
+      } catch (e) {
+        console.warn('sock.logout() завершился с ошибкой (не критично, всё равно чистим сессию):', e.message);
+      }
+    }
+    await fs.promises.rm(AUTH_DIR, { recursive: true, force: true });
+    connectionState = { status: 'connecting', phone: null };
+    startSock();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Ошибка при разрыве сессии WhatsApp:', e);
+    res.status(500).json({ error: 'logout failed' });
   }
 });
 

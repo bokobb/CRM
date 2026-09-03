@@ -9,5 +9,5 @@ public interface ProductionRequestRepository extends JpaRepository<ProductionReq
 
     List<ProductionRequest> findAllByOrderByCreatedAtDesc();
 
-    boolean existsByProductId(Long productId);
+    boolean existsByLinesProductId(Long productId);
 }

@@ -2,10 +2,13 @@ package com.confectionery.crm.api;
 
 import com.confectionery.crm.api.dto.DashboardDto;
 import com.confectionery.crm.api.dto.IngredientDto;
+import com.confectionery.crm.api.dto.ProductionDashboardDto;
+import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.NotificationService;
+import com.confectionery.crm.service.ProductionRequestService;
 import com.confectionery.crm.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -26,6 +29,7 @@ public class DashboardApiController {
     private final IngredientService ingredientService;
     private final NotificationService notificationService;
     private final UserService userService;
+    private final ProductionRequestService productionRequestService;
 
     /** from/to не заданы — по умолчанию сегодня (в отличие от заказов/уведомлений, где "не задан" = все даты). */
     @GetMapping
@@ -46,6 +50,25 @@ public class DashboardApiController {
                 ingredientService.findLowStock().stream().map(IngredientDto::from).toList(),
                 grouped.orderGroups(),
                 grouped.general()
+        );
+    }
+
+    /** Дашборд для роли WAREHOUSE_RAW — про заявки на сырьё, не про заказы клиентов. */
+    @GetMapping("/production")
+    public ProductionDashboardDto getProduction(@RequestParam(required = false) LocalDate from,
+                                                 @RequestParam(required = false) LocalDate to) {
+        LocalDate rangeFrom = from != null ? from : LocalDate.now();
+        LocalDate rangeTo = to != null ? to : LocalDate.now();
+        LocalDateTime start = rangeFrom.atStartOfDay();
+        LocalDateTime end = rangeTo.plusDays(1).atStartOfDay();
+
+        var summary = productionRequestService.dashboardSummary(start, end, 10);
+        return new ProductionDashboardDto(
+                rangeFrom, rangeTo,
+                summary.counts().pending(), summary.counts().awaitingReceipt(),
+                summary.counts().createdInRange(), summary.counts().collectedInRange(),
+                ingredientService.findLowStock().stream().map(IngredientDto::from).toList(),
+                summary.pendingRequests().stream().map(ProductionRequestSummaryDto::from).toList()
         );
     }
 }

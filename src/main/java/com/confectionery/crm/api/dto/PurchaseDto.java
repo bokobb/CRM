@@ -16,12 +16,14 @@ public record PurchaseDto(
         BigDecimal totalPrice,
         LocalDate purchaseDate,
         String createdBy,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String imageUrl
 ) {
     public static PurchaseDto from(Purchase p) {
         return new PurchaseDto(
                 p.getId(), p.getIngredient().getId(), p.getIngredient().getName(), p.getIngredient().getUnit(),
-                p.getQuantity(), p.getSupplier(), p.getTotalPrice(), p.getPurchaseDate(), p.getCreatedBy(), p.getCreatedAt()
+                p.getQuantity(), p.getSupplier(), p.getTotalPrice(), p.getPurchaseDate(), p.getCreatedBy(), p.getCreatedAt(),
+                p.getImageUrl()
         );
     }
 }

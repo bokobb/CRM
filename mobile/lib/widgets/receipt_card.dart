@@ -132,11 +132,16 @@ class ReceiptRow extends StatelessWidget {
               ),
             ),
           const SizedBox(width: 4),
+          // Без ограничения на число строк — раньше длинное название обрезалось многоточием
+          // (maxLines: 2) и часть могла быть не видна кладовщику; теперь просто переносится
+          // на следующую строку, если не помещается, а не прячется. Пунктир — чисто
+          // декоративный разделитель, поэтому название получает бОльшую часть ширины (flex 3
+          // против 1), чтобы типичные названия вроде "Подсолнечное масло" помещались в одну строку.
           Expanded(
+            flex: 3,
             child: Text(
               name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              softWrap: true,
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 13.5,

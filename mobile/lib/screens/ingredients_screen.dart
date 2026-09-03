@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/searchable_app_bar.dart';
 
 class IngredientsScreen extends StatefulWidget {
   const IngredientsScreen({super.key});
@@ -18,6 +19,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   final _api = ApiClient();
   late Future<List<Ingredient>> _future;
   bool _lowStockOnly = false;
+  String _query = '';
 
   @override
   void initState() {
@@ -59,9 +61,11 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Сырьё'),
-        actions: [
+      appBar: SearchableAppBar(
+        title: 'Сырьё',
+        hintText: 'Название сырья...',
+        onQueryChanged: (v) => setState(() => _query = v),
+        extraActions: [
           IconButton(
             icon: Icon(_lowStockOnly ? Icons.filter_alt : Icons.filter_alt_outlined),
             tooltip: 'Только дефицит',
@@ -92,13 +96,19 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
             if (_lowStockOnly) {
               ingredients = ingredients.where((i) => i.lowStock).toList();
             }
+            if (_query.isNotEmpty) {
+              final q = _query.toLowerCase();
+              ingredients = ingredients.where((i) => i.name.toLowerCase().contains(q)).toList();
+            }
             if (ingredients.isEmpty) {
               return ListView(children: [
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Center(
                     child: Text(
-                      _lowStockOnly ? 'Дефицита нет — всё в норме' : 'Ингредиентов пока нет',
+                      _query.isNotEmpty
+                          ? 'Ничего не найдено'
+                          : (_lowStockOnly ? 'Дефицита нет — всё в норме' : 'Ингредиентов пока нет'),
                       style: const TextStyle(color: Colors.grey),
                     ),
                   ),

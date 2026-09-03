@@ -3,7 +3,8 @@ package com.confectionery.crm.domain;
 public enum ProductionRequestStatus {
     NEW("Новая"),
     COLLECTED("Собрано"),
-    RECEIVED("Оприходовано");
+    RECEIVED("Оприходовано"),
+    CANCELLED("Отменена");
 
     private final String label;
 

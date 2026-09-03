@@ -5,6 +5,7 @@ import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
+import '../widgets/searchable_app_bar.dart';
 
 class ClientsScreen extends StatefulWidget {
   const ClientsScreen({super.key});
@@ -16,6 +17,7 @@ class ClientsScreen extends StatefulWidget {
 class _ClientsScreenState extends State<ClientsScreen> {
   final _api = ApiClient();
   late Future<List<Client>> _future;
+  String _query = '';
 
   @override
   void initState() {
@@ -30,10 +32,22 @@ class _ClientsScreenState extends State<ClientsScreen> {
     await _future;
   }
 
+  List<Client> _filter(List<Client> clients) {
+    if (_query.isEmpty) return clients;
+    final q = _query.toLowerCase();
+    return clients
+        .where((c) => c.name.toLowerCase().contains(q) || (c.phone?.toLowerCase().contains(q) ?? false))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Клиенты')),
+      appBar: SearchableAppBar(
+        title: 'Клиенты',
+        hintText: 'Имя или номер телефона...',
+        onQueryChanged: (v) => setState(() => _query = v),
+      ),
       drawer: const AppDrawer(currentRoute: '/clients'),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
@@ -53,12 +67,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
             if (snapshot.hasError) {
               return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
             }
-            final clients = snapshot.data!;
+            final clients = _filter(snapshot.data!);
             if (clients.isEmpty) {
-              return ListView(children: const [
+              return ListView(children: [
                 Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Center(child: Text('Клиентов пока нет', style: TextStyle(color: Colors.grey))),
+                  padding: const EdgeInsets.all(32),
+                  child: Center(
+                    child: Text(_query.isEmpty ? 'Клиентов пока нет' : 'Ничего не найдено',
+                        style: const TextStyle(color: Colors.grey)),
+                  ),
                 ),
               ]);
             }

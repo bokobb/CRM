@@ -19,12 +19,16 @@
             <h2>Новая закупка</h2>
             <div class="field">
                 <label>Сырьё</label>
-                <select name="ingredientId" required>
-                    <option value="">— выберите сырьё —</option>
-                    <option th:each="i : ${ingredients}" th:value="${i.id}"
-                            th:text="${i.name} + ' (' + ${i.quantityInStock} + ' ' + ${i.unit} + ')'"></option>
-                </select>
+                <input type="text" id="crmPurchaseIngredientSearch" placeholder="Начните вводить название..."
+                       list="crmIngredientsList" autocomplete="off" required
+                       oninput="crmPurchaseIngredientPicked(this.value)">
+                <input type="hidden" name="ingredientId" id="crmPurchaseIngredientId" required>
             </div>
+            <datalist id="crmIngredientsList">
+                <option th:each="i : ${ingredients}"
+                        th:value="${i.name} + ' (' + ${i.quantityInStock} + ' ' + ${i.unit} + ')'"
+                        th:attr="data-id=${i.id}"></option>
+            </datalist>
             <div class="row">
                 <div class="field">
                     <label>Количество</label>
@@ -65,5 +69,18 @@
         </div>
     </main>
 </div>
+<script th:inline="none">
+    function crmPurchaseIngredientPicked(value) {
+        var options = document.querySelectorAll('#crmIngredientsList option');
+        var idField = document.getElementById('crmPurchaseIngredientId');
+        for (var i = 0; i < options.length; i++) {
+            if (options[i].value === value) {
+                idField.value = options[i].getAttribute('data-id');
+                return;
+            }
+        }
+        idField.value = '';
+    }
+</script>
 </body>
 </html>

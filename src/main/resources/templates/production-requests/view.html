@@ -11,11 +11,9 @@
     <main class="content">
         <div class="page-header">
             <div>
-                <h1>Заявка №<span th:text="${request.id}"></span></h1>
+                <h1>Заявка №<span th:text="${request.id}"></span> «<span th:text="${request.title}"></span>»</h1>
                 <p class="subtitle">
-                    <span th:text="${request.product.name}"></span> ·
-                    <span th:text="${request.batches}"></span> замес.
-                    · создал <span th:text="${request.createdBy}"></span>
+                    создал <span th:text="${request.createdBy}"></span>
                     · <span th:text="${#temporals.format(request.createdAt, 'dd.MM.yyyy HH:mm')}"></span>
                 </p>
             </div>
@@ -29,15 +27,45 @@
             Собрал: <span th:text="${request.collectedBy}"></span> ·
             <span th:text="${#temporals.format(request.collectedAt, 'dd.MM.yyyy HH:mm')}"></span>
         </div>
-        <div th:if="${request.status.name() == 'RECEIVED'}" class="alert success">
-            Оприходовано <strong th:text="${request.receivedQuantity}"></strong>
-            <span th:text="${request.product.unit ?: 'шт'}"></span> —
-            <span th:text="${request.receivedBy}"></span> ·
-            <span th:text="${#temporals.format(request.receivedAt, 'dd.MM.yyyy HH:mm')}"></span>
+
+        <div th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')"
+             style="display:flex;gap:8px;margin-bottom:16px">
+            <a class="btn small" th:href="@{/production-requests/{id}/edit(id=${request.id})}">Редактировать</a>
+            <form th:action="@{/production-requests/{id}/cancel(id=${request.id})}" method="post"
+                  onsubmit="return confirm('Отменить заявку? Действие нельзя отменить обратно.');">
+                <button class="btn small danger" type="submit">Отменить заявку</button>
+            </form>
         </div>
 
         <div class="panel">
-            <h2>Состав заявки</h2>
+            <h2>Позиции заявки</h2>
+            <table>
+                <tr><th>Товар</th><th>Замесов</th><th>≈ Ожидается</th><th>Факт</th><th></th></tr>
+                <tr th:each="l : ${request.lines}">
+                    <td th:text="${l.product.name}"></td>
+                    <td th:text="${l.batches}"></td>
+                    <td th:text="${l.plannedQuantity != null ? (l.plannedQuantity + ' ' + (l.product.unit ?: 'шт')) : '—'}"></td>
+                    <td>
+                        <span th:if="${l.receivedQuantity != null}" style="color:var(--ok,#4c8a5e);font-weight:600"
+                              th:text="${l.receivedQuantity} + ' ' + (l.product.unit ?: 'шт')"></span>
+                        <span th:unless="${l.receivedQuantity != null}">—</span>
+                    </td>
+                    <td class="actions">
+                        <form th:if="${request.status.name() == 'COLLECTED' and l.receivedQuantity == null}"
+                              sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_FG')"
+                              th:action="@{/production-requests/{id}/lines/{lineId}/receive(id=${request.id},lineId=${l.id})}"
+                              method="post" style="display:flex;gap:6px;align-items:center">
+                            <input type="number" step="0.001" min="0.001" name="quantity" required
+                                   style="width:100px" th:placeholder="${l.plannedQuantity}">
+                            <button class="btn small primary" type="submit">Оприходовать</button>
+                        </form>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="panel">
+            <h2>Состав заявки (сырьё, общее по всем позициям)</h2>
             <table>
                 <tr><th>Сырьё</th><th>Количество</th></tr>
                 <tr th:each="i : ${request.items}">
@@ -60,16 +88,6 @@
                 </tr>
             </table>
             <button class="btn primary" type="submit" id="crmCollectBtn" disabled style="margin-top:14px">Собрано</button>
-        </form>
-
-        <form th:if="${request.status.name() == 'COLLECTED'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_FG')"
-              class="panel" th:action="@{/production-requests/{id}/receive(id=${request.id})}" method="post" style="max-width:420px">
-            <h2>Оприходовать готовую продукцию</h2>
-            <div class="field">
-                <label>Сколько фактически получили</label>
-                <input type="number" step="0.001" min="0.001" name="quantity" required>
-            </div>
-            <button class="btn primary" type="submit">Оприходовать</button>
         </form>
     </main>
 </div>

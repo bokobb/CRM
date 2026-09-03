@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -24,9 +25,16 @@ public class StockMovementApiController {
     private final IngredientService ingredientService;
     private final ProductService productService;
 
+    /** Только ручные движения — см. StockMovement.manual/StockService.findMovements. */
     @GetMapping("/movements")
-    public List<StockMovementDto> movements(@RequestParam(required = false) StockMovementType type) {
-        return stockService.findMovements(type).stream().map(StockMovementDto::from).toList();
+    public List<StockMovementDto> movements(@RequestParam(required = false) StockMovementType type,
+                                             @RequestParam(required = false) LocalDate from,
+                                             @RequestParam(required = false) LocalDate to,
+                                             @RequestParam(required = false) String q) {
+        return stockService.findMovements(type,
+                from == null ? null : from.atStartOfDay(),
+                to == null ? null : to.plusDays(1).atStartOfDay(),
+                q).stream().map(StockMovementDto::from).toList();
     }
 
     @PostMapping("/receipts")

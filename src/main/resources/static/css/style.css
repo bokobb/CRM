@@ -168,7 +168,8 @@ textarea { min-height: 80px; resize: vertical; }
 @media (max-width: 900px) { .board { grid-template-columns: 1fr; } }
 .board-col { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
 .board-col h2 { display: flex; justify-content: space-between; font-size: 14px; }
-.task-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; background: #fdfcfb; }
+.task-card { display: block; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; background: #fdfcfb; text-decoration: none; color: inherit; }
+.task-card:hover { border-color: var(--accent); }
 .task-card .title { font-weight: 600; margin-bottom: 4px; }
 .task-card .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
 

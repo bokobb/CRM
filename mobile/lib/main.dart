@@ -22,12 +22,14 @@ import 'screens/prices_screen.dart';
 import 'screens/product_form_screen.dart';
 import 'screens/product_stock_screen.dart';
 import 'screens/products_screen.dart';
+import 'screens/production_report_screen.dart';
 import 'screens/production_request_detail_screen.dart';
 import 'screens/production_request_form_screen.dart';
 import 'screens/production_requests_screen.dart';
 import 'screens/production_screen.dart';
 import 'screens/purchases_screen.dart';
 import 'screens/recipe_screen.dart';
+import 'screens/recipes_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stock_movement_screen.dart';
 import 'screens/user_form_screen.dart';
@@ -35,6 +37,7 @@ import 'screens/users_screen.dart';
 import 'screens/warehouse_screen.dart';
 import 'screens/whatsapp_inbox_resolve_screen.dart';
 import 'screens/whatsapp_inbox_screen.dart';
+import 'screens/whatsapp_session_screen.dart';
 import 'services/api_client.dart';
 import 'services/push_service.dart';
 
@@ -111,7 +114,9 @@ class CrmApp extends StatelessWidget {
           backgroundColor: accent,
         ),
       ),
-      initialRoute: ApiClient.currentSession == null ? '/login' : '/',
+      initialRoute: ApiClient.currentSession == null
+          ? '/login'
+          : homeRouteForRole(ApiClient.currentSession!.role),
       onGenerateRoute: (settings) {
         switch (settings.name) {
           case '/login':
@@ -142,6 +147,11 @@ class CrmApp extends StatelessWidget {
           case '/products/new':
             return MaterialPageRoute(
               builder: (_) => const ProductFormScreen(),
+              settings: settings,
+            );
+          case '/recipes':
+            return MaterialPageRoute(
+              builder: (_) => const RecipesScreen(),
               settings: settings,
             );
           case '/ingredients':
@@ -202,6 +212,11 @@ class CrmApp extends StatelessWidget {
               builder: (_) => const ProductionRequestFormScreen(),
               settings: settings,
             );
+          case '/production-requests/report':
+            return MaterialPageRoute(
+              builder: (_) => const ProductionReportScreen(),
+              settings: settings,
+            );
           case '/purchases':
             return MaterialPageRoute(
               builder: (_) => const PurchasesScreen(),
@@ -245,6 +260,11 @@ class CrmApp extends StatelessWidget {
           case '/settings/users/new':
             return MaterialPageRoute(
               builder: (_) => const UserFormScreen(),
+              settings: settings,
+            );
+          case '/settings/whatsapp':
+            return MaterialPageRoute(
+              builder: (_) => const WhatsAppSessionScreen(),
               settings: settings,
             );
         }
@@ -295,6 +315,12 @@ class CrmApp extends StatelessWidget {
         if (settings.name == '/production-requests/detail' && args is int) {
           return MaterialPageRoute(
             builder: (_) => ProductionRequestDetailScreen(requestId: args),
+            settings: settings,
+          );
+        }
+        if (settings.name == '/production-requests/edit' && args is int) {
+          return MaterialPageRoute(
+            builder: (_) => ProductionRequestFormScreen(requestId: args),
             settings: settings,
           );
         }

@@ -5,17 +5,19 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Заявка бухгалтера на выдачу сырья под производство партии товара: NEW (создана) ->
- * COLLECTED (зав. склада сырья собрал по рецепту и списал сырьё со своего склада) ->
- * RECEIVED (зав. склада ГП оприходовал фактически полученную готовую продукцию).
- * items — снимок рецепта на момент создания заявки (см. ProductionRequestItem), не
- * привязан к живому Recipe — правки рецептуры не задним числом не влияют на уже созданные заявки.
+ * Заявка на производство: одна заявка может покрывать НЕСКОЛЬКО товаров сразу (см.
+ * {@link ProductionRequestLine}) — например, из одного теста в один день делают несколько
+ * разных упакованных вариантов. Жизненный цикл: NEW (создана) -> COLLECTED (зав. склада
+ * сырья собрал общий список сырья по всем строкам и списал со своего склада) -> RECEIVED
+ * (когда КАЖДАЯ строка оприходована зав. складом ГП — у каждого товара свой фактический выход,
+ * поэтому оприходование идёт по одной строке за раз, см. {@link ProductionRequestLine}).
+ * items — общий список сырья (снимок RecipeItem.quantity, просуммированный по всем строкам),
+ * не привязан к живым Recipe — правки рецептуры задним числом не влияют на уже созданные заявки.
  */
 @Entity
 @Table(name = "production_requests")
@@ -28,12 +30,9 @@ public class ProductionRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "product_id", nullable = false)
-    private Product product;
-
-    @Column(nullable = false, precision = 12, scale = 3)
-    private BigDecimal batches;
+    /** Название заявки — задаёт пользователь при создании (например, "Коржик"). */
+    @Column(nullable = false)
+    private String title;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
@@ -48,13 +47,16 @@ public class ProductionRequest {
     private String collectedBy;
     private LocalDateTime collectedAt;
 
-    private String receivedBy;
-    private LocalDateTime receivedAt;
-    @Column(precision = 12, scale = 3)
-    private BigDecimal receivedQuantity;
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductionRequestLine> lines = new ArrayList<>();
 
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionRequestItem> items = new ArrayList<>();
+
+    public void addLine(ProductionRequestLine line) {
+        line.setRequest(this);
+        lines.add(line);
+    }
 
     public void addItem(ProductionRequestItem item) {
         item.setRequest(this);

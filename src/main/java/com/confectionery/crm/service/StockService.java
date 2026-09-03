@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -101,6 +102,32 @@ public class StockService {
         return logMovement(null, product, StockMovementType.WRITE_OFF, quantity, reason, by);
     }
 
+    /**
+     * Списание сырья при сборке заявки на производство (ProductionRequestService.collect) —
+     * логика та же, что у {@link #writeOff}, но движение помечается неручным (см.
+     * StockMovement.manual) и не засоряет страницы "Поступления"/"Списание": сам список сырья
+     * заявки уже виден в её карточке.
+     */
+    @Transactional
+    public StockMovement writeOffForProduction(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
+        requirePositive(quantity, "списания");
+        if (ingredient.getQuantityInStock().compareTo(quantity) < 0) {
+            throw new IllegalArgumentException("На складе меньше, чем указано для списания");
+        }
+        ingredient.setQuantityInStock(ingredient.getQuantityInStock().subtract(quantity));
+        ingredientRepository.save(ingredient);
+        return logMovement(ingredient, null, StockMovementType.WRITE_OFF, quantity, reason, by, false);
+    }
+
+    /** Оприходование строки заявки на производство (ProductionRequestService.receiveLine) — см. {@link #writeOffForProduction}. */
+    @Transactional
+    public StockMovement receiveProductForProduction(Product product, BigDecimal quantity, String reason, String by) {
+        requirePositive(quantity, "поступления");
+        product.setQuantityInStock(product.getQuantityInStock().add(quantity));
+        productRepository.save(product);
+        return logMovement(null, product, StockMovementType.RECEIPT, quantity, reason, by, false);
+    }
+
     private void requirePositive(BigDecimal quantity, String action) {
         if (quantity == null || quantity.signum() <= 0) {
             throw new IllegalArgumentException("Количество " + action + " должно быть больше нуля");
@@ -109,6 +136,11 @@ public class StockService {
 
     private StockMovement logMovement(Ingredient ingredient, Product product, StockMovementType type,
                                        BigDecimal quantity, String reason, String by) {
+        return logMovement(ingredient, product, type, quantity, reason, by, true);
+    }
+
+    private StockMovement logMovement(Ingredient ingredient, Product product, StockMovementType type,
+                                       BigDecimal quantity, String reason, String by, boolean manual) {
         StockMovement movement = new StockMovement();
         movement.setIngredient(ingredient);
         movement.setProduct(product);
@@ -116,11 +148,28 @@ public class StockService {
         movement.setQuantity(quantity);
         movement.setReason(reason);
         movement.setCreatedBy(by);
+        movement.setManual(manual);
         return stockMovementRepository.save(movement);
     }
 
-    public List<StockMovement> findMovements(StockMovementType type) {
-        return type == null ? stockMovementRepository.findAllByOrderByCreatedAtDesc()
-                : stockMovementRepository.findByTypeOrderByCreatedAtDesc(type);
+    /**
+     * Только ручные движения (см. StockMovement.manual). from/to/nameQuery необязательны:
+     * from/to сужают по дате (from включительно, to — начало следующего дня, т.е. по дату to
+     * включительно), nameQuery ищет подстроку без учёта регистра в названии сырья/товара —
+     * это уже не в SQL, а в Java, т.к. имя лежит в связанной сущности, а не в самой строке.
+     */
+    public List<StockMovement> findMovements(StockMovementType type, LocalDateTime from, LocalDateTime to, String nameQuery) {
+        List<StockMovement> movements = stockMovementRepository.findManual(type, from, to);
+        if (nameQuery == null || nameQuery.isBlank()) {
+            return movements;
+        }
+        String q = nameQuery.trim().toLowerCase();
+        return movements.stream()
+                .filter(m -> itemName(m).toLowerCase().contains(q))
+                .toList();
+    }
+
+    private String itemName(StockMovement m) {
+        return m.getProduct() != null ? m.getProduct().getName() : m.getIngredient().getName();
     }
 }

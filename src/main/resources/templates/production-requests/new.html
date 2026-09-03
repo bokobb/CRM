@@ -9,29 +9,129 @@
 <div class="app">
     <nav th:replace="~{fragments/nav :: nav}"></nav>
     <main class="content">
-        <h1>Новая заявка на сырьё</h1>
+        <h1>Новое производство</h1>
+        <p class="subtitle">Можно сразу указать несколько позиций — например, из одного теста
+            сегодня решили сделать несколько разных вариантов. Замесы и штуки пересчитываются
+            друг в друга сами. Название заявки определится автоматически по группе товара —
+            если позиции из разных групп, будет создано несколько заявок.</p>
 
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
 
-        <form class="panel" th:action="@{/production-requests}" method="post" style="max-width:480px">
-            <div class="field">
-                <label>Товар</label>
-                <select name="productId" required>
-                    <option value="">— выберите товар —</option>
-                    <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
-                </select>
+        <form class="panel" th:action="@{/production-requests}" method="post" style="max-width:720px" id="crmProdForm">
+            <div id="crmProdRows">
+                <div class="crm-prod-row" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px">
+                    <div class="field" style="flex:2;margin:0">
+                        <label>Товар</label>
+                        <input type="text" class="crm-prod-search" placeholder="Начните вводить название..."
+                               list="crmProductsList" autocomplete="off">
+                        <input type="hidden" class="crm-prod-id" name="productId" required>
+                        <small class="crm-prod-group" style="color:var(--muted)"></small>
+                    </div>
+                    <div class="field" style="flex:1;margin:0">
+                        <label>Замесов</label>
+                        <input type="number" step="0.001" min="0.001" class="crm-prod-batches" name="batches" required>
+                    </div>
+                    <div class="field" style="flex:1;margin:0">
+                        <label>Штук/кг</label>
+                        <input type="number" step="0.001" min="0" class="crm-prod-qty">
+                    </div>
+                    <button type="button" class="btn small" onclick="crmRemoveRow(this)" title="Убрать позицию" style="height:38px">×</button>
+                </div>
             </div>
-            <div class="field">
-                <label>Количество замесов</label>
-                <input type="number" step="0.001" min="0.001" name="batches" required>
-            </div>
+            <datalist id="crmProductsList">
+                <option th:each="r : ${recipes}" th:value="${r.product.name}"
+                        th:attr="data-id=${r.product.id},data-yield=${r.yieldQuantity},data-unit=${r.product.unit ?: 'шт'},data-group=${r.product.group ?: 'Без группы'}"></option>
+            </datalist>
+
+            <button class="btn small" type="button" onclick="crmAddRow()" style="margin:4px 0 16px">+ Добавить позицию</button>
+            <p class="subtitle" id="crmProdTotal" style="margin:0 0 12px"></p>
             <button class="btn primary" type="submit">Создать заявку</button>
         </form>
 
-        <p class="empty" th:if="${#lists.isEmpty(products)}">
+        <p class="empty" th:if="${#lists.isEmpty(recipes)}">
             Нет ни одного товара с заполненной рецептурой — сначала добавьте рецептуру на странице товара.
         </p>
     </main>
 </div>
+<script th:inline="none">
+    function crmProductByName(name) {
+        var options = document.querySelectorAll('#crmProductsList option');
+        for (var i = 0; i < options.length; i++) {
+            if (options[i].value === name) return options[i];
+        }
+        return null;
+    }
+
+    function crmWireRow(row) {
+        var search = row.querySelector('.crm-prod-search');
+        var idField = row.querySelector('.crm-prod-id');
+        var batches = row.querySelector('.crm-prod-batches');
+        var qty = row.querySelector('.crm-prod-qty');
+        var groupHint = row.querySelector('.crm-prod-group');
+
+        function currentYield() {
+            var opt = crmProductByName(search.value);
+            return opt ? parseFloat(opt.getAttribute('data-yield')) : null;
+        }
+
+        search.addEventListener('input', function () {
+            var opt = crmProductByName(search.value);
+            idField.value = opt ? opt.getAttribute('data-id') : '';
+            groupHint.textContent = opt ? ('Группа: ' + opt.getAttribute('data-group')) : '';
+            crmUpdateTotal();
+        });
+        batches.addEventListener('input', function () {
+            var y = currentYield();
+            if (y && batches.value !== '') qty.value = (parseFloat(batches.value) * y).toFixed(3).replace(/\.?0+$/, '');
+            crmUpdateTotal();
+        });
+        qty.addEventListener('input', function () {
+            var y = currentYield();
+            if (y && qty.value !== '') batches.value = (parseFloat(qty.value) / y).toFixed(3).replace(/\.?0+$/, '');
+            crmUpdateTotal();
+        });
+    }
+
+    function crmUpdateTotal() {
+        var rows = document.querySelectorAll('.crm-prod-row');
+        var total = 0;
+        var byGroup = {};
+        rows.forEach(function (row) {
+            var v = parseFloat(row.querySelector('.crm-prod-batches').value);
+            if (!isNaN(v)) total += v;
+            var opt = crmProductByName(row.querySelector('.crm-prod-search').value);
+            if (opt && !isNaN(v)) {
+                var group = opt.getAttribute('data-group');
+                byGroup[group] = (byGroup[group] || 0) + 1;
+            }
+        });
+        var groups = Object.keys(byGroup);
+        var parts = [];
+        if (total > 0) parts.push('Итого замесов: ' + (Math.round(total * 1000) / 1000));
+        if (groups.length > 0) {
+            parts.push('Будет создано заявок: ' + groups.length + ' — «' + groups.join('», «') + '»');
+        }
+        document.getElementById('crmProdTotal').textContent = parts.join(' · ');
+    }
+
+    function crmAddRow() {
+        var rows = document.getElementById('crmProdRows');
+        var clone = rows.querySelector('.crm-prod-row').cloneNode(true);
+        clone.querySelectorAll('input').forEach(function (el) { el.value = ''; });
+        clone.querySelector('.crm-prod-group').textContent = '';
+        rows.appendChild(clone);
+        crmWireRow(clone);
+    }
+
+    function crmRemoveRow(btn) {
+        var rows = document.getElementById('crmProdRows');
+        if (rows.querySelectorAll('.crm-prod-row').length > 1) {
+            btn.closest('.crm-prod-row').remove();
+            crmUpdateTotal();
+        }
+    }
+
+    crmWireRow(document.querySelector('.crm-prod-row'));
+</script>
 </body>
 </html>

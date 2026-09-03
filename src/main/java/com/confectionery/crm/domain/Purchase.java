@@ -51,4 +51,8 @@ public class Purchase {
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "stock_movement_id", nullable = false, unique = true)
     private StockMovement stockMovement;
+
+    /** Фото накладной от поставщика (см. FileStorageService.storePurchaseInvoiceImage) — необязательно. */
+    @Column(length = 2000)
+    private String imageUrl;
 }

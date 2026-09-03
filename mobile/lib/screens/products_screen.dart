@@ -7,6 +7,7 @@ import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/product_avatar.dart';
+import '../widgets/searchable_app_bar.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -18,6 +19,7 @@ class ProductsScreen extends StatefulWidget {
 class _ProductsScreenState extends State<ProductsScreen> {
   final _api = ApiClient();
   late Future<List<Product>> _future;
+  String _query = '';
 
   @override
   void initState() {
@@ -30,6 +32,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
       _future = _api.getProducts();
     });
     await _future;
+  }
+
+  List<Product> _filter(List<Product> products) {
+    if (_query.isEmpty) return products;
+    final q = _query.toLowerCase();
+    return products.where((p) => p.name.toLowerCase().contains(q)).toList();
   }
 
   Future<void> _delete(Product p) async {
@@ -53,7 +61,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Товары и рецепты')),
+      appBar: SearchableAppBar(
+        title: 'Товары',
+        hintText: 'Название товара...',
+        onQueryChanged: (v) => setState(() => _query = v),
+      ),
       drawer: const AppDrawer(currentRoute: '/products'),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
@@ -73,12 +85,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
             if (snapshot.hasError) {
               return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
             }
-            final products = snapshot.data!;
+            final products = _filter(snapshot.data!);
             if (products.isEmpty) {
-              return ListView(children: const [
+              return ListView(children: [
                 Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Center(child: Text('Товаров пока нет', style: TextStyle(color: Colors.grey))),
+                  padding: const EdgeInsets.all(32),
+                  child: Center(
+                    child: Text(_query.isEmpty ? 'Товаров пока нет' : 'Ничего не найдено',
+                        style: const TextStyle(color: Colors.grey)),
+                  ),
                 ),
               ]);
             }
@@ -114,7 +129,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ],
                   ),
                   onTap: () async {
-                    await Navigator.of(context).pushNamed('/products/recipe', arguments: p.id);
+                    await Navigator.of(context).pushNamed('/products/edit', arguments: p.id);
                     _refresh();
                   },
                 );

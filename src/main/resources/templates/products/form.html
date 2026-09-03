@@ -27,9 +27,15 @@
                     <input type="number" step="0.01" th:field="*{price}" required>
                 </div>
             </div>
-            <div class="field">
-                <label>Ед. изм.</label>
-                <input type="text" th:field="*{unit}" placeholder="шт, кг...">
+            <div class="row">
+                <div class="field">
+                    <label>Группа</label>
+                    <input type="text" th:field="*{group}" placeholder="Коржик, Орешки...">
+                </div>
+                <div class="field">
+                    <label>Ед. изм.</label>
+                    <input type="text" th:field="*{unit}" placeholder="шт, кг...">
+                </div>
             </div>
             <div class="field">
                 <label>Описание</label>

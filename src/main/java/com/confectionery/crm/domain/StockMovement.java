@@ -41,6 +41,16 @@ public class StockMovement {
 
     private String reason;
 
+    /**
+     * Ручное движение (зав. складом сам оформил через "Склад") vs автоматическое, порождённое
+     * заявкой на производство (списание сырья при сборке / приход товара при оприходовании
+     * строки — см. ProductionRequestService). Автоматические не показываются на страницах
+     * "Поступления"/"Списание" (см. StockService.findMovements) — иначе список тонет в шуме
+     * от каждой заявки; они и так видны в самой заявке.
+     */
+    @Column(nullable = false)
+    private boolean manual = true;
+
     @Column(nullable = false)
     private String createdBy;
 

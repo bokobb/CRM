@@ -71,6 +71,23 @@
 
         <div class="panel">
             <h2>История</h2>
+            <form method="get" class="row" style="align-items:flex-end;margin-bottom:14px">
+                <div class="field" style="margin:0">
+                    <label>С даты</label>
+                    <input type="date" name="from" th:value="${from}">
+                </div>
+                <div class="field" style="margin:0">
+                    <label>По дату</label>
+                    <input type="date" name="to" th:value="${to}">
+                </div>
+                <div class="field" style="margin:0;flex:2">
+                    <label>Название</label>
+                    <input type="text" name="q" th:value="${q}" placeholder="Сырьё или товар...">
+                </div>
+                <button class="btn small" type="submit">Найти</button>
+                <a class="btn small" th:if="${from != null or to != null or (q != null and !#strings.isEmpty(q))}"
+                   th:href="@{${isReceipt ? '/warehouse/receipts' : '/warehouse/writeoffs'}}">Сбросить</a>
+            </form>
             <table th:if="${not #lists.isEmpty(movements)}">
                 <tr><th>Дата</th><th>Вид</th><th>Позиция</th><th>Количество</th><th>Причина</th><th>Кто</th></tr>
                 <tr th:each="m : ${movements}">

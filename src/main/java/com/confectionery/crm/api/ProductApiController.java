@@ -79,6 +79,7 @@ public class ProductApiController {
     private Product toEntity(Product product, ProductRequest req) {
         product.setName(req.name());
         product.setCategory(req.category());
+        product.setGroup(req.group());
         product.setDescription(req.description());
         product.setPrice(req.price());
         product.setUnit(req.unit());

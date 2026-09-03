@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Отчёт по оприходованию — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <div class="page-header">
+            <div>
+                <h1>Отчёт по оприходованию</h1>
+                <p class="subtitle" th:text="'Сколько готовой продукции изготовили за ' + ${#temporals.format(date, 'dd.MM.yyyy')}"></p>
+            </div>
+        </div>
+
+        <div class="panel">
+            <form method="get" class="row" style="align-items:flex-end;margin-bottom:14px">
+                <div class="field" style="margin:0">
+                    <label>Дата</label>
+                    <input type="date" name="date" th:value="${date}">
+                </div>
+                <button class="btn small" type="submit">Показать</button>
+                <a class="btn small" th:href="@{/production-requests/report/pdf(date=${date})}">Скачать PDF</a>
+            </form>
+
+            <table th:if="${not #lists.isEmpty(lines)}">
+                <tr><th>№</th><th>Товар</th><th>Замесов</th><th>Норма</th><th>Факт</th><th>Отклонение</th><th>Ед.</th><th>Оприходований</th></tr>
+                <tr th:each="l, iter : ${lines}">
+                    <td th:text="${iter.count}"></td>
+                    <td th:text="${l.productName}"></td>
+                    <td th:text="${l.batches}"></td>
+                    <td th:text="${l.norm}"></td>
+                    <td th:text="${l.received}"></td>
+                    <td th:style="${l.deviation.signum() < 0 ? 'color:#c0392b' : (l.deviation.signum() > 0 ? 'color:#27ae60' : '')}"
+                        th:text="${(l.deviation.signum() > 0 ? '+' : '') + l.deviation}"></td>
+                    <td th:text="${l.unit}"></td>
+                    <td th:text="${l.receivedCount}"></td>
+                </tr>
+            </table>
+            <p class="empty" th:if="${#lists.isEmpty(lines)}">За этот день ничего не оприходовано</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

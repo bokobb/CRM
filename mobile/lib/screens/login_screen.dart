@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../navigation.dart';
 import '../services/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,8 +25,10 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      await _api.login(_username.text.trim(), _password.text);
-      if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      final session = await _api.login(_username.text.trim(), _password.text);
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil(homeRouteForRole(session.role), (route) => false);
+      }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

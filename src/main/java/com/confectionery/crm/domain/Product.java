@@ -26,6 +26,15 @@ public class Product {
 
     private String category;
 
+    /**
+     * Группа товара для рецептов и заявок на сырьё (например, "Коржик" объединяет Коржики/
+     * Коржик Сдоба/Коржик Сердечко). Отдельно от category — та используется для каталога
+     * заказов, эта — для разбиения заявок (см. ProductionRequestService.createGrouped).
+     * Колонка называется product_group, не group — GROUP зарезервировано в SQL.
+     */
+    @Column(name = "product_group")
+    private String group;
+
     @Column(length = 1000)
     private String description;
 

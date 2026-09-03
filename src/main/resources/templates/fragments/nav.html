@@ -3,15 +3,17 @@
 <body>
 <nav th:fragment="nav" class="sidebar">
     <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
-    <a th:href="@{/}" class="nav-link" sec:authorize="!hasAnyRole('WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'dashboard'} ? 'active'">Дашборд</a>
+    <a th:href="@{/}" class="nav-link" sec:authorize="!hasRole('WAREHOUSE_FG')" th:classappend="${activePage == 'dashboard'} ? 'active'">Дашборд</a>
     <a th:href="@{/clients}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'clients'} ? 'active'">Клиенты</a>
-    <a th:href="@{/products}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'products'} ? 'active'">Товары и рецепты</a>
+    <a th:href="@{/products}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'products'} ? 'active'">Товары</a>
+    <a th:href="@{/products/recipes}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'products-recipes'} ? 'active'">Рецепты</a>
     <a th:href="@{/warehouse/stock}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'warehouse-stock'} ? 'active'">Остатки</a>
     <a th:href="@{/warehouse/receipts}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'warehouse-receipts'} ? 'active'">Поступления</a>
     <a th:href="@{/warehouse/writeoffs}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'warehouse-writeoffs'} ? 'active'">Списание</a>
     <a th:href="@{/ingredients}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'ingredients'} ? 'active'">Сырьё</a>
     <a th:href="@{/purchases}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" th:classappend="${activePage == 'purchases'} ? 'active'">Покупки</a>
     <a th:href="@{/production-requests}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Заявки на сырьё</a>
+    <a th:href="@{/production-requests/report}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Отчёт</a>
     <a th:href="@{/orders}" class="nav-link" th:classappend="${activePage == 'orders'} ? 'active'">Заказы</a>
     <a th:href="@{/production}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'production'} ? 'active'">Производство</a>
     <a th:href="@{/debts}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'debts'} ? 'active'">Долги</a>

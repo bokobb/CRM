@@ -38,6 +38,15 @@ public class FileStorageService {
 
     /** Сохраняет файл на диск и возвращает относительный URL для раздачи (см. UploadConfig). */
     public String storeProductImage(Long productId, MultipartFile file) {
+        return store("product", "/product-images", productId, file);
+    }
+
+    /** Фото накладной поставщика, приложенное к закупке сырья (см. PurchaseService.attachImage). */
+    public String storePurchaseInvoiceImage(Long purchaseId, MultipartFile file) {
+        return store("purchase-invoice", "/purchase-images", purchaseId, file);
+    }
+
+    private String store(String filenamePrefix, String urlPrefix, Long entityId, MultipartFile file) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Пустой файл");
         }
@@ -45,12 +54,12 @@ public class FileStorageService {
         if (ext == null) {
             throw new IllegalArgumentException("Поддерживаются только изображения (jpeg, png, webp, gif)");
         }
-        String filename = "product-" + productId + "-" + System.currentTimeMillis() + "." + ext;
+        String filename = filenamePrefix + "-" + entityId + "-" + System.currentTimeMillis() + "." + ext;
         try {
             Files.copy(file.getInputStream(), root.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             throw new UncheckedIOException("Не удалось сохранить файл", e);
         }
-        return "/product-images/" + filename;
+        return urlPrefix + "/" + filename;
     }
 }

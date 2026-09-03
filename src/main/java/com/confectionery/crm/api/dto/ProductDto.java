@@ -8,6 +8,7 @@ public record ProductDto(
         Long id,
         String name,
         String category,
+        String group,
         String description,
         BigDecimal price,
         String unit,
@@ -15,7 +16,7 @@ public record ProductDto(
         String imageUrl
 ) {
     public static ProductDto from(Product p) {
-        return new ProductDto(p.getId(), p.getName(), p.getCategory(), p.getDescription(), p.getPrice(), p.getUnit(),
+        return new ProductDto(p.getId(), p.getName(), p.getCategory(), p.getGroup(), p.getDescription(), p.getPrice(), p.getUnit(),
                 p.getQuantityInStock(), p.getImageUrl());
     }
 }

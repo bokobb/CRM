@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
-    <title>Товары и рецепты — Юг Сладости</title>
+    <title>Товары — Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <main class="content">
         <div class="page-header">
             <div>
-                <h1>Товары и рецепты</h1>
+                <h1>Товары</h1>
                 <p class="subtitle" th:text="${#lists.size(products)} + ' товаров в каталоге'"></p>
             </div>
             <a class="btn primary" th:href="@{/products/new}">+ Новый товар</a>
@@ -42,7 +42,6 @@
                         <div class="product-card-price" th:text="${p.price} + ' ₸'"></div>
                     </div>
                     <div class="product-card-actions">
-                        <a class="btn small" th:href="@{/products/{id}/recipe(id=${p.id})}">Рецептура</a>
                         <a class="btn small" th:href="@{/products/{id}/edit(id=${p.id})}">Изменить</a>
                         <form th:if="${p.active}" sec:authorize="hasRole('ADMIN')"
                               th:action="@{/products/{id}/delete(id=${p.id})}" method="post" onsubmit="return confirm('Удалить товар? Если он уже встречался в заказах или на складе — вместо удаления он будет архивирован.');">

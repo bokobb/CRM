@@ -13,11 +13,14 @@ import java.util.stream.Collectors;
 
 /**
  * Приём заказов из WhatsApp: сообщение клиента -> распознавание позиций через
- * OrderParser (Claude или локальная Ollama — см. crm.order-parser.engine) -> либо сразу
- * заказ (все позиции распознаны уверенно), либо
- * запись PENDING на экране /whatsapp-inbox, где администратор доопределяет непонятные
- * позиции вручную. Каждое такое ручное уточнение запоминается как ProductAlias — так
- * распознавание "учится" на разговорных названиях конкретных клиентов ("розочка" и т.п.).
+ * OrderParser (Claude или локальная Ollama — см. crm.order-parser.engine) -> ВСЕГДА запись
+ * PENDING на экране /whatsapp-inbox, даже если ИИ распознал все позиции уверенно. Заказ
+ * создаётся и клиенту уходит подтверждение только после того, как администратор нажмёт
+ * «Подтвердить» (см. resolvePending) — до этого клиенту не отправляется вообще ничего. Так
+ * исключены ложные срабатывания ИИ (например, "буду в 15:00" тоже содержит цифру и раньше
+ * могло создать заказ и уйти клиенту без участия человека). Каждое ручное уточнение
+ * запоминается как ProductAlias — так распознавание "учится" на разговорных названиях
+ * конкретных клиентов ("розочка" и т.п.).
  */
 @Slf4j
 @Service
@@ -57,8 +60,6 @@ public class WhatsAppOrderIntakeService {
             log.warn("Не удалось распознать заказ из WhatsApp от {}: {}", fromPhone, e.getMessage());
             notificationService.notifyRole(Role.ADMIN,
                     "WhatsApp: не удалось распознать заказ от " + client.getName() + " (" + fromPhone + "): " + text, null);
-            gatewayClient.sendMessage(fromPhone,
-                    "Здравствуйте! Не получилось автоматически распознать заказ — мы уже смотрим сообщение и скоро свяжемся с вами.");
             return;
         }
 
@@ -66,8 +67,6 @@ public class WhatsAppOrderIntakeService {
             notificationService.notifyRole(Role.ADMIN,
                     "WhatsApp: не удалось найти позиции заказа в сообщении от " + client.getName()
                             + " (" + fromPhone + "): " + text, null);
-            gatewayClient.sendMessage(fromPhone,
-                    "Здравствуйте! Не смогли распознать товары в вашем сообщении — уточните, пожалуйста, названия позиций, и мы оформим заказ.");
             return;
         }
 
@@ -82,28 +81,16 @@ public class WhatsAppOrderIntakeService {
             item.setProduct(line.product());
             inbound.addItem(item);
         }
+        inboundRepository.save(inbound);
 
-        if (parsed.allMatched()) {
-            Order order = createOrderFrom(inbound);
-            inbound.setStatus(WhatsAppInboundStatus.RESOLVED);
-            inbound.setResolvedOrderId(order.getId());
-            inboundRepository.save(inbound);
-            notificationService.notifyRole(Role.ADMIN,
-                    "Новый заказ №" + order.getId() + " через WhatsApp от " + client.getName()
-                            + " на сумму " + order.getTotalPrice(),
-                    order);
-            gatewayClient.sendMessage(fromPhone, confirmationText(order));
-        } else {
-            inboundRepository.save(inbound);
-            // Клиенту уже отправили ответ ниже; на этом этапе сообщаем ТОЛЬКО админу (реальный
-            // push, не лог) — склад и бухгалтер узнают о заказе только когда он реально появится,
-            // после того как админ уточнит позиции (см. resolvePending -> createOrderFrom).
-            notificationService.notifyRole(Role.ADMIN,
-                    "WhatsApp: нужно уточнить товары в заказе от " + client.getName() + " (" + fromPhone
-                            + ") — откройте раздел «WhatsApp-заказы»", null);
-            gatewayClient.sendMessage(fromPhone,
-                    "Здравствуйте! Ваше сообщение получили, уточняем пару позиций — подтвердим заказ в ближайшее время.");
-        }
+        // Клиенту на этом этапе НИЧЕГО не отправляем — только уведомление админу (см. javadoc
+        // класса). Заказ создастся и клиент получит подтверждение только после resolvePending.
+        String readiness = parsed.allMatched()
+                ? "все позиции распознаны — можно сразу подтвердить"
+                : "нужно уточнить часть позиций";
+        notificationService.notifyRole(Role.ADMIN,
+                "WhatsApp: новый заказ от " + client.getName() + " (" + fromPhone + "), " + readiness
+                        + " — откройте раздел «WhatsApp-заказы»", null);
     }
 
     /**

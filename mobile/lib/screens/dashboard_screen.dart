@@ -30,19 +30,30 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final _api = ApiClient();
   late Future<Dashboard> _future;
+  late Future<ProductionDashboard> _prodFuture;
   DateTimeRange _range = todayRange();
+
+  bool get _isWarehouseRaw => ApiClient.currentSession?.role == 'WAREHOUSE_RAW';
 
   @override
   void initState() {
     super.initState();
-    _future = _api.getDashboard(from: _range.start, to: _range.end);
+    if (_isWarehouseRaw) {
+      _prodFuture = _api.getProductionDashboard(from: _range.start, to: _range.end);
+    } else {
+      _future = _api.getDashboard(from: _range.start, to: _range.end);
+    }
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _future = _api.getDashboard(from: _range.start, to: _range.end);
+      if (_isWarehouseRaw) {
+        _prodFuture = _api.getProductionDashboard(from: _range.start, to: _range.end);
+      } else {
+        _future = _api.getDashboard(from: _range.start, to: _range.end);
+      }
     });
-    await _future;
+    await (_isWarehouseRaw ? _prodFuture : _future);
   }
 
   void _onRangeChanged(DateTimeRange range) {
@@ -68,7 +79,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
-              child: FutureBuilder<Dashboard>(
+              child: _isWarehouseRaw ? _buildProductionBody() : _buildSalesBody(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSalesBody() {
+    return FutureBuilder<Dashboard>(
                 future: _future,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -182,11 +202,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   );
                 },
+    );
+  }
+
+  Widget _buildProductionBody() {
+    return FutureBuilder<ProductionDashboard>(
+      future: _prodFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+        }
+        final d = snapshot.data!;
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              color: const Color(0xFFB8324A),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${d.collectedInRange}',
+                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Заявок собрано за ${_rangeLabel(d.from, d.to)}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    value: '${d.pending}',
+                    label: 'Ждут сборки',
+                    onTap: () => Navigator.of(context).pushNamed('/production-requests'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(value: '${d.awaitingReceipt}', label: 'Собраны, ждут склад ГП'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(value: '${d.createdInRange}', label: 'Создано за период'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text('⚠️ Низкие остатки сырья', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (d.lowStock.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('Остатков ниже нормы нет', style: TextStyle(color: Colors.grey)),
+              )
+            else
+              Card(
+                child: Column(
+                  children: [
+                    for (final i in d.lowStock)
+                      ListTile(
+                        title: Text(i.name),
+                        trailing: Text(
+                          '${formatQty(i.quantityInStock)} ${i.unit}',
+                          style: const TextStyle(color: Color(0xFFB8433F), fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 20),
+            Text('📋 Заявки, ожидающие сборки', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (d.pendingRequests.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('Заявок, ожидающих сборки, нет', style: TextStyle(color: Colors.grey)),
+              )
+            else
+              for (final r in d.pendingRequests)
+                AppListTile(
+                  leadingIcon: Icons.science_outlined,
+                  title: r.title,
+                  subtitle: '${formatQty(r.totalBatches)} замес. · ${r.createdBy} · ${formatDateTime(r.createdAt)}',
+                  trailing: StatusBadge(status: r.status, label: r.statusLabel),
+                  onTap: () => Navigator.of(context).pushNamed('/production-requests/detail', arguments: r.id),
+                ),
+          ],
+        );
+      },
     );
   }
 }

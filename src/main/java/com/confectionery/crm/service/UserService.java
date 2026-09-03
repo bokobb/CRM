@@ -42,17 +42,21 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public User update(Long id, String fullName, Role role, boolean enabled) {
+    /** newPassword — null/пусто означает "пароль не менять" (см. UserUpdateRequest). */
+    public User update(Long id, String username, String fullName, Role role, boolean enabled, String newPassword) {
         User user = findById(id);
+        if (!user.getUsername().equals(username)) {
+            if (userRepository.findByUsername(username).isPresent()) {
+                throw new IllegalArgumentException("Логин уже занят: " + username);
+            }
+            user.setUsername(username);
+        }
         user.setFullName(fullName);
         user.setRole(role);
         user.setEnabled(enabled);
+        if (newPassword != null && !newPassword.isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(newPassword));
+        }
         return userRepository.save(user);
-    }
-
-    public void resetPassword(Long id, String newRawPassword) {
-        User user = findById(id);
-        user.setPasswordHash(passwordEncoder.encode(newRawPassword));
-        userRepository.save(user);
     }
 }

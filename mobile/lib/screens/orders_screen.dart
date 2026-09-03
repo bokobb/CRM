@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/order.dart';
 import '../services/api_client.dart';
+import '../widgets/app_choice_chip.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
@@ -95,7 +96,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               children: [
-                _FilterChip(
+                AppChoiceChip(
                   label: 'Все',
                   selected: _status == null,
                   onTap: () {
@@ -104,7 +105,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   },
                 ),
                 for (final s in orderStatuses)
-                  _FilterChip(
+                  AppChoiceChip(
                     label: orderStatusLabels[s]!,
                     selected: _status == s,
                     onTap: () {
@@ -171,22 +172,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onTap()),
     );
   }
 }

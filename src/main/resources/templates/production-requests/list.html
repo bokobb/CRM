@@ -14,14 +14,23 @@
             <a class="btn primary" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:href="@{/production-requests/new}">+ Новая заявка</a>
         </div>
 
+        <div class="alert success" th:if="${success}" th:text="${success}"></div>
+
+        <div class="tabs">
+            <a th:href="@{/production-requests}" th:classappend="${selectedStatus == null} ? 'active'">Все</a>
+            <a th:each="s : ${statuses}" th:href="@{/production-requests(status=${s})}"
+               th:classappend="${selectedStatus == s.name()} ? 'active'" th:text="${s.label}"></a>
+        </div>
+
         <div class="panel">
             <table th:if="${not #lists.isEmpty(requests)}">
-                <tr><th>№</th><th>Товар</th><th>Замесов</th><th>Статус</th><th>Создал</th><th>Дата</th><th></th></tr>
+                <tr><th>№</th><th>Название</th><th>Товары</th><th>Замесов</th><th>Статус</th><th>Создал</th><th>Дата</th><th></th></tr>
                 <tr th:each="r : ${requests}">
                     <td th:text="${r.id}"></td>
-                    <td th:text="${r.product.name}"></td>
-                    <td th:text="${r.batches}"></td>
-                    <td><span class="badge" th:classappend="${r.status}" th:text="${r.status.label}"></span></td>
+                    <td th:text="${r.title}"></td>
+                    <td th:text="${#strings.arrayJoin(r.productNames.toArray(), ', ')}"></td>
+                    <td th:text="${r.totalBatches}"></td>
+                    <td><span class="badge" th:classappend="${r.status}" th:text="${r.statusLabel}"></span></td>
                     <td th:text="${r.createdBy}"></td>
                     <td th:text="${#temporals.format(r.createdAt, 'dd.MM.yyyy HH:mm')}"></td>
                     <td class="actions"><a class="btn small" th:href="@{/production-requests/{id}(id=${r.id})}">Открыть</a></td>

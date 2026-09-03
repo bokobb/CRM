@@ -71,7 +71,7 @@ public class SecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain productImagesFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/product-images/**")
+        http.securityMatcher("/product-images/**", "/purchase-images/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .headers(headers -> headers.cacheControl(cache -> cache.disable()));

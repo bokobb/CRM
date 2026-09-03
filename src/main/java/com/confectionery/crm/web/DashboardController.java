@@ -1,10 +1,12 @@
 package com.confectionery.crm.web;
 
+import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.domain.ProductionTaskStatus;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.NotificationService;
+import com.confectionery.crm.service.ProductionRequestService;
 import com.confectionery.crm.service.ProductionTaskService;
 import com.confectionery.crm.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ public class DashboardController {
     private final IngredientService ingredientService;
     private final NotificationService notificationService;
     private final ProductionTaskService productionTaskService;
+    private final ProductionRequestService productionRequestService;
     private final UserService userService;
 
     /** from/to не заданы — по умолчанию сегодня (совпадает с поведением мобильного дашборда). */
@@ -41,6 +44,15 @@ public class DashboardController {
         model.addAttribute("activePage", "dashboard");
         model.addAttribute("rangeFrom", rangeFrom);
         model.addAttribute("rangeTo", rangeTo);
+
+        if ("WAREHOUSE_RAW".equals(userService.roleOf(authentication.getName()))) {
+            var summary = productionRequestService.dashboardSummary(start, end, 10);
+            model.addAttribute("counts", summary.counts());
+            model.addAttribute("pendingRequests", summary.pendingRequests().stream().map(ProductionRequestSummaryDto::from).toList());
+            model.addAttribute("lowStock", ingredientService.findLowStock());
+            return "dashboard-production";
+        }
+
         model.addAttribute("newOrders", orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.NEW, start, end));
         model.addAttribute("inProduction", orderRepository.countByStatus(OrderStatus.IN_PRODUCTION));
         model.addAttribute("readyOrders", orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.READY, start, end));

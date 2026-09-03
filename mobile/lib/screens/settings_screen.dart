@@ -35,6 +35,14 @@ class SettingsScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).pushNamed('/settings/company'),
             ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.chat_outlined),
+              title: const Text('WhatsApp-сессия'),
+              subtitle: const Text('Статус подключения, разрыв и новый QR'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).pushNamed('/settings/whatsapp'),
+            ),
           ],
           if (canManageBusiness) ...[
             const Divider(height: 1),

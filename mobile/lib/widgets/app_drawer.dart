@@ -8,11 +8,13 @@ typedef _Item = (String route, String label, IconData icon);
 const _dashboard = ('/', 'Дашборд', Icons.dashboard_outlined);
 const _orders = ('/orders', 'Заказы', Icons.receipt_long_outlined);
 const _clients = ('/clients', 'Клиенты', Icons.people_outline);
-const _products = ('/products', 'Товары и рецепты', Icons.cake_outlined);
+const _products = ('/products', 'Товары', Icons.cake_outlined);
+const _recipes = ('/recipes', 'Рецепты', Icons.menu_book_outlined);
 const _warehouse = ('/warehouse', 'Склад', Icons.inventory_2_outlined);
 const _ingredients = ('/ingredients', 'Сырьё', Icons.grain_outlined);
 const _production = ('/production', 'Производство', Icons.factory_outlined);
 const _productionRequests = ('/production-requests', 'Заявки на сырьё', Icons.science_outlined);
+const _productionReport = ('/production-requests/report', 'Отчёт', Icons.summarize_outlined);
 const _purchases = ('/purchases', 'Покупки', Icons.local_shipping_outlined);
 const _warehouseWriteoffs = ('/warehouse/writeoffs', 'Списание', Icons.remove_circle_outline);
 const _debts = ('/debts', 'Долги', Icons.hourglass_bottom_outlined);
@@ -39,23 +41,26 @@ class AppDrawer extends StatelessWidget {
           _orders,
           _clients,
           _products,
+          _recipes,
           _warehouse,
           _ingredients,
           _purchases,
           _productionRequests,
+          _productionReport,
           _production,
           _debts,
           _whatsappInbox,
           _notifications,
         ];
       case 'SALES':
-        return [_dashboard, _orders, _clients, _products, _whatsappInbox, _notifications];
+        return [_dashboard, _orders, _clients, _products, _recipes, _whatsappInbox, _notifications];
       case 'WAREHOUSE_FG':
-        return [_orders, _warehouse, _ingredients, _productionRequests, _notifications];
+        return [_orders, _warehouse, _ingredients, _productionRequests, _productionReport, _notifications];
       case 'WAREHOUSE_RAW':
-        // Склад сырья: заявки (сборка по чек-листу), покупки (приход от поставщиков),
-        // списание (порча/недостача вне процесса заявок) и сама карточка сырья.
-        return [_productionRequests, _purchases, _warehouseWriteoffs, _ingredients, _notifications];
+        // Склад сырья: дашборд по производству (не по заказам — см. DashboardScreen),
+        // заявки (сборка по чек-листу), покупки (приход от поставщиков), списание
+        // (порча/недостача вне процесса заявок) и сама карточка сырья.
+        return [_dashboard, _productionRequests, _purchases, _warehouseWriteoffs, _ingredients, _notifications];
       default:
         return [_dashboard];
     }

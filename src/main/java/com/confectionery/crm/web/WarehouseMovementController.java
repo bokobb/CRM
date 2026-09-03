@@ -17,12 +17,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * Поступления и списания сырья/готовой продукции (журнал StockMovement) — веб-аналог
  * мобильного экрана StockMovementScreen (см. mobile/lib/screens/stock_movement_screen.dart),
  * поверх уже готового StockService, которым и мобильное приложение пользуется через REST
  * (см. StockMovementApiController). "Остатки" — отдельно, см. WarehouseStockController.
+ * Показываются только РУЧНЫЕ движения (см. StockMovement.manual) — то, что списывается/
+ * приходуется автоматически заявками на производство, здесь намеренно не отображается.
  */
 @Controller
 @RequiredArgsConstructor
@@ -33,19 +36,27 @@ public class WarehouseMovementController {
     private final IngredientService ingredientService;
 
     @GetMapping("/warehouse/receipts")
-    public String receipts(Model model) {
-        return page(model, StockMovementType.RECEIPT, "warehouse-receipts");
+    public String receipts(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+                            @RequestParam(required = false) String q, Model model) {
+        return page(model, StockMovementType.RECEIPT, "warehouse-receipts", from, to, q);
     }
 
     @GetMapping("/warehouse/writeoffs")
-    public String writeoffs(Model model) {
-        return page(model, StockMovementType.WRITE_OFF, "warehouse-writeoffs");
+    public String writeoffs(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+                             @RequestParam(required = false) String q, Model model) {
+        return page(model, StockMovementType.WRITE_OFF, "warehouse-writeoffs", from, to, q);
     }
 
-    private String page(Model model, StockMovementType type, String activePage) {
+    private String page(Model model, StockMovementType type, String activePage, LocalDate from, LocalDate to, String q) {
         model.addAttribute("activePage", activePage);
         model.addAttribute("isReceipt", type == StockMovementType.RECEIPT);
-        model.addAttribute("movements", stockService.findMovements(type));
+        model.addAttribute("movements", stockService.findMovements(type,
+                from == null ? null : from.atStartOfDay(),
+                to == null ? null : to.plusDays(1).atStartOfDay(),
+                q));
+        model.addAttribute("from", from);
+        model.addAttribute("to", to);
+        model.addAttribute("q", q);
         model.addAttribute("products", productService.findAll());
         model.addAttribute("ingredients", ingredientService.findAll());
         return "warehouse/movements";

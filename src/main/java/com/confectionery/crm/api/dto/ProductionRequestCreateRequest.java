@@ -1,8 +1,9 @@
 package com.confectionery.crm.api.dto;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 
-import java.math.BigDecimal;
+import java.util.List;
 
-public record ProductionRequestCreateRequest(@NotNull Long productId, @NotNull BigDecimal batches) {
+public record ProductionRequestCreateRequest(@NotEmpty @Valid List<ProductionRequestLineRequest> items) {
 }

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
 
+bool get _isCurrentUserAdmin => ApiClient.currentSession?.role == 'ADMIN';
+
 class UserFormScreen extends StatefulWidget {
   final int? userId;
 
@@ -49,7 +51,13 @@ class _UserFormScreenState extends State<UserFormScreen> {
     });
     try {
       if (_isEdit) {
-        await _api.updateUser(widget.userId!, {'fullName': _fullName.text.trim(), 'role': _role, 'enabled': _enabled});
+        await _api.updateUser(widget.userId!, {
+          'username': _username.text.trim(),
+          'fullName': _fullName.text.trim(),
+          'role': _role,
+          'enabled': _enabled,
+          if (_password.text.isNotEmpty) 'newPassword': _password.text,
+        });
       } else {
         await _api.createUser({
           'username': _username.text.trim(),
@@ -67,42 +75,10 @@ class _UserFormScreenState extends State<UserFormScreen> {
     }
   }
 
-  Future<void> _resetPassword() async {
-    final controller = TextEditingController();
-    final newPassword = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Сбросить пароль'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Новый пароль'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Сохранить')),
-        ],
-      ),
-    );
-    if (newPassword != null && newPassword.isNotEmpty) {
-      try {
-        await _api.resetUserPassword(widget.userId!, newPassword);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Пароль обновлён')));
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEdit ? 'Редактировать пользователя' : 'Новый пользователь'),
-        actions: [
-          if (_isEdit) IconButton(icon: const Icon(Icons.password), tooltip: 'Сбросить пароль', onPressed: _resetPassword),
-        ],
-      ),
+      appBar: AppBar(title: Text(_isEdit ? 'Редактировать пользователя' : 'Новый пользователь')),
       body: _initialLoading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -117,7 +93,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
                     ),
                   TextFormField(
                     controller: _username,
-                    enabled: !_isEdit,
                     decoration: const InputDecoration(labelText: 'Логин'),
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Укажите логин' : null,
                   ),
@@ -134,16 +109,24 @@ class _UserFormScreenState extends State<UserFormScreen> {
                     items: [
                       for (final r in userRoles) DropdownMenuItem(value: r, child: Text(userRoleLabels[r]!)),
                     ],
-                    onChanged: (v) => setState(() => _role = v!),
+                    // Роль может менять только ADMIN — при редактировании чужого профиля
+                    // ACCOUNTANT видит роль, но изменить не может (см. UserApiController.update).
+                    onChanged: (!_isEdit || _isCurrentUserAdmin) ? (v) => setState(() => _role = v!) : null,
                   ),
-                  if (!_isEdit) ...[
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _password,
-                      decoration: const InputDecoration(labelText: 'Пароль'),
-                      validator: (v) => (v == null || v.length < 4) ? 'Минимум 4 символа' : null,
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _password,
+                    decoration: InputDecoration(
+                      labelText: _isEdit ? 'Новый пароль' : 'Пароль',
+                      hintText: _isEdit ? 'Оставьте пустым, чтобы не менять' : null,
                     ),
-                  ],
+                    validator: (v) {
+                      if (_isEdit) {
+                        return (v != null && v.isNotEmpty && v.length < 4) ? 'Минимум 4 символа' : null;
+                      }
+                      return (v == null || v.length < 4) ? 'Минимум 4 символа' : null;
+                    },
+                  ),
                   if (_isEdit) ...[
                     const SizedBox(height: 8),
                     SwitchListTile(

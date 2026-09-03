@@ -35,6 +35,15 @@ public class ProductController {
         return "products/list";
     }
 
+    @GetMapping("/recipes")
+    public String recipes(Model model) {
+        model.addAttribute("activePage", "products-recipes");
+        var products = productService.findAll();
+        model.addAttribute("products", products);
+        model.addAttribute("productsByGroup", productService.groupByGroup(products));
+        return "products/recipes";
+    }
+
     @GetMapping("/new")
     public String newForm(Model model) {
         model.addAttribute("activePage", "products");

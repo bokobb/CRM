@@ -74,7 +74,7 @@ public class ProductService {
         Product product = findById(id);
         boolean hasHistory = orderRepository.existsByItems_Product_Id(id)
                 || stockMovementRepository.existsByProductId(id)
-                || productionRequestRepository.existsByProductId(id)
+                || productionRequestRepository.existsByLinesProductId(id)
                 || whatsAppInboundMessageRepository.existsByItems_Product_Id(id);
         if (hasHistory) {
             product.setActive(false);
@@ -110,6 +110,26 @@ public class ProductService {
         Map<String, List<Product>> result = new LinkedHashMap<>(byCategory);
         if (noCategory != null) {
             result.put(NO_CATEGORY, noCategory);
+        }
+        return result;
+    }
+
+    private static final String NO_GROUP = "Без группы";
+
+    /**
+     * Товары по группам для страницы "Рецепты" (/products/recipes) — та же логика, что и
+     * groupByCategory выше, но по Product.group (используется отдельно для разбиения заявок
+     * на сырьё, см. ProductionRequestService.createGrouped).
+     */
+    public Map<String, List<Product>> groupByGroup(List<Product> products) {
+        Map<String, List<Product>> byGroup = products.stream()
+                .collect(Collectors.groupingBy(
+                        p -> p.getGroup() == null || p.getGroup().isBlank() ? NO_GROUP : p.getGroup(),
+                        TreeMap::new, Collectors.toList()));
+        List<Product> noGroup = byGroup.remove(NO_GROUP);
+        Map<String, List<Product>> result = new LinkedHashMap<>(byGroup);
+        if (noGroup != null) {
+            result.put(NO_GROUP, noGroup);
         }
         return result;
     }

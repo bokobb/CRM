@@ -5,6 +5,7 @@ import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
+import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 
@@ -22,21 +23,29 @@ class StockMovementScreen extends StatefulWidget {
 class _StockMovementScreenState extends State<StockMovementScreen> {
   final _api = ApiClient();
   late Future<List<StockMovement>> _future;
+  final _search = TextEditingController();
+  DateTimeRange _range = todayRange();
 
   String get _type => widget.isReceipt ? 'RECEIPT' : 'WRITE_OFF';
   String get _title => widget.isReceipt ? 'Поступления' : 'Списание товара';
+  bool get _hasFilter => _search.text.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
-    _future = _api.getStockMovements(type: _type);
+    _future = _api.getStockMovements(type: _type, from: _range.start, to: _range.end);
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _future = _api.getStockMovements(type: _type);
+      _future = _api.getStockMovements(type: _type, from: _range.start, to: _range.end, q: _search.text.trim());
     });
     await _future;
+  }
+
+  void _onRangeChanged(DateTimeRange range) {
+    setState(() => _range = range);
+    _refresh();
   }
 
   Future<void> _openForm() async {
@@ -56,46 +65,69 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
       floatingActionButton: FloatingActionButton(onPressed: _openForm, child: const Icon(Icons.add)),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: FutureBuilder<List<StockMovement>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
-            }
-            final movements = snapshot.data!;
-            if (movements.isEmpty) {
-              return ListView(children: [
-                Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Center(child: Text('Записей пока нет', style: TextStyle(color: Colors.grey))),
+        child: Column(
+          children: [
+            DateFilterBar(range: _range, onChanged: _onRangeChanged),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+              child: TextField(
+                controller: _search,
+                decoration: const InputDecoration(
+                  labelText: 'Название сырья или товара',
+                  prefixIcon: Icon(Icons.search),
+                  isDense: true,
                 ),
-              ]);
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              itemCount: movements.length,
-              itemBuilder: (context, index) {
-                final m = movements[index];
-                return AppListTile(
-                  leadingIcon: m.isProduct ? Icons.cake_outlined : Icons.grain_outlined,
-                  leadingColor: m.isProduct ? const Color(0xFFB8324A) : const Color(0xFFD9A73F),
-                  title: m.itemName,
-                  subtitle:
-                      '${m.reason?.isNotEmpty == true ? '${m.reason} · ' : ''}${m.createdBy} · ${formatDateTime(m.createdAt)}',
-                  trailing: Text(
-                    '${widget.isReceipt ? '+' : '−'}${formatQty(m.quantity)} ${m.unit}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: widget.isReceipt ? const Color(0xFF4C8A5E) : const Color(0xFFB8433F),
-                    ),
-                  ),
-                );
-              },
-            );
-          },
+                onSubmitted: (_) => _refresh(),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: FutureBuilder<List<StockMovement>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+                  }
+                  final movements = snapshot.data!;
+                  if (movements.isEmpty) {
+                    return ListView(children: [
+                      Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Center(
+                          child: Text(_hasFilter ? 'Ничего не найдено' : 'Записей пока нет',
+                              style: const TextStyle(color: Colors.grey)),
+                        ),
+                      ),
+                    ]);
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                    itemCount: movements.length,
+                    itemBuilder: (context, index) {
+                      final m = movements[index];
+                      return AppListTile(
+                        leadingIcon: m.isProduct ? Icons.cake_outlined : Icons.grain_outlined,
+                        leadingColor: m.isProduct ? const Color(0xFFB8324A) : const Color(0xFFD9A73F),
+                        title: m.itemName,
+                        subtitle:
+                            '${m.reason?.isNotEmpty == true ? '${m.reason} · ' : ''}${m.createdBy} · ${formatDateTime(m.createdAt)}',
+                        trailing: Text(
+                          '${widget.isReceipt ? '+' : '−'}${formatQty(m.quantity)} ${m.unit}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: widget.isReceipt ? const Color(0xFF4C8A5E) : const Color(0xFFB8433F),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

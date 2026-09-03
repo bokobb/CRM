@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
@@ -19,6 +20,7 @@ import '../models/production_request.dart';
 import '../models/purchase.dart';
 import '../models/user.dart';
 import '../models/whatsapp_inbox.dart';
+import '../models/whatsapp_session.dart';
 import '../navigation.dart';
 import 'push_service.dart';
 
@@ -230,6 +232,15 @@ class ApiClient {
     return Dashboard.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
+  /// Дашборд для роли WAREHOUSE_RAW — про заявки на сырьё, не про заказы клиентов.
+  Future<ProductionDashboard> getProductionDashboard({DateTime? from, DateTime? to}) async {
+    final res = await http.get(
+      await _uri('/dashboard/production', _rangeQuery(from, to)),
+      headers: await _authHeaders(),
+    );
+    return ProductionDashboard.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
   static String _isoDate(DateTime d) => d.toIso8601String().split('T').first;
 
   static Map<String, String>? _rangeQuery(DateTime? from, DateTime? to) {
@@ -435,9 +446,17 @@ class ApiClient {
   }
 
   // ---- Stock movements ----
-  Future<List<StockMovement>> getStockMovements({String? type}) async {
+  /// Только ручные движения возвращает сервер — то, что списывается/приходуется автоматически
+  /// заявками на производство, сюда не попадает (см. StockMovement.manual на бэкенде).
+  Future<List<StockMovement>> getStockMovements({String? type, DateTime? from, DateTime? to, String? q}) async {
+    final query = {
+      if (type != null) 'type': type,
+      if (from != null) 'from': _isoDate(from),
+      if (to != null) 'to': _isoDate(to),
+      if (q != null && q.isNotEmpty) 'q': q,
+    };
     final res = await http.get(
-      await _uri('/stock/movements', type != null ? {'type': type} : null),
+      await _uri('/stock/movements', query.isEmpty ? null : query),
       headers: await _authHeaders(),
     );
     return (_decode(res) as List)
@@ -531,19 +550,47 @@ class ApiClient {
   }
 
   /// Товары, у которых уже есть рецептура — только из них можно создать заявку.
-  Future<List<Product>> getEligibleProductsForRequest() async {
+  Future<List<ProductionEligibleProduct>> getEligibleProductsForRequest() async {
     final res = await http.get(
       await _uri('/production-requests/eligible-products'),
       headers: await _authHeaders(),
     );
-    return (_decode(res) as List).map((e) => Product.fromJson(e)).toList();
+    return (_decode(res) as List).map((e) => ProductionEligibleProduct.fromJson(e)).toList();
   }
 
-  Future<ProductionRequest> createProductionRequest(int productId, double batches) async {
+  /// Позиции сразу под несколько товаров — например, из одного теста сегодня решили сделать
+  /// несколько разных вариантов (у каждого свои замесы). Фактический выход всегда гуляет,
+  /// поэтому планируем в замесах, а не в штуках — факт вводится отдельно при оприходовании.
+  /// Название заявки не передаётся — сервер сам разбивает позиции по группе товара
+  /// (Product.group) и создаёт отдельную заявку на каждую группу, поэтому в ответ приходит список.
+  Future<List<ProductionRequest>> createProductionRequest(List<(int, double)> items) async {
     final res = await http.post(
       await _uri('/production-requests'),
       headers: await _authHeaders(),
-      body: jsonEncode({'productId': productId, 'batches': batches}),
+      body: jsonEncode({
+        'items': items.map((e) => {'productId': e.$1, 'batches': e.$2}).toList(),
+      }),
+    );
+    return (_decode(res) as List).map((e) => ProductionRequest.fromJson(e)).toList();
+  }
+
+  /// Редактирование ещё не собранной заявки — только позиции, название заявки не меняется.
+  Future<ProductionRequest> updateProductionRequest(int id, List<(int, double)> items) async {
+    final res = await http.put(
+      await _uri('/production-requests/$id'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'items': items.map((e) => {'productId': e.$1, 'batches': e.$2}).toList(),
+      }),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  /// Отмена ещё не собранной заявки — доступна только пока сырьё со склада не списано (статус «Новая»).
+  Future<ProductionRequest> cancelProductionRequest(int id) async {
+    final res = await http.post(
+      await _uri('/production-requests/$id/cancel'),
+      headers: await _authHeaders(),
     );
     return ProductionRequest.fromJson(_decode(res));
   }
@@ -558,22 +605,58 @@ class ApiClient {
     return ProductionRequest.fromJson(_decode(res));
   }
 
-  Future<ProductionRequest> receiveProductionRequest(int id, double quantity) async {
+  /// Оприходовать ОДНУ строку заявки — у каждого товара в заявке свой фактический выход.
+  Future<ProductionRequest> receiveProductionRequestLine(int requestId, int lineId, double quantity) async {
     final res = await http.post(
-      await _uri('/production-requests/$id/receive'),
+      await _uri('/production-requests/$requestId/lines/$lineId/receive'),
       headers: await _authHeaders(),
       body: jsonEncode({'quantity': quantity}),
     );
     return ProductionRequest.fromJson(_decode(res));
   }
 
+  /// Дневной отчёт "сколько сегодня изготовили" — date не задан = сегодня.
+  Future<DailyProductionReport> getDailyProductionReport({DateTime? date}) async {
+    final res = await http.get(
+      await _uri('/production-requests/report', date != null ? {'date': _isoDate(date)} : null),
+      headers: await _authHeaders(),
+    );
+    return DailyProductionReport.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
+  /// Сырые байты готового PDF отчёта с сервера (не JSON — _decode тут не подходит).
+  Future<List<int>> getDailyProductionReportPdf({DateTime? date}) async {
+    final res = await http.get(
+      await _uri('/production-requests/report/pdf', date != null ? {'date': _isoDate(date)} : null),
+      headers: await _authHeaders(),
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
+    throw ApiException('Не удалось получить PDF-отчёт (${res.statusCode})');
+  }
+
   // ---- Purchases (закупки сырья) ----
+  Future<Purchase> _withAbsolutePurchaseImage(Purchase p) async {
+    final url = p.imageUrl;
+    if (url == null || url.isEmpty || url.startsWith('http')) return p;
+    return p.withImageUrl('${await _origin()}$url');
+  }
+
+  Future<List<Purchase>> _withAbsolutePurchaseImages(List<Purchase> list) async {
+    final origin = await _origin();
+    return list.map((p) {
+      final url = p.imageUrl;
+      if (url == null || url.isEmpty || url.startsWith('http')) return p;
+      return p.withImageUrl('$origin$url');
+    }).toList();
+  }
+
   Future<List<Purchase>> getPurchases() async {
     final res = await http.get(
       await _uri('/purchases'),
       headers: await _authHeaders(),
     );
-    return (_decode(res) as List).map((e) => Purchase.fromJson(e)).toList();
+    final list = (_decode(res) as List).map((e) => Purchase.fromJson(e)).toList();
+    return _withAbsolutePurchaseImages(list);
   }
 
   Future<Purchase> createPurchase({
@@ -595,6 +678,25 @@ class ApiClient {
       }),
     );
     return Purchase.fromJson(_decode(res));
+  }
+
+  /// Фото накладной поставщика — прикладывается отдельным запросом сразу после создания
+  /// закупки (тот же паттерн, что uploadProductImage). Content-type определяем сами — иначе
+  /// http-пакет шлёт "application/octet-stream", backend такое отклоняет.
+  Future<Purchase> uploadPurchaseImage(int id,
+      {required List<int> bytes, required String filename, String? contentType}) async {
+    final request = http.MultipartRequest('POST', await _uri('/purchases/$id/image'));
+    final token = _session?.token;
+    if (token != null) request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+      contentType: MediaType.parse(contentType ?? _guessImageContentType(filename)),
+    ));
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    return _withAbsolutePurchaseImage(Purchase.fromJson(_decode(res)));
   }
 
   // ---- Orders ----
@@ -753,6 +855,36 @@ class ApiClient {
     _decode(res);
   }
 
+  // ---- WhatsApp-сессия (Настройки -> WhatsApp-сессия) ----
+
+  Future<WhatsAppSession> getWhatsAppSessionStatus() async {
+    final res = await http.get(
+      await _uri('/whatsapp/session/status'),
+      headers: await _authHeaders(),
+    );
+    return WhatsAppSession.fromJson(_decode(res));
+  }
+
+  /// QR-код как PNG-байты — доступен только пока статус сессии 'qr'. Не через _decode (не JSON).
+  Future<Uint8List> getWhatsAppQrCode() async {
+    final res = await http.get(
+      await _uri('/whatsapp/session/qr'),
+      headers: await _authHeaders(),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('QR-код сейчас недоступен');
+    }
+    return res.bodyBytes;
+  }
+
+  Future<void> logoutWhatsAppSession() async {
+    final res = await http.post(
+      await _uri('/whatsapp/session/logout'),
+      headers: await _authHeaders(),
+    );
+    _decode(res);
+  }
+
   // ---- Production tasks ----
   Future<List<ProductionTask>> getProductionTasks({String? status}) async {
     final res = await http.get(
@@ -868,14 +1000,5 @@ class ApiClient {
       body: jsonEncode(body),
     );
     return AppUser.fromJson(_decode(res));
-  }
-
-  Future<void> resetUserPassword(int id, String newPassword) async {
-    final res = await http.post(
-      await _uri('/users/$id/reset-password'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'newPassword': newPassword}),
-    );
-    _decode(res);
   }
 }

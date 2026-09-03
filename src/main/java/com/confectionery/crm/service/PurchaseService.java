@@ -7,6 +7,7 @@ import com.confectionery.crm.repository.PurchaseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ public class PurchaseService {
     private final PurchaseRepository purchaseRepository;
     private final IngredientService ingredientService;
     private final StockService stockService;
+    private final FileStorageService fileStorageService;
 
     public List<Purchase> findAll() {
         return purchaseRepository.findAllByOrderByCreatedAtDesc();
@@ -46,6 +48,14 @@ public class PurchaseService {
         purchase.setPurchaseDate(purchaseDate == null ? LocalDate.now() : purchaseDate);
         purchase.setCreatedBy(createdBy);
         purchase.setStockMovement(movement);
+        return purchaseRepository.save(purchase);
+    }
+
+    /** Фото накладной поставщика, снятое на телефон при оформлении закупки. */
+    public Purchase attachImage(Long id, MultipartFile file) {
+        Purchase purchase = purchaseRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Закупка не найдена: " + id));
+        purchase.setImageUrl(fileStorageService.storePurchaseInvoiceImage(id, file));
         return purchaseRepository.save(purchase);
     }
 }
