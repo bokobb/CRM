@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../navigation.dart';
 import '../services/api_client.dart';
+import '../widgets/connection_sheet.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,9 +37,30 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _openConnectionSettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const ConnectionSheet(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Доступ к смене адреса backend нужен ДО входа — иначе новый человек с неверным
+      // Base URL (например, дефолтным) не может вообще попасть внутрь приложения, чтобы
+      // его поменять (экран "Подключение" в обычных Настройках доступен только после входа).
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.wifi_outlined),
+            tooltip: 'Подключение',
+            onPressed: _openConnectionSettings,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

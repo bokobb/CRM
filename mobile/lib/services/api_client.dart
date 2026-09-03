@@ -95,10 +95,16 @@ class ApiClient {
     _session = session;
   }
 
+  /// Адрес по умолчанию для СВЕЖЕЙ установки (пока никто не менял Base URL в Настройках) —
+  /// реальный боевой backend по Tailscale (см. память проекта systemd_autostart), доступен
+  /// с любого устройства, у которого включён Tailscale на тот же аккаунт. Раньше тут был
+  /// давно устаревший локальный домашний IP — новый человек с чистой установкой просто не
+  /// мог зайти и не имел возможности поменять адрес (см. ConnectionSheet, теперь доступен
+  /// и с экрана логина).
   static String defaultBaseUrl() {
     if (kIsWeb) return 'http://localhost:8080/api';
     try {
-      if (Platform.isAndroid) return 'http://192.168.0.8:8080/api';
+      if (Platform.isAndroid) return 'http://100.104.29.93:8080/api';
     } catch (_) {
       // Platform недоступен вне мобильных/десктоп таргетов — считаем это web-подобным случаем.
     }
