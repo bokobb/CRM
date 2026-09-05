@@ -94,7 +94,7 @@ public class ShopController {
     @GetMapping
     public String phoneForm(HttpSession session, HttpServletRequest request) {
         if (session.getAttribute(SESSION_CLIENT_ID) != null) {
-            return "redirect:/shop/catalog";
+            return "redirect:/shop/products";
         }
         String rememberedPhone = readPhoneCookie(request);
         if (rememberedPhone != null) {
@@ -102,7 +102,7 @@ public class ShopController {
             if (client != null) {
                 session.setAttribute(SESSION_CLIENT_ID, client.getId());
                 session.setAttribute(SESSION_CLIENT_NAME, client.getName());
-                return "redirect:/shop/catalog";
+                return "redirect:/shop/products";
             }
         }
         return "shop/phone";
@@ -124,7 +124,7 @@ public class ShopController {
         session.setAttribute(SESSION_CLIENT_ID, client.getId());
         session.setAttribute(SESSION_CLIENT_NAME, client.getName());
         writePhoneCookie(response, client.getPhone());
-        return "redirect:/shop/catalog";
+        return "redirect:/shop/products";
     }
 
     @PostMapping("/reset")
@@ -178,6 +178,7 @@ public class ShopController {
         model.addAttribute("canOrder", summary.canOrder());
         model.addAttribute("headerLabel", summary.headerLabel());
         model.addAttribute("bottomButtonLabel", summary.bottomButtonLabel());
+        model.addAttribute("cartCount", cart(session).size());
         return "shop/catalog";
     }
 
@@ -240,17 +241,23 @@ public class ShopController {
         return respond(client, session, productId, ajax);
     }
 
-    /** Список товаров — аналог bottom sheet "Поиск товара" в мобильном приложении. */
+    /** Главный экран витрины — карточки товаров по категориям, тап по карточке открывает товар крупным планом. */
     @GetMapping("/products")
     public String products(HttpSession session, Model model) {
         Client client = currentClient(session);
         if (client == null) {
             return "redirect:/shop";
         }
-        List<ProductRow> rows = productService.findAllActive().stream()
-                .map(p -> new ProductRow(p, priceUnitLabel(clientPriceService.resolvePrice(client, p), p.getUnit())))
-                .toList();
-        model.addAttribute("rows", rows);
+        Map<String, List<Product>> byCategory = productService.groupByCategory(productService.findAllActive());
+        Map<String, List<ProductRow>> rowsByCategory = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Product>> entry : byCategory.entrySet()) {
+            rowsByCategory.put(entry.getKey(), entry.getValue().stream()
+                    .map(p -> new ProductRow(p, priceUnitLabel(clientPriceService.resolvePrice(client, p), p.getUnit())))
+                    .toList());
+        }
+        model.addAttribute("clientName", client.getName());
+        model.addAttribute("rowsByCategory", rowsByCategory);
+        model.addAttribute("cartCount", cart(session).size());
         return "shop/products";
     }
 
@@ -291,7 +298,7 @@ public class ShopController {
             return "redirect:/shop";
         }
         cart(session).put(id, qty);
-        return "redirect:/shop/catalog";
+        return "redirect:/shop/products";
     }
 
     @PostMapping("/cart/submit")
@@ -333,6 +340,7 @@ public class ShopController {
                 .toList();
         model.addAttribute("clientName", client.getName());
         model.addAttribute("rows", rows);
+        model.addAttribute("cartCount", cart(session).size());
         return "shop/orders";
     }
 
@@ -397,7 +405,8 @@ public class ShopController {
                 changedProductId,
                 changedRow != null ? changedRow.qtyLabel() : null,
                 changedRow == null,
-                summary.rows().isEmpty());
+                summary.rows().isEmpty(),
+                summary.rows().size());
         return ResponseEntity.ok(body);
     }
 
@@ -489,8 +498,9 @@ public class ShopController {
     private record CartSummary(List<CartRow> rows, String headerLabel, boolean canOrder, String bottomButtonLabel) {
     }
 
-    /** Ответ степпера в фоновом режиме (см. shop/catalog.html). */
+    /** Ответ степпера в фоновом режиме (см. shop/catalog.html и быстрое добавление в shop/products.html). */
     public record CartUpdateResponse(String headerLabel, boolean canOrder, String bottomButtonLabel,
-                                      Long productId, String qtyLabel, boolean removed, boolean empty) {
+                                      Long productId, String qtyLabel, boolean removed, boolean empty,
+                                      int cartCount) {
     }
 }

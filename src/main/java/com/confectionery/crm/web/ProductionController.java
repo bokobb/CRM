@@ -27,6 +27,12 @@ public class ProductionController {
 
     private final ProductionRequestService requestService;
 
+    /**
+     * Данные отдаются backend'ом без фильтрации — фильтр по товару и по дате (только для
+     * колонки "Готово") целиком на стороне браузера (см. production/board.html), тем же
+     * приёмом, что и на страницах "Рецепты"/"Сырьё"/"Клиенты": весь список уже на странице,
+     * незачем гонять его туда-обратно на сервер ради фильтра.
+     */
     @GetMapping
     public String board(Model model) {
         List<ProductionRequestSummaryDto> all = requestService.findAll().stream()

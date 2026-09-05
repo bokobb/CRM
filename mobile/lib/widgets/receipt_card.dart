@@ -4,6 +4,7 @@ const _receiptInk = Color(0xFF2B1F1A);
 const _receiptMuted = Color(0xFFB8A88F);
 const _receiptLine = Color(0xFFE3D9C8);
 const _receiptAccent = Color(0xFF8F2438);
+const _receiptInsufficient = Color(0xFFC0392B);
 
 /// Карточка-«чек»: используется там, где нужно показать состав заявки/списка
 /// позиций в узнаваемом виде кассового чека (шапка, пунктирные разделители,
@@ -95,6 +96,14 @@ class ReceiptRow extends StatelessWidget {
   final bool? checkbox;
   final ValueChanged<bool?>? onCheckboxChanged;
 
+  /// Сырья/товара на складе меньше, чем указано в qty — строка красным, чтобы было видно
+  /// сразу в чек-листе, не дожидаясь ошибки при нажатии "Собрано".
+  final bool insufficient;
+
+  /// Необязательное действие в конце строки (например, кнопка "заменить сырьё") — не
+  /// участвует в общем onTap строки (переключение чекбокса), т.к. сам ловит нажатие первым.
+  final Widget? trailingAction;
+
   const ReceiptRow({
     super.key,
     required this.index,
@@ -102,11 +111,14 @@ class ReceiptRow extends StatelessWidget {
     required this.qty,
     this.checkbox,
     this.onCheckboxChanged,
+    this.insufficient = false,
+    this.trailingAction,
   });
 
   @override
   Widget build(BuildContext context) {
     final checked = checkbox ?? false;
+    final insufficientColor = insufficient && !checked ? _receiptInsufficient : null;
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -145,8 +157,9 @@ class ReceiptRow extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 13.5,
+                fontWeight: insufficientColor != null ? FontWeight.w700 : null,
                 height: 1.2,
-                color: checked ? _receiptMuted : _receiptInk,
+                color: insufficientColor ?? (checked ? _receiptMuted : _receiptInk),
                 decoration: checked ? TextDecoration.lineThrough : null,
                 decorationColor: _receiptMuted,
               ),
@@ -165,9 +178,13 @@ class ReceiptRow extends StatelessWidget {
               fontFamily: 'monospace',
               fontSize: 13.5,
               fontWeight: FontWeight.w700,
-              color: checked ? _receiptMuted : _receiptInk,
+              color: insufficientColor ?? (checked ? _receiptMuted : _receiptInk),
             ),
           ),
+          if (trailingAction != null) ...[
+            const SizedBox(width: 4),
+            trailingAction!,
+          ],
         ],
       ),
     );

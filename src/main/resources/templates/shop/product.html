@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title th:text="${product.name} + ' — Юг Сладости'"></title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
+    <script th:src="@{/js/turbo.min.js}"></script>
+    <script th:src="@{/js/btn-animate.js}"></script>
 </head>
 <body>
 <div class="shop-page">
@@ -34,7 +36,7 @@
     </main>
 
     <div class="shop-bottom-bar">
-        <form th:action="@{/shop/products/{id}/add(id=${product.id})}" method="post">
+        <form th:action="@{/shop/products/{id}/add(id=${product.id})}" method="post" data-turbo="false">
             <input type="hidden" name="qty" id="qtyInput" th:value="${qty}">
             <button class="btn primary" type="submit" id="addButton" th:text="${addButtonLabel}"></button>
         </form>
@@ -42,7 +44,9 @@
 </div>
 
 <script th:inline="javascript">
-    (function () {
+    // См. products.html — код навешан на "turbo:load", а не на разбор скрипта (иначе после
+    // Turbo-перехода на эту страницу степпер количества не заработал бы).
+    document.addEventListener('turbo:load', function () {
         var price = parseFloat(/*[[${priceRaw}]]*/ '0');
         var step = parseFloat(/*[[${stepRaw}]]*/ '1');
         var qty = parseFloat(/*[[${qty}]]*/ '1');
@@ -84,7 +88,7 @@
             qty = (!isFinite(parsed) || parsed < step) ? step : parsed;
             render();
         });
-    })();
+    });
 </script>
 </body>
 </html>

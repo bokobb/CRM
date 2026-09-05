@@ -71,4 +71,27 @@ public class Product {
      */
     @Column(nullable = false)
     private boolean active = true;
+
+    /**
+     * GUID номенклатуры в 1С (Catalog_Номенклатура.Ref_Key) — подбирается автоматически по
+     * точному названию при первой выгрузке заказа с этим товаром в 1С (см. OneCOrderSyncService).
+     */
+    private String oneCNomenclatureKey;
+
+    /**
+     * Счета учёта/субконто для табличной части "Товары" документа "Реализация товаров и
+     * услуг" (JSON-объект с полями вида СчетУчетаБУ_Key, СубконтоДоходовБУ2 и т.д.) —
+     * скопированы с последней найденной в 1С продажи этой номенклатуры, т.к. 1С OData не
+     * заполняет их автоматически при создании документа (см. OneCOrderSyncService.resolveLineTemplate).
+     */
+    @Column(length = 4000)
+    private String oneCLineTemplate;
+
+    /**
+     * То же самое, что oneCLineTemplate, но для табличной части документа "Оприходование
+     * товаров" (см. OneCReceiptSyncService) — поля счетов учёта там называются иначе
+     * (КорСчетОприходованияБУ_Key и т.п.), поэтому кэш отдельный.
+     */
+    @Column(length = 4000)
+    private String oneCReceiptTemplate;
 }

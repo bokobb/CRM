@@ -3,6 +3,7 @@ package com.confectionery.crm.web;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.service.FileStorageService;
 import com.confectionery.crm.service.IngredientService;
+import com.confectionery.crm.service.OneCRecipeImportService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.RecipeForm;
 import jakarta.validation.Valid;
@@ -15,8 +16,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.math.BigDecimal;
-
 @Controller
 @RequestMapping("/products")
 @RequiredArgsConstructor
@@ -25,6 +24,7 @@ public class ProductController {
     private final ProductService productService;
     private final IngredientService ingredientService;
     private final FileStorageService fileStorageService;
+    private final OneCRecipeImportService oneCRecipeImportService;
 
     @GetMapping
     public String list(Model model) {
@@ -42,6 +42,25 @@ public class ProductController {
         model.addAttribute("products", products);
         model.addAttribute("productsByGroup", productService.groupByGroup(products));
         return "products/recipes";
+    }
+
+    @PostMapping("/import-recipes-1c")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String importRecipesFromOneC(RedirectAttributes redirectAttributes) {
+        try {
+            var result = oneCRecipeImportService.importAll();
+            String message = "Импортировано рецептов: " + result.imported()
+                    + ". Без спецификации в 1С: " + result.skippedNoSpec()
+                    + ". Не найдено в 1С по названию: " + result.skippedNoOneCMatch();
+            if (!result.warnings().isEmpty()) {
+                message += ". Предупреждения: " + result.warnings().size()
+                        + " (" + String.join("; ", result.warnings()) + ")";
+            }
+            redirectAttributes.addFlashAttribute("success", message);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось импортировать рецепты из 1С: " + e.getMessage());
+        }
+        return "redirect:/products/recipes";
     }
 
     @GetMapping("/new")
@@ -91,9 +110,11 @@ public class ProductController {
     }
 
     @GetMapping("/{id}/recipe")
-    public String recipeForm(@PathVariable Long id, Model model) {
+    public String recipeForm(@PathVariable Long id, @RequestParam(required = false) Long copyFrom, Model model) {
         Product product = productService.findById(id);
-        var recipe = productService.findRecipe(id);
+        // copyFrom явно задан — показываем (ещё не сохранённую) рецептуру ДРУГОГО товара как
+        // черновик для текущего; иначе — собственную рецептуру товара, если она уже есть.
+        var recipe = copyFrom != null ? productService.findRecipe(copyFrom) : productService.findRecipe(id);
 
         RecipeForm form = new RecipeForm();
         if (recipe != null) {
@@ -102,20 +123,17 @@ public class ProductController {
                 RecipeForm.RecipeItemForm itemForm = new RecipeForm.RecipeItemForm();
                 itemForm.setIngredientId(item.getIngredient().getId());
                 itemForm.setQuantity(item.getQuantity());
+                itemForm.setIngredientLabel(item.getIngredient().getName() + " (" + item.getIngredient().getUnit() + ")");
                 form.getItems().add(itemForm);
             });
-        }
-        // добиваем пустыми строками, чтобы можно было добавить новые ингредиенты без JS
-        while (form.getItems().size() < 10) {
-            RecipeForm.RecipeItemForm blank = new RecipeForm.RecipeItemForm();
-            blank.setQuantity(BigDecimal.ZERO);
-            form.getItems().add(blank);
         }
 
         model.addAttribute("activePage", "products");
         model.addAttribute("product", product);
         model.addAttribute("recipeForm", form);
         model.addAttribute("allIngredients", ingredientService.findAll());
+        model.addAttribute("copyableProducts", productService.findProductsWithRecipe(id));
+        model.addAttribute("copyFromId", copyFrom);
         return "products/recipe";
     }
 

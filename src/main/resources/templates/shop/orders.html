@@ -5,17 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>История заказов — Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
+    <script th:src="@{/js/turbo.min.js}"></script>
+    <script th:src="@{/js/btn-animate.js}"></script>
 </head>
 <body>
 <div class="shop-page">
     <header class="shop-topbar">
         <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
-        <div class="shop-topbar-right">
-            <a class="btn small" th:href="@{/shop/catalog}">← Заказ</a>
-        </div>
     </header>
 
-    <main class="shop-content">
+    <main class="shop-content shop-content-with-tabbar">
         <div class="shop-title">История заказов</div>
 
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
@@ -30,13 +29,15 @@
                 <div class="shop-order-total" th:text="${row.totalLabel}"></div>
             </div>
             <div class="shop-order-items" th:text="${row.itemsSummary}"></div>
-            <form th:action="@{/shop/orders/{id}/repeat(id=${row.order.id})}" method="post">
+            <form th:action="@{/shop/orders/{id}/repeat(id=${row.order.id})}" method="post" data-turbo="false">
                 <button class="btn small" type="submit">Повторить заказ</button>
             </form>
         </div>
 
         <div class="empty" th:if="${#lists.isEmpty(rows)}">У вас пока нет заказов</div>
     </main>
+
+    <div th:replace="~{shop/fragments/bottom-nav :: bottomnav(active='orders', cartCount=${cartCount})}"></div>
 </div>
 </body>
 </html>

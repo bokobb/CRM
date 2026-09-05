@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>Ваш заказ — Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
+    <script th:src="@{/js/turbo.min.js}"></script>
+    <script th:src="@{/js/btn-animate.js}"></script>
 </head>
 <body>
 <div class="shop-page">
     <header class="shop-topbar">
         <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
         <div class="shop-topbar-right">
-            <a class="btn small" th:href="@{/shop/orders}">История</a>
-            <form th:action="@{/shop/reset}" method="post">
+            <form th:action="@{/shop/reset}" method="post" data-turbo="false">
                 <button class="btn small" type="submit">Сменить номер</button>
             </form>
         </div>
@@ -31,18 +32,18 @@
                 <div class="shop-row-body">
                     <div class="shop-row-top">
                         <div class="shop-row-name" th:text="${row.product().name}"></div>
-                        <form class="shop-step-form" th:action="@{/shop/cart/item/{id}/remove(id=${row.product().id})}" method="post">
+                        <form class="shop-step-form" data-turbo="false" th:action="@{/shop/cart/item/{id}/remove(id=${row.product().id})}" method="post">
                             <button class="shop-row-remove" type="submit">×</button>
                         </form>
                     </div>
                     <div class="shop-row-bottom">
                         <div class="shop-row-price" th:text="${row.priceLabel()}"></div>
                         <div class="shop-stepper">
-                            <form class="shop-step-form" th:action="@{/shop/cart/item/{id}/dec(id=${row.product().id})}" method="post">
+                            <form class="shop-step-form" data-turbo="false" th:action="@{/shop/cart/item/{id}/dec(id=${row.product().id})}" method="post">
                                 <button type="submit">−</button>
                             </form>
                             <input type="text" inputmode="decimal" class="qty qty-input" th:value="${row.qtyLabel()}">
-                            <form class="shop-step-form" th:action="@{/shop/cart/item/{id}/inc(id=${row.product().id})}" method="post">
+                            <form class="shop-step-form" data-turbo="false" th:action="@{/shop/cart/item/{id}/inc(id=${row.product().id})}" method="post">
                                 <button type="submit">+</button>
                             </form>
                         </div>
@@ -51,20 +52,24 @@
             </div>
         </div>
 
-        <div class="empty" id="shopEmpty" th:if="${#lists.isEmpty(rows)}">Пока пусто — добавьте товары</div>
-
-        <a class="shop-add-btn" th:href="@{/shop/products}">+ Добавить позицию</a>
+        <div class="empty" id="shopEmpty" th:if="${#lists.isEmpty(rows)}">Пока пусто — загляните на главную и добавьте товары</div>
     </main>
 
-    <div class="shop-bottom-bar" id="shopBottomBar">
-        <form th:if="${canOrder}" th:action="@{/shop/cart/submit}" method="post">
-            <button class="btn primary" type="submit" th:text="${bottomButtonLabel}"></button>
-        </form>
+    <div class="shop-bottom-area">
+        <div class="shop-bottom-bar" id="shopBottomBar">
+            <form th:if="${canOrder}" th:action="@{/shop/cart/submit}" method="post" data-turbo="false">
+                <button class="btn primary" type="submit" th:text="${bottomButtonLabel}"></button>
+            </form>
+        </div>
+        <div th:replace="~{shop/fragments/bottom-nav :: bottomnav(active='cart', cartCount=${cartCount})}"></div>
     </div>
 </div>
 
 <script th:inline="javascript">
-    (function () {
+    // См. products.html — весь код навешан на "turbo:load", а не выполняется один раз при
+    // разборе скрипта, иначе после Turbo-перехода (без полной перезагрузки страницы)
+    // степперы и поле количества переставали бы отвечать на клики.
+    document.addEventListener('turbo:load', function () {
         var submitUrl = /*[[@{/shop/cart/submit}]]*/ '/shop/cart/submit';
 
         function bindStepForms(root) {
@@ -109,7 +114,7 @@
 
             var bar = document.getElementById('shopBottomBar');
             if (data.canOrder) {
-                bar.innerHTML = '<form method="post" action="' + submitUrl + '">' +
+                bar.innerHTML = '<form method="post" data-turbo="false" action="' + submitUrl + '">' +
                     '<button class="btn primary" type="submit"></button></form>';
                 bar.querySelector('button').textContent = data.bottomButtonLabel;
             } else {
@@ -157,7 +162,7 @@
 
         bindStepForms(document);
         bindQtyInputs(document);
-    })();
+    });
 </script>
 </body>
 </html>

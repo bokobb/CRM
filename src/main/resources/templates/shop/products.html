@@ -3,29 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <title>Выбор товара — Юг Сладости</title>
+    <title>Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
+    <script th:src="@{/js/turbo.min.js}"></script>
+    <script th:src="@{/js/btn-animate.js}"></script>
 </head>
 <body>
 <div class="shop-page">
     <header class="shop-topbar">
-        <a th:href="@{/shop/catalog}" class="shop-hero-close" style="position:static;">←</a>
-        <div class="brand" style="flex:1; justify-content:center;">Выбор товара</div>
-        <span style="width:40px;"></span>
+        <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
+        <div class="shop-topbar-right">
+            <form th:action="@{/shop/reset}" method="post" data-turbo="false">
+                <button class="btn small" type="submit">Сменить номер</button>
+            </form>
+        </div>
     </header>
 
-    <main style="padding-bottom: 20px;">
-        <a class="shop-list-row" th:each="row : ${rows}" th:href="@{'/shop/products/' + ${row.product().id}}">
-            <img th:if="${row.product().imageUrl != null}" th:src="${row.product().imageUrl}" alt="" class="shop-avatar">
-            <div th:unless="${row.product().imageUrl != null}" class="shop-avatar shop-avatar-placeholder"
-                 th:text="${#strings.substring(row.product().name, 0, 1)}"></div>
-            <div class="shop-row-info">
-                <div class="shop-row-name" th:text="${row.product().name}"></div>
-                <div class="shop-row-price" th:text="${row.priceLabel()}"></div>
+    <main class="shop-content shop-content-with-tabbar">
+        <input type="text" id="shopProductSearch" class="product-search"
+               placeholder="Поиск товара по названию…" oninput="crmFilterShopProducts()">
+
+        <div th:each="entry : ${rowsByCategory}" class="category-section" th:attr="data-section=true">
+            <h2 th:if="${entry.key != null and !#strings.isEmpty(entry.key)}" th:text="${entry.key}"></h2>
+            <div class="product-grid">
+                <a th:each="row : ${entry.value}" class="product-card shop-product-card"
+                   th:href="@{/shop/products/{id}(id=${row.product().id})}"
+                   th:attr="data-name=${#strings.toLowerCase(row.product().name)}">
+                    <div class="shop-product-media">
+                        <img th:if="${row.product().imageUrl != null}" th:src="${row.product().imageUrl}" alt="" class="product-card-img">
+                        <div th:unless="${row.product().imageUrl != null}" class="product-card-avatar"
+                             th:text="${#strings.substring(row.product().name, 0, 1)}"></div>
+                    </div>
+                    <div class="product-card-body">
+                        <div class="product-card-name" th:text="${row.product().name}"></div>
+                        <div class="product-card-price" th:text="${row.priceLabel()}"></div>
+                    </div>
+                    <button type="button" class="shop-quick-add" title="Добавить в корзину"
+                            th:attr="data-product-id=${row.product().id}">+</button>
+                </a>
             </div>
-        </a>
-        <div class="empty" th:if="${#lists.isEmpty(rows)}">Товаров пока нет</div>
+        </div>
+
+        <p class="empty" th:if="${#maps.isEmpty(rowsByCategory)}">Товаров пока нет</p>
+        <p class="empty" id="shopProductEmpty" style="display:none">Ничего не найдено</p>
     </main>
+
+    <div th:replace="~{shop/fragments/bottom-nav :: bottomnav(active='home', cartCount=${cartCount})}"></div>
 </div>
+<script th:inline="none">
+    // Запоминаем прокрутку строго по turbo:before-visit (Turbo сам вызывает это событие
+    // прямо перед стартом любого перехода — по клику на карточку, крестику или таб-бару).
+    // Пробовали проще — слушать обычный "scroll" и сохранять последнее значение — но Turbo
+    // в момент старта перехода сам на мгновение обнуляет прокрутку СТАРОЙ страницы, и этот
+    // "scroll"-листер успевает перезаписать сохранённое значение нулём прямо перед уходом.
+    // Пробовали слушать "click" на самой карточке — тоже ненадёжно: Turbo перехватывает
+    // клик по ссылке своим обработчиком на document раньше, чем событие дойдёт до элемента.
+    // Этот блок — код верхнего уровня скрипта, выполняется один раз (при обычной загрузке
+    // страницы), а не при каждом Turbo-переходе — так и нужно, т.к. document (и подписки на
+    // нём) переживают Turbo-переходы, дублировать подписку не нужно.
+    document.addEventListener('turbo:before-visit', function () {
+        // Turbo не уничтожает подписки на document при переходах — этот обработчик,
+        // навешанный на главной, продолжит получать turbo:before-visit и после того, как
+        // Turbo подменит содержимое на страницу товара. Проверяем, что мы физически ещё на
+        // главной (по полю поиска, которое есть только здесь) — иначе, например, уход со
+        // страницы товара (форма "Добавить") затирал бы сохранённую прокрутку нулём.
+        if (document.getElementById('shopProductSearch')) {
+            sessionStorage.setItem('shopHomeScroll', String(window.scrollY));
+        }
+    });
+
+    // А вот это наоборот должно повторяться при каждом переходе — "turbo:load" срабатывает
+    // и при обычном первом заходе, и при каждом Turbo-переходе, а DOM (карточки, поле
+    // поиска) каждый раз новый.
+    document.addEventListener('turbo:load', function () {
+        window.crmFilterShopProducts = function () {
+            var q = document.getElementById('shopProductSearch').value.trim().toLowerCase();
+            var totalVisible = 0;
+            document.querySelectorAll('.category-section').forEach(function (section) {
+                var visibleInSection = 0;
+                section.querySelectorAll('.shop-product-card').forEach(function (card) {
+                    var match = card.getAttribute('data-name').indexOf(q) !== -1;
+                    card.style.display = match ? '' : 'none';
+                    if (match) visibleInSection++;
+                });
+                section.style.display = visibleInSection > 0 ? '' : 'none';
+                totalVisible += visibleInSection;
+            });
+            document.getElementById('shopProductEmpty').style.display = totalVisible === 0 ? '' : 'none';
+        };
+
+        // Быстрое добавление в корзину прямо с карточки (кнопка "+" на фото) — без перехода
+        // на экран товара. Переиспользует тот же эндпоинт степпера, что и корзина
+        // (см. shop/catalog.html), с шагом по умолчанию (1 шт. или 0.1 для весовых/объёмных).
+        // Кнопка внутри <a> — обязательно stopPropagation, иначе клик ещё и откроет карточку.
+        document.querySelectorAll('.shop-quick-add').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var id = btn.getAttribute('data-product-id');
+                fetch('/shop/cart/item/' + id + '/inc', {method: 'POST', headers: {'X-Requested-With': 'fetch'}})
+                    .then(function (res) {
+                        if (!res.ok) throw new Error('bad status');
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        playAddAnimation(btn, data.cartCount);
+                    })
+                    .catch(function () {
+                        // Сеть подвела (см. историю с Cloudflare-туннелем) — переходим на
+                        // карточку товара как надёжный запасной путь добавления.
+                        window.location.href = '/shop/products/' + id;
+                    });
+            });
+        });
+
+        function playAddAnimation(btn, cartCount) {
+            btn.classList.remove('added');
+            void btn.offsetWidth; // перезапуск CSS-анимации при повторном клике подряд
+            btn.classList.add('added');
+
+            var badge = document.getElementById('shopTabCartBadge');
+            if (badge) {
+                badge.textContent = String(cartCount);
+                badge.style.display = cartCount > 0 ? '' : 'none';
+                badge.classList.remove('bump');
+                void badge.offsetWidth;
+                badge.classList.add('bump');
+            }
+        }
+
+        // Восстанавливаем прокрутку, сохранённую в момент ухода со страницы (см.
+        // turbo:before-visit выше) — иначе после добавления товара из середины длинного
+        // списка приходится листать заново.
+        var savedScroll = sessionStorage.getItem('shopHomeScroll');
+        if (savedScroll !== null) {
+            var target = parseInt(savedScroll, 10);
+            // Turbo сам сбрасывает прокрутку в 0 после перехода (обычное поведение для
+            // "нового" перехода по ссылке) — это происходит уже ПОСЛЕ "turbo:load", поэтому
+            // наш scrollTo нужно откладывать на следующие кадры отрисовки, иначе Turbo его
+            // тут же перезатрёт своим сбросом.
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    window.scrollTo(0, target);
+                });
+            });
+        }
+    });
+</script>
 </body>
 </html>

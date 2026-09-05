@@ -4,13 +4,24 @@ import '../models/ingredient.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/error_view.dart';
+import '../widgets/pick_from_list.dart';
 import '../widgets/product_avatar.dart';
 
 class _RecipeRow {
   int? ingredientId;
   final TextEditingController quantity;
+  final TextEditingController ingredientSearch;
+  final FocusNode focusNode = FocusNode();
 
-  _RecipeRow({this.ingredientId, String quantity = ''}) : quantity = TextEditingController(text: quantity);
+  _RecipeRow({this.ingredientId, String quantity = '', String ingredientName = ''})
+      : quantity = TextEditingController(text: quantity),
+        ingredientSearch = TextEditingController(text: ingredientName);
+
+  void dispose() {
+    quantity.dispose();
+    ingredientSearch.dispose();
+    focusNode.dispose();
+  }
 }
 
 class RecipeScreen extends StatefulWidget {
@@ -24,7 +35,7 @@ class RecipeScreen extends StatefulWidget {
 
 class _RecipeScreenState extends State<RecipeScreen> {
   final _api = ApiClient();
-  late Future<(Product, List<Ingredient>)> _future;
+  late Future<(Product, List<Ingredient>, List<Product>)> _future;
 
   final _yieldQuantity = TextEditingController(text: '1');
   final List<_RecipeRow> _rows = [];
@@ -37,22 +48,44 @@ class _RecipeScreenState extends State<RecipeScreen> {
     _future = _load();
   }
 
-  Future<(Product, List<Ingredient>)> _load() async {
+  @override
+  void dispose() {
+    _yieldQuantity.dispose();
+    for (final row in _rows) {
+      row.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<(Product, List<Ingredient>, List<Product>)> _load() async {
     final product = await _api.getProduct(widget.productId);
     final ingredients = await _api.getIngredients();
+    final products = await _api.getProducts();
     final recipe = await _api.getRecipe(widget.productId);
 
     _yieldQuantity.text = _fmt(recipe.yieldQuantity);
     _rows.clear();
     for (final item in recipe.items) {
-      _rows.add(_RecipeRow(ingredientId: item.ingredientId, quantity: _fmt(item.quantity)));
+      _rows.add(_RecipeRow(
+        ingredientId: item.ingredientId,
+        quantity: _fmt(item.quantity),
+        ingredientName: item.ingredientName,
+      ));
     }
     _rows.add(_RecipeRow());
 
-    return (product, ingredients);
+    return (product, ingredients, products);
   }
 
   String _fmt(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+
+  Ingredient? _findIngredient(List<Ingredient> ingredients, int? id) {
+    if (id == null) return null;
+    for (final ing in ingredients) {
+      if (ing.id == id) return ing;
+    }
+    return null;
+  }
 
   Future<void> _save() async {
     setState(() {
@@ -85,7 +118,7 @@ class _RecipeScreenState extends State<RecipeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Рецептура')),
-      body: FutureBuilder<(Product, List<Ingredient>)>(
+      body: FutureBuilder<(Product, List<Ingredient>, List<Product>)>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -99,9 +132,42 @@ class _RecipeScreenState extends State<RecipeScreen> {
               }),
             );
           }
-          final (product, ingredients) = snapshot.data!;
+          final (product, ingredients, products) = snapshot.data!;
           return StatefulBuilder(
             builder: (context, setLocalState) {
+              Future<void> copyFromProduct() async {
+                final source = await pickFromList<Product>(
+                  context: context,
+                  title: 'Скопировать рецепт из товара',
+                  items: products.where((p) => p.id != widget.productId).toList(),
+                  label: (p) => p.name,
+                  leading: (p) => ProductAvatar(name: p.name, imageUrl: p.imageUrl),
+                );
+                if (source == null || !context.mounted) return;
+                try {
+                  final recipe = await _api.getRecipe(source.id);
+                  setLocalState(() {
+                    _yieldQuantity.text = _fmt(recipe.yieldQuantity);
+                    for (final row in _rows) {
+                      row.dispose();
+                    }
+                    _rows.clear();
+                    for (final item in recipe.items) {
+                      _rows.add(_RecipeRow(
+                        ingredientId: item.ingredientId,
+                        quantity: _fmt(item.quantity),
+                        ingredientName: item.ingredientName,
+                      ));
+                    }
+                    _rows.add(_RecipeRow());
+                  });
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                  }
+                }
+              }
+
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
@@ -120,6 +186,12 @@ class _RecipeScreenState extends State<RecipeScreen> {
                     'списывается автоматически пропорционально количеству.',
                     style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: copyFromProduct,
+                    icon: const Icon(Icons.content_copy, size: 18),
+                    label: const Text('Скопировать рецепт из другого товара'),
+                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _yieldQuantity,
@@ -133,19 +205,67 @@ class _RecipeScreenState extends State<RecipeScreen> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             flex: 3,
-                            child: DropdownButtonFormField<int>(
-                              initialValue: _rows[i].ingredientId,
-                              isExpanded: true,
-                              decoration: const InputDecoration(labelText: 'Ингредиент'),
-                              items: [
-                                const DropdownMenuItem<int>(value: null, child: Text('— не используется —')),
-                                for (final ing in ingredients)
-                                  DropdownMenuItem<int>(value: ing.id, child: Text('${ing.name} (${ing.unit})')),
-                              ],
-                              onChanged: (value) => setLocalState(() => _rows[i].ingredientId = value),
+                            child: RawAutocomplete<Ingredient>(
+                              textEditingController: _rows[i].ingredientSearch,
+                              focusNode: _rows[i].focusNode,
+                              optionsBuilder: (value) {
+                                final q = value.text.trim().toLowerCase();
+                                if (q.isEmpty) return const Iterable<Ingredient>.empty();
+                                return ingredients.where((ing) => ing.name.toLowerCase().contains(q)).take(30);
+                              },
+                              displayStringForOption: (ing) => ing.name,
+                              onSelected: (ing) => setLocalState(() {
+                                _rows[i].ingredientId = ing.id;
+                                _rows[i].ingredientSearch.text = ing.name;
+                              }),
+                              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                                return TextField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Ингредиент',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.search, size: 20),
+                                  ),
+                                  onChanged: (text) {
+                                    final current = _findIngredient(ingredients, _rows[i].ingredientId);
+                                    if (current != null && current.name != text) {
+                                      setLocalState(() => _rows[i].ingredientId = null);
+                                    }
+                                  },
+                                );
+                              },
+                              optionsViewBuilder: (context, onSelected, options) {
+                                final list = options.toList();
+                                return Align(
+                                  alignment: Alignment.topLeft,
+                                  child: Material(
+                                    elevation: 4,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(maxHeight: 220, minWidth: 220),
+                                      child: ListView.builder(
+                                        padding: EdgeInsets.zero,
+                                        shrinkWrap: true,
+                                        itemCount: list.length,
+                                        itemBuilder: (context, index) {
+                                          final ing = list[index];
+                                          return ListTile(
+                                            dense: true,
+                                            title: Text(ing.name),
+                                            trailing: Text(ing.unit, style: const TextStyle(color: Colors.grey)),
+                                            onTap: () => onSelected(ing),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -153,13 +273,20 @@ class _RecipeScreenState extends State<RecipeScreen> {
                             flex: 2,
                             child: TextField(
                               controller: _rows[i].quantity,
-                              decoration: const InputDecoration(labelText: 'Кол-во'),
+                              decoration: InputDecoration(
+                                labelText: 'Кол-во',
+                                isDense: true,
+                                suffixText: _findIngredient(ingredients, _rows[i].ingredientId)?.unit,
+                              ),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => setLocalState(() => _rows.removeAt(i)),
+                            onPressed: () => setLocalState(() {
+                              _rows[i].dispose();
+                              _rows.removeAt(i);
+                            }),
                           ),
                         ],
                       ),

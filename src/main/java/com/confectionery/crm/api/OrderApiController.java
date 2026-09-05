@@ -8,10 +8,14 @@ import com.confectionery.crm.api.dto.OrderSummaryDto;
 import com.confectionery.crm.api.dto.ShipRequest;
 import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderStatus;
+import com.confectionery.crm.service.OneCInvoiceService;
 import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +29,7 @@ import java.util.List;
 public class OrderApiController {
 
     private final OrderService orderService;
+    private final OneCInvoiceService oneCInvoiceService;
 
     /** from/to не заданы — все даты (как раньше); мобильное приложение по умолчанию передаёт сегодняшний день. */
     @GetMapping
@@ -47,6 +52,31 @@ public class OrderApiController {
     @GetMapping("/{id}")
     public OrderDto get(@PathVariable Long id) {
         return OrderDto.from(orderService.findById(id));
+    }
+
+    /**
+     * Накладная, приложенная вручную к документу заказа в 1С (см. OneCInvoiceService) — 404,
+     * если её там ещё нет (заказ не выгружен, 1С недоступна или файл ещё не приложили);
+     * мобильное приложение в этом случае показывает свою локально сгенерированную накладную.
+     */
+    @GetMapping("/{id}/invoice")
+    public ResponseEntity<byte[]> invoice(@PathVariable Long id) {
+        Order order = orderService.findById(id);
+        OneCInvoiceService.InvoiceFile file = oneCInvoiceService.findInvoiceFile(order);
+        if (file == null) {
+            return ResponseEntity.notFound().build();
+        }
+        MediaType mediaType = switch (file.extension().toLowerCase()) {
+            case "pdf" -> MediaType.APPLICATION_PDF;
+            case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;
+            case "png" -> MediaType.IMAGE_PNG;
+            default -> MediaType.APPLICATION_OCTET_STREAM;
+        };
+        String filename = file.name() + "." + file.extension();
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(file.data());
     }
 
     @PostMapping
@@ -78,7 +108,7 @@ public class OrderApiController {
     }
 
     @PutMapping("/{id}/items")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','ACCOUNTANT')")
     public OrderDto updateItems(@PathVariable Long id, @Valid @RequestBody OrderItemUpdateRequest req) {
         return OrderDto.from(orderService.updateItems(id, req.items()));
     }

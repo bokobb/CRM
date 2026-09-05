@@ -16,6 +16,22 @@
             </div>
         </div>
 
+        <form class="panel" method="get" th:action="@{/products/{id}/recipe(id=${product.id})}"
+              th:if="${not #lists.isEmpty(copyableProducts)}" style="max-width:520px">
+            <div class="row" style="align-items:flex-end">
+                <div class="field" style="margin:0;flex:2">
+                    <label>Скопировать рецепт из другого товара</label>
+                    <select name="copyFrom">
+                        <option value="">— выберите товар —</option>
+                        <option th:each="p : ${copyableProducts}" th:value="${p.id}" th:text="${p.name}"
+                                th:selected="${copyFromId != null and p.id == copyFromId}"></option>
+                    </select>
+                </div>
+                <button class="btn" type="submit">Загрузить</button>
+            </div>
+            <p class="subtitle" style="margin:8px 0 0">Подставит ингредиенты выбранного товара сюда — можно поправить перед сохранением.</p>
+        </form>
+
         <form class="panel" th:action="@{/products/{id}/recipe(id=${product.id})}" th:object="${recipeForm}" method="post">
             <div class="field" style="max-width:260px">
                 <label>Партия рецепта (сколько единиц товара получается из указанных ниже количеств)</label>
@@ -23,13 +39,20 @@
             </div>
 
             <h2>Ингредиенты</h2>
-            <div th:each="item, stat : *{items}" class="item-row">
-                <select th:field="*{items[__${stat.index}__].ingredientId}">
-                    <option value="">— не используется —</option>
-                    <option th:each="ing : ${allIngredients}" th:value="${ing.id}" th:text="${ing.name} + ' (' + ${ing.unit} + ')'"></option>
-                </select>
-                <input type="number" step="0.001" th:field="*{items[__${stat.index}__].quantity}" placeholder="Количество">
+            <datalist id="ingredient-datalist">
+                <option th:each="ing : ${allIngredients}" th:value="${ing.name} + ' (' + ${ing.unit} + ')'" th:attr="data-id=${ing.id}"></option>
+            </datalist>
+            <div id="recipe-items">
+                <div th:each="item, stat : *{items}" class="item-row recipe-row">
+                    <input type="text" class="ingredient-search" list="ingredient-datalist"
+                           th:value="*{items[__${stat.index}__].ingredientLabel}"
+                           placeholder="Поиск ингредиента..." oninput="crmPickIngredient(this)">
+                    <input type="hidden" th:field="*{items[__${stat.index}__].ingredientId}">
+                    <input type="number" step="0.001" th:field="*{items[__${stat.index}__].quantity}" placeholder="Количество">
+                    <button type="button" class="btn small danger" title="Убрать строку" onclick="this.closest('.recipe-row').remove()">×</button>
+                </div>
             </div>
+            <button type="button" class="btn" id="crm-add-ingredient-btn" onclick="crmAddIngredientRow()">+ Добавить ингредиент</button>
 
             <div class="actions" style="margin-top:16px">
                 <button class="btn primary" type="submit">Сохранить рецептуру</button>
@@ -38,5 +61,34 @@
         </form>
     </main>
 </div>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    var crmRecipeRowIndex = [[${#lists.size(recipeForm.items)}]];
+    /*]]>*/
+
+    function crmPickIngredient(input) {
+        var hidden = input.nextElementSibling;
+        var options = document.getElementById('ingredient-datalist').options;
+        for (var i = 0; i < options.length; i++) {
+            if (options[i].value === input.value) {
+                hidden.value = options[i].getAttribute('data-id');
+                return;
+            }
+        }
+        hidden.value = '';
+    }
+
+    function crmAddIngredientRow() {
+        var div = document.createElement('div');
+        div.className = 'item-row recipe-row';
+        var idx = crmRecipeRowIndex++;
+        div.innerHTML =
+            '<input type="text" class="ingredient-search" list="ingredient-datalist" placeholder="Поиск ингредиента..." oninput="crmPickIngredient(this)">' +
+            '<input type="hidden" name="items[' + idx + '].ingredientId">' +
+            '<input type="number" step="0.001" name="items[' + idx + '].quantity" placeholder="Количество">' +
+            '<button type="button" class="btn small danger" title="Убрать строку" onclick="this.closest(\'.recipe-row\').remove()">×</button>';
+        document.getElementById('recipe-items').appendChild(div);
+    }
+</script>
 </body>
 </html>

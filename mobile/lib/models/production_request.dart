@@ -37,6 +37,12 @@ class ProductionRequestItem {
   final String ingredientName;
   final String ingredientUnit;
   final double requiredQuantity;
+  final double availableQuantity;
+  final String? originalIngredientName;
+
+  /// Сырья на складе меньше, чем нужно на эту заявку — показывать красным (см.
+  /// production_request_detail_screen.dart), не дожидаясь ошибки от сервера при сборке.
+  bool get isInsufficient => availableQuantity < requiredQuantity;
 
   ProductionRequestItem({
     required this.id,
@@ -44,6 +50,8 @@ class ProductionRequestItem {
     required this.ingredientName,
     required this.ingredientUnit,
     required this.requiredQuantity,
+    required this.availableQuantity,
+    this.originalIngredientName,
   });
 
   factory ProductionRequestItem.fromJson(Map<String, dynamic> json) => ProductionRequestItem(
@@ -52,6 +60,8 @@ class ProductionRequestItem {
         ingredientName: json['ingredientName'] as String,
         ingredientUnit: json['ingredientUnit'] as String,
         requiredQuantity: (json['requiredQuantity'] as num).toDouble(),
+        availableQuantity: (json['availableQuantity'] as num).toDouble(),
+        originalIngredientName: json['originalIngredientName'] as String?,
       );
 }
 
@@ -103,6 +113,9 @@ class ProductionRequest {
   final DateTime createdAt;
   final String? collectedBy;
   final DateTime? collectedAt;
+  final String? oneCReportNumber;
+  final String? oneCRequisitionNumber;
+  final String? oneCSyncError;
   final List<ProductionRequestLine> lines;
   final List<ProductionRequestItem> items;
 
@@ -118,6 +131,9 @@ class ProductionRequest {
     required this.createdAt,
     this.collectedBy,
     this.collectedAt,
+    this.oneCReportNumber,
+    this.oneCRequisitionNumber,
+    this.oneCSyncError,
     required this.lines,
     required this.items,
   });
@@ -131,6 +147,9 @@ class ProductionRequest {
         createdAt: DateTime.parse(json['createdAt'] as String),
         collectedBy: json['collectedBy'] as String?,
         collectedAt: json['collectedAt'] != null ? DateTime.parse(json['collectedAt'] as String) : null,
+        oneCReportNumber: json['oneCReportNumber'] as String?,
+        oneCRequisitionNumber: json['oneCRequisitionNumber'] as String?,
+        oneCSyncError: json['oneCSyncError'] as String?,
         lines: (json['lines'] as List).map((e) => ProductionRequestLine.fromJson(e as Map<String, dynamic>)).toList(),
         items: (json['items'] as List)
             .map((e) => ProductionRequestItem.fromJson(e as Map<String, dynamic>))

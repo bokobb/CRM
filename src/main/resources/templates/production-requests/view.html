@@ -21,6 +21,7 @@
         </div>
 
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
+        <div class="alert success" th:if="${success}" th:text="${success}"></div>
 
         <div th:if="${request.status.name() == 'COLLECTED' or request.status.name() == 'RECEIVED'}"
              class="alert" style="background:var(--accent-soft);color:var(--accent-dark)">
@@ -28,12 +29,32 @@
             <span th:text="${#temporals.format(request.collectedAt, 'dd.MM.yyyy HH:mm')}"></span>
         </div>
 
+        <div class="alert success" th:if="${request.oneCReportNumber != null}">
+            В 1С созданы непроведённые документы: отчёт производства № <span th:text="${request.oneCReportNumber}"></span>,
+            требование-накладная № <span th:text="${request.oneCRequisitionNumber}"></span>
+        </div>
+        <div class="alert warn" th:if="${request.oneCSyncError != null}">
+            Не выгружено в 1С: <span th:text="${request.oneCSyncError}"></span>
+        </div>
+        <form th:if="${request.status.name() == 'RECEIVED' and request.oneCReportNumber == null}"
+              sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')"
+              th:action="@{/production-requests/{id}/sync-1c(id=${request.id})}" method="post" style="margin-bottom:16px">
+            <button class="btn secondary" type="submit">Отправить в 1С</button>
+        </form>
+
         <div th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')"
              style="display:flex;gap:8px;margin-bottom:16px">
             <a class="btn small" th:href="@{/production-requests/{id}/edit(id=${request.id})}">Редактировать</a>
             <form th:action="@{/production-requests/{id}/cancel(id=${request.id})}" method="post"
                   onsubmit="return confirm('Отменить заявку? Действие нельзя отменить обратно.');">
                 <button class="btn small danger" type="submit">Отменить заявку</button>
+            </form>
+        </div>
+
+        <div sec:authorize="hasRole('ADMIN')" style="margin-bottom:16px">
+            <form th:action="@{/production-requests/{id}/delete(id=${request.id})}" method="post"
+                  onsubmit="return confirm('Удалить заявку полностью? Списанное сырьё и оприходованная продукция будут возвращены обратно на склад. Действие необратимо.');">
+                <button class="btn small danger" type="submit">Удалить заявку</button>
             </form>
         </div>
 
@@ -67,10 +88,28 @@
         <div class="panel">
             <h2>Состав заявки (сырьё, общее по всем позициям)</h2>
             <table>
-                <tr><th>Сырьё</th><th>Количество</th></tr>
-                <tr th:each="i : ${request.items}">
-                    <td th:text="${i.ingredient.name}"></td>
+                <tr><th>Сырьё</th><th>Количество</th><th>На складе</th><th th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')">Замена</th></tr>
+                <tr th:each="i : ${request.items}"
+                    th:style="${i.requiredQuantity.compareTo(i.ingredient.quantityInStock) > 0} ? 'color:#c0392b;font-weight:600' : ''">
+                    <td>
+                        <span th:text="${i.ingredient.name}"></span>
+                        <div th:if="${i.originalIngredientName != null}" style="font-weight:normal;font-size:12px;color:var(--muted,#888)">
+                            было: <span th:text="${i.originalIngredientName}"></span>
+                        </div>
+                    </td>
                     <td th:text="${i.requiredQuantity} + ' ' + ${i.ingredient.unit}"></td>
+                    <td th:text="${i.ingredient.quantityInStock} + ' ' + ${i.ingredient.unit}"></td>
+                    <td th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')">
+                        <form th:action="@{/production-requests/{id}/items/{itemId}/substitute(id=${request.id},itemId=${i.id})}"
+                              method="post" style="display:flex;gap:4px;align-items:center">
+                            <select name="ingredientId" style="width:auto">
+                                <option th:each="opt : ${ingredients}" th:if="${opt.id != i.ingredient.id}"
+                                        th:value="${opt.id}" th:text="${opt.name}"></option>
+                            </select>
+                            <input type="number" step="0.001" name="quantity" th:placeholder="${i.requiredQuantity}" style="width:90px">
+                            <button class="btn small" type="submit">Заменить</button>
+                        </form>
+                    </td>
                 </tr>
             </table>
         </div>
@@ -78,13 +117,16 @@
         <form th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')"
               class="panel" th:action="@{/production-requests/{id}/collect(id=${request.id})}" method="post">
             <h2>Собрать по чек-листу</h2>
-            <p class="subtitle" style="margin:0 0 12px">Отметьте каждую позицию, чтобы не перепутать — кнопка активируется, когда все отмечены</p>
+            <p class="subtitle" style="margin:0 0 12px">Отметьте каждую позицию, чтобы не перепутать — кнопка активируется, когда все отмечены.
+                Красным — не хватает на складе.</p>
             <table>
-                <tr><th></th><th>Сырьё</th><th>Нужно</th></tr>
-                <tr th:each="i : ${request.items}">
+                <tr><th></th><th>Сырьё</th><th>Нужно</th><th>На складе</th></tr>
+                <tr th:each="i : ${request.items}"
+                    th:style="${i.requiredQuantity.compareTo(i.ingredient.quantityInStock) > 0} ? 'color:#c0392b;font-weight:600' : ''">
                     <td><input type="checkbox" class="crm-collect-check" name="itemIds" th:value="${i.id}" onchange="crmCheckAllCollected()"></td>
                     <td th:text="${i.ingredient.name}"></td>
                     <td th:text="${i.requiredQuantity} + ' ' + ${i.ingredient.unit}"></td>
+                    <td th:text="${i.ingredient.quantityInStock} + ' ' + ${i.ingredient.unit}"></td>
                 </tr>
             </table>
             <button class="btn primary" type="submit" id="crmCollectBtn" disabled style="margin-top:14px">Собрано</button>

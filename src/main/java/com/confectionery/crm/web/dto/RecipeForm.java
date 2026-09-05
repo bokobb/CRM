@@ -29,6 +29,8 @@ public class RecipeForm {
     public static class RecipeItemForm {
         private Long ingredientId;
         private BigDecimal quantity;
+        /** Только для отображения (поиск ингредиента на странице) — не участвует в сохранении. */
+        private String ingredientLabel;
 
         public Long getIngredientId() {
             return ingredientId;
@@ -44,6 +46,14 @@ public class RecipeForm {
 
         public void setQuantity(BigDecimal quantity) {
             this.quantity = quantity;
+        }
+
+        public String getIngredientLabel() {
+            return ingredientLabel;
+        }
+
+        public void setIngredientLabel(String ingredientLabel) {
+            this.ingredientLabel = ingredientLabel;
         }
     }
 }

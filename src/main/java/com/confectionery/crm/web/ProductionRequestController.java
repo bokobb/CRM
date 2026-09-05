@@ -3,6 +3,7 @@ package com.confectionery.crm.web;
 import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
 import com.confectionery.crm.domain.ProductionRequest;
 import com.confectionery.crm.domain.ProductionRequestStatus;
+import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.ProductionReportPdfService;
 import com.confectionery.crm.service.ProductionRequestService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class ProductionRequestController {
 
     private final ProductionRequestService requestService;
     private final ProductionReportPdfService reportPdfService;
+    private final IngredientService ingredientService;
 
     @GetMapping
     public String list(@RequestParam(required = false) String status, Model model) {
@@ -95,6 +97,7 @@ public class ProductionRequestController {
     public String view(@PathVariable Long id, Model model) {
         model.addAttribute("activePage", "production-requests");
         model.addAttribute("request", requestService.findById(id));
+        model.addAttribute("ingredients", ingredientService.findAll());
         return "production-requests/view";
     }
 
@@ -139,6 +142,24 @@ public class ProductionRequestController {
         return "redirect:/production-requests/" + id;
     }
 
+    /**
+     * Полное удаление заявки в ЛЮБОМ статусе (в отличие от cancel — только для «Новой») — см.
+     * ProductionRequestService.delete: откатывает складские остатки и помечает документы в 1С
+     * на удаление, если они уже создавались. Только ADMIN — необратимо.
+     */
+    @PostMapping("/{id}/delete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String delete(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            requestService.delete(id);
+            redirectAttributes.addFlashAttribute("success", "Заявка №" + id + " удалена, остатки пересчитаны");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось удалить заявку: " + e.getMessage());
+            return "redirect:/production-requests/" + id;
+        }
+        return "redirect:/production-requests";
+    }
+
     @PostMapping("/{id}/collect")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
     public String collect(@PathVariable Long id, @RequestParam(required = false) List<Long> itemIds,
@@ -148,6 +169,37 @@ public class ProductionRequestController {
             requestService.collect(id, confirmed, authentication.getName());
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/production-requests/" + id;
+    }
+
+    /** Замена сырья в позиции — например, нужного не хватило на складе (см. ProductionRequestService.substituteItem). */
+    @PostMapping("/{id}/items/{itemId}/substitute")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
+    public String substituteItem(@PathVariable Long id, @PathVariable Long itemId,
+                                  @RequestParam Long ingredientId,
+                                  @RequestParam(required = false) String quantity,
+                                  Authentication authentication, RedirectAttributes redirectAttributes) {
+        try {
+            // Пустая строка из формы (поле "Количество" необязательное) — не число, парсим
+            // вручную вместо @RequestParam BigDecimal, иначе Spring падает с 400 на "".
+            BigDecimal qty = (quantity == null || quantity.isBlank()) ? null : new BigDecimal(quantity);
+            requestService.substituteItem(id, itemId, ingredientId, qty, authentication.getName());
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/production-requests/" + id;
+    }
+
+    /** Повторная ручная выгрузка в 1С — см. ProductionRequestService.resyncOneC. */
+    @PostMapping("/{id}/sync-1c")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
+    public String syncOneC(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            requestService.resyncOneC(id);
+            redirectAttributes.addFlashAttribute("success", "Заявка №" + id + " выгружена в 1С");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось выгрузить в 1С: " + e.getMessage());
         }
         return "redirect:/production-requests/" + id;
     }

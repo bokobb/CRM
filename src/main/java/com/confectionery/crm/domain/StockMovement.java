@@ -56,4 +56,15 @@ public class StockMovement {
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    /**
+     * Когда это поступление товара (RECEIPT + product) попало в сводный документ
+     * "Оприходование товаров" в 1С — см. OneCReceiptSyncService. Null — ещё не выгружено,
+     * попадёт в следующий прогон (по кнопке "Общее оприходование" или автоматически в 20:00).
+     * У сырья и списаний это поле всегда пустое — 1С сейчас забирает только приход товара.
+     */
+    private LocalDateTime oneCSyncedAt;
+
+    /** Номер документа "Оприходование товаров" в 1С, в который попало это движение. */
+    private String oneCDocumentNumber;
 }

@@ -51,6 +51,28 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Накладная, приложенная к документу заказа в 1С (см. ApiClient.getInvoiceFile).
+class InvoiceFile {
+  final Uint8List bytes;
+  final String filename;
+  final String mimeType;
+  InvoiceFile({required this.bytes, required this.filename, required this.mimeType});
+}
+
+/// Результат "Общего оприходования" в 1С (см. ApiClient.postDailyReceiptsOneC).
+class OneCReceiptResult {
+  final int movementsCount;
+  final String? documentNumber;
+  final List<String> unresolved;
+  OneCReceiptResult({required this.movementsCount, required this.documentNumber, required this.unresolved});
+
+  factory OneCReceiptResult.fromJson(Map<String, dynamic> json) => OneCReceiptResult(
+        movementsCount: json['movementsCount'] as int,
+        documentNumber: json['documentNumber'] as String?,
+        unresolved: (json['unresolved'] as List).cast<String>(),
+      );
+}
+
 /// Тонкий HTTP-клиент к REST API кондитерской CRM (см. com.confectionery.crm.api.*
 /// на бэкенде). Базовый URL настраивается в приложении и хранится в SharedPreferences —
 /// по умолчанию подставляется адрес, подходящий для Android-эмулятора/веба.
@@ -538,6 +560,31 @@ class ApiClient {
     return StockMovement.fromJson(_decode(res));
   }
 
+  /// Удаляет ошибочно созданное ручное поступление/списание — остаток на складе
+  /// пересчитывается обратно (см. StockService.deleteMovement на бэкенде).
+  Future<void> deleteStockMovement(int id) async {
+    final res = await http.delete(
+      await _uri('/stock/movements/$id'),
+      headers: await _authHeaders(),
+    );
+    _decode(res);
+  }
+
+  /// Ручной запуск синхронизации остатков с 1С (обычно идёт по расписанию раз в час на
+  /// бэкенде) — только для ADMIN, см. OneCStockSyncService/StockMovementApiController.
+  Future<({int productsUpdated, int ingredientsUpdated, List<String> unmatched})> syncOneC() async {
+    final res = await http.post(
+      await _uri('/stock/sync-1c'),
+      headers: await _authHeaders(),
+    );
+    final json = _decode(res) as Map<String, dynamic>;
+    return (
+      productsUpdated: json['productsUpdated'] as int,
+      ingredientsUpdated: json['ingredientsUpdated'] as int,
+      unmatched: (json['unmatched'] as List).cast<String>(),
+    );
+  }
+
   // ---- Production requests (заявки на сырьё) ----
   Future<List<ProductionRequestSummary>> getProductionRequests() async {
     final res = await http.get(
@@ -601,7 +648,47 @@ class ApiClient {
     return ProductionRequest.fromJson(_decode(res));
   }
 
+  /// Полное удаление заявки в любом статусе (не только «Новая», в отличие от отмены выше) —
+  /// откатывает складские остатки (см. ProductionRequestService.delete на бэкенде). Только ADMIN.
+  Future<void> deleteProductionRequest(int id) async {
+    final res = await http.delete(
+      await _uri('/production-requests/$id'),
+      headers: await _authHeaders(),
+    );
+    _decode(res);
+  }
+
   /// itemIds должны покрывать ВСЕ позиции заявки — иначе сервер отклонит сборку.
+  /// Замена сырья в позиции заявки — например, нужного не хватило на складе. quantity не
+  /// задан = оставить прежнее количество (см. ProductionRequestService.substituteItem на бэкенде).
+  Future<ProductionRequest> substituteProductionRequestItem(
+    int requestId,
+    int itemId,
+    int ingredientId, {
+    double? quantity,
+  }) async {
+    final res = await http.post(
+      await _uri('/production-requests/$requestId/items/$itemId/substitute'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'ingredientId': ingredientId,
+        if (quantity != null) 'quantity': quantity,
+      }),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  /// Повторная ручная выгрузка оприходованной заявки в 1С — на случай, если автоматическая
+  /// (сразу после оприходования последней позиции) не сработала (см.
+  /// ProductionRequestService.resyncOneC на бэкенде).
+  Future<ProductionRequest> syncProductionRequestOneC(int id) async {
+    final res = await http.post(
+      await _uri('/production-requests/$id/sync-1c'),
+      headers: await _authHeaders(),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
   Future<ProductionRequest> collectProductionRequest(int id, List<int> itemIds) async {
     final res = await http.post(
       await _uri('/production-requests/$id/collect'),
@@ -638,6 +725,17 @@ class ApiClient {
     );
     if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
     throw ApiException('Не удалось получить PDF-отчёт (${res.statusCode})');
+  }
+
+  /// "Общее оприходование" — собирает все ещё не выгруженные в 1С РУЧНЫЕ поступления товара
+  /// за день (форма "Поступления", без учёта заявок на производство — те выгружаются сами)
+  /// в один документ и сразу проводит его на 06:00.
+  Future<OneCReceiptResult> postDailyReceiptsOneC({DateTime? date}) async {
+    final res = await http.post(
+      await _uri('/stock/receipts/post-1c', date != null ? {'date': _isoDate(date)} : null),
+      headers: await _authHeaders(),
+    );
+    return OneCReceiptResult.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
   // ---- Purchases (закупки сырья) ----
@@ -732,6 +830,27 @@ class ApiClient {
       headers: await _authHeaders(),
     );
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
+  }
+
+  /// Накладная, приложенная к документу заказа прямо в 1С — null, если её там ещё нет
+  /// (заказ не выгружен, 1С недоступна или файл не приложили); тогда экран заказа сам
+  /// строит свою локальную PDF-накладную вместо этого.
+  Future<InvoiceFile?> getInvoiceFile(int orderId) async {
+    final res = await http.get(
+      await _uri('/orders/$orderId/invoice'),
+      headers: await _authHeaders(),
+    );
+    if (res.statusCode == 404) return null;
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException('Не удалось получить накладную (${res.statusCode})');
+    }
+    final disposition = res.headers['content-disposition'] ?? '';
+    final match = RegExp(r'filename="([^"]+)"').firstMatch(disposition);
+    return InvoiceFile(
+      bytes: res.bodyBytes,
+      filename: match?.group(1) ?? 'nakladnaya_$orderId.pdf',
+      mimeType: res.headers['content-type'] ?? 'application/octet-stream',
+    );
   }
 
   Future<Order> createOrder(Map<String, dynamic> body) async {

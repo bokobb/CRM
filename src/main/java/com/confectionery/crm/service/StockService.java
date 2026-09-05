@@ -75,7 +75,9 @@ public class StockService {
     public StockMovement writeOff(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
         requirePositive(quantity, "списания");
         if (ingredient.getQuantityInStock().compareTo(quantity) < 0) {
-            throw new IllegalArgumentException("На складе меньше, чем указано для списания");
+            throw new IllegalArgumentException("На складе «" + ingredient.getName() + "» меньше ("
+                    + ingredient.getQuantityInStock() + " " + ingredient.getUnit() + "), чем указано для списания ("
+                    + quantity + " " + ingredient.getUnit() + ")");
         }
         ingredient.setQuantityInStock(ingredient.getQuantityInStock().subtract(quantity));
         ingredientRepository.save(ingredient);
@@ -95,7 +97,10 @@ public class StockService {
     public StockMovement writeOffProduct(Product product, BigDecimal quantity, String reason, String by) {
         requirePositive(quantity, "списания");
         if (product.getQuantityInStock().compareTo(quantity) < 0) {
-            throw new IllegalArgumentException("На складе меньше, чем указано для списания");
+            String unit = product.getUnit() == null || product.getUnit().isBlank() ? "шт" : product.getUnit();
+            throw new IllegalArgumentException("На складе «" + product.getName() + "» меньше ("
+                    + product.getQuantityInStock() + " " + unit + "), чем указано для списания ("
+                    + quantity + " " + unit + ")");
         }
         product.setQuantityInStock(product.getQuantityInStock().subtract(quantity));
         productRepository.save(product);
@@ -112,7 +117,9 @@ public class StockService {
     public StockMovement writeOffForProduction(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
         requirePositive(quantity, "списания");
         if (ingredient.getQuantityInStock().compareTo(quantity) < 0) {
-            throw new IllegalArgumentException("На складе меньше, чем указано для списания");
+            throw new IllegalArgumentException("На складе «" + ingredient.getName() + "» меньше ("
+                    + ingredient.getQuantityInStock() + " " + ingredient.getUnit() + "), чем указано для списания ("
+                    + quantity + " " + ingredient.getUnit() + ")");
         }
         ingredient.setQuantityInStock(ingredient.getQuantityInStock().subtract(quantity));
         ingredientRepository.save(ingredient);
@@ -150,6 +157,40 @@ public class StockService {
         movement.setCreatedBy(by);
         movement.setManual(manual);
         return stockMovementRepository.save(movement);
+    }
+
+    /**
+     * Удаляет ошибочно созданное РУЧНОЕ движение и откатывает его влияние на остаток (приход —
+     * вычитаем обратно, списание — возвращаем обратно). Автоматические движения (заявки на
+     * производство, см. StockMovement.manual) удалить так нельзя — их отменяют через саму
+     * заявку. Уже выгруженные в 1С (см. StockMovement.oneCSyncedAt/OneCReceiptSyncService)
+     * тоже нельзя — иначе CRM молча разойдётся с документом, который уже есть в 1С; такое
+     * движение сначала нужно удалить/исправить в самой 1С.
+     */
+    @Transactional
+    public void deleteMovement(Long movementId) {
+        StockMovement movement = stockMovementRepository.findById(movementId)
+                .orElseThrow(() -> new IllegalArgumentException("Движение не найдено: " + movementId));
+        if (!movement.isManual()) {
+            throw new IllegalStateException("Нельзя удалить движение, созданное автоматически заявкой на производство");
+        }
+        if (movement.getOneCSyncedAt() != null) {
+            throw new IllegalStateException("Уже выгружено в 1С документом №" + movement.getOneCDocumentNumber()
+                    + " — сначала удалите его там");
+        }
+        BigDecimal delta = movement.getType() == StockMovementType.RECEIPT
+                ? movement.getQuantity().negate()
+                : movement.getQuantity();
+        if (movement.getProduct() != null) {
+            Product product = movement.getProduct();
+            product.setQuantityInStock(product.getQuantityInStock().add(delta));
+            productRepository.save(product);
+        } else {
+            Ingredient ingredient = movement.getIngredient();
+            ingredient.setQuantityInStock(ingredient.getQuantityInStock().add(delta));
+            ingredientRepository.save(ingredient);
+        }
+        stockMovementRepository.delete(movement);
     }
 
     /**

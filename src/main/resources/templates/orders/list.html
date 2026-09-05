@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <title>Заказы — Юг Сладости</title>
@@ -11,8 +11,17 @@
     <main class="content">
         <div class="page-header">
             <div><h1>Заказы</h1></div>
-            <a class="btn primary" th:href="@{/orders/new}">+ Новый заказ</a>
+            <div>
+                <form method="post" th:action="@{/orders/post-1c}" sec:authorize="hasRole('ADMIN')" style="display:inline"
+                      onsubmit="return confirm('Провести в 1С все отгруженные/завершённые заказы, которые ещё не проведены?');">
+                    <button type="submit" class="btn">Провести в 1С</button>
+                </form>
+                <a class="btn primary" th:href="@{/orders/new}">+ Новый заказ</a>
+            </div>
         </div>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+        <div class="alert success" th:if="${success}" th:text="${success}"></div>
 
         <form class="date-range-form" method="get" th:action="@{/orders}" style="margin-bottom:14px">
             <input type="hidden" name="status" th:if="${selectedStatus != null}" th:value="${selectedStatus}">

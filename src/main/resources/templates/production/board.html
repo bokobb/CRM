@@ -13,38 +13,90 @@
             <div><h1>Производство</h1><p class="subtitle">Заявки на сырьё по стадиям — от создания до оприходования</p></div>
         </div>
 
+        <input type="text" id="crm-prod-search" class="product-search" placeholder="Поиск по товару…" oninput="crmFilterProduction()">
+
         <div class="board">
             <div class="board-col">
-                <h2>Ожидает <span th:text="${#lists.size(pending)}"></span></h2>
-                <a class="task-card" th:each="r : ${pending}" th:href="@{/production-requests/{id}(id=${r.id})}">
-                    <div class="title" th:text="${r.title}"></div>
-                    <div class="meta" th:text="${#strings.arrayJoin(r.productNames.toArray(), ', ')} + ' · ' + ${r.totalBatches} + ' замес.'"></div>
-                    <div class="meta" th:text="${r.createdBy} + ' · ' + ${#temporals.format(r.createdAt, 'dd.MM.yyyy HH:mm')}"></div>
-                </a>
+                <h2>Ожидает <span id="crm-prod-count-pending" th:text="${#lists.size(pending)}"></span></h2>
+                <div id="crm-prod-col-pending">
+                    <a class="task-card" th:each="r : ${pending}" th:href="@{/production-requests/{id}(id=${r.id})}"
+                       th:attr="data-name=${#strings.toLowerCase(#strings.arrayJoin(r.productNames.toArray(), ' '))}">
+                        <div class="title" th:text="${r.title}"></div>
+                        <div class="meta" th:text="${#strings.arrayJoin(r.productNames.toArray(), ', ')} + ' · ' + ${r.totalBatches} + ' замес.'"></div>
+                        <div class="meta" th:text="${r.createdBy} + ' · ' + ${#temporals.format(r.createdAt, 'dd.MM.yyyy HH:mm')}"></div>
+                    </a>
+                </div>
                 <p class="empty" th:if="${#lists.isEmpty(pending)}">Пусто</p>
+                <p class="empty" id="crm-prod-empty-pending" style="display:none">Ничего не найдено</p>
             </div>
 
             <div class="board-col">
-                <h2>В работе <span th:text="${#lists.size(inProgress)}"></span></h2>
-                <a class="task-card" th:each="r : ${inProgress}" th:href="@{/production-requests/{id}(id=${r.id})}">
-                    <div class="title" th:text="${r.title}"></div>
-                    <div class="meta" th:text="${#strings.arrayJoin(r.productNames.toArray(), ', ')} + ' · ' + ${r.totalBatches} + ' замес.'"></div>
-                    <div class="meta" th:text="'Собрана — ждёт оприходования'"></div>
-                </a>
+                <h2>В работе <span id="crm-prod-count-inProgress" th:text="${#lists.size(inProgress)}"></span></h2>
+                <div id="crm-prod-col-inProgress">
+                    <a class="task-card" th:each="r : ${inProgress}" th:href="@{/production-requests/{id}(id=${r.id})}"
+                       th:attr="data-name=${#strings.toLowerCase(#strings.arrayJoin(r.productNames.toArray(), ' '))}">
+                        <div class="title" th:text="${r.title}"></div>
+                        <div class="meta" th:text="${#strings.arrayJoin(r.productNames.toArray(), ', ')} + ' · ' + ${r.totalBatches} + ' замес.'"></div>
+                        <div class="meta" th:text="'Собрана — ждёт оприходования'"></div>
+                    </a>
+                </div>
                 <p class="empty" th:if="${#lists.isEmpty(inProgress)}">Пусто</p>
+                <p class="empty" id="crm-prod-empty-inProgress" style="display:none">Ничего не найдено</p>
             </div>
 
             <div class="board-col">
-                <h2>Готово <span th:text="${#lists.size(done)}"></span></h2>
-                <a class="task-card" th:each="r : ${done}" th:href="@{/production-requests/{id}(id=${r.id})}">
-                    <div class="title" th:text="${r.title}"></div>
-                    <div class="meta" th:text="${#strings.arrayJoin(r.productNames.toArray(), ', ')} + ' · ' + ${r.totalBatches} + ' замес.'"></div>
-                    <div class="meta" th:text="${r.createdBy} + ' · ' + ${#temporals.format(r.createdAt, 'dd.MM.yyyy HH:mm')}"></div>
-                </a>
+                <h2>Готово <span id="crm-prod-count-done" th:text="${#lists.size(done)}"></span></h2>
+                <!-- Дата — только здесь: часть товаров готовят не каждый день, заявка на такой
+                     товар может провисеть в "Ожидает"/"В работе" несколько дней, и фильтровать
+                     по дате создания там же — значит прятать ещё не закрытую работу только
+                     потому, что она началась не сегодня. Для архива ("Готово") дата, наоборот,
+                     осмысленна — это уже история. -->
+                <div class="date-range-form" style="margin-bottom:12px">
+                    <input type="date" id="crm-prod-from" onchange="crmFilterProduction()">
+                    <span>—</span>
+                    <input type="date" id="crm-prod-to" onchange="crmFilterProduction()">
+                </div>
+                <div id="crm-prod-col-done">
+                    <a class="task-card" th:each="r : ${done}" th:href="@{/production-requests/{id}(id=${r.id})}"
+                       th:attr="data-name=${#strings.toLowerCase(#strings.arrayJoin(r.productNames.toArray(), ' '))},
+                                data-created=${#temporals.format(r.createdAt, 'yyyy-MM-dd')}">
+                        <div class="title" th:text="${r.title}"></div>
+                        <div class="meta" th:text="${#strings.arrayJoin(r.productNames.toArray(), ', ')} + ' · ' + ${r.totalBatches} + ' замес.'"></div>
+                        <div class="meta" th:text="${r.createdBy} + ' · ' + ${#temporals.format(r.createdAt, 'dd.MM.yyyy HH:mm')}"></div>
+                    </a>
+                </div>
                 <p class="empty" th:if="${#lists.isEmpty(done)}">Пусто</p>
+                <p class="empty" id="crm-prod-empty-done" style="display:none">Ничего не найдено</p>
             </div>
         </div>
     </main>
 </div>
+<script th:inline="none">
+    function crmFilterProduction() {
+        var q = document.getElementById('crm-prod-search').value.trim().toLowerCase();
+        var from = document.getElementById('crm-prod-from').value;
+        var to = document.getElementById('crm-prod-to').value;
+
+        ['pending', 'inProgress', 'done'].forEach(function (col) {
+            var container = document.getElementById('crm-prod-col-' + col);
+            var visible = 0;
+            container.querySelectorAll('.task-card').forEach(function (card) {
+                var matchesName = card.getAttribute('data-name').indexOf(q) !== -1;
+                var matchesDate = true;
+                if (col === 'done' && (from || to)) {
+                    var created = card.getAttribute('data-created').slice(0, 10);
+                    if (from && created < from) matchesDate = false;
+                    if (to && created > to) matchesDate = false;
+                }
+                var match = matchesName && matchesDate;
+                card.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+            document.getElementById('crm-prod-count-' + col).textContent = visible;
+            var emptyEl = document.getElementById('crm-prod-empty-' + col);
+            if (emptyEl) emptyEl.style.display = (visible === 0 && container.querySelectorAll('.task-card').length > 0) ? '' : 'none';
+        });
+    }
+</script>
 </body>
 </html>

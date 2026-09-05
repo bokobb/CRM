@@ -25,6 +25,11 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
   late Future<List<StockMovement>> _future;
   final _search = TextEditingController();
   DateTimeRange _range = todayRange();
+  bool _postInProgress = false;
+
+  /// id движения, для которого сейчас показана корзинка вместо количества — появляется по
+  /// долгому нажатию на строку, обычное нажатие по строке в этом состоянии её убирает обратно.
+  int? _deleteModeId;
 
   String get _type => widget.isReceipt ? 'RECEIPT' : 'WRITE_OFF';
   String get _title => widget.isReceipt ? 'Поступления' : 'Списание товара';
@@ -48,6 +53,20 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
     _refresh();
   }
 
+  /// Долгое нажатие показывает корзинку вместо суммы — нажатие на неё удаляет движение и
+  /// откатывает его влияние на остаток (см. StockService.deleteMovement на бэкенде).
+  Future<void> _deleteMovement(StockMovement m) async {
+    setState(() => _deleteModeId = null);
+    try {
+      await _api.deleteStockMovement(m.id);
+      _refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
   Future<void> _openForm() async {
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -57,10 +76,62 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
     if (saved == true) _refresh();
   }
 
+  /// "Общее оприходование" — собирает все ещё не выгруженные в 1С ручные поступления товара
+  /// за сегодня в один документ и сразу проводит его на 06:00 (приход от заявок на
+  /// производство сюда не относится — тот выгружается сам). Если забыть — то же самое
+  /// произойдёт автоматически в 20:00.
+  Future<void> _postOneC() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Общее оприходование'),
+        content: const Text(
+          'Собрать все сегодняшние ручные поступления товара в один документ и провести в 1С на 06:00?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Провести')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _postInProgress = true);
+    try {
+      final result = await _api.postDailyReceiptsOneC();
+      if (!mounted) return;
+      final message = result.documentNumber == null
+          ? 'Оприходовывать нечего — всё уже выгружено в 1С'
+          : 'Оприходовано в 1С: позиций ${result.movementsCount}, документ №${result.documentNumber}'
+              '${result.unresolved.isEmpty ? '' : '. Не сопоставлено: ${result.unresolved.join(', ')}'}';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _postInProgress = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final role = ApiClient.currentSession?.role;
+    final canPostOneC = widget.isReceipt && (role == 'ADMIN' || role == 'WAREHOUSE_FG');
     return Scaffold(
-      appBar: AppBar(title: Text(_title)),
+      appBar: AppBar(
+        title: Text(_title),
+        actions: [
+          if (canPostOneC)
+            IconButton(
+              onPressed: _postInProgress ? null : _postOneC,
+              icon: _postInProgress
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.cloud_upload_outlined),
+              tooltip: 'Общее оприходование в 1С',
+            ),
+        ],
+      ),
       drawer: const AppDrawer(currentRoute: '/warehouse'),
       floatingActionButton: FloatingActionButton(onPressed: _openForm, child: const Icon(Icons.add)),
       body: RefreshIndicator(
@@ -108,19 +179,28 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
                     itemCount: movements.length,
                     itemBuilder: (context, index) {
                       final m = movements[index];
+                      final deleteMode = _deleteModeId == m.id;
                       return AppListTile(
                         leadingIcon: m.isProduct ? Icons.cake_outlined : Icons.grain_outlined,
                         leadingColor: m.isProduct ? const Color(0xFFB8324A) : const Color(0xFFD9A73F),
                         title: m.itemName,
                         subtitle:
                             '${m.reason?.isNotEmpty == true ? '${m.reason} · ' : ''}${m.createdBy} · ${formatDateTime(m.createdAt)}',
-                        trailing: Text(
-                          '${widget.isReceipt ? '+' : '−'}${formatQty(m.quantity)} ${m.unit}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: widget.isReceipt ? const Color(0xFF4C8A5E) : const Color(0xFFB8433F),
-                          ),
-                        ),
+                        trailing: deleteMode
+                            ? IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                tooltip: 'Удалить',
+                                onPressed: () => _deleteMovement(m),
+                              )
+                            : Text(
+                                '${widget.isReceipt ? '+' : '−'}${formatQty(m.quantity)} ${m.unit}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: widget.isReceipt ? const Color(0xFF4C8A5E) : const Color(0xFFB8433F),
+                                ),
+                              ),
+                        onLongPress: () => setState(() => _deleteModeId = m.id),
+                        onTap: deleteMode ? () => setState(() => _deleteModeId = null) : null,
                       );
                     },
                   );

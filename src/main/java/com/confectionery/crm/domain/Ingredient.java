@@ -39,4 +39,11 @@ public class Ingredient {
     public boolean isLowStock() {
         return quantityInStock.compareTo(minThreshold) < 0;
     }
+
+    /**
+     * GUID номенклатуры в 1С (Catalog_Номенклатура.Ref_Key) — подбирается автоматически по
+     * точному названию при первой выгрузке "Требования-накладной" на списание этого сырья
+     * (см. OneCProductionSyncService).
+     */
+    private String oneCNomenclatureKey;
 }

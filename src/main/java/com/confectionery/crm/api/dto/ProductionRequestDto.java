@@ -17,6 +17,9 @@ public record ProductionRequestDto(
         LocalDateTime createdAt,
         String collectedBy,
         LocalDateTime collectedAt,
+        String oneCReportNumber,
+        String oneCRequisitionNumber,
+        String oneCSyncError,
         List<Line> lines,
         List<Item> items
 ) {
@@ -31,10 +34,12 @@ public record ProductionRequestDto(
         }
     }
 
-    public record Item(Long id, Long ingredientId, String ingredientName, String ingredientUnit, BigDecimal requiredQuantity) {
+    public record Item(Long id, Long ingredientId, String ingredientName, String ingredientUnit,
+                        BigDecimal requiredQuantity, BigDecimal availableQuantity, String originalIngredientName) {
         static Item from(ProductionRequestItem i) {
             return new Item(i.getId(), i.getIngredient().getId(), i.getIngredient().getName(),
-                    i.getIngredient().getUnit(), i.getRequiredQuantity());
+                    i.getIngredient().getUnit(), i.getRequiredQuantity(), i.getIngredient().getQuantityInStock(),
+                    i.getOriginalIngredientName());
         }
     }
 
@@ -48,6 +53,9 @@ public record ProductionRequestDto(
                 r.getCreatedAt(),
                 r.getCollectedBy(),
                 r.getCollectedAt(),
+                r.getOneCReportNumber(),
+                r.getOneCRequisitionNumber(),
+                r.getOneCSyncError(),
                 r.getLines().stream().map(Line::from).toList(),
                 r.getItems().stream().map(Item::from).toList()
         );

@@ -21,6 +21,7 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
   final _api = ApiClient();
   late Future<List<Product>> _future;
   String _query = '';
+  bool _syncing = false;
 
   @override
   void initState() {
@@ -33,6 +34,29 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
       _future = _api.getProducts();
     });
     await _future;
+  }
+
+  /// Обычно синхронизация идёт по расписанию на бэкенде — эта кнопка (только у ADMIN) нужна
+  /// для проверки без ожидания часа, см. OneCStockSyncService.
+  Future<void> _syncOneC() async {
+    setState(() => _syncing = true);
+    try {
+      final result = await _api.syncOneC();
+      var message = 'Обновлено товаров: ${result.productsUpdated}, сырья: ${result.ingredientsUpdated}';
+      if (result.unmatched.isNotEmpty) {
+        message += '. Не сопоставлено: ${result.unmatched.length}';
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+      await _refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
   }
 
   List<Product> _filter(List<Product> products) {
@@ -48,6 +72,20 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
         title: 'Остатки',
         hintText: 'Название товара...',
         onQueryChanged: (v) => setState(() => _query = v),
+        extraActions: [
+          if (ApiClient.currentSession?.role == 'ADMIN')
+            IconButton(
+              icon: _syncing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+              tooltip: 'Синхронизировать с 1С',
+              onPressed: _syncing ? null : _syncOneC,
+            ),
+        ],
       ),
       drawer: const AppDrawer(currentRoute: '/warehouse'),
       body: RefreshIndicator(

@@ -73,6 +73,26 @@ public class ProductionRequestApiController {
         return ProductionRequestDto.from(requestService.cancel(id, authentication.getName()));
     }
 
+    /**
+     * Полное удаление заявки в ЛЮБОМ статусе (в отличие от cancel — только для «Новой») — см.
+     * ProductionRequestService.delete. Только ADMIN — необратимо, откатывает складские остатки.
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void delete(@PathVariable Long id) {
+        requestService.delete(id);
+    }
+
+    /** Замена сырья в позиции — например, нужного не хватило на складе (см. ProductionRequestService.substituteItem). */
+    @PostMapping("/{id}/items/{itemId}/substitute")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
+    public ProductionRequestDto substituteItem(@PathVariable Long id, @PathVariable Long itemId,
+                                                @Valid @RequestBody ProductionRequestSubstituteRequest req,
+                                                Authentication authentication) {
+        return ProductionRequestDto.from(
+                requestService.substituteItem(id, itemId, req.ingredientId(), req.quantity(), authentication.getName()));
+    }
+
     @PostMapping("/{id}/collect")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
     public ProductionRequestDto collect(@PathVariable Long id, @Valid @RequestBody ProductionRequestCollectRequest req,
@@ -87,6 +107,13 @@ public class ProductionRequestApiController {
                                              @Valid @RequestBody ProductionRequestReceiveRequest req,
                                              Authentication authentication) {
         return ProductionRequestDto.from(requestService.receiveLine(id, lineId, req.quantity(), authentication.getName()));
+    }
+
+    /** Повторная ручная выгрузка в 1С — см. ProductionRequestService.resyncOneC. */
+    @PostMapping("/{id}/sync-1c")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
+    public ProductionRequestDto syncOneC(@PathVariable Long id) {
+        return ProductionRequestDto.from(requestService.resyncOneC(id));
     }
 
     /** Дневной отчёт "сколько сегодня изготовили" — date не задан = сегодня. */

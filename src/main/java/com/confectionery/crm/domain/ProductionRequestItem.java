@@ -32,4 +32,13 @@ public class ProductionRequestItem {
 
     @Column(nullable = false, precision = 12, scale = 3)
     private BigDecimal requiredQuantity;
+
+    /**
+     * Название сырья, которое стояло в позиции ДО замены (см.
+     * ProductionRequestService.substituteItem) — например, его не хватило на складе и вместо
+     * него выдали другое. Null — позицию ни разу не заменяли. Если заменяют повторно, это
+     * поле не перезаписывается — остаётся самое первое, настоящее название по рецепту, а не
+     * промежуточное, на которое уже один раз меняли.
+     */
+    private String originalIngredientName;
 }

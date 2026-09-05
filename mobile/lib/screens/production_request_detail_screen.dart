@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../models/ingredient.dart';
 import '../models/production_request.dart';
 import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/pick_from_list.dart';
 import '../widgets/receipt_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/success_feedback.dart';
@@ -27,6 +29,8 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   String? _error;
 
   bool _cancelling = false;
+  bool _deleting = false;
+  bool _syncing = false;
 
   String? get _role => ApiClient.currentSession?.role;
   bool get _canCollect => _role == 'ADMIN' || _role == 'WAREHOUSE_RAW';
@@ -48,6 +52,55 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
       _future = _api.getProductionRequest(widget.requestId);
     });
     await _future;
+  }
+
+  /// Замена сырья в позиции — например, нужного не хватило на складе (см.
+  /// ProductionRequestService.substituteItem на бэкенде). Настоящее название сохраняется
+  /// сервером и показывается в позиции пометкой "было: ...".
+  Future<void> _substitute(ProductionRequestItem item) async {
+    final List<Ingredient> ingredients;
+    try {
+      ingredients = await _api.getIngredients();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      return;
+    }
+    final options = ingredients.where((i) => i.id != item.ingredientId).toList();
+    if (!mounted) return;
+    final picked = await pickFromList<Ingredient>(
+      context: context,
+      title: 'Чем заменить «${item.ingredientName}»',
+      items: options,
+      label: (i) => i.name,
+      subtitle: (i) => '${formatQty(i.quantityInStock)} ${i.unit} на складе',
+    );
+    if (picked == null || !mounted) return;
+
+    final qtyController = TextEditingController(text: formatQty(item.requiredQuantity));
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Заменить на «${picked.name}»'),
+        content: TextField(
+          controller: qtyController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'Количество, ${picked.unit}'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Заменить')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final qty = double.tryParse(qtyController.text.replaceAll(',', '.'));
+    try {
+      await _api.substituteProductionRequestItem(widget.requestId, item.id, picked.id, quantity: qty);
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   Future<void> _collect(ProductionRequest request) async {
@@ -90,6 +143,55 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _cancelling = false);
+    }
+  }
+
+  /// Полное удаление в любом статусе (в отличие от _cancel — только для «Новой»): откатывает
+  /// списанное сырьё/оприходованную продукцию обратно на склад (см.
+  /// ProductionRequestService.delete на бэкенде). После удаления заявки больше не существует —
+  /// возвращаемся на список, а не обновляем этот экран.
+  Future<void> _delete(ProductionRequest r) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить заявку?'),
+        content: Text(
+          '«${r.title}» — списанное сырьё и оприходованная продукция будут возвращены обратно на склад. Действие необратимо.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Удалить')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _deleting = true;
+      _error = null;
+    });
+    try {
+      await _api.deleteProductionRequest(widget.requestId);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      setState(() => _error = e.toString());
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
+  /// Повторная ручная выгрузка в 1С — на случай, если автоматическая (сразу после
+  /// оприходования последней позиции) не сработала (см. ProductionRequestService.resyncOneC).
+  Future<void> _syncOneC() async {
+    setState(() {
+      _syncing = true;
+      _error = null;
+    });
+    try {
+      await _api.syncProductionRequestOneC(widget.requestId);
+      await _refresh();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
   }
 
@@ -157,6 +259,25 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                   Text('Собрал: ${r.collectedBy} · ${formatDateTime(r.collectedAt!)}',
                       style: const TextStyle(color: Colors.grey, fontSize: 13)),
                 ],
+                if (r.oneCReportNumber != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'В 1С: отчёт производства №${r.oneCReportNumber}, требование-накладная №${r.oneCRequisitionNumber}',
+                    style: const TextStyle(color: Color(0xFF4C8A5E), fontSize: 13),
+                  ),
+                ],
+                if (r.oneCSyncError != null) ...[
+                  const SizedBox(height: 10),
+                  Text('Не выгружено в 1С: ${r.oneCSyncError}',
+                      style: const TextStyle(color: Colors.orange, fontSize: 13)),
+                ],
+                if (r.status == 'RECEIVED' && r.oneCReportNumber == null && _canEdit) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton(
+                    onPressed: _syncing ? null : _syncOneC,
+                    child: Text(_syncing ? 'Отправка...' : 'Отправить в 1С'),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 if (_error != null)
                   Padding(
@@ -177,9 +298,12 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                       for (int i = 0; i < r.items.length; i++)
                         ReceiptRow(
                           index: i + 1,
-                          name: r.items[i].ingredientName,
+                          name: r.items[i].originalIngredientName == null
+                              ? r.items[i].ingredientName
+                              : '${r.items[i].ingredientName}\n(было: ${r.items[i].originalIngredientName})',
                           qty: '${formatQty(r.items[i].requiredQuantity)} ${r.items[i].ingredientUnit}',
                           checkbox: _checked.contains(r.items[i].id),
+                          insufficient: r.items[i].isInsufficient,
                           onCheckboxChanged: (v) => setState(() {
                             if (v == true) {
                               _checked.add(r.items[i].id);
@@ -187,14 +311,26 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                               _checked.remove(r.items[i].id);
                             }
                           }),
+                          trailingAction: IconButton(
+                            icon: const Icon(Icons.swap_horiz, size: 20),
+                            tooltip: 'Заменить сырьё',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => _substitute(r.items[i]),
+                          ),
                         ),
                     ],
                     footer: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Отмечено ${_checked.length} из ${r.items.length}',
-                          style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                          r.items.any((i) => i.isInsufficient)
+                              ? 'Не хватает на складе — отмечено красным'
+                              : 'Отмечено ${_checked.length} из ${r.items.length}',
+                          style: TextStyle(
+                            color: r.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
+                            fontSize: 12.5,
+                            fontWeight: r.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
+                          ),
                         ),
                         if (_checked.length == r.items.length)
                           const Icon(Icons.check_circle, size: 16, color: Color(0xFF4C8A5E)),
@@ -215,7 +351,9 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                       for (int i = 0; i < r.items.length; i++)
                         ReceiptRow(
                           index: i + 1,
-                          name: r.items[i].ingredientName,
+                          name: r.items[i].originalIngredientName == null
+                              ? r.items[i].ingredientName
+                              : '${r.items[i].ingredientName}\n(было: ${r.items[i].originalIngredientName})',
                           qty: '${formatQty(r.items[i].requiredQuantity)} ${r.items[i].ingredientUnit}',
                         ),
                     ],
@@ -249,6 +387,20 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                           ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.cancel_outlined, size: 18),
                       label: const Text('Отменить'),
+                    ),
+                  ),
+                ],
+                if (_role == 'ADMIN') ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _deleting ? null : () => _delete(r),
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                      icon: _deleting
+                          ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Удалить заявку'),
                     ),
                   ),
                 ],

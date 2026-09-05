@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<nav th:fragment="bottomnav(active, cartCount)" class="shop-tabbar">
+    <a th:href="@{/shop/products}" th:classappend="${active == 'home'} ? 'active'">
+        <span class="shop-tab-icon">⌂</span>
+        <span>Главная</span>
+    </a>
+    <a th:href="@{/shop/catalog}" th:classappend="${active == 'cart'} ? 'active'">
+        <span class="shop-tab-icon">
+            🛒
+            <span class="shop-tab-badge" id="shopTabCartBadge" th:text="${cartCount ?: 0}"
+                  th:style="${cartCount == null or cartCount == 0} ? 'display:none' : ''"></span>
+        </span>
+        <span>Корзина</span>
+    </a>
+    <a th:href="@{/shop/orders}" th:classappend="${active == 'orders'} ? 'active'">
+        <span class="shop-tab-icon">📋</span>
+        <span>Мои заказы</span>
+    </a>
+</nav>
+</body>
+</html>

@@ -47,6 +47,20 @@ public class ProductionRequest {
     private String collectedBy;
     private LocalDateTime collectedAt;
 
+    /**
+     * Когда заявка полностью оприходована (все строки), CRM сама выгружает её в 1С парой
+     * связанных документов — "Отчёт производства за смену" (готовая продукция) и "Требование-
+     * накладная" (списание сырья, ссылается на отчёт через ДокументОснование) — см.
+     * OneCProductionSyncService. Оба создаются НЕпроведёнными, бухгалтер проверяет и проводит
+     * сам (как и заказы) — плановая себестоимость строк отчёта всегда 0, её вписывают вручную.
+     */
+    private String oneCReportKey;
+    private String oneCReportNumber;
+    private String oneCRequisitionKey;
+    private String oneCRequisitionNumber;
+    @Column(length = 500)
+    private String oneCSyncError;
+
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionRequestLine> lines = new ArrayList<>();
 

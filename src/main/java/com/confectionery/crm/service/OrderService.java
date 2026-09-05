@@ -35,6 +35,7 @@ public class OrderService {
     private final NotificationService notificationService;
     private final InvoicePdfService invoicePdfService;
     private final WhatsAppGatewayClient whatsAppGatewayClient;
+    private final OneCOrderSyncService oneCOrderSyncService;
 
     public List<Order> findAll() {
         return orderRepository.findAllByOrderByCreatedAtDesc();
@@ -103,6 +104,7 @@ public class OrderService {
                 "Новый заказ №" + order.getId() + " (" + client.getName() + ") — нужно собрать", order);
         notificationService.notifyRole(Role.ACCOUNTANT,
                 "Новый заказ №" + order.getId() + " (" + client.getName() + ") на сумму " + order.getTotalPrice(), order);
+        oneCOrderSyncService.trySyncOrder(order);
         return order;
     }
 
@@ -126,7 +128,10 @@ public class OrderService {
      * количеством <= 0 удаляется из заказа целиком. Также позволяет поменять сам товар в
      * позиции (productId), если ИИ при разборе заказа из WhatsApp ошибся с распознаванием
      * (например, спутал "Коржик" и "Коржик Сдоба") — цена пересчитывается по прайсу клиента
-     * для нового товара. Доступно, пока заказ ещё не отгружен/не закрыт/не отменён.
+     * для нового товара. Доступно, пока заказ ещё не отгружен/не закрыт/не отменён. Если заказ
+     * уже выгружен в 1С непроведённым документом — новый состав перезаписывается туда же (см.
+     * OneCOrderSyncService.trySyncOrder); если документ уже кто-то провёл в 1С руками, синхронизация
+     * останавливается с ошибкой вместо того, чтобы разойтись с проводками.
      */
     @Transactional
     public Order updateItems(Long orderId, List<OrderItemUpdateRequest.ItemUpdate> updates) {
@@ -155,9 +160,12 @@ public class OrderService {
         if (order.getItems().isEmpty()) {
             throw new IllegalArgumentException("В заказе должна остаться хотя бы одна позиция");
         }
-        return orderRepository.save(order);
+        order = orderRepository.save(order);
+        oneCOrderSyncService.trySyncOrder(order);
+        return order;
     }
 
+    /** Если заказ уже был выгружен в 1С — соответствующий документ помечается там на удаление (см. OneCOrderSyncService.trySyncCancel). */
     @Transactional
     public Order cancel(Long orderId) {
         Order order = findById(orderId);
@@ -166,6 +174,7 @@ public class OrderService {
         }
         order.setStatus(OrderStatus.CANCELLED);
         notificationService.notify(recipientOf(order), "Заказ #" + order.getId() + " отменён", order);
+        oneCOrderSyncService.trySyncCancel(order);
         return order;
     }
 

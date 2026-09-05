@@ -16,10 +16,14 @@
 
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
 
+        <input type="text" id="crm-ingredient-search" class="product-search"
+               placeholder="Поиск сырья по названию…" oninput="crmFilterIngredients()"
+               th:if="${not #lists.isEmpty(ingredients)}">
+
         <div class="panel">
             <table th:if="${not #lists.isEmpty(ingredients)}">
                 <tr><th>Название</th><th>Остаток</th><th>Минимум</th><th></th><th></th></tr>
-                <tr th:each="i : ${ingredients}">
+                <tr th:each="i : ${ingredients}" th:attr="data-name=${#strings.toLowerCase(i.name)}">
                     <td th:text="${i.name}"></td>
                     <td th:classappend="${i.lowStock} ? 'low-stock-row'" th:text="${i.quantityInStock} + ' ' + ${i.unit}"></td>
                     <td th:text="${i.minThreshold} + ' ' + ${i.unit}"></td>
@@ -33,8 +37,22 @@
                 </tr>
             </table>
             <p class="empty" th:if="${#lists.isEmpty(ingredients)}">Ингредиентов пока нет</p>
+            <p class="empty" id="crm-ingredient-empty" style="display:none">Ничего не найдено</p>
         </div>
     </main>
 </div>
+<script th:inline="none">
+    function crmFilterIngredients() {
+        var q = document.getElementById('crm-ingredient-search').value.trim().toLowerCase();
+        var rows = document.querySelectorAll('table tr[data-name]');
+        var visible = 0;
+        rows.forEach(function (row) {
+            var match = row.getAttribute('data-name').indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        document.getElementById('crm-ingredient-empty').style.display = visible === 0 ? '' : 'none';
+    }
+</script>
 </body>
 </html>

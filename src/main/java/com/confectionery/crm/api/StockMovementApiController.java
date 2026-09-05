@@ -1,9 +1,13 @@
 package com.confectionery.crm.api;
 
+import com.confectionery.crm.api.dto.OneCReceiptResultDto;
+import com.confectionery.crm.api.dto.OneCSyncResultDto;
 import com.confectionery.crm.api.dto.StockMovementDto;
 import com.confectionery.crm.api.dto.StockMovementRequest;
 import com.confectionery.crm.domain.StockMovementType;
 import com.confectionery.crm.service.IngredientService;
+import com.confectionery.crm.service.OneCReceiptSyncService;
+import com.confectionery.crm.service.OneCStockSyncService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.service.StockService;
 import jakarta.validation.Valid;
@@ -24,6 +28,8 @@ public class StockMovementApiController {
     private final StockService stockService;
     private final IngredientService ingredientService;
     private final ProductService productService;
+    private final OneCStockSyncService oneCStockSyncService;
+    private final OneCReceiptSyncService oneCReceiptSyncService;
 
     /** Только ручные движения — см. StockMovement.manual/StockService.findMovements. */
     @GetMapping("/movements")
@@ -55,6 +61,31 @@ public class StockMovementApiController {
         }
         var ingredient = ingredientService.findById(requireIngredientId(req));
         return StockMovementDto.from(stockService.writeOff(ingredient, req.quantity(), req.reason(), authentication.getName()));
+    }
+
+    /** Удаление ошибочно созданного ручного поступления/списания — откатывает остаток (см. StockService.deleteMovement). */
+    @DeleteMapping("/movements/{id}")
+    public void deleteMovement(@PathVariable Long id) {
+        stockService.deleteMovement(id);
+    }
+
+    /** Ручной запуск синхронизации остатков с 1С (обычно она идёт по расписанию) — только ADMIN. */
+    @PostMapping("/sync-1c")
+    @PreAuthorize("hasRole('ADMIN')")
+    public OneCSyncResultDto syncOneC() {
+        return OneCSyncResultDto.from(oneCStockSyncService.sync());
+    }
+
+    /**
+     * "Общее оприходование" — собирает все ещё не выгруженные в 1С РУЧНЫЕ поступления товара
+     * за день в один документ "Оприходование товаров" и сразу проводит его в 1С на 06:00 (см.
+     * OneCReceiptSyncService). Приход от заявок на производство сюда не относится.
+     */
+    @PostMapping("/receipts/post-1c")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_FG')")
+    public OneCReceiptResultDto postReceiptsOneC(@RequestParam(required = false) LocalDate date) {
+        LocalDate d = date != null ? date : LocalDate.now();
+        return OneCReceiptResultDto.from(oneCReceiptSyncService.postDailyReceipts(d));
     }
 
     private Long requireIngredientId(StockMovementRequest req) {

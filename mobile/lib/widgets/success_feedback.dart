@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 
-/// Короткий "успех"-фидбек на ключевых шагах жизненного цикла заказа (подтверждение
-/// сборки, отгрузка, завершение, подтверждение заказа из WhatsApp): звук + анимация
-/// зелёной галочки (~0.7с). Через Overlay, а не через диалог/route — так исключается
-/// зависание на экране, если что-то пойдёт не так со стеком навигации сразу после вызова
-/// (например, экран, вызвавший анимацию, сам параллельно уходит на другой роут).
+import '../main.dart' show accent;
+
+/// Короткий "успех"-фидбек на ключевых шагах жизненного цикла заказа (оформление заказа,
+/// подтверждение сборки, отгрузка, завершение, подтверждение заказа из WhatsApp): звук +
+/// Lottie-анимация галочки (2с), перекрашенная в цвет кнопок приложения (accent) через
+/// ColorFiltered. Через Overlay, а не через диалог/route — так исключается зависание на
+/// экране, если что-то пойдёт не так со стеком навигации сразу после вызова (например,
+/// экран, вызвавший анимацию, сам параллельно уходит на другой роут).
 Future<void> playSuccessFeedback(BuildContext context) async {
   SystemSound.play(SystemSoundType.alert);
   final overlay = Overlay.of(context, rootOverlay: true);
@@ -14,26 +18,18 @@ Future<void> playSuccessFeedback(BuildContext context) async {
       child: Container(
         color: Colors.black26,
         alignment: Alignment.center,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.elasticOut,
-          builder: (context, value, child) => Transform.scale(scale: value, child: child),
-          child: Container(
-            width: 110,
-            height: 110,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 16)],
-            ),
-            child: const Icon(Icons.check_circle_rounded, color: Color(0xFF25D366), size: 84),
+        child: SizedBox(
+          width: 180,
+          height: 180,
+          child: ColorFiltered(
+            colorFilter: const ColorFilter.mode(accent, BlendMode.srcIn),
+            child: Lottie.asset('assets/animations/check_success.json', repeat: false),
           ),
         ),
       ),
     ),
   );
   overlay.insert(entry);
-  await Future.delayed(const Duration(milliseconds: 700));
+  await Future.delayed(const Duration(milliseconds: 2000));
   entry.remove();
 }

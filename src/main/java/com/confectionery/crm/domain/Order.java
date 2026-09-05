@@ -55,6 +55,17 @@ public class Order {
     /** Заказ пришёл автоматически из WhatsApp (см. WhatsAppOrderIntakeService) — для иконки в списках. */
     private Boolean fromWhatsapp;
 
+    /**
+     * Номер и GUID документа "Реализация товаров и услуг", созданного НЕпроведённым в 1С при
+     * оформлении заказа (см. OneCOrderSyncService) — бухгалтер потом проверяет и проводит его
+     * вручную в 1С. oneCSyncError заполняется вместо номера, если выгрузка не удалась
+     * (например, клиент не привязан к 1С) — админ видит причину через уведомление и здесь.
+     */
+    private String oneCDocumentNumber;
+    private String oneCDocumentKey;
+    @Column(length = 500)
+    private String oneCSyncError;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 

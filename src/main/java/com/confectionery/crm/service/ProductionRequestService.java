@@ -1,6 +1,8 @@
 package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.*;
+import com.confectionery.crm.repository.IngredientRepository;
+import com.confectionery.crm.repository.ProductRepository;
 import com.confectionery.crm.repository.ProductionRequestLineRepository;
 import com.confectionery.crm.repository.ProductionRequestRepository;
 import com.confectionery.crm.repository.RecipeRepository;
@@ -40,6 +42,9 @@ public class ProductionRequestService {
     private final ProductService productService;
     private final StockService stockService;
     private final NotificationService notificationService;
+    private final OneCProductionSyncService oneCProductionSyncService;
+    private final IngredientRepository ingredientRepository;
+    private final ProductRepository productRepository;
 
     /** Одна позиция при создании заявки: конкретный товар + сколько замесов его рецепта. */
     public record Line(Long productId, BigDecimal batches) {
@@ -226,6 +231,88 @@ public class ProductionRequestService {
         return request;
     }
 
+    /**
+     * Полное удаление заявки (в отличие от {@link #cancel}, которая работает только для
+     * статуса «Новая» и не трогает склад) — можно удалить заявку в ЛЮБОМ статусе, включая уже
+     * собранную/оприходованную: откатывает всё, что она успела сделать со складом (возвращает
+     * списанное сырьё, вычитает оприходованную продукцию обратно), и если по ней уже
+     * создавались документы в 1С (см. OneCProductionSyncService) — помечает их там на
+     * удаление (best-effort, не блокирует удаление в CRM, если 1С недоступна). Только ADMIN —
+     * необратимо и затрагивает реальные остатки.
+     */
+    @Transactional
+    public void delete(Long requestId) {
+        ProductionRequest request = findById(requestId);
+
+        boolean materialsWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
+                || request.getStatus() == ProductionRequestStatus.RECEIVED;
+        if (materialsWrittenOff) {
+            for (ProductionRequestItem item : request.getItems()) {
+                Ingredient ingredient = item.getIngredient();
+                ingredient.setQuantityInStock(ingredient.getQuantityInStock().add(item.getRequiredQuantity()));
+                ingredientRepository.save(ingredient);
+            }
+        }
+        for (ProductionRequestLine line : request.getLines()) {
+            if (line.isReceived()) {
+                Product product = line.getProduct();
+                product.setQuantityInStock(product.getQuantityInStock().subtract(line.getReceivedQuantity()));
+                productRepository.save(product);
+            }
+        }
+
+        oneCProductionSyncService.tryMarkForDeletion(request);
+
+        String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» удалена";
+        notificationService.notifyRole(Role.ADMIN, message, null);
+        notificationService.notifyRole(Role.ACCOUNTANT, message, null);
+        requestRepository.delete(request);
+    }
+
+    /**
+     * Замена сырья в позиции заявки — например, нужного не хватило на складе и вместо него
+     * решили выдать другое. Доступно, только пока заявка ещё не собрана (сырьё физически ещё
+     * не списано — после сборки менять позицию задним числом нельзя, это разошлось бы с уже
+     * произошедшим списанием). Количество можно поменять вместе с сырьём (замена не всегда
+     * 1:1), если не передано — остаётся прежним. Настоящее название сырья по рецепту
+     * сохраняется в {@link ProductionRequestItem#getOriginalIngredientName()} — видно в
+     * заявке, что здесь была замена.
+     */
+    @Transactional
+    public ProductionRequest substituteItem(Long requestId, Long itemId, Long newIngredientId,
+                                             BigDecimal newQuantity, String by) {
+        ProductionRequest request = findById(requestId);
+        if (request.getStatus() != ProductionRequestStatus.NEW) {
+            throw new IllegalStateException("Заменить сырьё можно только в ещё не собранной заявке");
+        }
+        ProductionRequestItem item = request.getItems().stream()
+                .filter(i -> i.getId().equals(itemId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Позиция заявки не найдена: " + itemId));
+        Ingredient newIngredient = ingredientRepository.findById(newIngredientId)
+                .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + newIngredientId));
+
+        String oldName = item.getIngredient().getName();
+        BigDecimal oldQuantity = item.getRequiredQuantity();
+        if (item.getOriginalIngredientName() == null) {
+            item.setOriginalIngredientName(oldName);
+        }
+        item.setIngredient(newIngredient);
+        if (newQuantity != null) {
+            if (newQuantity.signum() <= 0) {
+                throw new IllegalArgumentException("Количество должно быть больше нуля");
+            }
+            item.setRequiredQuantity(newQuantity);
+        }
+
+        String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "»: замена сырья — "
+                + oldName + " (" + oldQuantity.stripTrailingZeros().toPlainString() + ") заменено на "
+                + newIngredient.getName() + " (" + item.getRequiredQuantity().stripTrailingZeros().toPlainString() + ") — " + by;
+        notificationService.notifyRole(Role.ADMIN, message, null);
+        notificationService.notifyRole(Role.ACCOUNTANT, message, null);
+        notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);
+        return request;
+    }
+
     private void notifyCreated(ProductionRequest request) {
         BigDecimal totalBatches = request.getLines().stream()
                 .map(ProductionRequestLine::getBatches).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -318,6 +405,34 @@ public class ProductionRequestService {
                 + (allReceived ? " — заявка выполнена полностью" : "");
         notificationService.notifyRole(Role.ADMIN, receivedMessage, null);
         notificationService.notifyRole(Role.ACCOUNTANT, receivedMessage, null);
+
+        if (allReceived) {
+            oneCProductionSyncService.trySyncRequest(request);
+        }
+        return request;
+    }
+
+    /**
+     * Ручная повторная попытка выгрузить оприходованную заявку в 1С — на случай, если
+     * автоматическая (см. receiveLine выше) не сработала (например, backend был поднят без
+     * переменных окружения 1С) или закончилась ошибкой в первый раз.
+     */
+    @Transactional
+    public ProductionRequest resyncOneC(Long requestId) {
+        ProductionRequest request = findById(requestId);
+        if (request.getStatus() != ProductionRequestStatus.RECEIVED) {
+            throw new IllegalStateException("Заявка ещё не оприходована полностью");
+        }
+        if (request.getOneCReportNumber() != null) {
+            throw new IllegalStateException("Заявка уже выгружена в 1С");
+        }
+        request.setOneCSyncError(null);
+        oneCProductionSyncService.trySyncRequest(request);
+        request = requestRepository.save(request);
+        if (request.getOneCReportNumber() == null) {
+            throw new IllegalStateException(request.getOneCSyncError() != null
+                    ? request.getOneCSyncError() : "1С недоступна или не настроена");
+        }
         return request;
     }
 

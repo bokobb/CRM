@@ -39,5 +39,8 @@ data/
 # Firebase service-account ключ (секрет, не для git)
 firebase-service-account.json
 
+# Локальные бэкапы БД перед рискованными операциями (дампы бизнес-данных, не код)
+backups/
+
 ### Claude Code ###
 .claude/

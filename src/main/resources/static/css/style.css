@@ -39,6 +39,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* sticky + свой скролл — раньше при невысоком окне ссылка "Выйти" внизу уезжала за
+     пределы экрана вместе со всей страницей, приходилось скроллить весь контент. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .brand {
@@ -68,7 +74,7 @@ body {
 .content {
   flex: 1;
   padding: 28px 36px;
-  max-width: 1200px;
+  max-width: 1760px;
 }
 
 h1 { font-size: 22px; margin: 0 0 4px; }
@@ -121,6 +127,81 @@ a { color: var(--accent-dark); }
 .btn.small { padding: 5px 10px; font-size: 12px; }
 .btn.danger { color: var(--danger); }
 .btn.ok { color: var(--ok); }
+
+/* Анимация "пузырьков" при клике — только сама анимация (заимствована у "Игристой кнопки"
+   с msiter.ru, https://codepen.io/nourabusoud/pen/ypZzMM), форма и свечение кнопок не менялись. */
+.btn {
+  position: relative;
+  --bubble-color: var(--accent);
+  /* Размер пузырьков в vw (не в %), поэтому форма всегда квадратная (круг), а не растянутая
+     под прямоугольную кнопку; растёт вместе с шириной экрана, чтобы не терялся на больших мониторах. */
+  --bubble-xs: clamp(4px, 0.5vw, 9px);
+  --bubble-sm: clamp(6px, 0.7vw, 12px);
+  --bubble-md: clamp(7px, 0.9vw, 15px);
+  --bubble-lg: clamp(8px, 1vw, 16px);
+}
+.btn:before, .btn:after {
+  position: absolute;
+  content: '';
+  display: none;
+  width: 140%;
+  height: 100%;
+  left: -20%;
+  z-index: 1000;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+.btn:before {
+  top: -75%;
+  background-image:
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, transparent 20%, var(--bubble-color) 20%, transparent 30%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, transparent 10%, var(--bubble-color) 15%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%);
+  background-size:
+    var(--bubble-xs) var(--bubble-xs), var(--bubble-lg) var(--bubble-lg), var(--bubble-sm) var(--bubble-sm),
+    var(--bubble-lg) var(--bubble-lg), var(--bubble-md) var(--bubble-md), var(--bubble-xs) var(--bubble-xs),
+    var(--bubble-sm) var(--bubble-sm), var(--bubble-xs) var(--bubble-xs), var(--bubble-md) var(--bubble-md);
+}
+.btn:after {
+  bottom: -75%;
+  background-image:
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, transparent 10%, var(--bubble-color) 15%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%),
+    radial-gradient(circle, var(--bubble-color) 20%, transparent 20%);
+  background-size:
+    var(--bubble-sm) var(--bubble-sm), var(--bubble-lg) var(--bubble-lg), var(--bubble-md) var(--bubble-md),
+    var(--bubble-lg) var(--bubble-lg), var(--bubble-sm) var(--bubble-sm), var(--bubble-xs) var(--bubble-xs),
+    var(--bubble-lg) var(--bubble-lg);
+}
+.btn.animate:before { display: block; animation: crmBtnTopBubbles ease-in-out 0.75s forwards; }
+.btn.animate:after { display: block; animation: crmBtnBottomBubbles ease-in-out 0.75s forwards; }
+
+@keyframes crmBtnTopBubbles {
+  0% { background-position: 5% 90%, 10% 90%, 10% 90%, 15% 90%, 25% 90%, 25% 90%, 40% 90%, 55% 90%, 70% 90%; }
+  50% { background-position: 0% 80%, 0% 20%, 10% 40%, 20% 0%, 30% 30%, 22% 50%, 50% 50%, 65% 20%, 90% 30%; }
+  100% {
+    background-position: 0% 70%, 0% 10%, 10% 30%, 20% -10%, 30% 20%, 22% 40%, 50% 40%, 65% 10%, 90% 20%;
+    background-size: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+}
+@keyframes crmBtnBottomBubbles {
+  0% { background-position: 10% -10%, 30% 10%, 55% -10%, 70% -10%, 85% -10%, 70% -10%, 70% 0%; }
+  50% { background-position: 0% 80%, 20% 80%, 45% 60%, 60% 100%, 75% 70%, 95% 60%, 105% 0%; }
+  100% {
+    background-position: 0% 90%, 20% 90%, 45% 70%, 60% 110%, 75% 80%, 95% 70%, 110% 10%;
+    background-size: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+}
 
 .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .badge.NEW { background: var(--warn-soft); color: var(--warn); }
@@ -195,6 +276,7 @@ textarea { min-height: 80px; resize: vertical; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
   transition: border-color .15s, box-shadow .15s;
 }
 .product-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(0,0,0,.06); }
@@ -212,7 +294,18 @@ textarea { min-height: 80px; resize: vertical; }
   justify-content: center;
 }
 .product-card-body { padding: 12px 14px 4px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.product-card-name { font-weight: 600; font-size: 14px; line-height: 1.3; }
+/* Фиксированная высота в 2 строки — иначе карточки с короткими и длинными названиями в одном
+   ряду сетки выглядят неровно (цена/остаток съезжают на разную высоту от карточки к карточке). */
+.product-card-name {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.3;
+  min-height: 2.6em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .product-card-price { color: var(--muted); font-size: 13px; }
 .product-card-stock { font-size: 13px; font-weight: 600; }
 .product-card-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px 14px; }
@@ -231,8 +324,23 @@ a.stat-card { display: block; text-decoration: none; transition: border-color .1
 a.stat-card:hover { border-color: var(--accent); }
 
 .date-range-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.date-range-form input[type=date] { width: auto; }
-.date-range-form .btn { white-space: nowrap; }
+.date-range-form input[type=date] { width: auto; height: 38px; }
+.date-range-form .btn { white-space: nowrap; height: 38px; display: inline-flex; align-items: center; justify-content: center; }
+
+.client-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.client-row { display: flex; align-items: center; gap: 10px; }
 
 .notif-group { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); padding: 12px 16px; margin-bottom: 10px; }
 .notif-group summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; list-style: none; gap: 10px; }
@@ -262,7 +370,7 @@ a.stat-card:hover { border-color: var(--accent); }
 .shop-topbar .brand img { width: 26px; height: 26px; }
 .shop-topbar-right { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
 
-.shop-content { flex: 1; padding: 18px 16px 100px; }
+.shop-content { flex: 1; padding: 18px 16px 140px; }
 .shop-title { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 6px 0 18px; }
 
 .shop-pill {
@@ -389,8 +497,13 @@ a.stat-card:hover { border-color: var(--accent); }
   margin: 6px 0 16px;
 }
 
+/* fixed, а не sticky — иначе на длинной странице (много карточек/позиций) панель прижата
+   к низу ТОЛЬКО когда докрутили страницу до конца, а не постоянно видна поверх контента,
+   как положено нижней навигации/кнопке заказа. */
 .shop-bottom-bar {
-  position: sticky;
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
   max-width: 480px;
   margin: 0 auto;
@@ -514,3 +627,116 @@ input.qty-input {
 @media (min-width: 481px) {
   .shop-page { border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
 }
+
+/* Нижняя таб-панель витрины (Главная/Корзина/Мои заказы) — ВСЕГДА видна поверх контента,
+   независимо от прокрутки (fixed, а не sticky — sticky держит панель у низа, только пока
+   не докрутили страницу до конца, а на длинном списке товаров это может быть далеко).
+   Контент страницы получает нижний отступ (.shop-content padding), чтобы карточки не
+   прятались под панелью. */
+.shop-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.shop-tabbar a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px 8px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+.shop-tabbar a.active { color: var(--accent-dark); font-weight: 600; }
+.shop-tab-icon { position: relative; display: inline-block; font-size: 20px; line-height: 1; }
+.shop-content-with-tabbar { padding-bottom: 12px; }
+.shop-tab-badge {
+  position: absolute;
+  top: -6px;
+  right: -11px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+/* Каталог витрины (/shop/products) — всегда ровно 2 карточки в ряд. */
+.shop-page .product-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.shop-page .product-card-img,
+.shop-page .product-card-avatar { aspect-ratio: auto; height: 140px; font-size: 28px; }
+.shop-page .product-card-body { padding: 8px 10px 6px; gap: 3px; }
+.shop-page .product-card-name { font-size: 12.5px; min-height: 2.1em; }
+.shop-page .product-card-price { font-size: 12px; }
+.shop-page .category-section { margin-bottom: 14px; }
+.shop-page .category-section h2 { font-size: 15px; margin-bottom: 6px; }
+.shop-page .product-search { margin-bottom: 14px; }
+
+/* Фото товара на карточке + плавающая кнопка быстрого добавления в его углу (см.
+   crmAddIngredientRow-подобный приём — только для корзины). Кнопка привязана к углу ВСЕЙ
+   карточки (а не только фото) — .shop-product-card становится точкой отсчёта позиции. */
+.shop-product-media { position: relative; }
+.shop-page .shop-product-card { position: relative; }
+.shop-page .product-card-body { padding-right: 40px; }
+.shop-quick-add {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,.22);
+  transition: transform .12s, background .15s;
+}
+.shop-quick-add:active { transform: scale(0.85); }
+.shop-quick-add.added { animation: shopQuickAddPulse .45s ease; }
+@keyframes shopQuickAddPulse {
+  0% { transform: scale(1); background: var(--accent); }
+  45% { transform: scale(1.4); background: var(--ok); }
+  100% { transform: scale(1); background: var(--accent); }
+}
+.shop-tab-badge.bump { animation: shopBadgeBump .35s ease; }
+@keyframes shopBadgeBump {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
+
+/* На экране корзины над таб-панелью ещё есть кнопка "Оформить заказ" — обе вместе должны
+   быть закреплены у низа экрана как единый блок (у двух независимо "fixed" соседей с
+   bottom:0 второй перекрыл бы первый). */
+.shop-bottom-area { position: fixed; left: 0; right: 0; bottom: 0; max-width: 480px; margin: 0 auto; width: 100%; }
+.shop-bottom-area .shop-bottom-bar,
+.shop-bottom-area .shop-tabbar { position: static; }
+
+/* Карточки товаров на главной витрины (/shop/products) — переиспользуют .product-card из
+   админки, но обёрнуты в <a>, т.к. вся карточка кликабельна (переход на товар крупным планом). */
+.shop-product-card { text-decoration: none; color: inherit; }
+

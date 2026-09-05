@@ -37,6 +37,25 @@ public class Client {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    /**
+     * GUID контрагента в 1С (Catalog_Контрагенты.Ref_Key) — привязывается вручную/автопоиском
+     * по имени (см. OneCClientLinkService). Null — клиент не привязан, заказы от него в 1С
+     * не выгружаются (см. OneCOrderSyncService), админ получает уведомление при попытке.
+     */
+    private String oneCContragentKey;
+
+    /** GUID основного договора контрагента в 1С (ОсновнойДоговорКонтрагента_Key) — подбирается автоматически вместе с oneCContragentKey. */
+    private String oneCContractKey;
+
+    /**
+     * GUID именного "Типа цен номенклатуры" этого клиента в 1С (Catalog_ТипыЦенНоменклатуры) —
+     * в этой базе у каждого клиента-дистрибьютора свой тип цен, названный его именем, и через
+     * него в 1С ведётся его индивидуальный прайс (см. OneCClientPriceSyncService). Тем же
+     * ключом заполняется ТипЦен_Key документа реализации при выгрузке заказа (см.
+     * OneCOrderSyncService) — раньше там по ошибке стояла общая константа от одного клиента.
+     */
+    private String oneCPriceTypeKey;
+
     @OneToMany(mappedBy = "client", cascade = CascadeType.ALL, orphanRemoval = false)
     private List<Order> orders = new ArrayList<>();
 

@@ -161,6 +161,15 @@ public class ProductService {
         return recipeRepository.findByProductId(productId).orElse(null);
     }
 
+    /** Товары (кроме excludeId), у которых уже есть рецептура — для копирования на странице рецепта. */
+    public List<Product> findProductsWithRecipe(Long excludeId) {
+        return recipeRepository.findAll().stream()
+                .map(Recipe::getProduct)
+                .filter(p -> !p.getId().equals(excludeId))
+                .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                .toList();
+    }
+
     /**
      * Синонимы (как клиенты называют товар в WhatsApp), сгруппированные по товару — см.
      * ClaudeOrderParserService, подмешивается в промпт распознавания заказов. Пополняется

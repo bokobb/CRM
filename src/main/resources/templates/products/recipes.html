@@ -14,7 +14,14 @@
                 <h1>Рецепты</h1>
                 <p class="subtitle" th:text="${#lists.size(products)} + ' товаров в каталоге'"></p>
             </div>
+            <form method="post" th:action="@{/products/import-recipes-1c}" sec:authorize="hasRole('ADMIN')"
+                  onsubmit="return confirm('Перезаписать рецептуры данными из 1С там, где найдётся спецификация? Существующие рецепты будут заменены.');">
+                <button type="submit" class="btn">Импортировать рецепты из 1С</button>
+            </form>
         </div>
+
+        <div class="alert success" th:if="${success}" th:text="${success}"></div>
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
 
         <input type="text" id="crm-product-search" class="product-search"
                placeholder="Поиск товара по названию…" oninput="crmFilterProducts()"

@@ -56,6 +56,13 @@
             Долг до <span th:text="${#temporals.format(order.debtDueDate, 'dd.MM.yyyy')}"></span>
         </div>
 
+        <div class="alert success" th:if="${order.oneCDocumentNumber != null}">
+            В 1С создан непроведённый документ реализации № <span th:text="${order.oneCDocumentNumber}"></span>
+        </div>
+        <div class="alert warn" th:if="${order.oneCSyncError != null}">
+            Не выгружен в 1С: <span th:text="${order.oneCSyncError}"></span>
+        </div>
+
         <div class="grid cols-2">
             <div class="panel">
                 <h2>Состав заказа</h2>

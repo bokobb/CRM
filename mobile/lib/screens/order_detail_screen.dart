@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../main.dart';
 import '../models/order.dart';
@@ -95,7 +96,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  /// Сначала пробуем накладную, приложенную к документу заказа в 1С (её туда кладёт
+  /// бухгалтер/склад вручную) — если она уже есть, делимся именно ей. Если в 1С пока
+  /// ничего не приложено (или заказ не выгружен, или 1С недоступна) — как раньше, строим
+  /// PDF локально из данных заказа.
   Future<void> _share(Order o) async {
+    InvoiceFile? remote;
+    try {
+      remote = await _api.getInvoiceFile(o.id);
+    } catch (_) {
+      remote = null;
+    }
+    if (remote != null) {
+      await Share.shareXFiles(
+        [XFile.fromData(remote.bytes, mimeType: remote.mimeType, name: remote.filename)],
+        fileNameOverrides: [remote.filename],
+      );
+      return;
+    }
     final bytes = await buildInvoicePdf(o);
     await Printing.sharePdf(bytes: bytes, filename: 'nakladnaya_${o.id}.pdf');
   }
@@ -378,6 +396,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         role == 'SALES' || role == 'ADMIN' || role == 'ACCOUNTANT';
     final canShip = role == 'WAREHOUSE_FG' || role == 'ADMIN';
     final canComplete = role == 'ACCOUNTANT' || role == 'ADMIN';
+    final canEditItems =
+        role == 'WAREHOUSE_FG' || role == 'ADMIN' || role == 'ACCOUNTANT';
     return Scaffold(
       appBar: AppBar(
         title: FutureBuilder<Order>(
@@ -572,6 +592,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
+                  ],
+                  if (o.status == 'NEW' && canEditItems) ...[
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
