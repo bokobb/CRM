@@ -104,6 +104,8 @@ public class OrderService {
                 "Новый заказ №" + order.getId() + " (" + client.getName() + ") — нужно собрать", order);
         notificationService.notifyRole(Role.ACCOUNTANT,
                 "Новый заказ №" + order.getId() + " (" + client.getName() + ") на сумму " + order.getTotalPrice(), order);
+        notificationService.notifyRole(Role.ADMIN,
+                "Новый заказ №" + order.getId() + " (" + client.getName() + ") на сумму " + order.getTotalPrice(), order);
         oneCOrderSyncService.trySyncOrder(order);
         return order;
     }
@@ -174,6 +176,9 @@ public class OrderService {
         }
         order.setStatus(OrderStatus.CANCELLED);
         notificationService.notify(recipientOf(order), "Заказ #" + order.getId() + " отменён", order);
+        String cancelMessage = "Заказ №" + order.getId() + " (" + order.getClient().getName() + ") отменён";
+        notificationService.notifyRole(Role.ACCOUNTANT, cancelMessage, order);
+        notificationService.notifyRole(Role.ADMIN, cancelMessage, order);
         oneCOrderSyncService.trySyncCancel(order);
         return order;
     }
