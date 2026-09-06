@@ -43,6 +43,11 @@ import java.util.Map;
  * <p>Best-effort — заявка в CRM уже оприходована и не откатывается, если 1С недоступна или
  * что-то не сопоставилось; причина пишется в {@link ProductionRequest#getOneCSyncError()} и
  * уходит уведомлением админу.
+ *
+ * <p>Если в позиции было заменено сырьё (см. {@link ProductionRequestItem#getOriginalIngredientName()}),
+ * требование-накладная списывает уже новое сырьё (реальный факт), а в её "Комментарий" (только там,
+ * не в отчёте производства) добавляется "Замена сырья: X вместо Y" — чтобы бухгалтер видел причину
+ * отклонения от нормы спецификации, не заходя в CRM.
  */
 @Slf4j
 @Service
@@ -214,6 +219,17 @@ public class OneCProductionSyncService {
                     + String.join(", ", unresolvedMaterials));
         }
 
+        List<String> substitutions = new ArrayList<>();
+        for (ProductionRequestItem item : request.getItems()) {
+            if (item.getOriginalIngredientName() != null) {
+                substitutions.add(item.getIngredient().getName() + " вместо " + item.getOriginalIngredientName());
+            }
+        }
+        String requisitionComment = comment;
+        if (!substitutions.isEmpty()) {
+            requisitionComment = comment + ". Замена сырья: " + String.join("; ", substitutions) + ".";
+        }
+
         Map<String, Object> requisitionBody = new LinkedHashMap<>();
         requisitionBody.put("Date", date);
         requisitionBody.put("Posted", false);
@@ -238,7 +254,7 @@ public class OneCProductionSyncService {
         requisitionBody.put("ДокументОснование_Type", "StandardODATA.Document_ОтчетПроизводстваЗаСмену");
         requisitionBody.put("Номенклатура_Key", ZERO_GUID);
         requisitionBody.put("Контрагент_Key", ZERO_GUID);
-        requisitionBody.put("Комментарий", comment);
+        requisitionBody.put("Комментарий", requisitionComment);
         requisitionBody.put("Материалы", materialLines);
 
         OneCClient.CreatedDocument requisition = oneCClient.createMaterialsRequisition(requisitionBody);
