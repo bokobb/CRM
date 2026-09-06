@@ -51,7 +51,7 @@ public class ProductionRequestService {
     }
 
     /**
-     * Одна строка дневного отчёта по оприходованию — см. {@link #dailyReport}. batches/norm —
+     * Одна строка отчёта по производству — см. {@link #report}. batches/norm —
      * план (сколько замесов сделали и сколько это должно было дать по рецепту), received —
      * факт оприходования, deviation = received - norm (может быть и отрицательным — выход
      * обычно "гуляет", это и есть повод показать отклонение).
@@ -436,16 +436,25 @@ public class ProductionRequestService {
         return request;
     }
 
-    /**
-     * Сколько готовой продукции реально оприходовано за календарный день — по всем заявкам,
-     * сгруппировано по товару (в заявке "Коржик" может быть 3 строки на 3 разных товара —
-     * здесь они не смешиваются, каждый товар своей строкой). Оприходование конкретной строки
-     * может случиться позже создания заявки (например, заявка собрана вечером, оприходована
-     * утром) — отчёт считает именно по дате ОПРИХОДОВАНИЯ (receivedAt), не по дате заявки.
-     */
+    /** Дневной отчёт (для мобильного API — см. ProductionRequestApiController) — один день, обёртка над {@link #report}. */
     public List<ReportLine> dailyReport(LocalDate date) {
-        List<ProductionRequestLine> lines = lineRepository.findByReceivedAtBetweenOrderByReceivedAtAsc(
-                date.atStartOfDay(), date.plusDays(1).atStartOfDay());
+        return report(date, date);
+    }
+
+    /**
+     * Сколько готовой продукции реально оприходовано за период [from, to] (включительно) — по
+     * всем заявкам, сгруппировано по товару (в заявке "Коржик" может быть 3 строки на 3 разных
+     * товара — здесь они не смешиваются, каждый товар своей строкой). Оприходование конкретной
+     * строки может случиться позже создания заявки (например, заявка собрана вечером,
+     * оприходована утром) — отчёт считает именно по дате ОПРИХОДОВАНИЯ (receivedAt), не по дате
+     * заявки. {@code from}/{@code to} оба null — отчёт "за всё время" (веб-страница /
+     * PDF, см. ProductionRequestController).
+     */
+    public List<ReportLine> report(LocalDate from, LocalDate to) {
+        List<ProductionRequestLine> lines = (from == null || to == null)
+                ? lineRepository.findByReceivedAtIsNotNullOrderByReceivedAtAsc()
+                : lineRepository.findByReceivedAtBetweenOrderByReceivedAtAsc(
+                        from.atStartOfDay(), to.plusDays(1).atStartOfDay());
 
         Map<Product, BigDecimal> batchesByProduct = new LinkedHashMap<>();
         Map<Product, BigDecimal> normByProduct = new LinkedHashMap<>();

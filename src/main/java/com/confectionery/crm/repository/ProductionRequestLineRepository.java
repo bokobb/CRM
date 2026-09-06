@@ -8,6 +8,9 @@ import java.util.List;
 
 public interface ProductionRequestLineRepository extends JpaRepository<ProductionRequestLine, Long> {
 
-    /** Для дневного отчёта по оприходованию — см. ProductionRequestService.dailyReport. */
+    /** Для отчёта по производству за период — см. ProductionRequestService.report. */
     List<ProductionRequestLine> findByReceivedAtBetweenOrderByReceivedAtAsc(LocalDateTime from, LocalDateTime to);
+
+    /** Для отчёта по производству за всё время (без ограничения по дате) — см. ProductionRequestService.report. */
+    List<ProductionRequestLine> findByReceivedAtIsNotNullOrderByReceivedAtAsc();
 }

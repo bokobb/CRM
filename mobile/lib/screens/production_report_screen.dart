@@ -76,7 +76,7 @@ class _ProductionReportScreenState extends State<ProductionReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Отчёт по оприходованию')),
+      appBar: AppBar(title: const Text('Отчёт по производству')),
       drawer: const AppDrawer(currentRoute: '/production-requests/report'),
       body: RefreshIndicator(
         onRefresh: _refresh,

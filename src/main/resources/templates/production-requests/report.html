@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Отчёт по оприходованию — Юг Сладости</title>
+    <title>Отчёт по производству — Юг Сладости</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -11,19 +11,29 @@
     <main class="content">
         <div class="page-header">
             <div>
-                <h1>Отчёт по оприходованию</h1>
-                <p class="subtitle" th:text="'Сколько готовой продукции изготовили за ' + ${#temporals.format(date, 'dd.MM.yyyy')}"></p>
+                <h1>Отчёт по производству</h1>
+                <p class="subtitle" th:if="${all}">Норма по рецепту, факт оприходования и отклонение — за всё время</p>
+                <p class="subtitle" th:if="${!all and from == to}"
+                   th:text="'Норма по рецепту, факт оприходования и отклонение — за ' + ${#temporals.format(from, 'dd.MM.yyyy')}"></p>
+                <p class="subtitle" th:if="${!all and from != to}"
+                   th:text="'Норма по рецепту, факт оприходования и отклонение — с ' + ${#temporals.format(from, 'dd.MM.yyyy')} + ' по ' + ${#temporals.format(to, 'dd.MM.yyyy')}"></p>
             </div>
         </div>
 
         <div class="panel">
             <form method="get" class="row" style="align-items:flex-end;margin-bottom:14px">
                 <div class="field" style="margin:0">
-                    <label>Дата</label>
-                    <input type="date" name="date" th:value="${date}">
+                    <label>С даты</label>
+                    <input type="date" name="from" th:value="${from}" th:disabled="${all}">
                 </div>
-                <button class="btn small" type="submit">Показать</button>
-                <a class="btn small" th:href="@{/production-requests/report/pdf(date=${date})}">Скачать PDF</a>
+                <div class="field" style="margin:0">
+                    <label>По дату</label>
+                    <input type="date" name="to" th:value="${to}" th:disabled="${all}">
+                </div>
+                <button class="btn small" type="submit" th:if="${!all}">Показать</button>
+                <a class="btn small" th:if="${!all}" th:href="@{/production-requests/report(all=true)}">Показать все даты</a>
+                <a class="btn small" th:if="${all}" th:href="@{/production-requests/report}">Только сегодня</a>
+                <a class="btn small" th:href="@{/production-requests/report/pdf(from=${from},to=${to},all=${all})}">Скачать PDF целиком</a>
             </form>
 
             <table th:if="${not #lists.isEmpty(lines)}">
@@ -40,7 +50,7 @@
                     <td th:text="${l.receivedCount}"></td>
                 </tr>
             </table>
-            <p class="empty" th:if="${#lists.isEmpty(lines)}">За этот день ничего не оприходовано</p>
+            <p class="empty" th:if="${#lists.isEmpty(lines)}">За этот период ничего не оприходовано</p>
         </div>
     </main>
 </div>

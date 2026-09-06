@@ -126,7 +126,7 @@ public class ProductionRequestApiController {
     @GetMapping("/report/pdf")
     public ResponseEntity<byte[]> reportPdf(@RequestParam(required = false) LocalDate date) {
         LocalDate d = date != null ? date : LocalDate.now();
-        byte[] pdf = reportPdfService.generate(d, requestService.dailyReport(d));
+        byte[] pdf = reportPdfService.generate(d, d, requestService.dailyReport(d));
         String filename = "otchet_" + DateTimeFormatter.ISO_LOCAL_DATE.format(d) + ".pdf";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename)

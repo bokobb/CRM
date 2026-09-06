@@ -224,27 +224,50 @@ public class ProductionRequestController {
         return "redirect:/production-requests/" + id;
     }
 
-    /** Дневной отчёт "сколько сегодня изготовили" — для зав. склада ГП, кнопка "Отчёт". */
+    /**
+     * Отчёт по производству — норма (по рецепту) vs факт оприходования, отклонение. По
+     * умолчанию за сегодня; {@code from}/{@code to} задают произвольный период, {@code all=true}
+     * снимает ограничение по дате целиком ("скачать целиком" в PDF — весь накопленный отчёт).
+     */
     @GetMapping("/report")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_FG','ACCOUNTANT')")
-    public String report(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+    public String report(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                          @RequestParam(defaultValue = "false") boolean all,
                           Model model) {
-        LocalDate d = date != null ? date : LocalDate.now();
+        LocalDate[] range = resolveRange(from, to, all);
         model.addAttribute("activePage", "production-requests");
-        model.addAttribute("date", d);
-        model.addAttribute("lines", requestService.dailyReport(d));
+        model.addAttribute("from", range[0]);
+        model.addAttribute("to", range[1]);
+        model.addAttribute("all", all);
+        model.addAttribute("lines", requestService.report(range[0], range[1]));
         return "production-requests/report";
     }
 
     @GetMapping("/report/pdf")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_FG','ACCOUNTANT')")
-    public ResponseEntity<byte[]> reportPdf(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        LocalDate d = date != null ? date : LocalDate.now();
-        byte[] pdf = reportPdfService.generate(d, requestService.dailyReport(d));
-        String filename = "otchet_" + DateTimeFormatter.ISO_LOCAL_DATE.format(d) + ".pdf";
+    public ResponseEntity<byte[]> reportPdf(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                             @RequestParam(defaultValue = "false") boolean all) {
+        LocalDate[] range = resolveRange(from, to, all);
+        byte[] pdf = reportPdfService.generate(range[0], range[1], requestService.report(range[0], range[1]));
+        String filename = "otchet_proizvodstvo_" + (range[0] == null ? "vse-vremya"
+                : DateTimeFormatter.ISO_LOCAL_DATE.format(range[0]) + "_" + DateTimeFormatter.ISO_LOCAL_DATE.format(range[1])) + ".pdf";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename)
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /** {from, to} — оба null означает "за всё время"; иначе не более одной пустой границы дозаполняется другой. */
+    private LocalDate[] resolveRange(LocalDate from, LocalDate to, boolean all) {
+        if (all) {
+            return new LocalDate[]{null, null};
+        }
+        if (from == null && to == null) {
+            LocalDate today = LocalDate.now();
+            return new LocalDate[]{today, today};
+        }
+        return new LocalDate[]{from != null ? from : to, to != null ? to : from};
     }
 }

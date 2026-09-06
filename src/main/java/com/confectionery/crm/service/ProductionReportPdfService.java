@@ -21,10 +21,10 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Дневной отчёт по оприходованию (сколько готовой продукции реально сделали за день) —
- * простая таблица, шрифт/приёмы вёрстки те же, что в InvoicePdfService (DejaVuSans для
- * кириллицы), но сама вёрстка не переиспользуется — это принципиально другой документ
- * (без денег/клиента, просто товар-количество).
+ * Отчёт по производству (сколько готовой продукции реально сделали за один день, за период
+ * или за всё время — {@code from}/{@code to} оба null) — простая таблица, шрифт/приёмы вёрстки
+ * те же, что в InvoicePdfService (DejaVuSans для кириллицы), но сама вёрстка не переиспользуется
+ * — это принципиально другой документ (без денег/клиента, просто товар-количество-отклонение).
  */
 @Service
 public class ProductionReportPdfService {
@@ -41,7 +41,7 @@ public class ProductionReportPdfService {
         return new DecimalFormat("#,##0.###", symbols);
     }
 
-    public byte[] generate(LocalDate date, List<ProductionRequestService.ReportLine> lines) {
+    public byte[] generate(LocalDate from, LocalDate to, List<ProductionRequestService.ReportLine> lines) {
         try (PDDocument document = new PDDocument()) {
             PDPage page = new PDPage(PDRectangle.A4);
             document.addPage(page);
@@ -53,7 +53,7 @@ public class ProductionReportPdfService {
             try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
                 float y = pageHeight - MARGIN;
 
-                text(cs, bold, 14, MARGIN, y, "Отчёт по оприходованию за " + DATE_FORMAT.format(date));
+                text(cs, bold, 14, MARGIN, y, "Отчёт по производству за " + periodLabel(from, to));
                 y -= 12;
                 cs.setLineWidth(1f);
                 cs.moveTo(MARGIN, y);
@@ -65,7 +65,7 @@ public class ProductionReportPdfService {
 
                 y -= 20;
                 text(cs, regular, 10.5f, MARGIN, y,
-                        lines.isEmpty() ? "За этот день ничего не оприходовано." : "Всего позиций: " + lines.size());
+                        lines.isEmpty() ? "За этот период ничего не оприходовано." : "Всего позиций: " + lines.size());
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -132,6 +132,12 @@ public class ProductionReportPdfService {
         }
 
         return startY - tableHeight;
+    }
+
+    private String periodLabel(LocalDate from, LocalDate to) {
+        if (from == null || to == null) return "всё время";
+        if (from.equals(to)) return DATE_FORMAT.format(from);
+        return DATE_FORMAT.format(from) + " – " + DATE_FORMAT.format(to);
     }
 
     private String formatDeviation(java.math.BigDecimal deviation) {
