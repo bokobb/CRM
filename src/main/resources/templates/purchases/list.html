@@ -54,6 +54,15 @@
 
         <div class="panel">
             <h2>История закупок</h2>
+            <form method="get" class="row" style="align-items:flex-end;margin-bottom:14px">
+                <div class="field" style="margin:0">
+                    <label>Дата</label>
+                    <input type="date" name="date" th:value="${date}" th:disabled="${all}">
+                </div>
+                <button class="btn small" type="submit" th:if="${!all}">Найти</button>
+                <a class="btn small" th:if="${!all}" th:href="@{/purchases(all=true)}">Показать все даты</a>
+                <a class="btn small" th:if="${all}" th:href="@{/purchases}">Только сегодня</a>
+            </form>
             <table th:if="${not #lists.isEmpty(purchases)}">
                 <tr><th>Дата</th><th>Сырьё</th><th>Количество</th><th>Поставщик</th><th>Сумма</th><th>Кто</th></tr>
                 <tr th:each="p : ${purchases}">

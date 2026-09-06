@@ -17,10 +17,23 @@
         <div class="alert success" th:if="${success}" th:text="${success}"></div>
 
         <div class="tabs">
-            <a th:href="@{/production-requests}" th:classappend="${selectedStatus == null} ? 'active'">Все</a>
-            <a th:each="s : ${statuses}" th:href="@{/production-requests(status=${s})}"
+            <a th:href="@{/production-requests(all=${all})}" th:classappend="${selectedStatus == null} ? 'active'">Все</a>
+            <a th:each="s : ${statuses}" th:href="@{/production-requests(status=${s},all=${all})}"
                th:classappend="${selectedStatus == s.name()} ? 'active'" th:text="${s.label}"></a>
         </div>
+
+        <form method="get" class="row" style="align-items:flex-end;margin-bottom:14px">
+            <input type="hidden" name="status" th:if="${selectedStatus != null}" th:value="${selectedStatus}">
+            <div class="field" style="margin:0">
+                <label>Дата</label>
+                <input type="date" name="date" th:value="${date}" th:disabled="${all}">
+            </div>
+            <button class="btn small" type="submit" th:if="${!all}">Найти</button>
+            <a class="btn small" th:if="${!all}"
+               th:href="@{/production-requests(status=${selectedStatus},all=true)}">Показать все даты</a>
+            <a class="btn small" th:if="${all}"
+               th:href="@{/production-requests(status=${selectedStatus})}">Только сегодня</a>
+        </form>
 
         <div class="panel">
             <table th:if="${not #lists.isEmpty(requests)}">

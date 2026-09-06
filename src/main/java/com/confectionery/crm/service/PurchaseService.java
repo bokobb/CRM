@@ -31,6 +31,10 @@ public class PurchaseService {
         return purchaseRepository.findAllByOrderByCreatedAtDesc();
     }
 
+    public List<Purchase> findByPurchaseDateBetween(LocalDate from, LocalDate to) {
+        return purchaseRepository.findByPurchaseDateBetweenOrderByCreatedAtDesc(from, to);
+    }
+
     @Transactional
     public Purchase create(Long ingredientId, BigDecimal quantity, String supplier, BigDecimal totalPrice,
                             LocalDate purchaseDate, String createdBy) {

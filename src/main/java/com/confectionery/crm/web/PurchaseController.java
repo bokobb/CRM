@@ -3,6 +3,7 @@ package com.confectionery.crm.web;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.PurchaseService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -23,11 +24,19 @@ public class PurchaseController {
     private final PurchaseService purchaseService;
     private final IngredientService ingredientService;
 
+    /** По умолчанию показываются закупки за сегодня — {@code all=true} снимает фильтр по дате. */
     @GetMapping
-    public String list(Model model) {
+    public String list(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                        @RequestParam(defaultValue = "false") boolean all,
+                        Model model) {
+        LocalDate filterDate = all ? null : (date != null ? date : LocalDate.now());
         model.addAttribute("activePage", "purchases");
-        model.addAttribute("purchases", purchaseService.findAll());
+        model.addAttribute("purchases", filterDate == null
+                ? purchaseService.findAll()
+                : purchaseService.findByPurchaseDateBetween(filterDate, filterDate));
         model.addAttribute("ingredients", ingredientService.findAll());
+        model.addAttribute("date", filterDate);
+        model.addAttribute("all", all);
         return "purchases/list";
     }
 

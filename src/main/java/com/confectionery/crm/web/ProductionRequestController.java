@@ -42,16 +42,24 @@ public class ProductionRequestController {
     private final ProductionReportPdfService reportPdfService;
     private final IngredientService ingredientService;
 
+    /** По умолчанию показываются заявки, созданные сегодня — {@code all=true} снимает фильтр по дате. */
     @GetMapping
-    public String list(@RequestParam(required = false) String status, Model model) {
+    public String list(@RequestParam(required = false) String status,
+                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                        @RequestParam(defaultValue = "false") boolean all,
+                        Model model) {
         model.addAttribute("activePage", "production-requests");
+        LocalDate filterDate = all ? null : (date != null ? date : LocalDate.now());
         List<ProductionRequestSummaryDto> requests = requestService.findAll().stream()
                 .map(ProductionRequestSummaryDto::from)
                 .filter(r -> status == null || status.equals(r.status()))
+                .filter(r -> filterDate == null || filterDate.equals(r.createdAt().toLocalDate()))
                 .toList();
         model.addAttribute("requests", requests);
         model.addAttribute("selectedStatus", status);
         model.addAttribute("statuses", ProductionRequestStatus.values());
+        model.addAttribute("date", filterDate);
+        model.addAttribute("all", all);
         return "production-requests/list";
     }
 
