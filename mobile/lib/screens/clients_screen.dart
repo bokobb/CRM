@@ -40,8 +40,32 @@ class _ClientsScreenState extends State<ClientsScreen> {
         .toList();
   }
 
+  /// Только ADMIN (см. ClientApiController.delete на бэкенде) — каскадно удаляет клиента со
+  /// всей его историей (заказы, цены, WhatsApp-сообщения), необратимо.
+  Future<void> _delete(Client c) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить клиента?'),
+        content: Text('«${c.name}» — вместе со всеми его заказами и историей. Это необратимо.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Удалить')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _api.deleteClient(c.id);
+      _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isAdmin = ApiClient.currentSession?.role == 'ADMIN';
     return Scaffold(
       appBar: SearchableAppBar(
         title: 'Клиенты',
@@ -88,7 +112,16 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   leading: InitialAvatar(text: c.name),
                   title: c.name,
                   subtitle: [if (c.phone != null) c.phone!, if (c.email != null) c.email!].join(' · '),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                  trailing: isAdmin
+                      ? PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'delete') _delete(c);
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'delete', child: Text('Удалить')),
+                          ],
+                        )
+                      : const Icon(Icons.chevron_right, color: Colors.grey),
                   onTap: () async {
                     await Navigator.of(context).pushNamed('/clients/detail', arguments: c.id);
                     _refresh();

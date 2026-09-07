@@ -7,6 +7,7 @@ import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.service.ClientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -43,7 +44,9 @@ public class ClientApiController {
         return ClientDto.from(clientService.save(toEntity(client, req)));
     }
 
+    /** Только ADMIN — удаление клиента каскадно стирает всю его историю (заказы, цены, WhatsApp), см. ClientService.delete. */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public void delete(@PathVariable Long id) {
         clientService.delete(id);
     }

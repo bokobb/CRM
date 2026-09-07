@@ -8,6 +8,7 @@ import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.RecipeForm;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -44,7 +45,9 @@ public class ProductApiController {
         return ProductDto.from(productService.save(toEntity(product, req)));
     }
 
+    /** Только ADMIN — товар архивируется вместо удаления, если уже есть история (см. ProductService.delete). */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public void delete(@PathVariable Long id) {
         productService.delete(id);
     }

@@ -60,6 +60,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = ApiClient.currentSession?.role == 'ADMIN';
     return Scaffold(
       appBar: SearchableAppBar(
         title: 'Товары',
@@ -122,10 +123,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         _delete(p);
                       }
                     },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'recipe', child: Text('Рецептура')),
-                      PopupMenuItem(value: 'edit', child: Text('Изменить')),
-                      PopupMenuItem(value: 'delete', child: Text('Удалить')),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'recipe', child: Text('Рецептура')),
+                      const PopupMenuItem(value: 'edit', child: Text('Изменить')),
+                      if (isAdmin) const PopupMenuItem(value: 'delete', child: Text('Удалить')),
                     ],
                   ),
                   onTap: () async {
