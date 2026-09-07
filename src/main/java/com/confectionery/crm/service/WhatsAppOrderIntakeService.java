@@ -159,7 +159,7 @@ public class WhatsAppOrderIntakeService {
         String items = order.getItems().stream()
                 .map(i -> "- " + i.getProduct().getName() + " x" + i.getQuantity().stripTrailingZeros().toPlainString())
                 .collect(Collectors.joining("\n"));
-        return "Здравствуйте! Ваш заказ №" + order.getId() + " принят:\n" + items
+        return "Ваш заказ №" + order.getId() + " принят:\n" + items
                 + "\n\nИтого: " + order.getTotalPrice() + " ₸"
                 + "\n\nМы свяжемся с вами для уточнения деталей.";
     }
