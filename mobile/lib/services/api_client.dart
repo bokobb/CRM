@@ -11,6 +11,7 @@ import '../models/auth.dart';
 import '../models/client.dart';
 import '../models/client_price.dart';
 import '../models/company_profile.dart';
+import '../models/counterparty.dart';
 import '../models/dashboard.dart';
 import '../models/ingredient.dart';
 import '../models/notification.dart';
@@ -615,24 +616,28 @@ class ApiClient {
   /// поэтому планируем в замесах, а не в штуках — факт вводится отдельно при оприходовании.
   /// Название заявки не передаётся — сервер сам разбивает позиции по группе товара
   /// (Product.group) и создаёт отдельную заявку на каждую группу, поэтому в ответ приходит список.
-  Future<List<ProductionRequest>> createProductionRequest(List<(int, double)> items) async {
+  /// [documentDate] — дата документа для 1С (см. ApiClient._isoDate); не задана — сегодня.
+  Future<List<ProductionRequest>> createProductionRequest(List<(int, double)> items, {DateTime? documentDate}) async {
     final res = await http.post(
       await _uri('/production-requests'),
       headers: await _authHeaders(),
       body: jsonEncode({
         'items': items.map((e) => {'productId': e.$1, 'batches': e.$2}).toList(),
+        if (documentDate != null) 'documentDate': _isoDate(documentDate),
       }),
     );
     return (_decode(res) as List).map((e) => ProductionRequest.fromJson(e)).toList();
   }
 
-  /// Редактирование ещё не собранной заявки — только позиции, название заявки не меняется.
-  Future<ProductionRequest> updateProductionRequest(int id, List<(int, double)> items) async {
+  /// Редактирование ещё не собранной заявки — позиции и (опционально) дата документа, название
+  /// заявки не меняется.
+  Future<ProductionRequest> updateProductionRequest(int id, List<(int, double)> items, {DateTime? documentDate}) async {
     final res = await http.put(
       await _uri('/production-requests/$id'),
       headers: await _authHeaders(),
       body: jsonEncode({
         'items': items.map((e) => {'productId': e.$1, 'batches': e.$2}).toList(),
+        if (documentDate != null) 'documentDate': _isoDate(documentDate),
       }),
     );
     return ProductionRequest.fromJson(_decode(res));
@@ -753,6 +758,16 @@ class ApiClient {
     }).toList();
   }
 
+  /// Справочник контрагентов — для выбора поставщика в форме закупки (см. purchases_screen.dart).
+  /// Управление списком (создание/удаление, загрузка из 1С) — только на вебе (/counterparties).
+  Future<List<Counterparty>> getCounterparties() async {
+    final res = await http.get(
+      await _uri('/counterparties'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List).map((e) => Counterparty.fromJson(e)).toList();
+  }
+
   Future<List<Purchase>> getPurchases() async {
     final res = await http.get(
       await _uri('/purchases'),
@@ -762,21 +777,21 @@ class ApiClient {
     return _withAbsolutePurchaseImages(list);
   }
 
+  /// [items]: (ingredientId, quantity, totalPrice) — контрагент может привезти сразу несколько
+  /// товаров за раз, поэтому одна закупка = один контрагент + список товаров.
   Future<Purchase> createPurchase({
-    required int ingredientId,
-    required double quantity,
-    required String supplier,
-    double? totalPrice,
+    required int counterpartyId,
+    required List<(int, double, double?)> items,
     DateTime? purchaseDate,
   }) async {
     final res = await http.post(
       await _uri('/purchases'),
       headers: await _authHeaders(),
       body: jsonEncode({
-        'ingredientId': ingredientId,
-        'quantity': quantity,
-        'supplier': supplier,
-        'totalPrice': totalPrice,
+        'counterpartyId': counterpartyId,
+        'items': items
+            .map((e) => {'ingredientId': e.$1, 'quantity': e.$2, 'totalPrice': e.$3})
+            .toList(),
         'purchaseDate': purchaseDate?.toIso8601String().split('T').first,
       }),
     );

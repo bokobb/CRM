@@ -27,8 +27,10 @@ public class PurchaseApiController {
 
     @PostMapping
     public PurchaseDto create(@Valid @RequestBody PurchaseRequest req, Authentication authentication) {
-        return PurchaseDto.from(purchaseService.create(req.ingredientId(), req.quantity(), req.supplier(),
-                req.totalPrice(), req.purchaseDate(), authentication.getName()));
+        List<PurchaseService.ItemInput> items = req.items().stream()
+                .map(i -> new PurchaseService.ItemInput(i.ingredientId(), i.quantity(), i.totalPrice()))
+                .toList();
+        return PurchaseDto.from(purchaseService.create(req.counterpartyId(), items, req.purchaseDate(), authentication.getName()));
     }
 
     /** Фото накладной поставщика — прикладывается отдельным запросом после создания закупки. */

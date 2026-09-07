@@ -8,12 +8,20 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /**
- * Закупка сырья у поставщика — отдельный, более подробный учёт (кто поставщик, сколько
- * заплатили, когда), поверх обычного прихода на склад. Само движение остатка делает
- * StockService.receive (см. PurchaseService.create) — Purchase лишь хранит закупочные
- * подробности и ссылается на созданную запись StockMovement для трассируемости.
+ * Закупка сырья у контрагента — один контрагент может привезти сразу несколько разных товаров
+ * за один раз (см. {@link PurchaseItem}), поэтому Purchase — только "шапка" (контрагент, дата,
+ * фото накладной), сами товары/количества/суммы — в items. Каждая позиция двигает остаток
+ * отдельно (см. StockService.receive в PurchaseService.create) — само движение делает
+ * StockService, Purchase лишь хранит закупочные подробности и ссылается на созданные
+ * StockMovement для трассируемости.
+ *
+ * <p>Вся закупка целиком выгружается в 1С одним документом "Поступление товаров и услуг" (см.
+ * OneCPurchaseSyncService) — Counterparty обязателен именно поэтому (нужен Контрагент_Key).
  */
 @Entity
 @Table(name = "purchases")
@@ -27,17 +35,8 @@ public class Purchase {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ingredient_id", nullable = false)
-    private Ingredient ingredient;
-
-    @Column(nullable = false, precision = 12, scale = 3)
-    private BigDecimal quantity;
-
-    @Column(nullable = false)
-    private String supplier;
-
-    @Column(precision = 12, scale = 2)
-    private BigDecimal totalPrice;
+    @JoinColumn(name = "counterparty_id", nullable = false)
+    private Counterparty counterparty;
 
     @Column(nullable = false)
     private LocalDate purchaseDate;
@@ -48,11 +47,32 @@ public class Purchase {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "stock_movement_id", nullable = false, unique = true)
-    private StockMovement stockMovement;
-
-    /** Фото накладной от поставщика (см. FileStorageService.storePurchaseInvoiceImage) — необязательно. */
+    /** Фото накладной от поставщика (см. FileStorageService.storePurchaseInvoiceImage) — необязательно, одно на всю закупку. */
     @Column(length = 2000)
     private String imageUrl;
+
+    /**
+     * Документ "Поступление товаров и услуг" в 1С — НЕпроведённый (бухгалтер проверяет и
+     * проводит сам, как и заказы), см. OneCPurchaseSyncService. oneCSyncError заполняется
+     * вместо номера, если выгрузка не удалась (например, контрагент не привязан к 1С).
+     */
+    private String oneCDocumentKey;
+    private String oneCDocumentNumber;
+    private String oneCSyncError;
+
+    @OneToMany(mappedBy = "purchase", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PurchaseItem> items = new ArrayList<>();
+
+    public void addItem(PurchaseItem item) {
+        item.setPurchase(this);
+        items.add(item);
+    }
+
+    /** Сумма по всем позициям — позиции без указанной цены (totalPrice == null) в сумму не входят. */
+    public BigDecimal getTotalSum() {
+        return items.stream()
+                .map(PurchaseItem::getTotalPrice)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 }

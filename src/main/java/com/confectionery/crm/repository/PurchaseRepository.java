@@ -11,4 +11,6 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
     List<Purchase> findAllByOrderByCreatedAtDesc();
 
     List<Purchase> findByPurchaseDateBetweenOrderByCreatedAtDesc(LocalDate from, LocalDate to);
+
+    boolean existsByCounterpartyId(Long counterpartyId);
 }

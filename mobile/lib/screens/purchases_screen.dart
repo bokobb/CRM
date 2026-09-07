@@ -3,17 +3,19 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/counterparty.dart';
 import '../models/ingredient.dart';
 import '../models/purchase.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
+import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/searchable_app_bar.dart';
 
-/// Закупки сырья у поставщиков — см. PurchaseService на бэкенде. Отдельный, более
-/// подробный учёт (поставщик, сумма, дата) поверх обычного прихода на склад.
+/// Закупки сырья у контрагентов — см. PurchaseService на бэкенде. Один контрагент может
+/// привезти сразу несколько разных товаров за один раз (см. Purchase.items).
 class PurchasesScreen extends StatefulWidget {
   const PurchasesScreen({super.key});
 
@@ -26,6 +28,9 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
   late Future<List<Purchase>> _future;
   String _query = '';
 
+  /// По умолчанию — сегодня (см. DateFilterBar), как и на остальных списках.
+  DateTimeRange _range = todayRange();
+
   @override
   void initState() {
     super.initState();
@@ -37,11 +42,16 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     await _future;
   }
 
+  void _onRangeChanged(DateTimeRange range) => setState(() => _range = range);
+
   List<Purchase> _filter(List<Purchase> purchases) {
-    if (_query.isEmpty) return purchases;
-    final q = _query.toLowerCase();
+    final end = _range.end.add(const Duration(days: 1));
     return purchases
-        .where((p) => p.ingredientName.toLowerCase().contains(q) || p.supplier.toLowerCase().contains(q))
+        .where((p) => !p.purchaseDate.isBefore(_range.start) && p.purchaseDate.isBefore(end))
+        .where((p) =>
+            _query.isEmpty ||
+            p.counterpartyName.toLowerCase().contains(_query.toLowerCase()) ||
+            p.items.any((i) => i.ingredientName.toLowerCase().contains(_query.toLowerCase())))
         .toList();
   }
 
@@ -79,63 +89,80 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     return Scaffold(
       appBar: SearchableAppBar(
         title: 'Покупки',
-        hintText: 'Сырьё или поставщик...',
+        hintText: 'Сырьё или контрагент...',
         onQueryChanged: (v) => setState(() => _query = v),
       ),
       drawer: const AppDrawer(currentRoute: '/purchases'),
       floatingActionButton: FloatingActionButton(onPressed: _openForm, child: const Icon(Icons.add)),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<Purchase>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
-            }
-            final purchases = _filter(snapshot.data!);
-            if (purchases.isEmpty) {
-              return ListView(children: [
-                Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Center(
-                    child: Text(_query.isEmpty ? 'Закупок пока нет' : 'Ничего не найдено',
-                        style: const TextStyle(color: Colors.grey)),
-                  ),
-                ),
-              ]);
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              itemCount: purchases.length,
-              itemBuilder: (context, index) {
-                final p = purchases[index];
-                return AppListTile(
-                  leadingIcon: Icons.local_shipping_outlined,
-                  leadingColor: const Color(0xFFD9A73F),
-                  title: p.ingredientName,
-                  subtitle: '${p.supplier} · ${formatQty(p.quantity)} ${p.ingredientUnit} · ${formatDate(p.purchaseDate)}',
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (p.imageUrl != null) ...[
-                        const Icon(Icons.photo_camera_outlined, size: 18, color: Colors.grey),
-                        const SizedBox(width: 6),
-                      ],
-                      if (p.totalPrice != null) Text(formatMoney(p.totalPrice!)),
-                    ],
-                  ),
-                  onTap: p.imageUrl != null ? () => _showInvoicePhoto(context, p.imageUrl!) : null,
-                );
-              },
-            );
-          },
-        ),
+      body: Column(
+        children: [
+          DateFilterBar(range: _range, onChanged: _onRangeChanged),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: FutureBuilder<List<Purchase>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+                  }
+                  final purchases = _filter(snapshot.data!);
+                  if (purchases.isEmpty) {
+                    return ListView(children: [
+                      Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Center(
+                          child: Text(_query.isEmpty ? 'Закупок пока нет' : 'Ничего не найдено',
+                              style: const TextStyle(color: Colors.grey)),
+                        ),
+                      ),
+                    ]);
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                    itemCount: purchases.length,
+                    itemBuilder: (context, index) {
+                      final p = purchases[index];
+                      final itemsSummary = p.items
+                          .map((i) => '${i.ingredientName} × ${formatQty(i.quantity)} ${i.ingredientUnit}')
+                          .join(', ');
+                      return AppListTile(
+                        leadingIcon: Icons.local_shipping_outlined,
+                        leadingColor: const Color(0xFFD9A73F),
+                        title: p.counterpartyName,
+                        subtitle: '$itemsSummary · ${formatDate(p.purchaseDate)}',
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (p.imageUrl != null) ...[
+                              const Icon(Icons.photo_camera_outlined, size: 18, color: Colors.grey),
+                              const SizedBox(width: 6),
+                            ],
+                            if (p.totalSum > 0) Text(formatMoney(p.totalSum)),
+                          ],
+                        ),
+                        onTap: p.imageUrl != null ? () => _showInvoicePhoto(context, p.imageUrl!) : null,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// Одна позиция закупки в форме — до сохранения товар может быть ещё не выбран.
+class _PurchaseItemRow {
+  Ingredient? ingredient;
+  final quantity = TextEditingController();
+  final totalPrice = TextEditingController();
 }
 
 class _PurchaseForm extends StatefulWidget {
@@ -148,11 +175,9 @@ class _PurchaseForm extends StatefulWidget {
 class _PurchaseFormState extends State<_PurchaseForm> {
   final _api = ApiClient();
   final _formKey = GlobalKey<FormState>();
-  final _quantity = TextEditingController();
-  final _supplier = TextEditingController();
-  final _totalPrice = TextEditingController();
-  late Future<List<Ingredient>> _future;
-  Ingredient? _ingredient;
+  late Future<(List<Ingredient>, List<Counterparty>)> _future;
+  Counterparty? _counterparty;
+  final List<_PurchaseItemRow> _items = [_PurchaseItemRow()];
   DateTime _date = DateTime.now();
   bool _saving = false;
   String? _error;
@@ -162,8 +187,17 @@ class _PurchaseFormState extends State<_PurchaseForm> {
   @override
   void initState() {
     super.initState();
-    _future = _api.getIngredients();
+    _future = _load();
   }
+
+  Future<(List<Ingredient>, List<Counterparty>)> _load() async {
+    final results = await Future.wait([_api.getIngredients(), _api.getCounterparties()]);
+    return (results[0] as List<Ingredient>, results[1] as List<Counterparty>);
+  }
+
+  void _addItemRow() => setState(() => _items.add(_PurchaseItemRow()));
+
+  void _removeItemRow(_PurchaseItemRow row) => setState(() => _items.remove(row));
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -211,20 +245,25 @@ class _PurchaseFormState extends State<_PurchaseForm> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _ingredient == null) return;
+    if (!_formKey.currentState!.validate() || _counterparty == null || _items.any((r) => r.ingredient == null)) {
+      setState(() => _error = 'Заполните все поля');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final qty = double.parse(_quantity.text.replaceAll(',', '.'));
-      final priceText = _totalPrice.text.trim();
-      final price = priceText.isEmpty ? null : double.tryParse(priceText.replaceAll(',', '.'));
+      final items = _items
+          .map((r) => (
+                r.ingredient!.id,
+                double.parse(r.quantity.text.replaceAll(',', '.')),
+                r.totalPrice.text.trim().isEmpty ? null : double.tryParse(r.totalPrice.text.replaceAll(',', '.')),
+              ))
+          .toList();
       final purchase = await _api.createPurchase(
-        ingredientId: _ingredient!.id,
-        quantity: qty,
-        supplier: _supplier.text.trim(),
-        totalPrice: price,
+        counterpartyId: _counterparty!.id,
+        items: items,
         purchaseDate: _date,
       );
       if (_pickedImageBytes != null) {
@@ -253,7 +292,7 @@ class _PurchaseFormState extends State<_PurchaseForm> {
         top: 16,
         bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: FutureBuilder<List<Ingredient>>(
+      child: FutureBuilder<(List<Ingredient>, List<Counterparty>)>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -267,125 +306,211 @@ class _PurchaseFormState extends State<_PurchaseForm> {
               height: 120,
               child: ErrorView(
                 error: snapshot.error.toString(),
-                onRetry: () => setState(() => _future = _api.getIngredients()),
+                onRetry: () => setState(() => _future = _load()),
               ),
             );
           }
-          final ingredients = snapshot.data!;
+          final (ingredients, counterparties) = snapshot.data!;
           return Form(
             key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Новая закупка', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 16),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                  ),
-                Autocomplete<Ingredient>(
-                  displayStringForOption: (i) => i.name,
-                  optionsBuilder: (value) {
-                    if (value.text.isEmpty) return const Iterable.empty();
-                    final q = value.text.toLowerCase();
-                    return ingredients.where((i) => i.name.toLowerCase().contains(q));
-                  },
-                  onSelected: (i) => setState(() => _ingredient = i),
-                  fieldViewBuilder: (context, controller, focusNode, onSubmit) {
-                    if (_ingredient != null && controller.text != _ingredient!.name) {
-                      controller.text = _ingredient!.name;
-                    }
-                    return TextFormField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      decoration: const InputDecoration(labelText: 'Сырьё', hintText: 'Начните вводить название...'),
-                      onChanged: (v) {
-                        if (_ingredient != null && v != _ingredient!.name) {
-                          setState(() => _ingredient = null);
-                        }
-                      },
-                      validator: (v) => _ingredient == null ? 'Выберите сырьё из списка' : null,
-                    );
-                  },
-                  optionsViewBuilder: (context, onSelected, options) => Align(
-                    alignment: Alignment.topLeft,
-                    child: Material(
-                      elevation: 4,
-                      borderRadius: BorderRadius.circular(8),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 260, minWidth: 260),
-                        child: ListView(
-                          padding: EdgeInsets.zero,
-                          shrinkWrap: true,
-                          children: [
-                            for (final i in options)
-                              ListTile(
-                                dense: true,
-                                title: Text(i.name),
-                                subtitle: Text('${formatQty(i.quantityInStock)} ${i.unit}'),
-                                onTap: () => onSelected(i),
-                              ),
-                          ],
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Новая закупка', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 16),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                    ),
+                  Autocomplete<Counterparty>(
+                    displayStringForOption: (c) => c.name,
+                    optionsBuilder: (value) {
+                      if (value.text.isEmpty) return const Iterable.empty();
+                      final q = value.text.toLowerCase();
+                      return counterparties.where((c) => c.name.toLowerCase().contains(q));
+                    },
+                    onSelected: (c) => setState(() => _counterparty = c),
+                    fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                      if (_counterparty != null && controller.text != _counterparty!.name) {
+                        controller.text = _counterparty!.name;
+                      }
+                      return TextFormField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        decoration: InputDecoration(
+                          labelText: 'Поставщик',
+                          hintText: counterparties.isEmpty ? 'Сначала добавьте контрагента на вебе' : 'Начните вводить название...',
+                        ),
+                        onChanged: (v) {
+                          if (_counterparty != null && v != _counterparty!.name) {
+                            setState(() => _counterparty = null);
+                          }
+                        },
+                        validator: (v) => _counterparty == null ? 'Выберите поставщика из списка' : null,
+                      );
+                    },
+                    optionsViewBuilder: (context, onSelected, options) => Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4,
+                        borderRadius: BorderRadius.circular(8),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 260, minWidth: 260),
+                          child: ListView(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            children: [
+                              for (final c in options)
+                                ListTile(dense: true, title: Text(c.name), onTap: () => onSelected(c)),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _quantity,
-                  decoration: const InputDecoration(labelText: 'Количество'),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  validator: (v) =>
-                      (v == null || double.tryParse(v.replaceAll(',', '.')) == null) ? 'Введите число' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _supplier,
-                  decoration: const InputDecoration(labelText: 'Поставщик'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Укажите поставщика' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _totalPrice,
-                  decoration: const InputDecoration(labelText: 'Сумма закупки, ₸ (необязательно)'),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                ),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: _pickDate,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Дата'),
-                    child: Text(formatDate(_date)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (_pickedImageBytes != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.memory(_pickedImageBytes!, height: 160, fit: BoxFit.cover),
-                  ),
+                  const SizedBox(height: 16),
+                  Text('Товары', style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 8),
+                  for (final row in _items)
+                    KeyedSubtree(
+                      key: ObjectKey(row),
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildItemRow(ingredients, row),
+                      ),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: _addItemRow,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Добавить товар'),
+                  ),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: _pickDate,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(labelText: 'Дата'),
+                      child: Text(formatDate(_date)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_pickedImageBytes != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(_pickedImageBytes!, height: 160, fit: BoxFit.cover),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  OutlinedButton.icon(
+                    onPressed: _choosePhotoSource,
+                    icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                    label: Text(_pickedImageBytes == null ? 'Сфотографировать накладную' : 'Заменить фото'),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Сохранить'),
+                  ),
                 ],
-                OutlinedButton.icon(
-                  onPressed: _choosePhotoSource,
-                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                  label: Text(_pickedImageBytes == null ? 'Сфотографировать накладную' : 'Заменить фото'),
-                ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: _saving ? null : _save,
-                  child: _saving
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Сохранить'),
-                ),
-              ],
+              ),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildItemRow(List<Ingredient> ingredients, _PurchaseItemRow row) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Autocomplete<Ingredient>(
+                displayStringForOption: (i) => i.name,
+                optionsBuilder: (value) {
+                  if (value.text.isEmpty) return const Iterable.empty();
+                  final q = value.text.toLowerCase();
+                  return ingredients.where((i) => i.name.toLowerCase().contains(q));
+                },
+                onSelected: (i) => setState(() => row.ingredient = i),
+                fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                  if (row.ingredient != null && controller.text != row.ingredient!.name) {
+                    controller.text = row.ingredient!.name;
+                  }
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    decoration: const InputDecoration(labelText: 'Сырьё', hintText: 'Начните вводить название...'),
+                    onChanged: (v) {
+                      if (row.ingredient != null && v != row.ingredient!.name) {
+                        setState(() => row.ingredient = null);
+                      }
+                    },
+                    validator: (v) => row.ingredient == null ? 'Выберите сырьё из списка' : null,
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) => Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(8),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 260, minWidth: 260),
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        children: [
+                          for (final i in options)
+                            ListTile(
+                              dense: true,
+                              title: Text(i.name),
+                              subtitle: Text('${formatQty(i.quantityInStock)} ${i.unit}'),
+                              onTap: () => onSelected(i),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (_items.length > 1)
+              IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Убрать позицию',
+                onPressed: () => _removeItemRow(row),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: row.quantity,
+                decoration: const InputDecoration(labelText: 'Количество'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                validator: (v) =>
+                    (v == null || double.tryParse(v.replaceAll(',', '.')) == null) ? 'Введите число' : null,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextFormField(
+                controller: row.totalPrice,
+                decoration: const InputDecoration(labelText: 'Сумма, ₸ (необязательно)'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -12,6 +12,7 @@
     <a th:href="@{/warehouse/writeoffs}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'warehouse-writeoffs'} ? 'active'">Списание</a>
     <a th:href="@{/ingredients}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'ingredients'} ? 'active'">Сырьё</a>
     <a th:href="@{/purchases}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" th:classappend="${activePage == 'purchases'} ? 'active'">Покупки</a>
+    <a th:href="@{/counterparties}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" th:classappend="${activePage == 'counterparties'} ? 'active'">Контрагенты</a>
     <a th:href="@{/production-requests}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Заявки на сырьё</a>
     <a th:href="@{/production-requests/report}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Отчёт</a>
     <a th:href="@{/orders}" class="nav-link" th:classappend="${activePage == 'orders'} ? 'active'">Заказы</a>

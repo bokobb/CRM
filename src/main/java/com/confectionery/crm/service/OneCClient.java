@@ -459,6 +459,80 @@ class OneCClient {
         return template;
     }
 
+    /**
+     * Шаблон-заготовка шапки документа "Поступление товаров и услуг" (счета учёта расчётов с
+     * контрагентом, вид операции, аналитика НДС и т.п.) — с ЛЮБОГО существующего документа
+     * этого типа в базе, по той же идее, что {@link #findAnyLineTemplate()} и
+     * {@link #findAnyReceiptLineTemplate()}: не гадаем GUID-ы констант шапки руками, а
+     * копируем их с реального документа. НЕ ПРОВЕРЕНО на реальной базе (в отличие от
+     * остальных шаблонов здесь) — см. OneCPurchaseSyncService, этот документ новый, названия
+     * набора/полей взяты по стандартной конфигурации 1С и могут потребовать правки после
+     * первого реального теста. Null, если в 1С ещё нет ни одного такого документа.
+     */
+    Map<String, Object> findAnyGoodsReceiptTemplate() {
+        JsonNode response = restClient.get()
+                .uri(b -> b.path("/Document_ПоступлениеТоваровУслуг")
+                        .queryParam("$format", "json")
+                        .queryParam("$top", 1)
+                        .build())
+                .retrieve()
+                .body(JsonNode.class);
+        JsonNode values = response.path("value");
+        if (values.isEmpty()) return null;
+
+        List<String> ownFields = List.of("Ref_Key", "Number", "Date", "Posted", "DeletionMark",
+                "Организация_Key", "Контрагент_Key", "ДоговорКонтрагента_Key", "Склад_Key", "Комментарий", "Товары");
+        Map<String, Object> template = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonNode> field : values.get(0).properties()) {
+            String key = field.getKey();
+            if (ownFields.contains(key) || key.indexOf('@') >= 0) continue;
+            template.put(key, jsonToJava(field.getValue(), key));
+        }
+        return template;
+    }
+
+    /**
+     * Шаблон-заготовка строки табличной части "Товары" документа "Поступление товаров и
+     * услуг" — см. {@link #findAnyGoodsReceiptTemplate()} (тот же приём и та же оговорка про
+     * отсутствие проверки на реальной базе). Null, если в 1С ещё нет ни одного такого документа.
+     */
+    Map<String, Object> findAnyGoodsReceiptLineTemplate() {
+        JsonNode response = restClient.get()
+                .uri(b -> b.path("/Document_ПоступлениеТоваровУслуг_Товары")
+                        .queryParam("$format", "json")
+                        .queryParam("$top", 1)
+                        .build())
+                .retrieve()
+                .body(JsonNode.class);
+        JsonNode values = response.path("value");
+        if (values.isEmpty()) return null;
+
+        List<String> ownFields = List.of("Ref_Key", "LineNumber", "Номенклатура_Key", "Количество", "Цена", "Сумма");
+        Map<String, Object> template = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonNode> field : values.get(0).properties()) {
+            String key = field.getKey();
+            if (ownFields.contains(key) || key.indexOf('@') >= 0) continue;
+            template.put(key, jsonToJava(field.getValue(), key));
+        }
+        return template;
+    }
+
+    /**
+     * Создаёт НЕпроведённый документ "Поступление товаров и услуг" (закупка сырья у
+     * контрагента, см. OneCPurchaseSyncService) — бухгалтер проверяет и проводит сам, как и
+     * "Реализацию". НЕ ПРОВЕРЕНО на реальной базе — см. {@link #findAnyGoodsReceiptTemplate()}.
+     */
+    CreatedDocument createGoodsReceiptDocument(Map<String, Object> body) {
+        JsonNode response = restClient.post()
+                .uri(b -> b.path("/Document_ПоступлениеТоваровУслуг")
+                        .queryParam("$format", "json")
+                        .build())
+                .body(body)
+                .retrieve()
+                .body(JsonNode.class);
+        return new CreatedDocument(response.path("Ref_Key").asText(""), response.path("Number").asText(""));
+    }
+
     /** Создаёт и сразу проводит (Posted:true) документ "Оприходование товаров" — см. OneCReceiptSyncService. */
     CreatedDocument createReceiptDocument(Map<String, Object> body) {
         JsonNode response = restClient.post()
