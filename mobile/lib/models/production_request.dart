@@ -111,6 +111,10 @@ class ProductionRequest {
   final String statusLabel;
   final String createdBy;
   final DateTime createdAt;
+
+  /// Дата документа для 1С (см. ProductionRequest.documentDate на бэкенде) — по умолчанию
+  /// сегодня, выбирается при создании/редактировании заявки; время в 1С всегда фиксированное 06:00.
+  final DateTime documentDate;
   final String? collectedBy;
   final DateTime? collectedAt;
   final String? oneCReportNumber;
@@ -129,6 +133,7 @@ class ProductionRequest {
     required this.statusLabel,
     required this.createdBy,
     required this.createdAt,
+    required this.documentDate,
     this.collectedBy,
     this.collectedAt,
     this.oneCReportNumber,
@@ -145,6 +150,7 @@ class ProductionRequest {
         statusLabel: json['statusLabel'] as String,
         createdBy: json['createdBy'] as String,
         createdAt: DateTime.parse(json['createdAt'] as String),
+        documentDate: DateTime.parse(json['documentDate'] as String),
         collectedBy: json['collectedBy'] as String?,
         collectedAt: json['collectedAt'] != null ? DateTime.parse(json['collectedAt'] as String) : null,
         oneCReportNumber: json['oneCReportNumber'] as String?,

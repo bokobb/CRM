@@ -249,6 +249,10 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                             'Итого ${formatQty(r.totalBatches)} замес. · ${r.createdBy} · ${formatDateTime(r.createdAt)}',
                             style: const TextStyle(color: Colors.grey, fontSize: 13),
                           ),
+                          Text(
+                            'Дата документа для 1С: ${formatDate(r.documentDate)}',
+                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
                         ],
                       ),
                     ),

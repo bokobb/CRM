@@ -67,9 +67,11 @@ public class ProductionRequestService {
      * своя заявка через {@link #create}, название заявки = название группы. Товары без группы
      * уходят в одну общую заявку "Без группы". Один self-invocation-вызов create(...) на группу,
      * весь метод @Transactional — либо создаются все заявки сразу, либо ни одной.
+     * @param documentDate дата документа для 1С (см. {@link ProductionRequest#getDocumentDate()});
+     *                      null — сегодня.
      */
     @Transactional
-    public List<ProductionRequest> createGrouped(List<Line> lines, String createdBy) {
+    public List<ProductionRequest> createGrouped(List<Line> lines, String createdBy, LocalDate documentDate) {
         if (lines == null || lines.isEmpty()) {
             throw new IllegalArgumentException("Добавьте хотя бы одну позицию");
         }
@@ -81,7 +83,7 @@ public class ProductionRequestService {
         }
         List<ProductionRequest> created = new ArrayList<>();
         for (Map.Entry<String, List<Line>> entry : byGroup.entrySet()) {
-            created.add(create(entry.getKey(), entry.getValue(), createdBy));
+            created.add(create(entry.getKey(), entry.getValue(), createdBy, documentDate));
         }
         return created;
     }
@@ -148,12 +150,14 @@ public class ProductionRequestService {
     /**
      * @param title название заявки — задаёт пользователь (например, "Коржик"), пусто не бывает
      *              благодаря валидации на уровне контроллера/формы.
+     * @param documentDate дата документа для 1С; null — сегодня (см. {@link ProductionRequest#getDocumentDate()}).
      */
     @Transactional
-    public ProductionRequest create(String title, List<Line> lines, String createdBy) {
+    public ProductionRequest create(String title, List<Line> lines, String createdBy, LocalDate documentDate) {
         ProductionRequest request = new ProductionRequest();
         request.setTitle(title);
         request.setCreatedBy(createdBy);
+        request.setDocumentDate(documentDate != null ? documentDate : LocalDate.now());
         populate(request, lines);
 
         request = requestRepository.save(request);
@@ -167,12 +171,16 @@ public class ProductionRequestService {
      * заново с нуля (как при создании), название заявки не меняется (группа определяется один
      * раз при создании, см. {@link #createGrouped}). После сборки (списание сырья со склада уже
      * произошло) редактировать нельзя — иначе список сырья разъедется с тем, что реально списано.
+     * @param documentDate дата документа для 1С; null — не менять текущую.
      */
     @Transactional
-    public ProductionRequest update(Long requestId, List<Line> lines, String updatedBy) {
+    public ProductionRequest update(Long requestId, List<Line> lines, String updatedBy, LocalDate documentDate) {
         ProductionRequest request = findById(requestId);
         if (request.getStatus() != ProductionRequestStatus.NEW) {
             throw new IllegalStateException("Редактировать можно только заявку в статусе «Новая»");
+        }
+        if (documentDate != null) {
+            request.setDocumentDate(documentDate);
         }
         request.getLines().clear();
         request.getItems().clear();

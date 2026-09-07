@@ -51,11 +51,11 @@ public class ProductionRequestApiController {
         List<ProductionRequestService.Line> lines = req.items().stream()
                 .map(i -> new ProductionRequestService.Line(i.productId(), i.batches()))
                 .toList();
-        return requestService.createGrouped(lines, authentication.getName()).stream()
+        return requestService.createGrouped(lines, authentication.getName(), req.documentDate()).stream()
                 .map(ProductionRequestDto::from).toList();
     }
 
-    /** Редактирование ещё не собранной заявки — только позиции, название заявки не меняется. */
+    /** Редактирование ещё не собранной заявки — только позиции и дата документа, название заявки не меняется. */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public ProductionRequestDto update(@PathVariable Long id, @Valid @RequestBody ProductionRequestCreateRequest req,
@@ -63,7 +63,7 @@ public class ProductionRequestApiController {
         List<ProductionRequestService.Line> lines = req.items().stream()
                 .map(i -> new ProductionRequestService.Line(i.productId(), i.batches()))
                 .toList();
-        return ProductionRequestDto.from(requestService.update(id, lines, authentication.getName()));
+        return ProductionRequestDto.from(requestService.update(id, lines, authentication.getName(), req.documentDate()));
     }
 
     /** Отмена ещё не собранной заявки. */

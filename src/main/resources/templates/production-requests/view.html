@@ -15,6 +15,7 @@
                 <p class="subtitle">
                     создал <span th:text="${request.createdBy}"></span>
                     · <span th:text="${#temporals.format(request.createdAt, 'dd.MM.yyyy HH:mm')}"></span>
+                    · дата документа для 1С: <span th:text="${#temporals.format(request.documentDate, 'dd.MM.yyyy')}"></span>
                 </p>
             </div>
             <span class="badge" th:classappend="${request.status}" th:text="${request.status.label}" style="font-size:14px"></span>

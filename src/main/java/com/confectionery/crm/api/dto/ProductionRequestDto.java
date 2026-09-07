@@ -5,6 +5,7 @@ import com.confectionery.crm.domain.ProductionRequestItem;
 import com.confectionery.crm.domain.ProductionRequestLine;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -15,6 +16,7 @@ public record ProductionRequestDto(
         String statusLabel,
         String createdBy,
         LocalDateTime createdAt,
+        LocalDate documentDate,
         String collectedBy,
         LocalDateTime collectedAt,
         String oneCReportNumber,
@@ -51,6 +53,7 @@ public record ProductionRequestDto(
                 r.getStatus().getLabel(),
                 r.getCreatedBy(),
                 r.getCreatedAt(),
+                r.getDocumentDate(),
                 r.getCollectedBy(),
                 r.getCollectedAt(),
                 r.getOneCReportNumber(),

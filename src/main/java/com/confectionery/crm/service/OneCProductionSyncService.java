@@ -17,7 +17,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -45,6 +44,10 @@ import java.util.Map;
  * останавливается с понятной ошибкой, и правки в проведённый документ бухгалтер вносит в 1С
  * вручную. Когда оприходована последняя строка, в документе оказывается уже настоящий факт
  * (см. {@link ProductionRequestLine#getReceivedQuantity()}).
+ *
+ * <p>Дата документа ({@code Date}) в обоих — {@link ProductionRequest#getDocumentDate()} (по
+ * умолчанию сегодня, пользователь может выбрать другую при создании/редактировании заявки) с
+ * ВСЕГДА фиксированным временем 06:00 (начало смены) — так принято в этой базе 1С.
  *
  * <p>Оба документа создаются НЕпроведёнными, как и заказы: "Плановая себестоимость" каждой
  * строки продукции всегда 0 (в 1С этого значения взять неоткуда — не заведён отдельный
@@ -191,7 +194,10 @@ public class OneCProductionSyncService {
         }
 
         String comment = "Заявка на производство №" + request.getId() + " «" + request.getTitle() + "»";
-        String date = ONEC_DATE.format(LocalDateTime.now());
+        // Время в обоих документах всегда фиксированное 06:00 (начало смены) — так принято в
+        // этой базе 1С, дату документа выбирает пользователь при создании/редактировании заявки
+        // (см. ProductionRequest.documentDate), а не берётся текущее время синхронизации.
+        String date = ONEC_DATE.format(request.getDocumentDate().atTime(6, 0));
 
         List<Map<String, Object>> productionLines = new ArrayList<>();
         List<String> unresolved = new ArrayList<>();

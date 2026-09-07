@@ -15,7 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -38,6 +38,9 @@ import java.util.Map;
  * <p>При отмене заказа (см. OrderService.cancel) {@link #trySyncCancel} ставит в документе флаг
  * "Пометка удаления" — не проводит и не изменяет его иначе, фактическое удаление в 1С (со всеми
  * её проверками на зависимые движения) бухгалтер выполняет сам.
+ *
+ * <p>Дата документа ({@code Date}) — дата создания заказа, время ВСЕГДА фиксированное 18:00
+ * (конец рабочего дня) — так принято в этой базе 1С.
  *
  * <p>Best-effort, как и остальные интеграции (см. WhatsAppGatewayClient.sendInvoiceToClient):
  * заказ в CRM уже сохранён и не откатывается, если 1С недоступна или что-то не сопоставилось —
@@ -222,7 +225,10 @@ public class OneCOrderSyncService {
         }
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("Date", ONEC_DATE.format(order.getCreatedAt() != null ? order.getCreatedAt() : LocalDateTime.now()));
+        // Время всегда фиксированное 18:00 (конец рабочего дня) — так принято в этой базе 1С;
+        // дата — дата создания заказа в CRM (сегодня, если почему-то не проставлена).
+        LocalDate orderDate = order.getCreatedAt() != null ? order.getCreatedAt().toLocalDate() : LocalDate.now();
+        body.put("Date", ONEC_DATE.format(orderDate.atTime(18, 0)));
         body.put("Posted", false);
         body.put("Организация_Key", organizationKey);
         body.put("Контрагент_Key", client.getOneCContragentKey());

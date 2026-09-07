@@ -18,6 +18,10 @@
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
 
         <form class="panel" th:action="@{/production-requests}" method="post" style="max-width:720px" id="crmProdForm">
+            <div class="field" style="max-width:220px">
+                <label>Дата документа (для 1С)</label>
+                <input type="date" name="documentDate" th:value="${documentDate}">
+            </div>
             <div id="crmProdRows">
                 <div class="crm-prod-row" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px">
                     <div class="field" style="flex:2;margin:0">

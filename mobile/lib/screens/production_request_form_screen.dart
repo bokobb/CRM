@@ -51,6 +51,10 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
   bool _saving = false;
   String? _error;
 
+  /// Дата документа для 1С (время там всегда фиксированное 06:00, см. бэкенд) — по умолчанию
+  /// сегодня, пользователь может выбрать другую (например, заявку оформили на вчерашнюю смену).
+  DateTime _documentDate = DateTime.now();
+
   bool get _isEdit => widget.requestId != null;
 
   @override
@@ -63,6 +67,7 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
     final products = await _api.getEligibleProductsForRequest();
     if (_isEdit) {
       final existing = await _api.getProductionRequest(widget.requestId!);
+      _documentDate = existing.documentDate;
       for (final l in existing.lines) {
         final line = _Line();
         ProductionEligibleProduct? matched;
@@ -94,6 +99,17 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
 
   void _removeLine(_Line line) => setState(() => _lines.remove(line));
 
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _documentDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      helpText: 'Дата документа для 1С',
+    );
+    if (picked != null) setState(() => _documentDate = picked);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate() || _lines.any((l) => l.product == null)) {
       setState(() => _error = 'Заполните все позиции');
@@ -108,9 +124,9 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
           .map((l) => (l.product!.id, double.parse(l.batches.text.replaceAll(',', '.'))))
           .toList();
       if (_isEdit) {
-        await _api.updateProductionRequest(widget.requestId!, items);
+        await _api.updateProductionRequest(widget.requestId!, items, documentDate: _documentDate);
       } else {
-        await _api.createProductionRequest(items);
+        await _api.createProductionRequest(items, documentDate: _documentDate);
       }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -164,6 +180,14 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
                           'Название заявки определится автоматически по группе товара — если позиции из '
                           'разных групп, будет создано несколько заявок.',
                   style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: _pickDate,
+                  child: InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Дата документа для 1С', isDense: true),
+                    child: Text(formatDate(_documentDate)),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (_error != null)

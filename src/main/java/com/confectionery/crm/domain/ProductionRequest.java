@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,15 @@ public class ProductionRequest {
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    /**
+     * Дата документа для 1С (см. OneCProductionSyncService.sync) — по умолчанию сегодня, но
+     * пользователь может выбрать другую при создании/редактировании заявки (например, заявку
+     * оформили сегодня на вчерашнюю смену). Время в документах 1С всегда фиксированное 06:00,
+     * этим полем задаётся только дата.
+     */
+    @Column(nullable = false)
+    private LocalDate documentDate = LocalDate.now();
 
     private String collectedBy;
     private LocalDateTime collectedAt;

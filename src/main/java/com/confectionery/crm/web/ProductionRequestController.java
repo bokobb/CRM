@@ -68,6 +68,7 @@ public class ProductionRequestController {
     public String newForm(Model model) {
         model.addAttribute("activePage", "production-requests");
         model.addAttribute("recipes", requestService.recipesWithProducts());
+        model.addAttribute("documentDate", LocalDate.now());
         return "production-requests/new";
     }
 
@@ -77,10 +78,12 @@ public class ProductionRequestController {
      * одноимённых полей, Spring сам собирает их в списки в порядке появления в форме).
      * Название заявки не вводится вручную — позиции автоматически разбиваются по группе
      * товара, на каждую группу создаётся своя заявка (см. ProductionRequestService.createGrouped).
+     * documentDate — дата документа для 1С (не задана в форме — сегодня, см. ProductionRequest.documentDate).
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public String create(@RequestParam List<Long> productId, @RequestParam List<BigDecimal> batches,
+                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate documentDate,
                           Authentication authentication, RedirectAttributes redirectAttributes) {
         try {
             if (productId.size() != batches.size()) {
@@ -90,7 +93,7 @@ public class ProductionRequestController {
             for (int i = 0; i < productId.size(); i++) {
                 lines.add(new ProductionRequestService.Line(productId.get(i), batches.get(i)));
             }
-            var created = requestService.createGrouped(lines, authentication.getName());
+            var created = requestService.createGrouped(lines, authentication.getName(), documentDate);
             String titles = created.stream().map(ProductionRequest::getTitle).collect(Collectors.joining("», «"));
             redirectAttributes.addFlashAttribute("success",
                     "Создано заявок: " + created.size() + " — «" + titles + "»");
@@ -118,10 +121,11 @@ public class ProductionRequestController {
         return "production-requests/edit";
     }
 
-    /** Название заявки не меняется — только позиции (см. ProductionRequestService.update). */
+    /** Название заявки не меняется — только позиции и дата документа (см. ProductionRequestService.update). */
     @PostMapping("/{id}/edit")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public String edit(@PathVariable Long id, @RequestParam List<Long> productId, @RequestParam List<BigDecimal> batches,
+                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate documentDate,
                         Authentication authentication, RedirectAttributes redirectAttributes) {
         try {
             if (productId.size() != batches.size()) {
@@ -131,7 +135,7 @@ public class ProductionRequestController {
             for (int i = 0; i < productId.size(); i++) {
                 lines.add(new ProductionRequestService.Line(productId.get(i), batches.get(i)));
             }
-            requestService.update(id, lines, authentication.getName());
+            requestService.update(id, lines, authentication.getName(), documentDate);
             return "redirect:/production-requests/" + id;
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
