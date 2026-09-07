@@ -24,12 +24,19 @@ class ProductionScreen extends StatefulWidget {
   State<ProductionScreen> createState() => _ProductionScreenState();
 }
 
+DateTime _todayStart() {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
+}
+
 class _ProductionScreenState extends State<ProductionScreen> {
   final _api = ApiClient();
   late Future<List<ProductionRequestSummary>> _future;
   String _query = '';
-  DateTime? _doneFrom;
-  DateTime? _doneTo;
+
+  /// По умолчанию "Готово" отфильтровано на сегодня (null — снят фильтр, "за всё время").
+  DateTime? _doneFrom = _todayStart();
+  DateTime? _doneTo = _todayStart();
 
   @override
   void initState() {
@@ -61,6 +68,13 @@ class _ProductionScreenState extends State<ProductionScreen> {
     if (_doneFrom != null && created.isBefore(_doneFrom!)) return false;
     if (_doneTo != null && created.isAfter(_doneTo!)) return false;
     return true;
+  }
+
+  String _doneLabel() {
+    if (_doneFrom == null) return 'За всё время';
+    final today = _todayStart();
+    if (_doneFrom == today && _doneTo == today) return 'Сегодня';
+    return 'Период';
   }
 
   Future<void> _pickDoneRange() async {
@@ -123,12 +137,12 @@ class _ProductionScreenState extends State<ProductionScreen> {
                     TextButton.icon(
                       onPressed: _pickDoneRange,
                       icon: const Icon(Icons.calendar_today, size: 16),
-                      label: Text(_doneFrom == null ? 'За всё время' : 'Период'),
+                      label: Text(_doneLabel()),
                     ),
                     if (_doneFrom != null)
                       IconButton(
                         icon: const Icon(Icons.close, size: 18),
-                        tooltip: 'Сбросить период',
+                        tooltip: 'Показать за всё время',
                         onPressed: () => setState(() {
                           _doneFrom = null;
                           _doneTo = null;

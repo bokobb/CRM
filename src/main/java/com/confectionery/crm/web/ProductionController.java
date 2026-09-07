@@ -9,6 +9,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -31,7 +32,9 @@ public class ProductionController {
      * Данные отдаются backend'ом без фильтрации — фильтр по товару и по дате (только для
      * колонки "Готово") целиком на стороне браузера (см. production/board.html), тем же
      * приёмом, что и на страницах "Рецепты"/"Сырьё"/"Клиенты": весь список уже на странице,
-     * незачем гонять его туда-обратно на сервер ради фильтра.
+     * незачем гонять его туда-обратно на сервер ради фильтра. Колонка "Готово" по умолчанию
+     * отфильтрована на сегодня ({@code today} — только чтобы проставить значение по умолчанию
+     * в оба поля даты, сам фильтр всё равно считается в браузере) — кнопка "Показать всё" сбрасывает.
      */
     @GetMapping
     public String board(Model model) {
@@ -41,6 +44,7 @@ public class ProductionController {
         model.addAttribute("pending", all.stream().filter(r -> r.status().equals(ProductionRequestStatus.NEW.name())).toList());
         model.addAttribute("inProgress", all.stream().filter(r -> r.status().equals(ProductionRequestStatus.COLLECTED.name())).toList());
         model.addAttribute("done", all.stream().filter(r -> r.status().equals(ProductionRequestStatus.RECEIVED.name())).toList());
+        model.addAttribute("today", LocalDate.now());
         return "production/board";
     }
 }

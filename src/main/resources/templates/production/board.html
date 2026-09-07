@@ -52,9 +52,10 @@
                      потому, что она началась не сегодня. Для архива ("Готово") дата, наоборот,
                      осмысленна — это уже история. -->
                 <div class="date-range-form" style="margin-bottom:12px">
-                    <input type="date" id="crm-prod-from" onchange="crmFilterProduction()">
+                    <input type="date" id="crm-prod-from" th:value="${today}" onchange="crmFilterProduction()">
                     <span>—</span>
-                    <input type="date" id="crm-prod-to" onchange="crmFilterProduction()">
+                    <input type="date" id="crm-prod-to" th:value="${today}" onchange="crmFilterProduction()">
+                    <button type="button" class="btn small" onclick="crmShowAllDone()">Показать всё</button>
                 </div>
                 <div id="crm-prod-col-done">
                     <a class="task-card" th:each="r : ${done}" th:href="@{/production-requests/{id}(id=${r.id})}"
@@ -97,6 +98,14 @@
             if (emptyEl) emptyEl.style.display = (visible === 0 && container.querySelectorAll('.task-card').length > 0) ? '' : 'none';
         });
     }
+
+    function crmShowAllDone() {
+        document.getElementById('crm-prod-from').value = '';
+        document.getElementById('crm-prod-to').value = '';
+        crmFilterProduction();
+    }
+
+    crmFilterProduction();
 </script>
 </body>
 </html>
