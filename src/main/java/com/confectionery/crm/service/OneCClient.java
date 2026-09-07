@@ -380,6 +380,21 @@ class OneCClient {
     }
 
     /**
+     * Перезаписывает НЕпроведённый документ любого типа (шапку и табличную часть целиком) —
+     * общий вариант {@link #updateDraftSale} для остальных документов, которые CRM держит
+     * актуальными до проведения (см. OneCProductionSyncService.trySyncRequest).
+     */
+    void updateDocument(String entitySet, String ref, Map<String, Object> body) {
+        restClient.patch()
+                .uri(b -> b.path("/" + entitySet + "(guid'" + ref + "')")
+                        .queryParam("$format", "json")
+                        .build())
+                .body(body)
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    /**
      * Ставит/снимает флаг "Пометка удаления" — сам документ не трогает (не проведён/проведён,
      * состав и суммы остаются как есть), физического удаления 1С этим не делает: реальное
      * удаление помеченных объектов — отдельная операция, которую бухгалтер выполняет в 1С сам

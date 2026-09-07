@@ -158,6 +158,7 @@ public class ProductionRequestService {
 
         request = requestRepository.save(request);
         notifyCreated(request);
+        oneCProductionSyncService.trySyncRequest(request);
         return request;
     }
 
@@ -177,6 +178,7 @@ public class ProductionRequestService {
         request.getItems().clear();
         populate(request, lines);
         notifyUpdated(request, updatedBy);
+        oneCProductionSyncService.trySyncRequest(request);
         return request;
     }
 
@@ -310,6 +312,7 @@ public class ProductionRequestService {
         notificationService.notifyRole(Role.ADMIN, message, null);
         notificationService.notifyRole(Role.ACCOUNTANT, message, null);
         notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);
+        oneCProductionSyncService.trySyncRequest(request);
         return request;
     }
 
@@ -370,7 +373,10 @@ public class ProductionRequestService {
 
     /**
      * Зав. склада ГП вводит фактически полученное количество по ОДНОЙ строке заявки — это и
-     * есть оприходование. Когда оприходованы все строки, вся заявка помечается RECEIVED.
+     * есть оприходование. Когда оприходованы все строки, вся заявка помечается RECEIVED. Каждое
+     * оприходование сразу корректирует уже выгруженные в 1С документы (см.
+     * OneCProductionSyncService) — количество этой строки в отчёте производства заменяется с
+     * планового на фактическое.
      */
     @Transactional
     public ProductionRequest receiveLine(Long requestId, Long lineId, BigDecimal receivedQuantity, String by) {
@@ -406,33 +412,21 @@ public class ProductionRequestService {
         notificationService.notifyRole(Role.ADMIN, receivedMessage, null);
         notificationService.notifyRole(Role.ACCOUNTANT, receivedMessage, null);
 
-        if (allReceived) {
-            oneCProductionSyncService.trySyncRequest(request);
-        }
+        oneCProductionSyncService.trySyncRequest(request);
         return request;
     }
 
     /**
-     * Ручная повторная попытка выгрузить оприходованную заявку в 1С — на случай, если
-     * автоматическая (см. receiveLine выше) не сработала (например, backend был поднят без
-     * переменных окружения 1С) или закончилась ошибкой в первый раз.
+     * Ручная повторная попытка синхронизировать заявку с 1С — на случай, если автоматическая
+     * (при создании/редактировании/замене сырья/оприходовании — см. OneCProductionSyncService)
+     * не сработала (например, backend был поднят без переменных окружения 1С) или закончилась
+     * ошибкой. Работает в любом статусе заявки: сама решает, создавать документы в 1С или
+     * скорректировать уже существующие.
      */
     @Transactional
     public ProductionRequest resyncOneC(Long requestId) {
         ProductionRequest request = findById(requestId);
-        if (request.getStatus() != ProductionRequestStatus.RECEIVED) {
-            throw new IllegalStateException("Заявка ещё не оприходована полностью");
-        }
-        if (request.getOneCReportNumber() != null) {
-            throw new IllegalStateException("Заявка уже выгружена в 1С");
-        }
-        request.setOneCSyncError(null);
-        oneCProductionSyncService.trySyncRequest(request);
-        request = requestRepository.save(request);
-        if (request.getOneCReportNumber() == null) {
-            throw new IllegalStateException(request.getOneCSyncError() != null
-                    ? request.getOneCSyncError() : "1С недоступна или не настроена");
-        }
+        oneCProductionSyncService.syncOrThrow(request);
         return request;
     }
 

@@ -34,12 +34,12 @@
             требование-накладная № <span th:text="${request.oneCRequisitionNumber}"></span>
         </div>
         <div class="alert warn" th:if="${request.oneCSyncError != null}">
-            Не выгружено в 1С: <span th:text="${request.oneCSyncError}"></span>
+            Не синхронизировано с 1С: <span th:text="${request.oneCSyncError}"></span>
         </div>
-        <form th:if="${request.status.name() == 'RECEIVED' and request.oneCReportNumber == null}"
+        <form th:if="${request.status.name() != 'CANCELLED' and (request.oneCReportNumber == null or request.oneCSyncError != null)}"
               sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')"
               th:action="@{/production-requests/{id}/sync-1c(id=${request.id})}" method="post" style="margin-bottom:16px">
-            <button class="btn secondary" type="submit">Отправить в 1С</button>
+            <button class="btn secondary" type="submit">Синхронизировать с 1С</button>
         </form>
 
         <div th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')"

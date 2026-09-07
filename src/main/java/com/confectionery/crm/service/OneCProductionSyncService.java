@@ -25,14 +25,26 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Когда заявка на производство полностью оприходована (см. ProductionRequestService.receiveLine),
- * выгружает её в 1С парой связанных документов — ровно так же, как это устроено в самой 1С у
- * этого клиента (проверено на 316 реальных документах): "Отчёт производства за смену"
- * (готовая продукция, "Продукция") и "Требование-накладная" (списание сырья, "Материалы"),
- * вторая ссылается на первую через ДокументОснование. Раньше здесь по ошибке использовалось
- * общее "Оприходование товаров" — оно для производства не подходит (не списывает сырьё и не
- * формирует правильную себестоимость), для него теперь отдельный сервис {@link OneCReceiptSyncService}
- * под ручные складские корректировки без производства.
+ * Заявка на производство выгружается в 1С сразу при создании (см.
+ * ProductionRequestService.create) парой связанных документов — ровно так же, как это устроено
+ * в самой 1С у этого клиента (проверено на 316 реальных документах): "Отчёт производства за
+ * смену" (готовая продукция, "Продукция") и "Требование-накладная" (списание сырья,
+ * "Материалы"), вторая ссылается на первую через ДокументОснование. Раньше здесь по ошибке
+ * использовалось общее "Оприходование товаров" — оно для производства не подходит (не списывает
+ * сырьё и не формирует правильную себестоимость), для него теперь отдельный сервис
+ * {@link OneCReceiptSyncService} под ручные складские корректировки без производства.
+ *
+ * <p>До полного оприходования количество продукции в документе — плановое (см.
+ * {@link ProductionRequestLine#getPlannedQuantity()}, оценка по рецепту), а не факт. Любое
+ * изменение состава заявки, пока она ещё не собрана (редактирование, замена сырья — см.
+ * ProductionRequestService.update/substituteItem), и оприходование каждой строки (см.
+ * ProductionRequestService.receiveLine) перезаписывают "Продукция"/"Материалы" в уже созданных
+ * документах (PATCH), а не создают вторую пару — но только пока документ не проведён
+ * бухгалтером в 1С; если уже проведён, менять его состав через OData не проведя заново — значит
+ * молча разойтись с фактическими проводками, поэтому в этом случае синхронизация
+ * останавливается с понятной ошибкой, и правки в проведённый документ бухгалтер вносит в 1С
+ * вручную. Когда оприходована последняя строка, в документе оказывается уже настоящий факт
+ * (см. {@link ProductionRequestLine#getReceivedQuantity()}).
  *
  * <p>Оба документа создаются НЕпроведёнными, как и заказы: "Плановая себестоимость" каждой
  * строки продукции всегда 0 (в 1С этого значения взять неоткуда — не заведён отдельный
@@ -40,9 +52,9 @@ import java.util.Map;
  * проводит сам, либо (см. {@link #scheduledPostEligibleRequests}) документ проводится
  * автоматически в 20:00, если бухгалтер не тронул его сам.
  *
- * <p>Best-effort — заявка в CRM уже оприходована и не откатывается, если 1С недоступна или
- * что-то не сопоставилось; причина пишется в {@link ProductionRequest#getOneCSyncError()} и
- * уходит уведомлением админу.
+ * <p>Best-effort — заявка в CRM уже сохранена/оприходована и не откатывается, если 1С
+ * недоступна или что-то не сопоставилось; причина пишется в {@link ProductionRequest#getOneCSyncError()}
+ * и уходит уведомлением админу.
  *
  * <p>Если в позиции было заменено сырьё (см. {@link ProductionRequestItem#getOriginalIngredientName()}),
  * требование-накладная списывает уже новое сырьё (реальный факт), а в её "Комментарий" (только там,
@@ -87,21 +99,48 @@ public class OneCProductionSyncService {
     @Value("${crm.onec.production-cost-item-key:}")
     private String productionCostItemKey;
 
-    /** Никогда не бросает исключение наружу — вызывается сразу после оприходования последней строки заявки. */
+    /**
+     * Никогда не бросает исключение наружу — вызывается при создании заявки, при любом
+     * изменении её состава до сборки (редактирование, замена сырья) и при оприходовании каждой
+     * строки. Сам решает, создавать документы в 1С или обновлять уже существующие (см.
+     * класс-javadoc).
+     */
     @Transactional
     public void trySyncRequest(ProductionRequest request) {
-        if (!oneCClient.isConfigured() || request.getOneCReportKey() != null) {
+        if (!oneCClient.isConfigured()) {
             return;
         }
         try {
             sync(request);
         } catch (Exception e) {
-            log.warn("Не удалось выгрузить заявку №{} в 1С: {}", request.getId(), e.getMessage());
-            request.setOneCSyncError(e.getMessage());
-            requestRepository.save(request);
-            notificationService.notifyRole(Role.ADMIN,
-                    "Заявка №" + request.getId() + " «" + request.getTitle() + "» не выгружена в 1С: " + e.getMessage(), null);
+            onSyncFailure(request, e);
         }
+    }
+
+    /**
+     * То же самое, что {@link #trySyncRequest}, но для ручной повторной попытки (см.
+     * ProductionRequestService.resyncOneC) — бросает исключение вместо тихого логирования,
+     * если 1С не настроена или синхронизация не удалась, чтобы пользователь увидел причину.
+     */
+    @Transactional
+    public void syncOrThrow(ProductionRequest request) {
+        if (!oneCClient.isConfigured()) {
+            throw new IllegalStateException("Подключение к 1С не настроено (crm.onec.base-url/username/password)");
+        }
+        try {
+            sync(request);
+        } catch (Exception e) {
+            onSyncFailure(request, e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+    }
+
+    private void onSyncFailure(ProductionRequest request, Exception e) {
+        log.warn("Не удалось синхронизировать заявку №{} с 1С: {}", request.getId(), e.getMessage());
+        request.setOneCSyncError(e.getMessage());
+        requestRepository.save(request);
+        notificationService.notifyRole(Role.ADMIN,
+                "Заявка №" + request.getId() + " «" + request.getTitle() + "» не синхронизирована с 1С: " + e.getMessage(), null);
     }
 
     /**
@@ -132,6 +171,14 @@ public class OneCProductionSyncService {
         }
     }
 
+    /**
+     * Создаёт документы в 1С (если заявка выгружается впервые) или перезаписывает "Продукция"/
+     * "Материалы" в уже созданных (если состав/факт изменился с прошлой выгрузки) — см.
+     * класс-javadoc. Количество продукции — факт по строке, если она уже оприходована, иначе
+     * план по рецепту (см. {@link ProductionRequestLine#isReceived()}); количество сырья —
+     * всегда {@link ProductionRequestItem#getRequiredQuantity()} (снимок на текущий момент,
+     * учитывающий возможную замену сырья).
+     */
     private void sync(ProductionRequest request) {
         Product firstProduct = request.getLines().get(0).getProduct();
         String firstNomenclatureKey = resolveProductKey(firstProduct);
@@ -158,7 +205,7 @@ public class OneCProductionSyncService {
             Map<String, Object> l = new LinkedHashMap<>();
             l.put("LineNumber", String.valueOf(lineNumber++));
             l.put("ЕдиницаИзмерения_Key", unitOrZero(key));
-            l.put("Количество", line.getReceivedQuantity());
+            l.put("Количество", line.isReceived() ? line.getReceivedQuantity() : line.getPlannedQuantity());
             l.put("Коэффициент", 1);
             l.put("Номенклатура_Key", key);
             l.put("НоменклатурнаяГруппа_Key", ZERO_GUID);
@@ -174,25 +221,6 @@ public class OneCProductionSyncService {
         if (!unresolved.isEmpty()) {
             throw new IllegalStateException("Не найдено в 1С по названию: " + String.join(", ", unresolved));
         }
-
-        Map<String, Object> reportBody = new LinkedHashMap<>();
-        reportBody.put("Date", date);
-        reportBody.put("Posted", false);
-        reportBody.put("Организация_Key", organizationKey);
-        reportBody.put("Склад_Key", finishedGoodsWarehouseKey);
-        reportBody.put("ВидУчетаНУ_Key", taxAccountingTypeKey);
-        reportBody.put("СчетЗатратБУ_Key", productionCostAccountBuKey);
-        reportBody.put("СчетЗатратНУ_Key", productionCostAccountNuKey);
-        reportBody.put("ПодразделениеОрганизации_Key", productionDepartmentKey);
-        reportBody.put("НоменклатурнаяГруппа_Key", groupKey);
-        reportBody.put("Комментарий", comment);
-        reportBody.put("Продукция", productionLines);
-
-        OneCClient.CreatedDocument report = oneCClient.createProductionReport(reportBody);
-        request.setOneCReportKey(report.ref());
-        request.setOneCReportNumber(report.number());
-        requestRepository.save(request);
-        log.info("Заявка №{} — создан непроведённый отчёт производства №{} в 1С", request.getId(), report.number());
 
         List<Map<String, Object>> materialLines = new ArrayList<>();
         List<String> unresolvedMaterials = new ArrayList<>();
@@ -214,9 +242,42 @@ public class OneCProductionSyncService {
             materialLines.add(l);
         }
         if (!unresolvedMaterials.isEmpty()) {
-            throw new IllegalStateException("Отчёт производства №" + report.number()
-                    + " создан, но требование-накладная на сырьё — нет: не найдено в 1С по названию: "
-                    + String.join(", ", unresolvedMaterials));
+            throw new IllegalStateException("Не найдено в 1С по названию (сырьё): " + String.join(", ", unresolvedMaterials));
+        }
+
+        // Отчёт производства — создаём или обновляем; дальше требование-накладная ссылается на его Ref_Key.
+        Map<String, Object> reportBody = new LinkedHashMap<>();
+        reportBody.put("Date", date);
+        reportBody.put("Posted", false);
+        reportBody.put("Организация_Key", organizationKey);
+        reportBody.put("Склад_Key", finishedGoodsWarehouseKey);
+        reportBody.put("ВидУчетаНУ_Key", taxAccountingTypeKey);
+        reportBody.put("СчетЗатратБУ_Key", productionCostAccountBuKey);
+        reportBody.put("СчетЗатратНУ_Key", productionCostAccountNuKey);
+        reportBody.put("ПодразделениеОрганизации_Key", productionDepartmentKey);
+        reportBody.put("НоменклатурнаяГруппа_Key", groupKey);
+        reportBody.put("Комментарий", comment);
+        reportBody.put("Продукция", productionLines);
+
+        String reportRef;
+        String reportNumber;
+        if (request.getOneCReportKey() == null) {
+            OneCClient.CreatedDocument report = oneCClient.createProductionReport(reportBody);
+            reportRef = report.ref();
+            reportNumber = report.number();
+            request.setOneCReportKey(reportRef);
+            request.setOneCReportNumber(reportNumber);
+            requestRepository.save(request);
+            log.info("Заявка №{} — создан непроведённый отчёт производства №{} в 1С", request.getId(), reportNumber);
+        } else {
+            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey()))) {
+                throw new IllegalStateException("Отчёт производства №" + request.getOneCReportNumber()
+                        + " уже проведён в 1С — корректировку внесите туда вручную");
+            }
+            reportRef = request.getOneCReportKey();
+            reportNumber = request.getOneCReportNumber();
+            oneCClient.updateDocument("Document_ОтчетПроизводстваЗаСмену", reportRef, reportBody);
+            log.info("Заявка №{} — обновлён состав непроведённого отчёта производства №{} в 1С", request.getId(), reportNumber);
         }
 
         List<String> substitutions = new ArrayList<>();
@@ -250,20 +311,32 @@ public class OneCProductionSyncService {
         requisitionBody.put("СубконтоЗатратНУ2_Type", UNDEFINED_TYPE);
         requisitionBody.put("СубконтоЗатратНУ3", ZERO_GUID);
         requisitionBody.put("СубконтоЗатратНУ3_Type", UNDEFINED_TYPE);
-        requisitionBody.put("ДокументОснование", report.ref());
+        requisitionBody.put("ДокументОснование", reportRef);
         requisitionBody.put("ДокументОснование_Type", "StandardODATA.Document_ОтчетПроизводстваЗаСмену");
         requisitionBody.put("Номенклатура_Key", ZERO_GUID);
         requisitionBody.put("Контрагент_Key", ZERO_GUID);
         requisitionBody.put("Комментарий", requisitionComment);
         requisitionBody.put("Материалы", materialLines);
 
-        OneCClient.CreatedDocument requisition = oneCClient.createMaterialsRequisition(requisitionBody);
-        request.setOneCRequisitionKey(requisition.ref());
-        request.setOneCRequisitionNumber(requisition.number());
-        request.setOneCSyncError(null);
-        requestRepository.save(request);
-        log.info("Заявка №{} — создана непроведённая требование-накладная №{} в 1С (основание: отчёт №{})",
-                request.getId(), requisition.number(), report.number());
+        if (request.getOneCRequisitionKey() == null) {
+            OneCClient.CreatedDocument requisition = oneCClient.createMaterialsRequisition(requisitionBody);
+            request.setOneCRequisitionKey(requisition.ref());
+            request.setOneCRequisitionNumber(requisition.number());
+            request.setOneCSyncError(null);
+            requestRepository.save(request);
+            log.info("Заявка №{} — создана непроведённая требование-накладная №{} в 1С (основание: отчёт №{})",
+                    request.getId(), requisition.number(), reportNumber);
+        } else {
+            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ТребованиеНакладная", request.getOneCRequisitionKey()))) {
+                throw new IllegalStateException("Требование-накладная №" + request.getOneCRequisitionNumber()
+                        + " уже проведена в 1С — корректировку внесите туда вручную");
+            }
+            oneCClient.updateDocument("Document_ТребованиеНакладная", request.getOneCRequisitionKey(), requisitionBody);
+            request.setOneCSyncError(null);
+            requestRepository.save(request);
+            log.info("Заявка №{} — обновлён состав непроведённой требование-накладной №{} в 1С",
+                    request.getId(), request.getOneCRequisitionNumber());
+        }
     }
 
     private String unitOrZero(String nomenclatureKey) {

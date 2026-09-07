@@ -178,8 +178,9 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
     }
   }
 
-  /// Повторная ручная выгрузка в 1С — на случай, если автоматическая (сразу после
-  /// оприходования последней позиции) не сработала (см. ProductionRequestService.resyncOneC).
+  /// Повторная ручная синхронизация с 1С — на случай, если автоматическая (при создании,
+  /// редактировании, замене сырья или оприходовании) не сработала (см.
+  /// ProductionRequestService.resyncOneC).
   Future<void> _syncOneC() async {
     setState(() {
       _syncing = true;
@@ -268,14 +269,16 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 ],
                 if (r.oneCSyncError != null) ...[
                   const SizedBox(height: 10),
-                  Text('Не выгружено в 1С: ${r.oneCSyncError}',
+                  Text('Не синхронизировано с 1С: ${r.oneCSyncError}',
                       style: const TextStyle(color: Colors.orange, fontSize: 13)),
                 ],
-                if (r.status == 'RECEIVED' && r.oneCReportNumber == null && _canEdit) ...[
+                if (r.status != 'CANCELLED' &&
+                    (r.oneCReportNumber == null || r.oneCSyncError != null) &&
+                    _canEdit) ...[
                   const SizedBox(height: 10),
                   OutlinedButton(
                     onPressed: _syncing ? null : _syncOneC,
-                    child: Text(_syncing ? 'Отправка...' : 'Отправить в 1С'),
+                    child: Text(_syncing ? 'Отправка...' : 'Синхронизировать с 1С'),
                   ),
                 ],
                 const SizedBox(height: 18),

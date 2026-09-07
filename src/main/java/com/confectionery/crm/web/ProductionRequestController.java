@@ -205,9 +205,9 @@ public class ProductionRequestController {
     public String syncOneC(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         try {
             requestService.resyncOneC(id);
-            redirectAttributes.addFlashAttribute("success", "Заявка №" + id + " выгружена в 1С");
+            redirectAttributes.addFlashAttribute("success", "Заявка №" + id + " синхронизирована с 1С");
         } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("error", "Не удалось выгрузить в 1С: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Не удалось синхронизировать с 1С: " + e.getMessage());
         }
         return "redirect:/production-requests/" + id;
     }
