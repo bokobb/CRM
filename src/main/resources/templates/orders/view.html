@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <title th:text="'Заказ #' + ${order.id} + ' — Юг Сладости'">Заказ</title>
@@ -30,6 +30,9 @@
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
 
         <div class="panel actions">
+            <a class="btn" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')"
+               th:if="${order.status.name() != 'DELIVERED' and order.status.name() != 'COMPLETED' and order.status.name() != 'CANCELLED'}"
+               th:href="@{/orders/{id}/edit(id=${order.id})}">Редактировать состав</a>
             <form th:if="${order.status.name() == 'NEW'}" th:action="@{/orders/{id}/confirm(id=${order.id})}" method="post">
                 <button class="btn primary" type="submit">Подтвердить (готов к отгрузке)</button>
             </form>

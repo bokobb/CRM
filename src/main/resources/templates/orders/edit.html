@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="'Редактирование заказа #' + ${order.id} + ' — Юг Сладости'">Редактирование заказа</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="app">
+    <nav th:replace="~{fragments/nav :: nav}"></nav>
+    <main class="content">
+        <h1>Редактирование заказа #<span th:text="${order.id}"></span></h1>
+        <p class="subtitle" th:text="${order.client.name}">Клиент</p>
+
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
+
+        <form class="panel" th:action="@{/orders/{id}/edit(id=${order.id})}" th:object="${orderForm}" method="post" style="max-width:680px">
+            <h2>Текущие позиции</h2>
+            <div th:each="item, stat : *{items}" th:if="${stat.index < existingItemRows}" class="item-row">
+                <input type="hidden" th:field="*{items[__${stat.index}__].itemId}">
+                <select th:field="*{items[__${stat.index}__].productId}">
+                    <option value="">— товар —</option>
+                    <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name} + ' — ' + ${p.price} + ' ₸'"></option>
+                </select>
+                <input type="number" step="0.001" th:field="*{items[__${stat.index}__].quantity}" placeholder="Количество">
+            </div>
+            <p class="hint" style="color:var(--muted);margin:4px 0 16px">Чтобы удалить позицию, поставьте количество 0.</p>
+
+            <h2>Добавить товары</h2>
+            <div th:each="item, stat : *{items}" th:if="${stat.index >= existingItemRows}" class="item-row"
+                 th:classappend="${stat.index >= existingItemRows + 6} ? 'hidden-row'">
+                <select th:field="*{items[__${stat.index}__].productId}">
+                    <option value="">— товар —</option>
+                    <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name} + ' — ' + ${p.price} + ' ₸'"></option>
+                </select>
+                <input type="number" step="0.001" th:field="*{items[__${stat.index}__].quantity}" placeholder="Количество">
+            </div>
+
+            <button type="button" class="btn small" onclick="crmAddOrderRow()">+ Добавить позицию</button>
+
+            <div class="actions" style="margin-top:16px">
+                <button class="btn primary" type="submit">Сохранить</button>
+                <a class="btn" th:href="@{/orders/{id}(id=${order.id})}">Отмена</a>
+            </div>
+        </form>
+    </main>
+</div>
+<script th:inline="none">
+    function crmAddOrderRow() {
+        var hidden = document.querySelector('.item-row.hidden-row');
+        if (hidden) hidden.classList.remove('hidden-row');
+    }
+</script>
+</body>
+</html>

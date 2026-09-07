@@ -61,8 +61,18 @@ public class OrderForm {
     }
 
     public static class OrderItemForm {
+        /** Заполняется только формой редактирования (orders/edit) для уже существующих позиций; null — новая позиция. */
+        private Long itemId;
         private Long productId;
         private java.math.BigDecimal quantity;
+
+        public Long getItemId() {
+            return itemId;
+        }
+
+        public void setItemId(Long itemId) {
+            this.itemId = itemId;
+        }
 
         public Long getProductId() {
             return productId;

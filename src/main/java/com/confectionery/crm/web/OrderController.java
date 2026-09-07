@@ -1,5 +1,6 @@
 package com.confectionery.crm.web;
 
+import com.confectionery.crm.api.dto.OrderItemUpdateRequest;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.service.ClientService;
 import com.confectionery.crm.service.OneCOrderSyncService;
@@ -16,6 +17,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Controller
 @RequestMapping("/orders")
@@ -85,6 +87,54 @@ public class OrderController {
         model.addAttribute("activePage", "orders");
         model.addAttribute("order", orderService.findById(id));
         return "orders/view";
+    }
+
+    /** Строки существующих позиций + 10 пустых строк для добавления новых (аналогично /orders/new). */
+    @GetMapping("/{id}/edit")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
+    public String editForm(@PathVariable Long id, Model model) {
+        var order = orderService.findById(id);
+        OrderForm form = new OrderForm();
+        form.setClientId(order.getClient().getId());
+        form.setDueDate(order.getDueDate());
+        form.setNotes(order.getNotes());
+        int existingCount = order.getItems().size();
+        for (var orderItem : order.getItems()) {
+            OrderForm.OrderItemForm itemForm = new OrderForm.OrderItemForm();
+            itemForm.setItemId(orderItem.getId());
+            itemForm.setProductId(orderItem.getProduct().getId());
+            itemForm.setQuantity(orderItem.getQuantity());
+            form.getItems().add(itemForm);
+        }
+        for (int i = 0; i < 10; i++) {
+            OrderForm.OrderItemForm item = new OrderForm.OrderItemForm();
+            item.setQuantity(BigDecimal.ZERO);
+            form.getItems().add(item);
+        }
+        model.addAttribute("activePage", "orders");
+        model.addAttribute("order", order);
+        model.addAttribute("orderForm", form);
+        model.addAttribute("existingItemRows", existingCount);
+        model.addAttribute("clients", clientService.findAll());
+        model.addAttribute("products", productService.findAllActive());
+        return "orders/edit";
+    }
+
+    @PostMapping("/{id}/edit")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
+    public String edit(@PathVariable Long id, @ModelAttribute("orderForm") OrderForm form, RedirectAttributes redirectAttributes) {
+        try {
+            List<OrderItemUpdateRequest.ItemUpdate> updates = form.getItems().stream()
+                    .filter(i -> i.getItemId() != null || (i.getProductId() != null && i.getQuantity() != null))
+                    .map(i -> new OrderItemUpdateRequest.ItemUpdate(
+                            i.getItemId(), i.getQuantity() == null ? BigDecimal.ZERO : i.getQuantity(), i.getProductId()))
+                    .toList();
+            orderService.updateItems(id, updates);
+            return "redirect:/orders/" + id;
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+            return "redirect:/orders/" + id + "/edit";
+        }
     }
 
     @PostMapping("/{id}/confirm")

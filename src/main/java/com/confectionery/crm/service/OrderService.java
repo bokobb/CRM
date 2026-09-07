@@ -125,13 +125,14 @@ public class OrderService {
     }
 
     /**
-     * Корректировка состава при сборке склада ГП: часть товара может оказаться не в наличии
-     * или в меньшем количестве, чем заказано — количество можно уменьшить, позиция с
-     * количеством <= 0 удаляется из заказа целиком. Также позволяет поменять сам товар в
-     * позиции (productId), если ИИ при разборе заказа из WhatsApp ошибся с распознаванием
+     * Полное редактирование состава заказа — и корректировка при сборке склада ГП (часть
+     * товара может оказаться не в наличии или в меньшем количестве, чем заказано — количество
+     * можно уменьшить, позиция с количеством <= 0 удаляется из заказа целиком), и смена товара
+     * в позиции (productId), если ИИ при разборе заказа из WhatsApp ошибся с распознаванием
      * (например, спутал "Коржик" и "Коржик Сдоба") — цена пересчитывается по прайсу клиента
-     * для нового товара. Доступно, пока заказ ещё не отгружен/не закрыт/не отменён. Если заказ
-     * уже выгружен в 1С непроведённым документом — новый состав перезаписывается туда же (см.
+     * для нового товара, и добавление новых позиций (update с itemId == null, тогда productId
+     * обязателен). Доступно, пока заказ ещё не отгружен/не закрыт/не отменён. Если заказ уже
+     * выгружен в 1С непроведённым документом — новый состав перезаписывается туда же (см.
      * OneCOrderSyncService.trySyncOrder); если документ уже кто-то провёл в 1С руками, синхронизация
      * останавливается с ошибкой вместо того, чтобы разойтись с проводками.
      */
@@ -143,6 +144,19 @@ public class OrderService {
             throw new IllegalStateException("Состав заказа в этом статусе изменить нельзя");
         }
         for (OrderItemUpdateRequest.ItemUpdate update : updates) {
+            if (update.itemId() == null) {
+                if (update.productId() == null || update.quantity().signum() <= 0) {
+                    continue;
+                }
+                Product product = productRepository.findById(update.productId())
+                        .orElseThrow(() -> new IllegalArgumentException("Товар не найден: " + update.productId()));
+                OrderItem newItem = new OrderItem();
+                newItem.setProduct(product);
+                newItem.setQuantity(update.quantity());
+                newItem.setPrice(clientPriceService.resolvePrice(order.getClient(), product));
+                order.addItem(newItem);
+                continue;
+            }
             OrderItem item = order.getItems().stream()
                     .filter(i -> i.getId().equals(update.itemId()))
                     .findFirst()

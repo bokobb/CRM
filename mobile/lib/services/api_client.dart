@@ -677,8 +677,8 @@ class ApiClient {
     return ProductionRequest.fromJson(_decode(res));
   }
 
-  /// Повторная ручная выгрузка оприходованной заявки в 1С — на случай, если автоматическая
-  /// (сразу после оприходования последней позиции) не сработала (см.
+  /// Повторная ручная синхронизация заявки с 1С — на случай, если автоматическая (при
+  /// создании/редактировании/замене сырья/оприходовании) не сработала (см.
   /// ProductionRequestService.resyncOneC на бэкенде).
   Future<ProductionRequest> syncProductionRequestOneC(int id) async {
     final res = await http.post(
@@ -922,22 +922,25 @@ class ApiClient {
   /// quantities: itemId -> новое количество (0 или меньше — убрать позицию из заказа).
   /// [productIdByItemId] — новый товар для позиции (только для тех itemId, где ИИ
   /// распознал товар неверно), остальные позиции меняют только количество.
+  /// [newItems] — новые позиции для добавления в заказ (productId, quantity), без itemId.
   Future<Order> updateOrderItems(
     int id,
     Map<int, double> quantities, {
     Map<int, int>? productIdByItemId,
+    List<(int, double)>? newItems,
   }) async {
     final res = await http.put(
       await _uri('/orders/$id/items'),
       headers: await _authHeaders(),
       body: jsonEncode({
-        'items': quantities.entries
-            .map((e) => {
-                  'itemId': e.key,
-                  'quantity': e.value,
-                  if (productIdByItemId?[e.key] != null) 'productId': productIdByItemId![e.key],
-                })
-            .toList(),
+        'items': [
+          ...quantities.entries.map((e) => {
+                'itemId': e.key,
+                'quantity': e.value,
+                if (productIdByItemId?[e.key] != null) 'productId': productIdByItemId![e.key],
+              }),
+          ...?newItems?.map((n) => {'productId': n.$1, 'quantity': n.$2}),
+        ],
       }),
     );
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));

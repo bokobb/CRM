@@ -14,6 +14,13 @@ import '../widgets/product_avatar.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/success_feedback.dart';
 
+/// Новая позиция, добавляемая в заказ через "Скорректировать состав" — до сохранения товар
+/// может быть ещё не выбран.
+class _NewOrderRow {
+  Product? product;
+  final qty = TextEditingController();
+}
+
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
 
@@ -144,17 +151,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
-  /// Открывает выбор товара вместо позиции [item] — нужен, когда ИИ при разборе заказа из
-  /// WhatsApp распознал не тот товар (например, "Коржик" вместо "Коржик Сдоба"). Список
-  /// товаров подгружается один раз при открытии диалога редактирования состава.
-  Future<void> _pickProduct(
-    Map<int, Product> productOverrides,
-    Map<int, String> productNames,
-    StateSetter setSheetState,
-    OrderItem item,
-    List<Product> products,
-  ) async {
-    final picked = await showModalBottomSheet<Product>(
+  /// Общий выбор товара из списка (поиск по названию) — используется и для замены товара
+  /// в существующей позиции, и для выбора товара новой позиции.
+  Future<Product?> _pickAnyProduct(List<Product> products, String title) {
+    return showModalBottomSheet<Product>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -176,7 +176,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       child: TextField(
                         autofocus: true,
                         decoration: InputDecoration(
-                          labelText: 'Товар вместо "${productNames[item.id]}"',
+                          labelText: title,
                           prefixIcon: const Icon(Icons.search),
                         ),
                         onChanged: (v) => setPickerState(() => query = v),
@@ -205,6 +205,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         );
       },
     );
+  }
+
+  /// Открывает выбор товара вместо позиции [item] — нужен, когда ИИ при разборе заказа из
+  /// WhatsApp распознал не тот товар (например, "Коржик" вместо "Коржик Сдоба"). Список
+  /// товаров подгружается один раз при открытии диалога редактирования состава.
+  Future<void> _pickProduct(
+    Map<int, Product> productOverrides,
+    Map<int, String> productNames,
+    StateSetter setSheetState,
+    OrderItem item,
+    List<Product> products,
+  ) async {
+    final picked = await _pickAnyProduct(products, 'Товар вместо "${productNames[item.id]}"');
     if (picked != null) {
       setSheetState(() {
         productOverrides[item.id] = picked;
@@ -230,6 +243,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final productNames = {
       for (final item in o.items) item.id: item.productName,
     };
+    final newRows = <_NewOrderRow>[];
     String? sheetError;
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -258,57 +272,104 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                 ),
                 Expanded(
-                  child: ListView.separated(
+                  child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: o.items.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, i) {
-                      final item = o.items[i];
-                      final isOverridden = productOverrides.containsKey(item.id);
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () => _pickProduct(
-                                productOverrides,
-                                productNames,
-                                setSheetState,
-                                item,
-                                products,
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      productNames[item.id]!,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: isOverridden
-                                          ? const TextStyle(color: accent, fontWeight: FontWeight.w600)
-                                          : null,
+                    children: [
+                      for (final item in o.items) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: () => _pickProduct(
+                                  productOverrides,
+                                  productNames,
+                                  setSheetState,
+                                  item,
+                                  products,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        productNames[item.id]!,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: productOverrides.containsKey(item.id)
+                                            ? const TextStyle(color: accent, fontWeight: FontWeight.w600)
+                                            : null,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.edit, size: 15, color: Colors.grey),
-                                ],
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.edit, size: 15, color: Colors.grey),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width: 90,
-                            child: TextField(
-                              controller: controllers[item.id],
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              textAlign: TextAlign.right,
-                              decoration: const InputDecoration(isDense: true),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 90,
+                              child: TextField(
+                                controller: controllers[item.id],
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                textAlign: TextAlign.right,
+                                decoration: const InputDecoration(isDense: true),
+                              ),
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      const Divider(height: 24),
+                      const Text('Добавить товар', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 10),
+                      for (final row in newRows) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: () async {
+                                  final picked = await _pickAnyProduct(products, 'Новый товар');
+                                  if (picked != null) setSheetState(() => row.product = picked);
+                                },
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        row.product?.name ?? 'Выбрать товар…',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: row.product == null ? const TextStyle(color: Colors.grey) : null,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.edit, size: 15, color: Colors.grey),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 90,
+                              child: TextField(
+                                controller: row.qty,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                textAlign: TextAlign.right,
+                                decoration: const InputDecoration(isDense: true),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              tooltip: 'Убрать позицию',
+                              onPressed: () => setSheetState(() => newRows.remove(row)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      OutlinedButton.icon(
+                        onPressed: () => setSheetState(() => newRows.add(_NewOrderRow())),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Добавить позицию'),
+                      ),
+                    ],
                   ),
                 ),
                 Padding(
@@ -341,7 +402,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               }
                               quantities[entry.key] = v;
                             }
-                            if (quantities.values.every((v) => v <= 0)) {
+                            final newItems = <(int, double)>[];
+                            for (final row in newRows) {
+                              if (row.product == null && row.qty.text.trim().isEmpty) continue;
+                              if (row.product == null) {
+                                setSheetState(() => sheetError = 'Выберите товар для новой позиции');
+                                return;
+                              }
+                              final v = double.tryParse(row.qty.text.trim().replaceAll(',', '.'));
+                              if (v == null || v <= 0) {
+                                setSheetState(() => sheetError = 'Проверьте количество новой позиции');
+                                return;
+                              }
+                              newItems.add((row.product!.id, v));
+                            }
+                            if (quantities.values.every((v) => v <= 0) && newItems.isEmpty) {
                               setSheetState(
                                 () => sheetError = 'В заказе должна остаться хотя бы одна позиция',
                               );
@@ -355,6 +430,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 o.id,
                                 quantities,
                                 productIdByItemId: productIdByItemId.isEmpty ? null : productIdByItemId,
+                                newItems: newItems.isEmpty ? null : newItems,
                               );
                               if (context.mounted) Navigator.pop(context, true);
                             } catch (e) {
@@ -593,7 +669,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                     const SizedBox(height: 10),
                   ],
-                  if (o.status == 'NEW' && canEditItems) ...[
+                  if ((o.status == 'NEW' || o.status == 'READY') && canEditItems) ...[
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
