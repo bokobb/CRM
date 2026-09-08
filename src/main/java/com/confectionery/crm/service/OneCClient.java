@@ -337,6 +337,11 @@ class OneCClient {
      */
     private static Object jsonToJava(JsonNode node, String key) {
         if (node.isNull() || node.isMissingNode()) return null;
+        // Табличные части документа (Товары/Услуги/ОС и т.п.) приходят как JSON-массивы —
+        // не скалярные поля шапки/строки, копировать их в шаблон нельзя (и не нужно). Раньше
+        // здесь падало: в Jackson 3 asText()/asString() на ArrayNode/ObjectNode бросает
+        // исключение вместо тихого возврата "", как было в Jackson 2.
+        if (!node.isValueNode()) return null;
         if (node.isBoolean()) return node.booleanValue();
         if (node.isNumber()) return node.numberValue();
         String text = node.asText();
