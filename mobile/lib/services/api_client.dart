@@ -663,19 +663,21 @@ class ApiClient {
   }
 
   /// itemIds должны покрывать ВСЕ позиции заявки — иначе сервер отклонит сборку.
-  /// Замена сырья в позиции заявки — например, нужного не хватило на складе. quantity не
-  /// задан = оставить прежнее количество (см. ProductionRequestService.substituteItem на бэкенде).
+  /// Замена сырья в позиции заявки — например, нужного не хватило на складе. ingredientId не
+  /// задан = сырьё не меняется, правится только quantity (в этом случае quantity обязателен).
+  /// quantity не задан при заданном ingredientId = оставить прежнее количество (см.
+  /// ProductionRequestService.substituteItem на бэкенде).
   Future<ProductionRequest> substituteProductionRequestItem(
     int requestId,
-    int itemId,
-    int ingredientId, {
+    int itemId, {
+    int? ingredientId,
     double? quantity,
   }) async {
     final res = await http.post(
       await _uri('/production-requests/$requestId/items/$itemId/substitute'),
       headers: await _authHeaders(),
       body: jsonEncode({
-        'ingredientId': ingredientId,
+        if (ingredientId != null) 'ingredientId': ingredientId,
         if (quantity != null) 'quantity': quantity,
       }),
     );

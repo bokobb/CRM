@@ -185,11 +185,15 @@ public class ProductionRequestController {
         return "redirect:/production-requests/" + id;
     }
 
-    /** Замена сырья в позиции — например, нужного не хватило на складе (см. ProductionRequestService.substituteItem). */
+    /**
+     * Замена сырья в позиции — например, нужного не хватило на складе; либо, если ingredientId
+     * не передан (форма "Изменить количество" в разметке), просто правка количества без замены
+     * сырья (см. ProductionRequestService.substituteItem).
+     */
     @PostMapping("/{id}/items/{itemId}/substitute")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
     public String substituteItem(@PathVariable Long id, @PathVariable Long itemId,
-                                  @RequestParam Long ingredientId,
+                                  @RequestParam(required = false) Long ingredientId,
                                   @RequestParam(required = false) String quantity,
                                   Authentication authentication, RedirectAttributes redirectAttributes) {
         try {

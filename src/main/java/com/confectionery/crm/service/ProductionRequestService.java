@@ -287,6 +287,11 @@ public class ProductionRequestService {
      * 1:1), если не передано — остаётся прежним. Настоящее название сырья по рецепту
      * сохраняется в {@link ProductionRequestItem#getOriginalIngredientName()} — видно в
      * заявке, что здесь была замена.
+     *
+     * <p>{@code newIngredientId == null} — отдельный случай "изменить только количество, сырьё
+     * не трогать" (в этом случае {@code newQuantity} обязателен): без этого пользователю
+     * пришлось бы формально выбирать какое-то другое сырьё из списка, только чтобы поправить
+     * цифру в уже вычисленной позиции.
      */
     @Transactional
     public ProductionRequest substituteItem(Long requestId, Long itemId, Long newIngredientId,
@@ -298,25 +303,41 @@ public class ProductionRequestService {
         ProductionRequestItem item = request.getItems().stream()
                 .filter(i -> i.getId().equals(itemId)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Позиция заявки не найдена: " + itemId));
-        Ingredient newIngredient = ingredientRepository.findById(newIngredientId)
-                .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + newIngredientId));
 
-        String oldName = item.getIngredient().getName();
-        BigDecimal oldQuantity = item.getRequiredQuantity();
-        if (item.getOriginalIngredientName() == null) {
-            item.setOriginalIngredientName(oldName);
-        }
-        item.setIngredient(newIngredient);
-        if (newQuantity != null) {
+        String message;
+        if (newIngredientId == null) {
+            if (newQuantity == null) {
+                throw new IllegalArgumentException("Укажите новое количество");
+            }
             if (newQuantity.signum() <= 0) {
                 throw new IllegalArgumentException("Количество должно быть больше нуля");
             }
+            BigDecimal oldQuantity = item.getRequiredQuantity();
             item.setRequiredQuantity(newQuantity);
+            message = "Заявка №" + request.getId() + " «" + request.getTitle() + "»: количество «"
+                    + item.getIngredient().getName() + "» изменено с " + oldQuantity.stripTrailingZeros().toPlainString()
+                    + " на " + newQuantity.stripTrailingZeros().toPlainString() + " — " + by;
+        } else {
+            Ingredient newIngredient = ingredientRepository.findById(newIngredientId)
+                    .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + newIngredientId));
+
+            String oldName = item.getIngredient().getName();
+            BigDecimal oldQuantity = item.getRequiredQuantity();
+            if (item.getOriginalIngredientName() == null) {
+                item.setOriginalIngredientName(oldName);
+            }
+            item.setIngredient(newIngredient);
+            if (newQuantity != null) {
+                if (newQuantity.signum() <= 0) {
+                    throw new IllegalArgumentException("Количество должно быть больше нуля");
+                }
+                item.setRequiredQuantity(newQuantity);
+            }
+            message = "Заявка №" + request.getId() + " «" + request.getTitle() + "»: замена сырья — "
+                    + oldName + " (" + oldQuantity.stripTrailingZeros().toPlainString() + ") заменено на "
+                    + newIngredient.getName() + " (" + item.getRequiredQuantity().stripTrailingZeros().toPlainString() + ") — " + by;
         }
 
-        String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "»: замена сырья — "
-                + oldName + " (" + oldQuantity.stripTrailingZeros().toPlainString() + ") заменено на "
-                + newIngredient.getName() + " (" + item.getRequiredQuantity().stripTrailingZeros().toPlainString() + ") — " + by;
         notificationService.notifyRole(Role.ADMIN, message, null);
         notificationService.notifyRole(Role.ACCOUNTANT, message, null);
         notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);

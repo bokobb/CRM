@@ -89,7 +89,10 @@
         <div class="panel">
             <h2>Состав заявки (сырьё, общее по всем позициям)</h2>
             <table>
-                <tr><th>Сырьё</th><th>Количество</th><th>На складе</th><th th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')">Замена</th></tr>
+                <tr><th>Сырьё</th><th>Количество</th><th>На складе</th>
+                    <th th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')">Изменить кол-во</th>
+                    <th th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')">Замена</th>
+                </tr>
                 <tr th:each="i : ${request.items}"
                     th:style="${i.requiredQuantity.compareTo(i.ingredient.quantityInStock) > 0} ? 'color:#c0392b;font-weight:600' : ''">
                     <td>
@@ -100,6 +103,14 @@
                     </td>
                     <td th:text="${i.requiredQuantity} + ' ' + ${i.ingredient.unit}"></td>
                     <td th:text="${i.ingredient.quantityInStock} + ' ' + ${i.ingredient.unit}"></td>
+                    <td th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')">
+                        <!-- Без ingredientId — контроллер трактует это как "сырьё то же, меняем только количество". -->
+                        <form th:action="@{/production-requests/{id}/items/{itemId}/substitute(id=${request.id},itemId=${i.id})}"
+                              method="post" style="display:flex;gap:4px;align-items:center">
+                            <input type="number" step="0.001" name="quantity" th:value="${i.requiredQuantity}" required style="width:90px">
+                            <button class="btn small" type="submit">Сохранить</button>
+                        </form>
+                    </td>
                     <td th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')">
                         <form th:action="@{/production-requests/{id}/items/{itemId}/substitute(id=${request.id},itemId=${i.id})}"
                               method="post" style="display:flex;gap:4px;align-items:center">

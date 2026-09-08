@@ -1,9 +1,12 @@
 package com.confectionery.crm.api.dto;
 
-import jakarta.validation.constraints.NotNull;
-
 import java.math.BigDecimal;
 
-/** quantity — необязательно, null оставляет прежнее количество (см. ProductionRequestService.substituteItem). */
-public record ProductionRequestSubstituteRequest(@NotNull Long ingredientId, BigDecimal quantity) {
+/**
+ * ingredientId — необязательно: null означает "оставить прежнее сырьё, изменить только
+ * количество". quantity — тоже необязательно, если задан ingredientId: null оставляет прежнее
+ * количество (см. ProductionRequestService.substituteItem). Если оба поля null — запрос
+ * отклоняется сервисом ("Укажите новое количество").
+ */
+public record ProductionRequestSubstituteRequest(Long ingredientId, BigDecimal quantity) {
 }

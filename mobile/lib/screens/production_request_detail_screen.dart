@@ -96,7 +96,43 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
 
     final qty = double.tryParse(qtyController.text.replaceAll(',', '.'));
     try {
-      await _api.substituteProductionRequestItem(widget.requestId, item.id, picked.id, quantity: qty);
+      await _api.substituteProductionRequestItem(widget.requestId, item.id, ingredientId: picked.id, quantity: qty);
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  /// Правка количества уже вычисленной позиции сырья БЕЗ замены самого сырья — например,
+  /// рецепт даёт неточную цифру и её нужно чуть подправить руками. В отличие от
+  /// [_substitute], здесь не нужно выбирать другое сырьё из списка.
+  Future<void> _changeQuantity(ProductionRequestItem item) async {
+    final qtyController = TextEditingController(text: formatQty(item.requiredQuantity));
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Количество «${item.ingredientName}»'),
+        content: TextField(
+          controller: qtyController,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'Количество, ${item.ingredientUnit}'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final qty = double.tryParse(qtyController.text.replaceAll(',', '.'));
+    if (qty == null || qty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите корректное количество')));
+      return;
+    }
+    try {
+      await _api.substituteProductionRequestItem(widget.requestId, item.id, quantity: qty);
       await _refresh();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
@@ -318,11 +354,22 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                               _checked.remove(r.items[i].id);
                             }
                           }),
-                          trailingAction: IconButton(
-                            icon: const Icon(Icons.swap_horiz, size: 20),
-                            tooltip: 'Заменить сырьё',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => _substitute(r.items[i]),
+                          trailingAction: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 20),
+                                tooltip: 'Изменить количество',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _changeQuantity(r.items[i]),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.swap_horiz, size: 20),
+                                tooltip: 'Заменить сырьё',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _substitute(r.items[i]),
+                              ),
+                            ],
                           ),
                         ),
                     ],
