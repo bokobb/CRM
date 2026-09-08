@@ -31,8 +31,13 @@
 
         <div class="panel actions">
             <a class="btn" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')"
-               th:if="${order.status.name() != 'NEW' and order.status.name() != 'DELIVERED' and order.status.name() != 'COMPLETED' and order.status.name() != 'CANCELLED'}"
+               th:if="${order.status.name() == 'CONFIRMED' or order.status.name() == 'IN_PRODUCTION'}"
                th:href="@{/orders/{id}/edit(id=${order.id})}">Редактировать состав</a>
+            <!-- READY: не отдельная страница — заказ возвращается в NEW и редактируется тем же чек-листом сборки. -->
+            <form th:if="${order.status.name() == 'READY'}" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')"
+                  th:action="@{/orders/{id}/reopen(id=${order.id})}" method="post">
+                <button class="btn" type="submit">Редактировать состав</button>
+            </form>
             <form th:if="${order.status.name() == 'NEW'}" id="crmOrderConfirmForm" th:action="@{/orders/{id}/confirm(id=${order.id})}" method="post">
                 <button class="btn primary" type="submit" id="crmOrderConfirmBtn" disabled>Подтвердить (готов к отгрузке)</button>
             </form>

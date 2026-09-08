@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../main.dart';
 import '../models/order.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
@@ -14,13 +13,6 @@ import '../widgets/product_avatar.dart';
 import '../widgets/receipt_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/success_feedback.dart';
-
-/// Новая позиция, добавляемая в заказ через "Скорректировать состав" — до сохранения товар
-/// может быть ещё не выбран.
-class _NewOrderRow {
-  Product? product;
-  final qty = TextEditingController();
-}
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -210,27 +202,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  /// Открывает выбор товара вместо позиции [item] — нужен, когда ИИ при разборе заказа из
-  /// WhatsApp распознал не тот товар (например, "Коржик" вместо "Коржик Сдоба"). Список
-  /// товаров подгружается один раз при открытии диалога редактирования состава.
-  Future<void> _pickProduct(
-    Map<int, Product> productOverrides,
-    Map<int, String> productNames,
-    StateSetter setSheetState,
-    OrderItem item,
-    List<Product> products,
-  ) async {
-    final picked = await _pickAnyProduct(products, 'Товар вместо "${productNames[item.id]}"');
-    if (picked != null) {
-      setSheetState(() {
-        productOverrides[item.id] = picked;
-        productNames[item.id] = picked.name;
-      });
-    }
-  }
-
-  /// Точечное изменение количества одной позиции при сборке — без замены товара и без
-  /// открытия полного "Скорректировать состав" (см. [_editItemsDialog]). Аналог
+  /// Точечное изменение количества одной позиции при сборке — без замены товара. Аналог
   /// _changeQuantity в production_request_detail_screen.dart.
   Future<void> _changeItemQuantity(Order o, OrderItem item) async {
     final qtyController = TextEditingController(text: formatQty(item.quantity));
@@ -331,232 +303,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
-  }
-
-  Future<void> _editItemsDialog(Order o) async {
-    List<Product> products;
-    try {
-      products = await _api.getProducts();
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-      return;
-    }
-    if (!mounted) return;
-    final controllers = {
-      for (final item in o.items)
-        item.id: TextEditingController(text: formatQty(item.quantity)),
-    };
-    final productOverrides = <int, Product>{};
-    final productNames = {
-      for (final item in o.items) item.id: item.productName,
-    };
-    final newRows = <_NewOrderRow>[];
-    String? sheetError;
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: StatefulBuilder(
-          builder: (context, setSheetState) => SizedBox(
-            height: MediaQuery.of(context).size.height * 0.75,
-            child: Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-                  child: Text(
-                    'Скорректировать состав',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(
-                    'Если товара нет в наличии — поставьте 0, позиция будет удалена из заказа',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      for (final item in o.items) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: () => _pickProduct(
-                                  productOverrides,
-                                  productNames,
-                                  setSheetState,
-                                  item,
-                                  products,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        productNames[item.id]!,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: productOverrides.containsKey(item.id)
-                                            ? const TextStyle(color: accent, fontWeight: FontWeight.w600)
-                                            : null,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(Icons.edit, size: 15, color: Colors.grey),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            SizedBox(
-                              width: 90,
-                              child: TextField(
-                                controller: controllers[item.id],
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                textAlign: TextAlign.right,
-                                decoration: const InputDecoration(isDense: true),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      const Divider(height: 24),
-                      const Text('Добавить товар', style: TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 10),
-                      for (final row in newRows) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: () async {
-                                  final picked = await _pickAnyProduct(products, 'Новый товар');
-                                  if (picked != null) setSheetState(() => row.product = picked);
-                                },
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        row.product?.name ?? 'Выбрать товар…',
-                                        overflow: TextOverflow.ellipsis,
-                                        style: row.product == null ? const TextStyle(color: Colors.grey) : null,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(Icons.edit, size: 15, color: Colors.grey),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            SizedBox(
-                              width: 90,
-                              child: TextField(
-                                controller: row.qty,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                textAlign: TextAlign.right,
-                                decoration: const InputDecoration(isDense: true),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 18),
-                              tooltip: 'Убрать позицию',
-                              onPressed: () => setSheetState(() => newRows.remove(row)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      OutlinedButton.icon(
-                        onPressed: () => setSheetState(() => newRows.add(_NewOrderRow())),
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Добавить позицию'),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      if (sheetError != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            sheetError!,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                        ),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: () async {
-                            final quantities = <int, double>{};
-                            for (final entry in controllers.entries) {
-                              final v = double.tryParse(
-                                entry.value.text.trim().replaceAll(',', '.'),
-                              );
-                              if (v == null) {
-                                setSheetState(
-                                  () => sheetError =
-                                      'Проверьте введённые количества',
-                                );
-                                return;
-                              }
-                              quantities[entry.key] = v;
-                            }
-                            final newItems = <(int, double)>[];
-                            for (final row in newRows) {
-                              if (row.product == null && row.qty.text.trim().isEmpty) continue;
-                              if (row.product == null) {
-                                setSheetState(() => sheetError = 'Выберите товар для новой позиции');
-                                return;
-                              }
-                              final v = double.tryParse(row.qty.text.trim().replaceAll(',', '.'));
-                              if (v == null || v <= 0) {
-                                setSheetState(() => sheetError = 'Проверьте количество новой позиции');
-                                return;
-                              }
-                              newItems.add((row.product!.id, v));
-                            }
-                            if (quantities.values.every((v) => v <= 0) && newItems.isEmpty) {
-                              setSheetState(
-                                () => sheetError = 'В заказе должна остаться хотя бы одна позиция',
-                              );
-                              return;
-                            }
-                            final productIdByItemId = {
-                              for (final e in productOverrides.entries) e.key: e.value.id,
-                            };
-                            try {
-                              await _api.updateOrderItems(
-                                o.id,
-                                quantities,
-                                productIdByItemId: productIdByItemId.isEmpty ? null : productIdByItemId,
-                                newItems: newItems.isEmpty ? null : newItems,
-                              );
-                              if (context.mounted) Navigator.pop(context, true);
-                            } catch (e) {
-                              setSheetState(() => sheetError = e.toString());
-                            }
-                          },
-                          child: const Text('Сохранить'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    if (saved == true) await _refresh();
   }
 
   Future<void> _setDebtDialog(Order o) async {
@@ -845,7 +591,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       child: OutlinedButton.icon(
                         onPressed: _actionInProgress
                             ? null
-                            : () => _editItemsDialog(o),
+                            : () => _runAction(() => _api.reopenOrder(o.id)),
                         icon: const Icon(Icons.edit_outlined),
                         label: const Text('Редактировать состав'),
                       ),

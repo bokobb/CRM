@@ -101,6 +101,13 @@ public class OrderApiController {
         return OrderDto.from(orderService.confirm(id));
     }
 
+    /** Вернуть заказ READY -> NEW, чтобы редактировать состав чек-листом сборки (см. OrderService.reopenForEditing). */
+    @PostMapping("/{id}/reopen")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
+    public OrderDto reopen(@PathVariable Long id) {
+        return OrderDto.from(orderService.reopenForEditing(id));
+    }
+
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
     public OrderDto cancel(@PathVariable Long id) {

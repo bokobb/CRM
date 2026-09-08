@@ -886,6 +886,16 @@ class ApiClient {
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
+  /// Вернуть заказ READY -> NEW ("В процессе сборки"), чтобы редактировать состав тем же
+  /// чек-листом, что и при первичной сборке (см. OrderService.reopenForEditing на бэкенде).
+  Future<Order> reopenOrder(int id) async {
+    final res = await http.post(
+      await _uri('/orders/$id/reopen'),
+      headers: await _authHeaders(),
+    );
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
+  }
+
   Future<Order> cancelOrder(int id) async {
     final res = await http.post(
       await _uri('/orders/$id/cancel'),

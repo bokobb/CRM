@@ -181,6 +181,18 @@ public class OrderController {
         return "redirect:/orders/" + id;
     }
 
+    /** Вернуть заказ READY -> NEW, чтобы редактировать состав чек-листом сборки (см. OrderService.reopenForEditing). */
+    @PostMapping("/{id}/reopen")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
+    public String reopen(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            orderService.reopenForEditing(id);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/orders/" + id;
+    }
+
     @PostMapping("/{id}/confirm")
     @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN')")
     public String confirm(@PathVariable Long id, RedirectAttributes redirectAttributes) {
