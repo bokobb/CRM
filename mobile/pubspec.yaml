@@ -37,6 +37,7 @@ dependencies:
   http: ^1.2.2
   http_parser: ^4.1.2
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.2
   shared_preferences: ^2.3.3
   intl: ^0.20.1
   share_plus: ^10.1.4

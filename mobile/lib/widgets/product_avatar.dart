@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'app_list_tile.dart';
+import 'timeout_cache_manager.dart';
 
 /// Круглая миниатюра товара для списков — фото, если оно есть, иначе буква названия
 /// (тот же InitialAvatar, что и раньше). Единая точка, чтобы фото сразу появлялось везде,
@@ -30,6 +31,7 @@ class ProductAvatar extends StatelessWidget {
     return ClipOval(
       child: CachedNetworkImage(
         imageUrl: url,
+        cacheManager: TimeoutCacheManager(),
         width: size,
         height: size,
         fit: BoxFit.cover,

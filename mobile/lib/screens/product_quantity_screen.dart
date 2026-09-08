@@ -5,6 +5,7 @@ import '../main.dart';
 import '../models/product.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/format.dart';
+import '../widgets/timeout_cache_manager.dart';
 
 /// Экран "товар крупным планом": картинка на половину экрана, степпер количества
 /// поверх неё и большая кнопка снизу — используется при добавлении/редактировании
@@ -252,6 +253,7 @@ class _ProductImage extends StatelessWidget {
     final cacheWidth = (MediaQuery.of(context).size.width * MediaQuery.of(context).devicePixelRatio).round();
     return CachedNetworkImage(
       imageUrl: url,
+      cacheManager: TimeoutCacheManager(),
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,

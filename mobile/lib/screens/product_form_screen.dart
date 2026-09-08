@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../main.dart';
 import '../services/api_client.dart';
+import '../widgets/timeout_cache_manager.dart';
 
 class ProductFormScreen extends StatefulWidget {
   final int? productId;
@@ -215,6 +216,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     } else if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
       child = CachedNetworkImage(
         imageUrl: _existingImageUrl!,
+        cacheManager: TimeoutCacheManager(),
         fit: BoxFit.cover,
         errorWidget: (context, url, error) => const Icon(Icons.image_not_supported_outlined, color: Colors.grey),
       );
