@@ -435,7 +435,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       for (int i = 0; i < o.items.length; i++)
                         ReceiptRow(
                           index: i + 1,
-                          name: o.items[i].productName,
+                          name: o.items[i].isInsufficient
+                              ? '${o.items[i].productName}\n(на складе: ${formatQty(o.items[i].availableQuantity)}'
+                                  ' ${o.items[i].productUnit ?? "шт"})'
+                              : o.items[i].productName,
                           qty: '${formatQty(o.items[i].quantity)} × ${formatMoney(o.items[i].price)}',
                           checkbox: _checkedItems.contains(o.items[i].id),
                           insufficient: o.items[i].isInsufficient,
@@ -466,18 +469,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         ),
                     ],
                     footer: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          o.items.any((i) => i.isInsufficient)
-                              ? 'Не хватает на складе — отмечено красным'
-                              : 'Отмечено ${_checkedItems.length} из ${o.items.length}',
-                          style: TextStyle(
-                            color: o.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
-                            fontSize: 12.5,
-                            fontWeight: o.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
+                        Expanded(
+                          child: Text(
+                            o.items.any((i) => i.isInsufficient)
+                                ? 'Не хватает на складе — отмечено красным'
+                                : 'Отмечено ${_checkedItems.length} из ${o.items.length}',
+                            softWrap: true,
+                            style: TextStyle(
+                              color: o.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
+                              fontSize: 12.5,
+                              fontWeight: o.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(formatMoney(o.totalPrice), style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
