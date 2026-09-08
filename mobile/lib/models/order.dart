@@ -23,25 +23,35 @@ class OrderItem {
   final int productId;
   final String productName;
   final String? productImageUrl;
+  final String? productUnit;
   final double quantity;
   final double price;
+  final double availableQuantity;
 
   OrderItem({
     required this.id,
     required this.productId,
     required this.productName,
     this.productImageUrl,
+    this.productUnit,
     required this.quantity,
     required this.price,
+    this.availableQuantity = 0,
   });
+
+  /// Товара на складе меньше, чем заказано — строка красным в чек-листе сборки (см.
+  /// production_request.dart / ProductionRequestItem.isInsufficient — тот же приём).
+  bool get isInsufficient => availableQuantity < quantity;
 
   factory OrderItem.fromJson(Map<String, dynamic> json) => OrderItem(
     id: json['id'] as int,
     productId: json['productId'] as int,
     productName: json['productName'] as String,
     productImageUrl: json['productImageUrl'] as String?,
+    productUnit: json['productUnit'] as String?,
     quantity: (json['quantity'] as num).toDouble(),
     price: (json['price'] as num).toDouble(),
+    availableQuantity: (json['availableQuantity'] as num?)?.toDouble() ?? 0,
   );
 
   /// Копия с абсолютным productImageUrl — сервер отдаёт относительный путь для загруженных
@@ -51,8 +61,10 @@ class OrderItem {
     productId: productId,
     productName: productName,
     productImageUrl: url,
+    productUnit: productUnit,
     quantity: quantity,
     price: price,
+    availableQuantity: availableQuantity,
   );
 }
 

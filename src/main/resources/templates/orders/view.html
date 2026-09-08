@@ -31,10 +31,10 @@
 
         <div class="panel actions">
             <a class="btn" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')"
-               th:if="${order.status.name() != 'DELIVERED' and order.status.name() != 'COMPLETED' and order.status.name() != 'CANCELLED'}"
+               th:if="${order.status.name() != 'NEW' and order.status.name() != 'DELIVERED' and order.status.name() != 'COMPLETED' and order.status.name() != 'CANCELLED'}"
                th:href="@{/orders/{id}/edit(id=${order.id})}">Редактировать состав</a>
-            <form th:if="${order.status.name() == 'NEW'}" th:action="@{/orders/{id}/confirm(id=${order.id})}" method="post">
-                <button class="btn primary" type="submit">Подтвердить (готов к отгрузке)</button>
+            <form th:if="${order.status.name() == 'NEW'}" id="crmOrderConfirmForm" th:action="@{/orders/{id}/confirm(id=${order.id})}" method="post">
+                <button class="btn primary" type="submit" id="crmOrderConfirmBtn" disabled>Подтвердить (готов к отгрузке)</button>
             </form>
             <form th:if="${order.status.name() == 'READY'}" th:action="@{/orders/{id}/deliver(id=${order.id})}" method="post">
                 <input type="text" name="vehicleNumber" placeholder="Гос. номер ТС" required>
@@ -69,19 +69,62 @@
         <div class="grid cols-2">
             <div class="panel">
                 <h2>Состав заказа</h2>
+                <p class="subtitle" th:if="${order.status.name() == 'NEW'}" style="margin:0 0 12px">
+                    Отметьте каждую позицию по мере сборки — кнопка "Подтвердить" активируется, когда все отмечены.
+                    Красным — не хватает на складе.
+                </p>
                 <table>
-                    <tr><th>Товар</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr>
-                    <tr th:each="i : ${order.items}">
+                    <tr>
+                        <th th:if="${order.status.name() == 'NEW'}"></th>
+                        <th>Товар</th><th>Кол-во</th><th>Цена</th><th>Сумма</th>
+                        <th th:if="${order.status.name() == 'NEW'}">На складе</th>
+                        <th th:if="${order.status.name() == 'NEW'}" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')">Изменить кол-во</th>
+                        <th th:if="${order.status.name() == 'NEW'}" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')"></th>
+                    </tr>
+                    <tr th:each="i : ${order.items}"
+                        th:style="${order.status.name() == 'NEW' and i.quantity.compareTo(i.product.quantityInStock) > 0} ? 'color:#c0392b;font-weight:600' : ''">
+                        <td th:if="${order.status.name() == 'NEW'}">
+                            <input type="checkbox" class="crm-order-collect-check" name="itemIds" th:value="${i.id}"
+                                   form="crmOrderConfirmForm" onchange="crmCheckAllOrderCollected()">
+                        </td>
                         <td th:text="${i.product.name}"></td>
                         <td th:text="${i.quantity}"></td>
                         <td th:text="${i.price} + ' ₸'"></td>
                         <td th:text="${i.price * i.quantity} + ' ₸'"></td>
+                        <td th:if="${order.status.name() == 'NEW'}" th:text="${i.product.quantityInStock} + ' ' + ${i.product.unit}"></td>
+                        <td th:if="${order.status.name() == 'NEW'}" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')">
+                            <form th:action="@{/orders/{id}/items/{itemId}/quantity(id=${order.id},itemId=${i.id})}"
+                                  method="post" style="display:flex;gap:4px;align-items:center">
+                                <input type="number" step="0.001" name="quantity" th:value="${i.quantity}" required style="width:80px">
+                                <button class="btn small" type="submit">Сохранить</button>
+                            </form>
+                        </td>
+                        <td th:if="${order.status.name() == 'NEW'}" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')">
+                            <form th:action="@{/orders/{id}/items/{itemId}/delete(id=${order.id},itemId=${i.id})}"
+                                  method="post" onsubmit="return confirm('Удалить позицию из заказа?');">
+                                <button class="btn small danger" type="submit">Удалить</button>
+                            </form>
+                        </td>
                     </tr>
                     <tr>
+                        <td th:if="${order.status.name() == 'NEW'}"></td>
                         <td colspan="3"><strong>Итого</strong></td>
                         <td><strong th:text="${order.totalPrice} + ' ₸'"></strong></td>
+                        <td th:if="${order.status.name() == 'NEW'}" colspan="3"></td>
                     </tr>
                 </table>
+
+                <form th:if="${order.status.name() == 'NEW'}" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')"
+                      th:action="@{/orders/{id}/items/add(id=${order.id})}" method="post"
+                      style="display:flex;gap:6px;align-items:center;margin-top:12px">
+                    <select name="productId" required style="width:auto">
+                        <option value="" disabled selected>— товар —</option>
+                        <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
+                    </select>
+                    <input type="number" step="0.001" min="0.001" name="quantity" placeholder="Кол-во" required style="width:90px">
+                    <button class="btn small" type="submit">Добавить позицию</button>
+                </form>
+
                 <p th:if="${order.notes}" style="margin-top:12px;color:var(--muted)" th:text="${order.notes}"></p>
                 <p th:if="${order.vehicleNumber}" style="margin-top:12px">
                     <strong>Отгружено:</strong> ТС <span th:text="${order.vehicleNumber}"></span>
@@ -106,5 +149,12 @@
         </div>
     </main>
 </div>
+<script th:inline="none" th:if="${order.status.name() == 'NEW'}">
+    function crmCheckAllOrderCollected() {
+        var boxes = document.querySelectorAll('.crm-order-collect-check');
+        var allChecked = boxes.length > 0 && Array.prototype.every.call(boxes, function (b) { return b.checked; });
+        document.getElementById('crmOrderConfirmBtn').disabled = !allChecked;
+    }
+</script>
 </body>
 </html>

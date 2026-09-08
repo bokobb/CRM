@@ -86,6 +86,7 @@ public class OrderController {
     public String view(@PathVariable Long id, Model model) {
         model.addAttribute("activePage", "orders");
         model.addAttribute("order", orderService.findById(id));
+        model.addAttribute("products", productService.findAllActive());
         return "orders/view";
     }
 
@@ -135,6 +136,49 @@ public class OrderController {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
             return "redirect:/orders/" + id + "/edit";
         }
+    }
+
+    /**
+     * Точечное изменение количества одной позиции при сборке (см. orders/view.html, статус
+     * NEW — чек-лист сборки с колонкой "Изменить кол-во") — тонкая обёртка над
+     * {@link OrderService#updateItems}, чтобы не тащить пользователя на отдельную страницу
+     * редактирования ради одной цифры.
+     */
+    @PostMapping("/{id}/items/{itemId}/quantity")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
+    public String updateItemQuantity(@PathVariable Long id, @PathVariable Long itemId,
+                                      @RequestParam BigDecimal quantity, RedirectAttributes redirectAttributes) {
+        try {
+            orderService.updateItems(id, List.of(new OrderItemUpdateRequest.ItemUpdate(itemId, quantity, null)));
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/orders/" + id;
+    }
+
+    /** Удалить одну позицию из состава заказа при сборке (см. orders/view.html, статус NEW). */
+    @PostMapping("/{id}/items/{itemId}/delete")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
+    public String deleteItem(@PathVariable Long id, @PathVariable Long itemId, RedirectAttributes redirectAttributes) {
+        try {
+            orderService.updateItems(id, List.of(new OrderItemUpdateRequest.ItemUpdate(itemId, BigDecimal.ZERO, null)));
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/orders/" + id;
+    }
+
+    /** Добавить новую позицию в состав заказа при сборке (см. orders/view.html, статус NEW). */
+    @PostMapping("/{id}/items/add")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
+    public String addItem(@PathVariable Long id, @RequestParam Long productId, @RequestParam BigDecimal quantity,
+                           RedirectAttributes redirectAttributes) {
+        try {
+            orderService.updateItems(id, List.of(new OrderItemUpdateRequest.ItemUpdate(null, quantity, productId)));
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/orders/" + id;
     }
 
     @PostMapping("/{id}/confirm")

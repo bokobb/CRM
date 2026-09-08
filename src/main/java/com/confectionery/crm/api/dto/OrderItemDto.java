@@ -9,11 +9,14 @@ public record OrderItemDto(
         Long productId,
         String productName,
         String productImageUrl,
+        String productUnit,
         BigDecimal quantity,
-        BigDecimal price
+        BigDecimal price,
+        BigDecimal availableQuantity
 ) {
     public static OrderItemDto from(OrderItem item) {
         return new OrderItemDto(item.getId(), item.getProduct().getId(), item.getProduct().getName(),
-                item.getProduct().getImageUrl(), item.getQuantity(), item.getPrice());
+                item.getProduct().getImageUrl(), item.getProduct().getUnit(), item.getQuantity(), item.getPrice(),
+                item.getProduct().getQuantityInStock());
     }
 }
