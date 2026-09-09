@@ -12,8 +12,10 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Синхронизация остатков из 1С:Fresh — только чтение, обратно в 1С ничего не пишем.
@@ -83,6 +85,8 @@ public class OneCStockSyncService {
         int productsUpdated = 0;
         int ingredientsUpdated = 0;
         List<String> unmatched = new ArrayList<>();
+        Set<Long> seenProductIds = new HashSet<>();
+        Set<Long> seenIngredientIds = new HashSet<>();
 
         for (OneCClient.AccountBalanceRow row : rows) {
             String name = nomenclatureNames.get(row.nomenclatureKey());
@@ -94,6 +98,7 @@ public class OneCStockSyncService {
                     unmatched.add(NOMENCLATURE_KIND_PRODUCT + ": " + name);
                     continue;
                 }
+                seenProductIds.add(product.getId());
                 if (applyProductQuantity(product, row.quantity())) productsUpdated++;
             } else if (row.accountKey().equals(materialsAccountKey) && row.warehouseKey().equals(materialsWarehouseKey)) {
                 Ingredient ingredient = matchIngredient(name, ingredients);
@@ -101,8 +106,29 @@ public class OneCStockSyncService {
                     unmatched.add(NOMENCLATURE_KIND_INGREDIENT + ": " + name);
                     continue;
                 }
+                seenIngredientIds.add(ingredient.getId());
                 if (applyIngredientQuantity(ingredient, row.quantity())) ingredientsUpdated++;
             }
+        }
+
+        // Регистр остатков 1С отдаёт строку только для НЕнулевого остатка — если товар/сырьё
+        // полностью закончилось в 1С, строки для него в rows вообще не будет (это норма для
+        // регистров остатков, не ошибка 1С). Поэтому то, что есть в каталоге 1С (по названию),
+        // но не встретилось ни в одной строке остатков, обнуляем явно — иначе остаток в CRM
+        // так и останется прежним, "зависшим" на последнем ненулевом значении.
+        Set<String> oneCNames = new HashSet<>();
+        for (String name : nomenclatureNames.values()) {
+            if (name != null && !name.isBlank()) oneCNames.add(name.trim().toLowerCase());
+        }
+        for (Product product : products) {
+            if (seenProductIds.contains(product.getId())) continue;
+            if (!oneCNames.contains(product.getName().trim().toLowerCase())) continue;
+            if (applyProductQuantity(product, BigDecimal.ZERO)) productsUpdated++;
+        }
+        for (Ingredient ingredient : ingredients) {
+            if (seenIngredientIds.contains(ingredient.getId())) continue;
+            if (!oneCNames.contains(ingredient.getName().trim().toLowerCase())) continue;
+            if (applyIngredientQuantity(ingredient, BigDecimal.ZERO)) ingredientsUpdated++;
         }
 
         return new SyncResult(productsUpdated, ingredientsUpdated, unmatched);
