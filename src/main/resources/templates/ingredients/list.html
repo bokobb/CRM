@@ -20,10 +20,20 @@
                placeholder="Поиск сырья по названию…" oninput="crmFilterIngredients()"
                th:if="${not #lists.isEmpty(ingredients)}">
 
+        <div class="sort-toolbar" th:if="${not #lists.isEmpty(ingredients)}">
+            <button type="button" class="btn small" onclick="crmCycleIngredientSort()">
+                Сортировка: <span id="crm-ingredient-sort-label"></span>
+            </button>
+        </div>
+
         <div class="panel">
-            <table th:if="${not #lists.isEmpty(ingredients)}">
-                <tr><th>Название</th><th>Остаток</th><th>Минимум</th><th></th><th></th></tr>
-                <tr th:each="i : ${ingredients}" th:attr="data-name=${#strings.toLowerCase(i.name)}">
+            <table id="crm-ingredient-table" th:if="${not #lists.isEmpty(ingredients)}">
+                <tr>
+                    <th>Название</th>
+                    <th>Остаток</th>
+                    <th>Минимум</th><th></th><th></th>
+                </tr>
+                <tr th:each="i : ${ingredients}" th:attr="data-name=${#strings.toLowerCase(i.name)},data-qty=${i.quantityInStock}">
                     <td th:text="${i.name}"></td>
                     <td th:classappend="${i.lowStock} ? 'low-stock-row'" th:text="${i.quantityInStock} + ' ' + ${i.unit}"></td>
                     <td th:text="${i.minThreshold} + ' ' + ${i.unit}"></td>
@@ -53,6 +63,37 @@
         });
         document.getElementById('crm-ingredient-empty').style.display = visible === 0 ? '' : 'none';
     }
+
+    // Один переключатель вместо двух отдельных кнопок — по умолчанию количество по убыванию
+    // (самые большие остатки сверху), клик -> количество по возрастанию, клик -> по названию,
+    // клик -> снова по умолчанию.
+    var crmIngredientMode = 'qty_desc';
+    function crmIngredientModeLabel(mode) {
+        if (mode === 'qty_asc') return 'Количество ▲';
+        if (mode === 'name_asc') return 'Название ▲';
+        return 'Количество ▼';
+    }
+    function crmCycleIngredientSort() {
+        crmIngredientMode = crmIngredientMode === 'qty_desc' ? 'qty_asc'
+            : crmIngredientMode === 'qty_asc' ? 'name_asc' : 'qty_desc';
+        crmApplyIngredientSort();
+    }
+    function crmApplyIngredientSort() {
+        var table = document.getElementById('crm-ingredient-table');
+        if (!table) return;
+        var tbody = table.tBodies[0];
+        var rows = Array.prototype.slice.call(table.querySelectorAll('tr[data-name]'));
+        rows.sort(function (a, b) {
+            if (crmIngredientMode === 'name_asc') {
+                return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'), 'ru');
+            }
+            var diff = parseFloat(a.getAttribute('data-qty')) - parseFloat(b.getAttribute('data-qty'));
+            return crmIngredientMode === 'qty_asc' ? diff : -diff;
+        });
+        rows.forEach(function (row) { tbody.appendChild(row); });
+        document.getElementById('crm-ingredient-sort-label').textContent = crmIngredientModeLabel(crmIngredientMode);
+    }
+    crmApplyIngredientSort();
 </script>
 </body>
 </html>

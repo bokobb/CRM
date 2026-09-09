@@ -265,6 +265,7 @@ textarea { min-height: 80px; resize: vertical; }
   background-size: 16px;
   padding-left: 36px;
 }
+.sort-toolbar { display: flex; gap: 8px; margin-bottom: 18px; }
 .category-section { margin-bottom: 28px; }
 .category-section h2 { display: flex; align-items: baseline; gap: 8px; }
 .category-count { color: var(--muted); font-size: 13px; font-weight: 400; }

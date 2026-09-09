@@ -15,11 +15,45 @@ class IngredientsScreen extends StatefulWidget {
   State<IngredientsScreen> createState() => _IngredientsScreenState();
 }
 
+/// Один переключатель сортировки вместо отдельных полей/направлений — по умолчанию
+/// количество по убыванию (самые большие остатки сверху), тап -> по возрастанию, тап -> по
+/// названию, тап -> снова по умолчанию.
+enum _SortMode {
+  qtyDesc(Icons.arrow_downward, 'Количество ▼'),
+  qtyAsc(Icons.arrow_upward, 'Количество ▲'),
+  nameAsc(Icons.sort_by_alpha, 'Название ▲');
+
+  final IconData icon;
+  final String label;
+
+  const _SortMode(this.icon, this.label);
+
+  _SortMode get next => switch (this) {
+        _SortMode.qtyDesc => _SortMode.qtyAsc,
+        _SortMode.qtyAsc => _SortMode.nameAsc,
+        _SortMode.nameAsc => _SortMode.qtyDesc,
+      };
+}
+
 class _IngredientsScreenState extends State<IngredientsScreen> {
   final _api = ApiClient();
   late Future<List<Ingredient>> _future;
   bool _lowStockOnly = false;
   String _query = '';
+  _SortMode _sortMode = _SortMode.qtyDesc;
+
+  List<Ingredient> _sortIngredients(List<Ingredient> ingredients) {
+    final sorted = [...ingredients];
+    switch (_sortMode) {
+      case _SortMode.qtyDesc:
+        sorted.sort((a, b) => b.quantityInStock.compareTo(a.quantityInStock));
+      case _SortMode.qtyAsc:
+        sorted.sort((a, b) => a.quantityInStock.compareTo(b.quantityInStock));
+      case _SortMode.nameAsc:
+        sorted.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    }
+    return sorted;
+  }
 
   @override
   void initState() {
@@ -71,6 +105,11 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
             tooltip: 'Только дефицит',
             onPressed: () => setState(() => _lowStockOnly = !_lowStockOnly),
           ),
+          IconButton(
+            icon: Icon(_sortMode.icon),
+            tooltip: 'Сортировка: ${_sortMode.label}',
+            onPressed: () => setState(() => _sortMode = _sortMode.next),
+          ),
         ],
       ),
       drawer: const AppDrawer(currentRoute: '/warehouse'),
@@ -100,6 +139,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
               final q = _query.toLowerCase();
               ingredients = ingredients.where((i) => i.name.toLowerCase().contains(q)).toList();
             }
+            ingredients = _sortIngredients(ingredients);
             if (ingredients.isEmpty) {
               return ListView(children: [
                 Padding(

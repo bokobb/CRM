@@ -17,11 +17,45 @@ class ProductStockScreen extends StatefulWidget {
   State<ProductStockScreen> createState() => _ProductStockScreenState();
 }
 
+/// Один переключатель сортировки вместо отдельных полей/направлений — по умолчанию
+/// количество по убыванию (самые большие остатки сверху), тап -> по возрастанию, тап -> по
+/// названию, тап -> снова по умолчанию.
+enum _SortMode {
+  qtyDesc(Icons.arrow_downward, 'Количество ▼'),
+  qtyAsc(Icons.arrow_upward, 'Количество ▲'),
+  nameAsc(Icons.sort_by_alpha, 'Название ▲');
+
+  final IconData icon;
+  final String label;
+
+  const _SortMode(this.icon, this.label);
+
+  _SortMode get next => switch (this) {
+        _SortMode.qtyDesc => _SortMode.qtyAsc,
+        _SortMode.qtyAsc => _SortMode.nameAsc,
+        _SortMode.nameAsc => _SortMode.qtyDesc,
+      };
+}
+
 class _ProductStockScreenState extends State<ProductStockScreen> {
   final _api = ApiClient();
   late Future<List<Product>> _future;
   String _query = '';
   bool _syncing = false;
+  _SortMode _sortMode = _SortMode.qtyDesc;
+
+  List<Product> _sort(List<Product> products) {
+    final sorted = [...products];
+    switch (_sortMode) {
+      case _SortMode.qtyDesc:
+        sorted.sort((a, b) => b.quantityInStock.compareTo(a.quantityInStock));
+      case _SortMode.qtyAsc:
+        sorted.sort((a, b) => a.quantityInStock.compareTo(b.quantityInStock));
+      case _SortMode.nameAsc:
+        sorted.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    }
+    return sorted;
+  }
 
   @override
   void initState() {
@@ -73,6 +107,11 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
         hintText: 'Название товара...',
         onQueryChanged: (v) => setState(() => _query = v),
         extraActions: [
+          IconButton(
+            icon: Icon(_sortMode.icon),
+            tooltip: 'Сортировка: ${_sortMode.label}',
+            onPressed: () => setState(() => _sortMode = _sortMode.next),
+          ),
           if (ApiClient.currentSession?.role == 'ADMIN')
             IconButton(
               icon: _syncing
@@ -99,7 +138,7 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
             if (snapshot.hasError) {
               return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
             }
-            final products = _filter(snapshot.data!);
+            final products = _sort(_filter(snapshot.data!));
             if (products.isEmpty) {
               return ListView(children: [
                 Padding(
