@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,18 +24,17 @@ import java.util.Map;
 
 /**
  * При оформлении закупки в CRM (см. PurchaseService.create) создаёт в 1С документ "Поступление
- * товаров и услуг" — НЕпроведённым (Posted:false), бухгалтер проверяет и проводит сам, как и
- * "Реализацию" по заказам (см. OneCOrderSyncService). Все позиции закупки (см. PurchaseItem) —
- * одним документом, вид операции и аналитика шапки/строк берутся с ЛЮБОГО существующего в базе
- * документа этого типа (см. OneCClient.findAnyGoodsReceiptTemplate/findAnyGoodsReceiptLineTemplate) —
- * тот же приём, что и у "Реализации"/"Оприходования".
+ * товаров и услуг" — сразу проведённым (Posted:true), как и "Оприходование товаров" (см.
+ * OneCReceiptSyncService), с тем же временем документа 06:00 — чтобы попадал в тот же
+ * хронологический порядок, что и остальные документы дня. Все позиции закупки (см.
+ * PurchaseItem) — одним документом, вид операции и аналитика шапки/строк берутся с ЛЮБОГО
+ * существующего в базе документа этого типа (см.
+ * OneCClient.findAnyGoodsReceiptTemplate/findAnyGoodsReceiptLineTemplate) — тот же приём, что и
+ * у "Реализации"/"Оприходования".
  *
- * <p><b>Внимание:</b> этот сервис, в отличие от остальной интеграции с 1С в проекте, НЕ
- * проверялся на реальной базе клиента (нет доступа к тестовому стенду 1С из среды разработки) —
- * названия набора {@code Document_ПоступлениеТоваровУслуг}/{@code ..._Товары} и состав полей
- * шапки взяты по стандартной конфигурации 1С:Бухгалтерия/Fresh. Если 1С отклонит документ —
- * причина попадёт в {@link Purchase#getOneCSyncError()} как обычно, нужно будет свериться с
- * реальным документом в 1С и поправить набор полей здесь.
+ * <p>Проверено на реальной базе клиента (2026-09-09, закупка №14 — документ №00000000146,
+ * все поля шапки и табличной части подтверждены через OData). Если 1С всё же отклонит
+ * документ — причина попадёт в {@link Purchase#getOneCSyncError()} как обычно.
  *
  * <p>Best-effort — закупка в CRM уже сохранена и не откатывается, если 1С недоступна или
  * что-то не сопоставилось; причина пишется в {@link Purchase#getOneCSyncError()} и уходит
@@ -46,6 +46,7 @@ import java.util.Map;
 public class OneCPurchaseSyncService {
 
     private static final DateTimeFormatter ONEC_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    private static final LocalTime PURCHASE_TIME = LocalTime.of(6, 0);
 
     private final OneCClient oneCClient;
     private final PurchaseRepository purchaseRepository;
@@ -66,12 +67,34 @@ public class OneCPurchaseSyncService {
         try {
             sync(purchase);
         } catch (Exception e) {
-            log.warn("Не удалось выгрузить закупку №{} в 1С: {}", purchase.getId(), e.getMessage());
-            purchase.setOneCSyncError(e.getMessage());
-            purchaseRepository.save(purchase);
-            notificationService.notifyRole(Role.ADMIN,
-                    "Закупка №" + purchase.getId() + " не выгружена в 1С: " + e.getMessage(), null);
+            onSyncFailure(purchase, e);
         }
+    }
+
+    /**
+     * То же самое, что {@link #trySyncPurchase}, но для ручной повторной попытки (см.
+     * PurchaseService.resyncOneC) — бросает исключение вместо тихого логирования, если 1С не
+     * настроена или синхронизация не удалась, чтобы пользователь увидел причину.
+     */
+    @Transactional
+    public void syncOrThrow(Purchase purchase) {
+        if (!oneCClient.isConfigured()) {
+            throw new IllegalStateException("Подключение к 1С не настроено (crm.onec.base-url/username/password)");
+        }
+        try {
+            sync(purchase);
+        } catch (Exception e) {
+            onSyncFailure(purchase, e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+    }
+
+    private void onSyncFailure(Purchase purchase, Exception e) {
+        log.warn("Не удалось выгрузить закупку №{} в 1С: {}", purchase.getId(), e.getMessage());
+        purchase.setOneCSyncError(e.getMessage());
+        purchaseRepository.save(purchase);
+        notificationService.notifyRole(Role.ADMIN,
+                "Закупка №" + purchase.getId() + " не выгружена в 1С: " + e.getMessage(), null);
     }
 
     private void sync(Purchase purchase) {
@@ -118,8 +141,13 @@ public class OneCPurchaseSyncService {
         }
 
         Map<String, Object> body = new LinkedHashMap<>(headerTemplate);
-        body.put("Date", ONEC_DATE.format(purchase.getPurchaseDate().atTime(12, 0)));
-        body.put("Posted", false);
+        body.put("Date", ONEC_DATE.format(LocalDateTime.of(purchase.getPurchaseDate(), PURCHASE_TIME)));
+        body.put("Posted", true);
+        // Не берём из шаблона (см. OneCClient.findAnyGoodsReceiptTemplate) — "любой" документ
+        // в базе может быть другого вида операции (обнаружено на закупке №13: шаблоном
+        // случайно оказался документ "ОсновныеСредства", из-за чего товары не попадали в
+        // табличную часть и документ уходил не в тот раздел 1С).
+        body.put("ВидОперации", "Товары");
         body.put("Организация_Key", organizationKey);
         body.put("Контрагент_Key", counterparty.getOneCContragentKey());
         body.put("ДоговорКонтрагента_Key", counterparty.getOneCContractKey());
@@ -132,7 +160,7 @@ public class OneCPurchaseSyncService {
         purchase.setOneCDocumentNumber(created.number());
         purchase.setOneCSyncError(null);
         purchaseRepository.save(purchase);
-        log.info("Закупка №{} выгружена в 1С непроведённым документом №{}", purchase.getId(), created.number());
+        log.info("Закупка №{} выгружена в 1С проведённым документом №{}", purchase.getId(), created.number());
     }
 
     private String resolveIngredientKey(Ingredient ingredient) {

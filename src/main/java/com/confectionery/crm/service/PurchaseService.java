@@ -43,6 +43,19 @@ public class PurchaseService {
         return purchaseRepository.findByPurchaseDateBetweenOrderByCreatedAtDesc(from, to);
     }
 
+    public Purchase findById(Long id) {
+        return purchaseRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Закупка не найдена: " + id));
+    }
+
+    /** Повторная ручная выгрузка в 1С — см. OneCPurchaseSyncService.syncOrThrow. */
+    @Transactional
+    public Purchase resyncOneC(Long id) {
+        Purchase purchase = findById(id);
+        oneCPurchaseSyncService.syncOrThrow(purchase);
+        return purchase;
+    }
+
     @Transactional
     public Purchase create(Long counterpartyId, List<ItemInput> items, LocalDate purchaseDate, String createdBy) {
         if (items == null || items.isEmpty()) {
@@ -81,8 +94,7 @@ public class PurchaseService {
 
     /** Фото накладной поставщика, снятое на телефон при оформлении закупки — одно на всю закупку. */
     public Purchase attachImage(Long id, MultipartFile file) {
-        Purchase purchase = purchaseRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Закупка не найдена: " + id));
+        Purchase purchase = findById(id);
         purchase.setImageUrl(fileStorageService.storePurchaseInvoiceImage(id, file));
         return purchaseRepository.save(purchase);
     }

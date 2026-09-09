@@ -38,4 +38,11 @@ public class PurchaseApiController {
     public PurchaseDto uploadImage(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
         return PurchaseDto.from(purchaseService.attachImage(id, file));
     }
+
+    /** Повторная ручная выгрузка в 1С — см. PurchaseService.resyncOneC. */
+    @PostMapping("/{id}/sync-1c")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
+    public PurchaseDto syncOneC(@PathVariable Long id) {
+        return PurchaseDto.from(purchaseService.resyncOneC(id));
+    }
 }

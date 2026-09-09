@@ -31,6 +31,10 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
   /// По умолчанию — сегодня (см. DateFilterBar), как и на остальных списках.
   DateTimeRange _range = todayRange();
 
+  /// Закупки, для которых прямо сейчас идёт ручная пересинхронизация с 1С (см. _syncOneC) —
+  /// чтобы показать спиннер именно на нужной строке списка, а не блокировать весь экран.
+  final Set<int> _syncingIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +44,28 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
   Future<void> _refresh() async {
     setState(() => _future = _api.getPurchases());
     await _future;
+  }
+
+  /// Повторная ручная синхронизация закупки с 1С — на случай, если автоматическая (сразу при
+  /// сохранении) не сработала (см. ProductionRequestDetailScreen._syncOneC — тот же приём).
+  Future<void> _syncOneC(Purchase p) async {
+    setState(() => _syncingIds.add(p.id));
+    try {
+      await _api.syncPurchaseOneC(p.id);
+      await _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Закупка №${p.id} синхронизирована с 1С')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось синхронизировать: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncingIds.remove(p.id));
+    }
   }
 
   void _onRangeChanged(DateTimeRange range) => setState(() => _range = range);
@@ -129,11 +155,13 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                       final itemsSummary = p.items
                           .map((i) => '${i.ingredientName} × ${formatQty(i.quantity)} ${i.ingredientUnit}')
                           .join(', ');
+                      final syncing = _syncingIds.contains(p.id);
                       return AppListTile(
                         leadingIcon: Icons.local_shipping_outlined,
                         leadingColor: const Color(0xFFD9A73F),
                         title: p.counterpartyName,
-                        subtitle: '$itemsSummary · ${formatDate(p.purchaseDate)}',
+                        subtitle: '$itemsSummary · ${formatDate(p.purchaseDate)}'
+                            '${p.oneCSyncError != null ? ' · не синхронизировано с 1С' : ''}',
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -141,7 +169,25 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                               const Icon(Icons.photo_camera_outlined, size: 18, color: Colors.grey),
                               const SizedBox(width: 6),
                             ],
-                            if (p.totalSum > 0) Text(formatMoney(p.totalSum)),
+                            if (p.totalSum > 0) ...[
+                              Text(formatMoney(p.totalSum)),
+                              const SizedBox(width: 6),
+                            ],
+                            if (syncing)
+                              const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            else if (p.oneCSyncError != null)
+                              IconButton(
+                                icon: const Icon(Icons.sync_problem, color: Colors.red),
+                                tooltip: '${p.oneCSyncError}\nНажмите, чтобы повторить',
+                                onPressed: () => _syncOneC(p),
+                              )
+                            else if (p.oneCDocumentNumber != null)
+                              Icon(Icons.check_circle_outline, color: const Color(0xFF4C8A5E), size: 20,
+                                  semanticLabel: 'В 1С №${p.oneCDocumentNumber}'),
                           ],
                         ),
                         onTap: p.imageUrl != null ? () => _showInvoicePhoto(context, p.imageUrl!) : null,

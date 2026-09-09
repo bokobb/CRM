@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <title>Покупки — Юг Сладости</title>
@@ -14,6 +14,7 @@
         </div>
 
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
+        <div class="alert success" th:if="${success}" th:text="${success}"></div>
 
         <form class="panel" th:action="@{/purchases}" method="post" style="max-width:720px" id="crmPurchaseForm">
             <h2>Новая закупка</h2>
@@ -89,6 +90,10 @@
                     <td>
                         <span th:if="${p.oneCDocumentNumber != null}" style="color:#4C8A5E" th:text="'№' + ${p.oneCDocumentNumber}"></span>
                         <span th:if="${p.oneCSyncError != null}" style="color:#B8433F" th:title="${p.oneCSyncError}">ошибка</span>
+                        <form th:if="${p.oneCDocumentNumber == null}" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')"
+                              th:action="@{/purchases/{id}/sync-1c(id=${p.id})}" method="post" style="display:inline">
+                            <button class="btn small" type="submit">Синхронизировать</button>
+                        </form>
                     </td>
                 </tr>
             </table>

@@ -74,4 +74,17 @@ public class PurchaseController {
         }
         return "redirect:/purchases";
     }
+
+    /** Повторная ручная выгрузка в 1С — см. PurchaseService.resyncOneC. */
+    @PostMapping("/{id}/sync-1c")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
+    public String syncOneC(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            purchaseService.resyncOneC(id);
+            redirectAttributes.addFlashAttribute("success", "Закупка №" + id + " синхронизирована с 1С");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось синхронизировать с 1С: " + e.getMessage());
+        }
+        return "redirect:/purchases";
+    }
 }

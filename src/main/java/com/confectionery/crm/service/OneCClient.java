@@ -261,7 +261,7 @@ class OneCClient {
                 .retrieve()
                 .body(JsonNode.class);
         JsonNode values = response.path("value");
-        return values.isEmpty() ? null : extractTemplate(values.get(0));
+        return values.isEmpty() ? null : extractTemplate(values.get(0), SALE_LINE_OWN_FIELDS);
     }
 
     /**
@@ -282,21 +282,32 @@ class OneCClient {
                 .retrieve()
                 .body(JsonNode.class);
         JsonNode values = response.path("value");
-        return values.isEmpty() ? null : extractTemplate(values.get(0));
+        return values.isEmpty() ? null : extractTemplate(values.get(0), SALE_LINE_OWN_FIELDS);
     }
 
-    private static Map<String, Object> extractTemplate(JsonNode row) {
-        // Поля, которые OneCOrderSyncService подставляет сам под конкретный заказ — из
-        // шаблона их не берём. "@" отсеивает служебные аннотации OData вроде
-        // "Номенклатура@navigationLinkUrl" — это не данные документа, а ссылки на связанные
-        // сущности, которые GET подмешивает в объект; отправлять их обратно в 1С нельзя.
-        List<String> ownFields = List.of("Ref_Key", "LineNumber", "КлючСвязи",
-                "Номенклатура_Key", "Количество", "Цена", "Сумма");
+    // Поля, которые OneCOrderSyncService подставляет сам под конкретный заказ — из шаблона их не берём.
+    private static final List<String> SALE_LINE_OWN_FIELDS = List.of("Ref_Key", "LineNumber", "КлючСвязи",
+            "Номенклатура_Key", "Количество", "Цена", "Сумма");
+
+    private static Map<String, Object> extractTemplate(JsonNode row, List<String> ownFields) {
+        // "@" отсеивает служебные аннотации OData вроде "Номенклатура@navigationLinkUrl" — это
+        // не данные документа, а ссылки на связанные сущности, которые GET подмешивает в
+        // объект; отправлять их обратно в 1С нельзя.
         Map<String, Object> template = new LinkedHashMap<>();
         for (Map.Entry<String, JsonNode> field : row.properties()) {
             String key = field.getKey();
+            JsonNode value = field.getValue();
             if (ownFields.contains(key) || key.indexOf('@') >= 0) continue;
-            template.put(key, jsonToJava(field.getValue(), key));
+            // Табличные части документа (Товары/Услуги/ОС/УчастникиСовместнойДеятельности и
+            // т.п.) приходят как JSON-массивы — не скалярные поля шапки/строки, копировать их
+            // в шаблон нельзя. Раньше они всё равно попадали в шаблон как null (jsonToJava
+            // возвращает null для не-value-узлов) — 1С отклоняла документ с 400 Bad Request,
+            // потому что null для табличной части — не то же самое, что её отсутствие в теле
+            // запроса (обнаружено на закупке №13: 1С вернула ошибку по полю
+            // "УчастникиСовместнойДеятельности"). Полностью пропускаем такие поля — 1С сама
+            // подставит пустую табличную часть по умолчанию.
+            if (value.isArray() || value.isObject()) continue;
+            template.put(key, jsonToJava(value, key));
         }
         return template;
     }
@@ -453,15 +464,8 @@ class OneCClient {
                 .body(JsonNode.class);
         JsonNode values = response.path("value");
         if (values.isEmpty()) return null;
-
-        List<String> ownFields = List.of("Ref_Key", "LineNumber", "Номенклатура_Key", "Количество", "Цена", "Сумма");
-        Map<String, Object> template = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> field : values.get(0).properties()) {
-            String key = field.getKey();
-            if (ownFields.contains(key) || key.indexOf('@') >= 0) continue;
-            template.put(key, jsonToJava(field.getValue(), key));
-        }
-        return template;
+        return extractTemplate(values.get(0),
+                List.of("Ref_Key", "LineNumber", "Номенклатура_Key", "Количество", "Цена", "Сумма"));
     }
 
     /**
@@ -469,10 +473,7 @@ class OneCClient {
      * контрагентом, вид операции, аналитика НДС и т.п.) — с ЛЮБОГО существующего документа
      * этого типа в базе, по той же идее, что {@link #findAnyLineTemplate()} и
      * {@link #findAnyReceiptLineTemplate()}: не гадаем GUID-ы констант шапки руками, а
-     * копируем их с реального документа. НЕ ПРОВЕРЕНО на реальной базе (в отличие от
-     * остальных шаблонов здесь) — см. OneCPurchaseSyncService, этот документ новый, названия
-     * набора/полей взяты по стандартной конфигурации 1С и могут потребовать правки после
-     * первого реального теста. Null, если в 1С ещё нет ни одного такого документа.
+     * копируем их с реального документа. Null, если в 1С ещё нет ни одного такого документа.
      */
     Map<String, Object> findAnyGoodsReceiptTemplate() {
         JsonNode response = restClient.get()
@@ -484,22 +485,20 @@ class OneCClient {
                 .body(JsonNode.class);
         JsonNode values = response.path("value");
         if (values.isEmpty()) return null;
-
-        List<String> ownFields = List.of("Ref_Key", "Number", "Date", "Posted", "DeletionMark",
-                "Организация_Key", "Контрагент_Key", "ДоговорКонтрагента_Key", "Склад_Key", "Комментарий", "Товары");
-        Map<String, Object> template = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> field : values.get(0).properties()) {
-            String key = field.getKey();
-            if (ownFields.contains(key) || key.indexOf('@') >= 0) continue;
-            template.put(key, jsonToJava(field.getValue(), key));
-        }
-        return template;
+        // ВидОперации ("Товары"/"Услуги"/"ОсновныеСредства" и т.п.) — тоже исключаем из
+        // копирования: "любой" документ в базе может оказаться не тем видом операции (так и
+        // случилось на реальной базе — первый попавшийся был "ОсновныеСредства", закупка
+        // сырья ушла не в тот раздел 1С и без товаров в табличной части). Проставляется явно
+        // в OneCPurchaseSyncService.
+        return extractTemplate(values.get(0), List.of("Ref_Key", "Number", "Date", "Posted", "DeletionMark",
+                "Организация_Key", "Контрагент_Key", "ДоговорКонтрагента_Key", "Склад_Key", "Комментарий", "Товары",
+                "ВидОперации"));
     }
 
     /**
      * Шаблон-заготовка строки табличной части "Товары" документа "Поступление товаров и
-     * услуг" — см. {@link #findAnyGoodsReceiptTemplate()} (тот же приём и та же оговорка про
-     * отсутствие проверки на реальной базе). Null, если в 1С ещё нет ни одного такого документа.
+     * услуг" — см. {@link #findAnyGoodsReceiptTemplate()}. Null, если в 1С ещё нет ни одного
+     * такого документа.
      */
     Map<String, Object> findAnyGoodsReceiptLineTemplate() {
         JsonNode response = restClient.get()
@@ -511,22 +510,11 @@ class OneCClient {
                 .body(JsonNode.class);
         JsonNode values = response.path("value");
         if (values.isEmpty()) return null;
-
-        List<String> ownFields = List.of("Ref_Key", "LineNumber", "Номенклатура_Key", "Количество", "Цена", "Сумма");
-        Map<String, Object> template = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> field : values.get(0).properties()) {
-            String key = field.getKey();
-            if (ownFields.contains(key) || key.indexOf('@') >= 0) continue;
-            template.put(key, jsonToJava(field.getValue(), key));
-        }
-        return template;
+        return extractTemplate(values.get(0),
+                List.of("Ref_Key", "LineNumber", "Номенклатура_Key", "Количество", "Цена", "Сумма"));
     }
 
-    /**
-     * Создаёт НЕпроведённый документ "Поступление товаров и услуг" (закупка сырья у
-     * контрагента, см. OneCPurchaseSyncService) — бухгалтер проверяет и проводит сам, как и
-     * "Реализацию". НЕ ПРОВЕРЕНО на реальной базе — см. {@link #findAnyGoodsReceiptTemplate()}.
-     */
+    /** Создаёт и сразу проводит (Posted:true) документ "Поступление товаров и услуг" — см. OneCPurchaseSyncService. */
     CreatedDocument createGoodsReceiptDocument(Map<String, Object> body) {
         JsonNode response = restClient.post()
                 .uri(b -> b.path("/Document_ПоступлениеТоваровУслуг")

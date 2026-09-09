@@ -350,9 +350,12 @@ class ApiClient {
   }
 
   // ---- Products ----
-  Future<List<Product>> getProducts() async {
+  /// [includeSemiFinished]: false (по умолчанию) — для витрины заказа, полуфабрикаты вроде
+  /// "Пряника" не заказывают напрямую; true — для экранов управления товарами/рецептами, там
+  /// полуфабрикат нужно видеть и редактировать (см. ProductApiController на бэкенде).
+  Future<List<Product>> getProducts({bool includeSemiFinished = false}) async {
     final res = await http.get(
-      await _uri('/products'),
+      await _uri('/products', includeSemiFinished ? {'includeSemiFinished': 'true'} : null),
       headers: await _authHeaders(),
     );
     final list = (_decode(res) as List).map((e) => Product.fromJson(e)).toList();
@@ -798,6 +801,16 @@ class ApiClient {
       }),
     );
     return Purchase.fromJson(_decode(res));
+  }
+
+  /// Повторная ручная синхронизация закупки с 1С — на случай, если автоматическая (сразу
+  /// при создании) не сработала (см. PurchaseService.resyncOneC на бэкенде).
+  Future<Purchase> syncPurchaseOneC(int id) async {
+    final res = await http.post(
+      await _uri('/purchases/$id/sync-1c'),
+      headers: await _authHeaders(),
+    );
+    return _withAbsolutePurchaseImage(Purchase.fromJson(_decode(res)));
   }
 
   /// Фото накладной поставщика — прикладывается отдельным запросом сразу после создания
