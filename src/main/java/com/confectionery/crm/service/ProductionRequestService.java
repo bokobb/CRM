@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -218,9 +219,24 @@ public class ProductionRequestService {
         for (Map.Entry<Ingredient, BigDecimal> entry : combined.entrySet()) {
             ProductionRequestItem item = new ProductionRequestItem();
             item.setIngredient(entry.getKey());
-            item.setRequiredQuantity(entry.getValue());
+            item.setRequiredQuantity(roundRequiredQuantity(entry.getKey(), entry.getValue()));
             request.addItem(item);
         }
+    }
+
+    /**
+     * Штучное сырьё (упаковка вроде "гофрокоробка") в рецепте намеренно задаётся дробным
+     * числом на один замес (например 3,5 шт/замес — чтобы после умножения на число замесов
+     * получалась верная дробная потребность), но физически выдать со склада можно только целое
+     * число штук — округляем ИТОГОВУЮ потребность вверх (116,6 -> 117), а не сам рецепт.
+     * Весовое/объёмное сырьё (кг, г, л, мл) округления не требует.
+     */
+    private static BigDecimal roundRequiredQuantity(Ingredient ingredient, BigDecimal quantity) {
+        String unit = ingredient.getUnit();
+        if (unit != null && unit.trim().equalsIgnoreCase("шт")) {
+            return quantity.setScale(0, RoundingMode.CEILING);
+        }
+        return quantity;
     }
 
     /**
