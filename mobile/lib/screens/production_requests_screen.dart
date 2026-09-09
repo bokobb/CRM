@@ -56,10 +56,13 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
 
   void _onRangeChanged(DateTimeRange range) => setState(() => _range = range);
 
+  /// Фильтруем по documentDate (дата документа для 1С, выбранная при создании), а не по
+  /// createdAt — иначе список расходится с тем, что видно в 1С, если заявка создана "на
+  /// завтра"/"задним числом" (тот же приём, что и у закупок — см. purchases_screen.dart).
   List<ProductionRequestSummary> _filter(List<ProductionRequestSummary> requests) {
     final end = _range.end.add(const Duration(days: 1));
     return requests
-        .where((r) => !r.createdAt.isBefore(_range.start) && r.createdAt.isBefore(end))
+        .where((r) => !r.documentDate.isBefore(_range.start) && r.documentDate.isBefore(end))
         .where((r) => _status == null || r.status == _status)
         .toList();
   }
@@ -140,7 +143,7 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                         leadingColor: const Color(0xFFD9A73F),
                         title: r.title,
                         subtitle: '№${r.id} · ${r.productNames.join(", ")} · ${formatQty(r.totalBatches)} замес. всего · '
-                            '${r.createdBy} · ${formatDateTime(r.createdAt)}',
+                            '${r.createdBy} · ${formatDate(r.documentDate)}',
                         trailing: StatusBadge(status: r.status, label: r.statusLabel),
                         onTap: () => _openDetail(r.id),
                       );

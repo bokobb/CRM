@@ -3,6 +3,7 @@ package com.confectionery.crm.api.dto;
 import com.confectionery.crm.domain.ProductionRequest;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -15,13 +16,14 @@ public record ProductionRequestSummaryDto(
         String status,
         String statusLabel,
         String createdBy,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDate documentDate
 ) {
     public static ProductionRequestSummaryDto from(ProductionRequest r) {
         BigDecimal total = r.getLines().stream().map(l -> l.getBatches()).reduce(BigDecimal.ZERO, BigDecimal::add);
         return new ProductionRequestSummaryDto(
                 r.getId(), r.getTitle(), r.getLines().stream().map(l -> l.getProduct().getName()).toList(), total,
-                r.getStatus().name(), r.getStatus().getLabel(), r.getCreatedBy(), r.getCreatedAt()
+                r.getStatus().name(), r.getStatus().getLabel(), r.getCreatedBy(), r.getCreatedAt(), r.getDocumentDate()
         );
     }
 }

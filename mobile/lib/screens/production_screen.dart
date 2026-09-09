@@ -213,7 +213,7 @@ class _RequestList extends StatelessWidget {
                       style: const TextStyle(color: Colors.grey, fontSize: 12.5),
                     ),
                     Text(
-                      '${r.createdBy} · ${formatDateTime(r.createdAt)}',
+                      '${r.createdBy} · ${formatDate(r.documentDate)}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12.5),
                     ),
                   ],

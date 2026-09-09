@@ -45,7 +45,7 @@
                     <td th:text="${r.totalBatches}"></td>
                     <td><span class="badge" th:classappend="${r.status}" th:text="${r.statusLabel}"></span></td>
                     <td th:text="${r.createdBy}"></td>
-                    <td th:text="${#temporals.format(r.createdAt, 'dd.MM.yyyy HH:mm')}"></td>
+                    <td th:text="${#temporals.format(r.documentDate, 'dd.MM.yyyy')}"></td>
                     <td class="actions"><a class="btn small" th:href="@{/production-requests/{id}(id=${r.id})}">Открыть</a></td>
                 </tr>
             </table>

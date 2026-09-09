@@ -42,7 +42,13 @@ public class ProductionRequestController {
     private final ProductionReportPdfService reportPdfService;
     private final IngredientService ingredientService;
 
-    /** По умолчанию показываются заявки, созданные сегодня — {@code all=true} снимает фильтр по дате. */
+    /**
+     * По умолчанию показываются заявки с датой документа = сегодня — {@code all=true} снимает
+     * фильтр по дате. Фильтруем и показываем именно {@code documentDate} (дата документа для
+     * 1С, которую бухгалтер выбирает сам при создании), а не {@code createdAt} (дату/время
+     * создания записи в CRM) — иначе список не совпадает с тем, что видно в 1С, если заявка
+     * создана "на завтра"/"задним числом".
+     */
     @GetMapping
     public String list(@RequestParam(required = false) String status,
                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
@@ -53,7 +59,7 @@ public class ProductionRequestController {
         List<ProductionRequestSummaryDto> requests = requestService.findAll().stream()
                 .map(ProductionRequestSummaryDto::from)
                 .filter(r -> status == null || status.equals(r.status()))
-                .filter(r -> filterDate == null || filterDate.equals(r.createdAt().toLocalDate()))
+                .filter(r -> filterDate == null || filterDate.equals(r.documentDate()))
                 .toList();
         model.addAttribute("requests", requests);
         model.addAttribute("selectedStatus", status);

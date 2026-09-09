@@ -8,6 +8,11 @@ class ProductionRequestSummary {
   final String createdBy;
   final DateTime createdAt;
 
+  /// Дата документа для 1С, выбранная при создании (см. ProductionRequest.documentDate на
+  /// бэкенде) — то, что реально попадает в 1С, в отличие от createdAt (когда запись создана
+  /// в CRM — это может быть другой день, если заявку оформили "на завтра"/"задним числом").
+  final DateTime documentDate;
+
   ProductionRequestSummary({
     required this.id,
     required this.title,
@@ -17,6 +22,7 @@ class ProductionRequestSummary {
     required this.statusLabel,
     required this.createdBy,
     required this.createdAt,
+    required this.documentDate,
   });
 
   factory ProductionRequestSummary.fromJson(Map<String, dynamic> json) => ProductionRequestSummary(
@@ -28,6 +34,7 @@ class ProductionRequestSummary {
         statusLabel: json['statusLabel'] as String,
         createdBy: json['createdBy'] as String,
         createdAt: DateTime.parse(json['createdAt'] as String),
+        documentDate: DateTime.parse(json['documentDate'] as String),
       );
 }
 
