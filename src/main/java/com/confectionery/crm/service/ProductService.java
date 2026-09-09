@@ -44,8 +44,23 @@ public class ProductService {
         return productRepository.findAll();
     }
 
-    /** Без архивных — каталог для новых заказов (веб-форма, витрина /shop, мобильное API, разбор WhatsApp). */
+    /**
+     * Без архивных и без полуфабрикатов — каталог для новых заказов (веб-форма, витрина /shop,
+     * мобильное API, разбор WhatsApp). Полуфабрикаты (см. Product.semiFinished) физически не
+     * продаются клиентам — это заготовка для рецепта другого товара (см. ProductController).
+     * Для управления товарами/рецептами (где полуфабрикат как раз нужно видеть) — см.
+     * {@link #findAllActiveForManagement()}.
+     */
     public List<Product> findAllActive() {
+        return findAllActiveForManagement().stream().filter(p -> !p.isSemiFinished()).toList();
+    }
+
+    /**
+     * Без архивных, но С полуфабрикатами — для экранов управления товарами/рецептами в
+     * мобильном приложении (там один общий эндпоинт GET /api/products и на список товаров, и
+     * на витрину заказа, см. ProductApiController — includeSemiFinished различает эти случаи).
+     */
+    public List<Product> findAllActiveForManagement() {
         return productRepository.findByActiveTrue();
     }
 

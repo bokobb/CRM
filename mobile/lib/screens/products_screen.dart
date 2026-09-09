@@ -24,12 +24,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   void initState() {
     super.initState();
-    _future = _api.getProducts();
+    _future = _api.getProducts(includeSemiFinished: true);
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _future = _api.getProducts();
+      _future = _api.getProducts(includeSemiFinished: true);
     });
     await _future;
   }

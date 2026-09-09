@@ -184,6 +184,11 @@ public class OneCProductionSyncService {
      */
     private void sync(ProductionRequest request) {
         Product firstProduct = request.getLines().get(0).getProduct();
+        // Полуфабрикат (см. Product.semiFinished, например "Пряник") физически хранится и
+        // списывается как сырьё — "Продукция" отчёта производства уходит на склад/счёт сырья,
+        // а не готовой продукции. Заявка предполагается однородной (все строки одного вида —
+        // либо обычные товары, либо полуфабрикаты), поэтому решаем по первой строке.
+        boolean semiFinishedOutput = firstProduct.isSemiFinished();
         String firstNomenclatureKey = resolveProductKey(firstProduct);
         if (firstNomenclatureKey == null) {
             throw new IllegalStateException("Не найдено в 1С по названию: " + firstProduct.getName());
@@ -215,8 +220,8 @@ public class OneCProductionSyncService {
             l.put("Коэффициент", 1);
             l.put("Номенклатура_Key", key);
             l.put("НоменклатурнаяГруппа_Key", ZERO_GUID);
-            l.put("СчетБУ_Key", finishedGoodsAccountBuKey);
-            l.put("СчетНУ_Key", finishedGoodsAccountNuKey);
+            l.put("СчетБУ_Key", semiFinishedOutput ? materialsAccountBuKey : finishedGoodsAccountBuKey);
+            l.put("СчетНУ_Key", semiFinishedOutput ? ZERO_GUID : finishedGoodsAccountNuKey);
             l.put("СчетЗатрат_Key", ZERO_GUID);
             l.put("ПлановаяСтоимость", 0);
             l.put("СуммаПлановая", 0);
@@ -256,7 +261,7 @@ public class OneCProductionSyncService {
         reportBody.put("Date", date);
         reportBody.put("Posted", false);
         reportBody.put("Организация_Key", organizationKey);
-        reportBody.put("Склад_Key", finishedGoodsWarehouseKey);
+        reportBody.put("Склад_Key", semiFinishedOutput ? materialsWarehouseKey : finishedGoodsWarehouseKey);
         reportBody.put("ВидУчетаНУ_Key", taxAccountingTypeKey);
         reportBody.put("СчетЗатратБУ_Key", productionCostAccountBuKey);
         reportBody.put("СчетЗатратНУ_Key", productionCostAccountNuKey);

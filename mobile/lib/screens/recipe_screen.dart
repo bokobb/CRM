@@ -60,7 +60,7 @@ class _RecipeScreenState extends State<RecipeScreen> {
   Future<(Product, List<Ingredient>, List<Product>)> _load() async {
     final product = await _api.getProduct(widget.productId);
     final ingredients = await _api.getIngredients();
-    final products = await _api.getProducts();
+    final products = await _api.getProducts(includeSemiFinished: true);
     final recipe = await _api.getRecipe(widget.productId);
 
     _yieldQuantity.text = _fmt(recipe.yieldQuantity);

@@ -9,6 +9,11 @@ class Product {
   final double quantityInStock;
   final String? imageUrl;
 
+  /// Полуфабрикат (например, "Пряник" — испечён без упаковки, сам идёт сырьём в рецепт
+  /// другого товара) — скрыт из витрины заказов и "Остатков", остаток зеркалится в сырьё
+  /// того же названия (см. Product.semiFinished на бэкенде).
+  final bool semiFinished;
+
   Product({
     required this.id,
     required this.name,
@@ -19,6 +24,7 @@ class Product {
     this.unit,
     required this.quantityInStock,
     this.imageUrl,
+    this.semiFinished = false,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -31,6 +37,7 @@ class Product {
         unit: json['unit'] as String?,
         quantityInStock: (json['quantityInStock'] as num).toDouble(),
         imageUrl: json['imageUrl'] as String?,
+        semiFinished: json['semiFinished'] as bool? ?? false,
       );
 
   /// Копия с другим imageUrl — используется, чтобы превратить относительный путь
@@ -45,6 +52,7 @@ class Product {
         unit: unit,
         quantityInStock: quantityInStock,
         imageUrl: url,
+        semiFinished: semiFinished,
       );
 }
 

@@ -23,10 +23,16 @@ public class ProductApiController {
     private final IngredientService ingredientService;
     private final FileStorageService fileStorageService;
 
-    /** Без архивных — используется мобильным приложением для поиска товара при оформлении заказа. */
+    /**
+     * Без архивных — используется мобильным приложением и для поиска товара при оформлении
+     * заказа (по умолчанию, полуфабрикаты скрыты — их нельзя заказать), и для экранов
+     * управления товарами/рецептами ({@code includeSemiFinished=true} — там полуфабрикат
+     * нужно видеть и редактировать, см. ProductService.findAllActiveForManagement).
+     */
     @GetMapping
-    public List<ProductDto> list() {
-        return productService.findAllActive().stream().map(ProductDto::from).toList();
+    public List<ProductDto> list(@RequestParam(defaultValue = "false") boolean includeSemiFinished) {
+        var products = includeSemiFinished ? productService.findAllActiveForManagement() : productService.findAllActive();
+        return products.stream().map(ProductDto::from).toList();
     }
 
     @GetMapping("/{id}")
@@ -87,6 +93,7 @@ public class ProductApiController {
         product.setPrice(req.price());
         product.setUnit(req.unit());
         product.setImageUrl(req.imageUrl());
+        product.setSemiFinished(req.semiFinished());
         return product;
     }
 }

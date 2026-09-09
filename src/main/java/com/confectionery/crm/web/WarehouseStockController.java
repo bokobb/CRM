@@ -20,10 +20,11 @@ public class WarehouseStockController {
     private final ProductService productService;
     private final OneCStockSyncService oneCStockSyncService;
 
+    /** Полуфабрикаты (Product.semiFinished) сюда не попадают — их остаток виден на странице "Сырьё". */
     @GetMapping
     public String list(Model model) {
         model.addAttribute("activePage", "warehouse-stock");
-        var products = productService.findAll();
+        var products = productService.findAll().stream().filter(p -> !p.isSemiFinished()).toList();
         model.addAttribute("products", products);
         model.addAttribute("productsByCategory", productService.groupByCategory(products));
         return "warehouse/stock";

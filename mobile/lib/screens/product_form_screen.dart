@@ -27,6 +27,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _price = TextEditingController();
   final _unit = TextEditingController();
   final _imageUrl = TextEditingController();
+  bool _semiFinished = false;
   bool _loading = false;
   bool _initialLoading = false;
   String? _error;
@@ -50,6 +51,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _unit.text = p.unit ?? '';
         _imageUrl.text = p.imageUrl ?? '';
         _existingImageUrl = p.imageUrl;
+        _semiFinished = p.semiFinished;
         setState(() => _initialLoading = false);
       });
     }
@@ -104,6 +106,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       'price': double.tryParse(_price.text.replaceAll(',', '.')) ?? 0,
       'unit': _unit.text.trim(),
       'imageUrl': _imageUrl.text.trim(),
+      'semiFinished': _semiFinished,
     };
     try {
       final product =
@@ -196,7 +199,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     ),
                     keyboardType: TextInputType.url,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 4),
+                  CheckboxListTile(
+                    value: _semiFinished,
+                    onChanged: (v) => setState(() => _semiFinished = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Полуфабрикат'),
+                    subtitle: const Text('Заготовка вроде «Пряник» — не в витрине заказов и «Остатках», '
+                        'остаток учитывается как сырьё, в 1С уходит на склад сырья'),
+                  ),
+                  const SizedBox(height: 16),
                   FilledButton(
                     onPressed: _loading ? null : _save,
                     child: _loading

@@ -12,6 +12,7 @@ public record ProductRequest(
         String description,
         @NotNull BigDecimal price,
         String unit,
-        String imageUrl
+        String imageUrl,
+        boolean semiFinished
 ) {
 }

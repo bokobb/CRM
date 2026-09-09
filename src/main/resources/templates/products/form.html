@@ -41,6 +41,13 @@
                 <label>Описание</label>
                 <textarea th:field="*{description}"></textarea>
             </div>
+            <div class="field">
+                <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+                    <input type="checkbox" th:field="*{semiFinished}" style="width:auto">
+                    Полуфабрикат (заготовка вроде «Пряник») — не в витрине заказов и «Остатках»,
+                    остаток учитывается как сырьё, в 1С уходит на склад сырья
+                </label>
+            </div>
             <div class="field" th:if="${product.imageUrl != null and !product.imageUrl.isEmpty()}">
                 <label>Текущее фото</label>
                 <img th:src="${product.imageUrl}" alt="Фото товара" style="max-width:200px;max-height:200px;border-radius:8px">

@@ -126,12 +126,29 @@ public class StockService {
         return logMovement(ingredient, null, StockMovementType.WRITE_OFF, quantity, reason, by, false);
     }
 
-    /** Оприходование строки заявки на производство (ProductionRequestService.receiveLine) — см. {@link #writeOffForProduction}. */
+    /**
+     * Оприходование строки заявки на производство (ProductionRequestService.receiveLine) — см.
+     * {@link #writeOffForProduction}. Для полуфабриката (Product.semiFinished, например
+     * "Пряник" — испечён без упаковки, сам идёт сырьём в рецепт другого товара) остаток ЗЕРКАЛИТСЯ
+     * в одноимённую позицию справочника "Сырьё" (сопоставление по точному названию — тот же
+     * приём, что и везде в интеграции с 1С) — именно она указывается в рецепте товара,
+     * упаковывающего этот полуфабрикат. Если такого сырья ещё нет в справочнике — не создаём
+     * его молча, а требуем завести вручную на странице "Сырьё" (то же название), иначе рецепт
+     * дня 2 будет не на что ссылаться.
+     */
     @Transactional
     public StockMovement receiveProductForProduction(Product product, BigDecimal quantity, String reason, String by) {
         requirePositive(quantity, "поступления");
         product.setQuantityInStock(product.getQuantityInStock().add(quantity));
         productRepository.save(product);
+        if (product.isSemiFinished()) {
+            Ingredient mirror = ingredientRepository.findByNameIgnoreCase(product.getName())
+                    .orElseThrow(() -> new IllegalStateException("Полуфабрикат «" + product.getName()
+                            + "» отмечен как сырьё, но в справочнике «Сырьё» нет позиции с таким же названием — заведите её"));
+            mirror.setQuantityInStock(mirror.getQuantityInStock().add(quantity));
+            ingredientRepository.save(mirror);
+            logMovement(mirror, null, StockMovementType.RECEIPT, quantity, reason, by, false);
+        }
         return logMovement(null, product, StockMovementType.RECEIPT, quantity, reason, by, false);
     }
 
