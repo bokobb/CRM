@@ -29,13 +29,16 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   String? _error;
 
   bool _cancelling = false;
-  bool _deleting = false;
   bool _syncing = false;
+  bool _completing = false;
 
   String? get _role => ApiClient.currentSession?.role;
   bool get _canCollect => _role == 'ADMIN' || _role == 'WAREHOUSE_RAW';
   bool get _canReceive => _role == 'ADMIN' || _role == 'WAREHOUSE_FG';
   bool get _canEdit => _role == 'ADMIN' || _role == 'ACCOUNTANT';
+  // "Завершить" (провести требование-накладную) — не ACCOUNTANT, а WAREHOUSE_RAW: именно зав.
+  // склада сырья видит, что после готовки осталось лишнее сырьё, корректирует состав и завершает.
+  bool get _canComplete => _role == 'ADMIN' || _role == 'ACCOUNTANT' || _role == 'WAREHOUSE_RAW';
 
   @override
   void initState() {
@@ -54,58 +57,9 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
     await _future;
   }
 
-  /// Замена сырья в позиции — например, нужного не хватило на складе (см.
-  /// ProductionRequestService.substituteItem на бэкенде). Настоящее название сохраняется
-  /// сервером и показывается в позиции пометкой "было: ...".
-  Future<void> _substitute(ProductionRequestItem item) async {
-    final List<Ingredient> ingredients;
-    try {
-      ingredients = await _api.getIngredients();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-      return;
-    }
-    final options = ingredients.where((i) => i.id != item.ingredientId).toList();
-    if (!mounted) return;
-    final picked = await pickFromList<Ingredient>(
-      context: context,
-      title: 'Чем заменить «${item.ingredientName}»',
-      items: options,
-      label: (i) => i.name,
-      subtitle: (i) => '${formatQty(i.quantityInStock)} ${i.unit} на складе',
-    );
-    if (picked == null || !mounted) return;
-
-    final qtyController = TextEditingController(text: formatQty(item.requiredQuantity));
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Заменить на «${picked.name}»'),
-        content: TextField(
-          controller: qtyController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: 'Количество, ${picked.unit}'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Заменить')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    final qty = double.tryParse(qtyController.text.replaceAll(',', '.'));
-    try {
-      await _api.substituteProductionRequestItem(widget.requestId, item.id, ingredientId: picked.id, quantity: qty);
-      await _refresh();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  /// Правка количества уже вычисленной позиции сырья БЕЗ замены самого сырья — например,
-  /// рецепт даёт неточную цифру и её нужно чуть подправить руками. В отличие от
-  /// [_substitute], здесь не нужно выбирать другое сырьё из списка.
+  /// Правка количества уже вычисленной позиции сырья — например, рецепт даёт неточную цифру и
+  /// её нужно чуть подправить руками (см. ProductionRequestService.substituteItem на бэкенде,
+  /// вызывается без ingredientId — сырьё не меняется, правится только количество).
   Future<void> _changeQuantity(ProductionRequestItem item) async {
     final qtyController = TextEditingController(text: formatQty(item.requiredQuantity));
     final confirmed = await showDialog<bool>(
@@ -139,6 +93,83 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
     }
   }
 
+  /// Добавление совсем новой позиции сырья, которой не было в заявке — например, во время
+  /// производства понадобилось что-то, чего не было в исходном рецепте (см.
+  /// ProductionRequestService.addItem на бэкенде). Если выбранное сырьё уже есть в заявке —
+  /// сервер просто увеличит его количество, а не создаст задвоенную позицию.
+  Future<void> _addItem(ProductionRequest r) async {
+    final List<Ingredient> ingredients;
+    try {
+      ingredients = await _api.getIngredients();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      return;
+    }
+    if (!mounted) return;
+    final picked = await pickFromList<Ingredient>(
+      context: context,
+      title: 'Добавить сырьё',
+      items: ingredients,
+      label: (i) => i.name,
+      subtitle: (i) => '${formatQty(i.quantityInStock)} ${i.unit} на складе',
+    );
+    if (picked == null || !mounted) return;
+
+    final qtyController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Добавить «${picked.name}»'),
+        content: TextField(
+          controller: qtyController,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'Количество, ${picked.unit}'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Добавить')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final qty = double.tryParse(qtyController.text.replaceAll(',', '.'));
+    if (qty == null || qty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите корректное количество')));
+      return;
+    }
+    try {
+      await _api.addProductionRequestItem(r.id, picked.id, qty);
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  /// Удаление позиции сырья из заявки — например, добавили лишнюю по ошибке (см.
+  /// ProductionRequestService.removeItem на бэкенде).
+  Future<void> _removeItem(ProductionRequestItem item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Удалить «${item.ingredientName}»?'),
+        content: const Text('Позиция будет удалена из заявки.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Удалить')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _api.deleteProductionRequestItem(widget.requestId, item.id);
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   Future<void> _collect(ProductionRequest request) async {
     setState(() {
       _collecting = true;
@@ -155,12 +186,19 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
     }
   }
 
+  /// Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой — откатывает списанное сырьё/
+  /// оприходованную продукцию обратно на склад и помечает связанные документы на удаление в 1С,
+  /// если они уже создавались (см. ProductionRequestService.cancel на бэкенде). Раньше эта
+  /// функциональность (откат остатков в любом статусе) была отдельной кнопкой «Удалить заявку» —
+  /// теперь объединена с отменой, заявка при этом не стирается, а остаётся в статусе CANCELLED.
   Future<void> _cancel(ProductionRequest r) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Отменить заявку?'),
-        content: Text('«${r.title}» — действие нельзя отменить обратно.'),
+        content: Text(
+          '«${r.title}» — списанное сырьё и оприходованная продукция будут возвращены обратно на склад. Действие необратимо.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Нет')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Отменить заявку')),
@@ -182,38 +220,6 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
     }
   }
 
-  /// Полное удаление в любом статусе (в отличие от _cancel — только для «Новой»): откатывает
-  /// списанное сырьё/оприходованную продукцию обратно на склад (см.
-  /// ProductionRequestService.delete на бэкенде). После удаления заявки больше не существует —
-  /// возвращаемся на список, а не обновляем этот экран.
-  Future<void> _delete(ProductionRequest r) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Удалить заявку?'),
-        content: Text(
-          '«${r.title}» — списанное сырьё и оприходованная продукция будут возвращены обратно на склад. Действие необратимо.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Удалить')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    setState(() {
-      _deleting = true;
-      _error = null;
-    });
-    try {
-      await _api.deleteProductionRequest(widget.requestId);
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
-      setState(() => _error = e.toString());
-      if (mounted) setState(() => _deleting = false);
-    }
-  }
-
   /// Повторная ручная синхронизация с 1С — на случай, если автоматическая (при создании,
   /// редактировании, замене сырья или оприходовании) не сработала (см.
   /// ProductionRequestService.resyncOneC).
@@ -229,6 +235,44 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  /// "Завершить" — вручную проводит требование-накладную (списание сырья) в 1С, когда состав
+  /// заявки точно больше не изменится (см. ProductionRequestService.completeRequisition на
+  /// бэкенде). Отчёт производства эта кнопка не трогает — он проводится сам при полном
+  /// оприходовании.
+  Future<void> _completeOneC() async {
+    setState(() {
+      _completing = true;
+      _error = null;
+    });
+    try {
+      await _api.completeProductionRequestOneC(widget.requestId);
+      if (mounted) await playSuccessFeedback(context);
+      await _refresh();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _completing = false);
+    }
+  }
+
+  /// "Отменить" (после "Завершить") — распроводит требование-накладную в 1С и снова разрешает
+  /// редактировать/удалять/добавлять позиции сырья (см.
+  /// ProductionRequestService.cancelCompletion на бэкенде).
+  Future<void> _cancelCompletion() async {
+    setState(() {
+      _completing = true;
+      _error = null;
+    });
+    try {
+      await _api.cancelProductionRequestCompletion(widget.requestId);
+      await _refresh();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _completing = false);
     }
   }
 
@@ -338,6 +382,19 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     title: 'Состав заявки (сырьё)',
                     icon: Icons.checklist_rounded,
                     children: [
+                      if (r.items.isNotEmpty)
+                        ReceiptSelectAllRow(
+                          value: r.items.every((it) => _checked.contains(it.id))
+                              ? true
+                              : (_checked.isEmpty ? false : null),
+                          onChanged: (selectAll) => setState(() {
+                            if (selectAll == true) {
+                              _checked.addAll(r.items.map((it) => it.id));
+                            } else {
+                              _checked.clear();
+                            }
+                          }),
+                        ),
                       for (int i = 0; i < r.items.length; i++)
                         ReceiptRow(
                           index: i + 1,
@@ -364,36 +421,46 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                                 onPressed: () => _changeQuantity(r.items[i]),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.swap_horiz, size: 20),
-                                tooltip: 'Заменить сырьё',
+                                icon: const Icon(Icons.delete_outline, size: 20),
+                                tooltip: 'Удалить',
                                 visualDensity: VisualDensity.compact,
-                                onPressed: () => _substitute(r.items[i]),
+                                onPressed: () => _removeItem(r.items[i]),
                               ),
                             ],
                           ),
                         ),
                     ],
-                    footer: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          r.items.any((i) => i.isInsufficient)
-                              ? 'Не хватает на складе — отмечено красным'
-                              : 'Отмечено ${_checked.length} из ${r.items.length}',
-                          style: TextStyle(
-                            color: r.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
-                            fontSize: 12.5,
-                            fontWeight: r.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
+                    footer: InkWell(
+                      borderRadius: BorderRadius.circular(4),
+                      onTap: () => setState(() {
+                        if (r.items.isNotEmpty && r.items.every((it) => _checked.contains(it.id))) {
+                          _checked.clear();
+                        } else {
+                          _checked.addAll(r.items.map((it) => it.id));
+                        }
+                      }),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            r.items.any((i) => i.isInsufficient)
+                                ? 'Не хватает на складе — отмечено красным'
+                                : 'Отмечено ${_checked.length} из ${r.items.length}',
+                            style: TextStyle(
+                              color: r.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
+                              fontSize: 12.5,
+                              fontWeight: r.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
+                            ),
                           ),
-                        ),
-                        if (_checked.length == r.items.length)
-                          const Icon(Icons.check_circle, size: 16, color: Color(0xFF4C8A5E)),
-                      ],
+                          if (_checked.length == r.items.length)
+                            const Icon(Icons.check_circle, size: 16, color: Color(0xFF4C8A5E)),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: (_collecting || _checked.length != r.items.length) ? null : () => _collect(r),
+                    onPressed: (_collecting || r.items.isEmpty || !r.items.every((it) => _checked.contains(it.id))) ? null : () => _collect(r),
                     child: _collecting
                         ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Text('Собрано'),
@@ -409,11 +476,44 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                               ? r.items[i].ingredientName
                               : '${r.items[i].ingredientName}\n(было: ${r.items[i].originalIngredientName})',
                           qty: '${formatQty(r.items[i].requiredQuantity)} ${r.items[i].ingredientUnit}',
+                          // ADMIN и WAREHOUSE_RAW могут поправить состав сырья в любом статусе,
+                          // кроме отменённой и завершённой заявки — во время производства может
+                          // понадобиться больше исходного (см. ProductionRequestService.substituteItem).
+                          trailingAction: _canCollect && r.status != 'CANCELLED' && !r.requisitionCompleted
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 20),
+                                      tooltip: 'Изменить количество',
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => _changeQuantity(r.items[i]),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 20),
+                                      tooltip: 'Удалить',
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => _removeItem(r.items[i]),
+                                    ),
+                                  ],
+                                )
+                              : null,
                         ),
                     ],
                     footer: Text(
                       'Позиций: ${r.items.length}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                    ),
+                  ),
+                ],
+                if (r.status != 'CANCELLED' && !r.requisitionCompleted && _canCollect) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _addItem(r),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Добавить позицию'),
                     ),
                   ),
                 ],
@@ -431,6 +531,8 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                       label: const Text('Редактировать'),
                     ),
                   ),
+                ],
+                if (r.status != 'CANCELLED' && !r.requisitionCompleted && _role == 'ADMIN') ...[
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
@@ -440,21 +542,67 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                       icon: _cancelling
                           ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.cancel_outlined, size: 18),
-                      label: const Text('Отменить'),
+                      label: const Text('Отменить заявку'),
                     ),
                   ),
                 ],
-                if (_role == 'ADMIN') ...[
-                  const SizedBox(height: 10),
+                if (r.status == 'RECEIVED' &&
+                    r.oneCRequisitionNumber != null &&
+                    !r.requisitionCompleted &&
+                    _canComplete) ...[
+                  const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _deleting ? null : () => _delete(r),
-                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                      icon: _deleting
-                          ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.delete_outline, size: 18),
-                      label: const Text('Удалить заявку'),
+                    child: FilledButton(
+                      onPressed: _completing
+                          ? null
+                          : () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Завершить?'),
+                                  content: const Text(
+                                    'Требование-накладная будет проведена в 1С. Дальнейшие правки состава сырья туда автоматически больше не попадут.',
+                                  ),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+                                    FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Завершить')),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) await _completeOneC();
+                            },
+                      child: Text(_completing ? 'Отправка...' : 'Завершить'),
+                    ),
+                  ),
+                ],
+                if (r.status == 'RECEIVED' &&
+                    r.requisitionCompleted &&
+                    _canComplete) ...[
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _completing
+                          ? null
+                          : () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Отменить?'),
+                                  content: const Text(
+                                    'Проведение требования-накладной в 1С будет отменено. Состав сырья снова можно будет редактировать.',
+                                  ),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Нет')),
+                                    FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Отменить')),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) await _cancelCompletion();
+                            },
+                      style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB8433F)),
+                      child: Text(_completing ? 'Отправка...' : 'Отменить'),
                     ),
                   ),
                 ],
@@ -494,6 +642,14 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 '${formatDateTime(line.receivedAt!)}',
                 style: const TextStyle(color: Color(0xFF4C8A5E), fontWeight: FontWeight.w600, fontSize: 12.5),
               ),
+              if (line.isInsufficient)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    'Недостаточно — ${formatQty(line.shortfall)} $unit',
+                    style: const TextStyle(color: Color(0xFFB8433F), fontWeight: FontWeight.w600, fontSize: 12),
+                  ),
+                ),
             ] else if (r.status == 'COLLECTED' && _canReceive) ...[
               const SizedBox(height: 8),
               Row(
@@ -520,14 +676,14 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 Builder(builder: (context) {
                   final actual = double.tryParse(_controllerFor(line.id).text.replaceAll(',', '.'));
                   if (actual == null) return const SizedBox.shrink();
-                  final diffPct = ((actual - line.plannedQuantity!) / line.plannedQuantity!) * 100;
+                  final diff = actual - line.plannedQuantity!;
                   final enough = actual >= line.plannedQuantity!;
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       enough
-                          ? 'Достаточно — на ${formatQty(diffPct.abs())}% больше нормы'
-                          : 'Меньше нормы на ${formatQty(diffPct.abs())}%',
+                          ? 'Достаточно — на ${formatQty(diff.abs())} $unit больше нормы'
+                          : 'Меньше нормы на ${formatQty(diff.abs())} $unit',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

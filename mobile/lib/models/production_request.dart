@@ -13,6 +13,17 @@ class ProductionRequestSummary {
   /// в CRM — это может быть другой день, если заявку оформили "на завтра"/"задним числом").
   final DateTime documentDate;
 
+  /// Хотя бы одна строка оприходована меньше нормы — карточка в списке красная (см.
+  /// production_requests_screen.dart).
+  final bool hasShortfall;
+
+  /// "Пряник — 10 шт, Торт — 5 шт" — что именно не дооприходовано; null, если хватает.
+  final String? shortfallText;
+
+  /// Требование-накладная проведена в 1С кнопкой "Завершить" — карточка в списке серая для
+  /// WAREHOUSE_RAW, см. production_requests_screen.dart.
+  final bool requisitionCompleted;
+
   ProductionRequestSummary({
     required this.id,
     required this.title,
@@ -23,6 +34,9 @@ class ProductionRequestSummary {
     required this.createdBy,
     required this.createdAt,
     required this.documentDate,
+    this.hasShortfall = false,
+    this.shortfallText,
+    this.requisitionCompleted = false,
   });
 
   factory ProductionRequestSummary.fromJson(Map<String, dynamic> json) => ProductionRequestSummary(
@@ -35,6 +49,9 @@ class ProductionRequestSummary {
         createdBy: json['createdBy'] as String,
         createdAt: DateTime.parse(json['createdAt'] as String),
         documentDate: DateTime.parse(json['documentDate'] as String),
+        hasShortfall: json['hasShortfall'] as bool? ?? false,
+        shortfallText: json['shortfallText'] as String?,
+        requisitionCompleted: json['requisitionCompleted'] as bool? ?? false,
       );
 }
 
@@ -86,6 +103,12 @@ class ProductionRequestLine {
 
   bool get isReceived => receivedQuantity != null;
 
+  /// Оприходовано МЕНЬШЕ нормы (plannedQuantity) — красным в UI вместо зелёного.
+  bool get isInsufficient => isReceived && plannedQuantity != null && receivedQuantity! < plannedQuantity!;
+
+  /// Сколько не хватает до нормы — 0, если хватает/план не задан/ещё не оприходовано.
+  double get shortfall => isInsufficient ? plannedQuantity! - receivedQuantity! : 0;
+
   ProductionRequestLine({
     required this.id,
     required this.productId,
@@ -127,6 +150,11 @@ class ProductionRequest {
   final String? oneCReportNumber;
   final String? oneCRequisitionNumber;
   final String? oneCSyncError;
+
+  /// Кнопка "Завершить" нажата и требование-накладная проведена в 1С — редактировать/удалять/
+  /// добавлять позиции нельзя, пока не нажали "Отменить" (см.
+  /// production_request_detail_screen.dart).
+  final bool requisitionCompleted;
   final List<ProductionRequestLine> lines;
   final List<ProductionRequestItem> items;
 
@@ -146,6 +174,7 @@ class ProductionRequest {
     this.oneCReportNumber,
     this.oneCRequisitionNumber,
     this.oneCSyncError,
+    this.requisitionCompleted = false,
     required this.lines,
     required this.items,
   });
@@ -163,6 +192,7 @@ class ProductionRequest {
         oneCReportNumber: json['oneCReportNumber'] as String?,
         oneCRequisitionNumber: json['oneCRequisitionNumber'] as String?,
         oneCSyncError: json['oneCSyncError'] as String?,
+        requisitionCompleted: json['requisitionCompleted'] as bool? ?? false,
         lines: (json['lines'] as List).map((e) => ProductionRequestLine.fromJson(e as Map<String, dynamic>)).toList(),
         items: (json['items'] as List)
             .map((e) => ProductionRequestItem.fromJson(e as Map<String, dynamic>))

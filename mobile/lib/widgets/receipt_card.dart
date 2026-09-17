@@ -197,6 +197,78 @@ class ReceiptRow extends StatelessWidget {
   }
 }
 
+/// Строка «Выбрать все / Снять всё» в чеке со списком чекбоксов.
+class ReceiptSelectAllRow extends StatelessWidget {
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+  final String title;
+
+  const ReceiptSelectAllRow({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.title = 'Выбрать все',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            if (value == true) {
+              onChanged(false);
+            } else {
+              onChanged(true);
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: Checkbox(
+                    value: value,
+                    tristate: true,
+                    onChanged: (v) {
+                      if (value == true) {
+                        onChanged(false);
+                      } else {
+                        onChanged(true);
+                      }
+                    },
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  value == true ? 'Снять всё' : title,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _receiptInk,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 6),
+          child: _DashedLine(),
+        ),
+      ],
+    );
+  }
+}
+
 class _DottedLeader extends StatelessWidget {
   final Color color;
   const _DottedLeader({required this.color});

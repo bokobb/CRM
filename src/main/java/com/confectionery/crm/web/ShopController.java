@@ -310,6 +310,7 @@ public class ShopController {
         Map<Long, BigDecimal> cart = cart(session);
         OrderForm form = new OrderForm();
         form.setClientId(client.getId());
+        form.setFromShop(true);
         List<OrderForm.OrderItemForm> items = new ArrayList<>();
         for (Map.Entry<Long, BigDecimal> entry : cart.entrySet()) {
             OrderForm.OrderItemForm item = new OrderForm.OrderItemForm();

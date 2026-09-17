@@ -22,6 +22,7 @@ public record ProductionRequestDto(
         String oneCReportNumber,
         String oneCRequisitionNumber,
         String oneCSyncError,
+        boolean requisitionCompleted,
         List<Line> lines,
         List<Item> items
 ) {
@@ -59,6 +60,7 @@ public record ProductionRequestDto(
                 r.getOneCReportNumber(),
                 r.getOneCRequisitionNumber(),
                 r.getOneCSyncError(),
+                r.isRequisitionCompleted(),
                 r.getLines().stream().map(Line::from).toList(),
                 r.getItems().stream().map(Item::from).toList()
         );

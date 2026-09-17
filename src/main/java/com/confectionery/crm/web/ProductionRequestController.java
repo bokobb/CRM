@@ -149,8 +149,15 @@ public class ProductionRequestController {
         }
     }
 
+    /**
+     * Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой — см. ProductionRequestService.cancel:
+     * откатывает складские остатки (если были списаны/оприходованы) и помечает документы в 1С
+     * на удаление, если они уже создавались. Раньше это было отдельной кнопкой «Удалить заявку»
+     * (ADMIN-only, физически удаляла запись) — теперь объединено с отменой; только ADMIN,
+     * т.к. может затрагивать реальные остатки склада.
+     */
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
+    @PreAuthorize("hasRole('ADMIN')")
     public String cancel(@PathVariable Long id, Authentication authentication, RedirectAttributes redirectAttributes) {
         try {
             requestService.cancel(id, authentication.getName());
@@ -158,24 +165,6 @@ public class ProductionRequestController {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }
         return "redirect:/production-requests/" + id;
-    }
-
-    /**
-     * Полное удаление заявки в ЛЮБОМ статусе (в отличие от cancel — только для «Новой») — см.
-     * ProductionRequestService.delete: откатывает складские остатки и помечает документы в 1С
-     * на удаление, если они уже создавались. Только ADMIN — необратимо.
-     */
-    @PostMapping("/{id}/delete")
-    @PreAuthorize("hasRole('ADMIN')")
-    public String delete(@PathVariable Long id, RedirectAttributes redirectAttributes) {
-        try {
-            requestService.delete(id);
-            redirectAttributes.addFlashAttribute("success", "Заявка №" + id + " удалена, остатки пересчитаны");
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("error", "Не удалось удалить заявку: " + e.getMessage());
-            return "redirect:/production-requests/" + id;
-        }
-        return "redirect:/production-requests";
     }
 
     @PostMapping("/{id}/collect")
@@ -213,6 +202,32 @@ public class ProductionRequestController {
         return "redirect:/production-requests/" + id;
     }
 
+    /** Добавление совсем новой позиции сырья, которой не было в заявке (см. ProductionRequestService.addItem). */
+    @PostMapping("/{id}/items/add")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
+    public String addItem(@PathVariable Long id, @RequestParam Long ingredientId, @RequestParam BigDecimal quantity,
+                           Authentication authentication, RedirectAttributes redirectAttributes) {
+        try {
+            requestService.addItem(id, ingredientId, quantity, authentication.getName());
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/production-requests/" + id;
+    }
+
+    /** Удаление позиции сырья из заявки (см. ProductionRequestService.removeItem). */
+    @PostMapping("/{id}/items/{itemId}/delete")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
+    public String removeItem(@PathVariable Long id, @PathVariable Long itemId,
+                              Authentication authentication, RedirectAttributes redirectAttributes) {
+        try {
+            requestService.removeItem(id, itemId, authentication.getName());
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/production-requests/" + id;
+    }
+
     /** Повторная ручная выгрузка в 1С — см. ProductionRequestService.resyncOneC. */
     @PostMapping("/{id}/sync-1c")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
@@ -222,6 +237,41 @@ public class ProductionRequestController {
             redirectAttributes.addFlashAttribute("success", "Заявка №" + id + " синхронизирована с 1С");
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", "Не удалось синхронизировать с 1С: " + e.getMessage());
+        }
+        return "redirect:/production-requests/" + id;
+    }
+
+    /**
+     * "Завершить" — вручную проводит требование-накладную (списание сырья) в 1С, когда состав
+     * заявки точно больше не изменится (см. ProductionRequestService.completeRequisition).
+     * Отчёт производства эта кнопка не трогает — он проводится сам при полном оприходовании.
+     * WAREHOUSE_RAW — не ACCOUNTANT: именно зав. склада сырья видит, что после готовки осталось
+     * лишнее сырьё, корректирует состав (см. substituteItem) и завершает заявку сам.
+     */
+    @PostMapping("/{id}/complete-1c")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW')")
+    public String completeOneC(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            requestService.completeRequisition(id);
+            redirectAttributes.addFlashAttribute("success", "Требование-накладная заявки №" + id + " проведена в 1С");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось провести в 1С: " + e.getMessage());
+        }
+        return "redirect:/production-requests/" + id;
+    }
+
+    /**
+     * "Отменить" (после "Завершить") — распроводит требование-накладную в 1С и снова разрешает
+     * править состав сырья (см. ProductionRequestService.cancelCompletion).
+     */
+    @PostMapping("/{id}/cancel-completion")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW')")
+    public String cancelCompletion(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            requestService.cancelCompletion(id);
+            redirectAttributes.addFlashAttribute("success", "Проведение требования-накладной заявки №" + id + " отменено");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось отменить проведение в 1С: " + e.getMessage());
         }
         return "redirect:/production-requests/" + id;
     }

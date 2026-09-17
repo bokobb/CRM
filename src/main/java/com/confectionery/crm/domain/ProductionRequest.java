@@ -71,6 +71,14 @@ public class ProductionRequest {
     @Column(length = 500)
     private String oneCSyncError;
 
+    /**
+     * Кнопка "Завершить" нажата и требование-накладная проведена в 1С — дальше состав сырья
+     * менять нельзя (редактировать/удалять/добавлять позиции скрыто в UI), пока не нажали
+     * "Отменить" (см. ProductionRequestService.cancelCompletion — распроводит документ в 1С и
+     * снова разрешает править состав).
+     */
+    private boolean requisitionCompleted = false;
+
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionRequestLine> lines = new ArrayList<>();
 

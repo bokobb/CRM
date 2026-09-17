@@ -5,7 +5,6 @@ import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.ProductionRequest;
 import com.confectionery.crm.domain.ProductionRequestItem;
 import com.confectionery.crm.domain.ProductionRequestLine;
-import com.confectionery.crm.domain.ProductionRequestStatus;
 import com.confectionery.crm.domain.Role;
 import com.confectionery.crm.repository.IngredientRepository;
 import com.confectionery.crm.repository.ProductRepository;
@@ -13,7 +12,6 @@ import com.confectionery.crm.repository.ProductionRequestRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,9 +49,15 @@ import java.util.Map;
  *
  * <p>Оба документа создаются НЕпроведёнными, как и заказы: "Плановая себестоимость" каждой
  * строки продукции всегда 0 (в 1С этого значения взять неоткуда — не заведён отдельный
- * регистр/тип цен под это в данной базе), бухгалтер вписывает её вручную при проверке и потом
- * проводит сам, либо (см. {@link #scheduledPostEligibleRequests}) документ проводится
- * автоматически в 20:00, если бухгалтер не тронул его сам.
+ * регистр/тип цен под это в данной базе), бухгалтер вписывает её вручную при проверке. Дальше
+ * они проводятся по-разному (прежний общий будильник в 20:00 убран целиком): отчёт производства
+ * проводится сам, как только оприходована последняя строка заявки (см. {@link #tryPostReport},
+ * вызывается из ProductionRequestService.receiveLine) — количество продукции в нём уже факт, а
+ * не план, и меняться дальше не должно. Требование-накладную (списание сырья) так не проводим —
+ * во время производства состав сырья ещё может понадобиться поправить (см. class-javadoc у
+ * ProductionRequestService.substituteItem: ADMIN и WAREHOUSE_RAW могут менять его в любом
+ * статусе заявки, кроме отменённой), поэтому её проводит вручную кнопка "Завершить" (см.
+ * {@link #postRequisition}), когда состав сырья точно больше не изменится.
  *
  * <p>Best-effort — заявка в CRM уже сохранена/оприходована и не откатывается, если 1С
  * недоступна или что-то не сопоставилось; причина пишется в {@link ProductionRequest#getOneCSyncError()}
@@ -386,75 +390,100 @@ public class OneCProductionSyncService {
                 .orElse(null);
     }
 
-    /** Статусы, при которых заявка считается доведённой до конца и её документы в 1С можно проводить. */
-    private static final List<ProductionRequestStatus> POSTABLE_STATUSES = List.of(ProductionRequestStatus.RECEIVED);
-
     /**
-     * Раз в сутки в 20:00 (та же настройка, что и у автопроведения заказов — crm.onec.post-cron)
-     * проводит в 1С документы полностью оприходованных заявок, если бухгалтер не тронул их
-     * сам. Проводим сначала отчёт производства, потом требование-накладную (она на него
-     * ссылается) — одна неудача не прерывает обработку остальных заявок в пакете.
+     * Проводит ТОЛЬКО отчёт производства за смену (готовая продукция) — вызывается
+     * автоматически, когда оприходована последняя строка заявки (см.
+     * ProductionRequestService.receiveLine: с этого момента количество в отчёте — уже факт,
+     * а не план, и меняться дальше не должно). Требование-накладную (списание сырья) эта
+     * проводка не трогает — её проводит отдельно кнопка "Завершить" (см. {@link
+     * #postRequisition}), т.к. состав сырья ещё может понадобиться поправить во время
+     * производства. Best-effort, как и остальная синхронизация — не бросает исключение наружу.
      */
-    @Scheduled(cron = "${crm.onec.post-cron:0 0 20 * * *}")
-    public void scheduledPostEligibleRequests() {
-        if (!oneCClient.isConfigured()) {
+    @Transactional
+    public void tryPostReport(ProductionRequest request) {
+        if (!oneCClient.isConfigured() || request.getOneCReportKey() == null) {
             return;
         }
-        PostResult result = postEligibleRequests();
-        if (result.posted() > 0 || !result.failed().isEmpty()) {
-            log.info("Автопроведение заявок на производство в 1С: проведено {}, уже было проведено {}, не удалось {}",
-                    result.posted(), result.alreadyPosted(), result.failed().size());
-        }
-        if (!result.failed().isEmpty()) {
-            log.warn("Не удалось провести заявки на производство в 1С: {}", result.failed());
+        try {
+            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey()))) {
+                return;
+            }
+            oneCClient.postDocument("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey());
+            request.setOneCSyncError(null);
+            requestRepository.save(request);
+            log.info("Заявка №{} — отчёт производства №{} проведён в 1С (оприходована полностью)",
+                    request.getId(), request.getOneCReportNumber());
+        } catch (Exception e) {
+            log.warn("Не удалось провести отчёт производства №{} в 1С (заявка №{}): {}",
+                    request.getOneCReportNumber(), request.getId(), e.getMessage());
+            request.setOneCSyncError(e.getMessage());
+            requestRepository.save(request);
+            notificationService.notifyRole(Role.ADMIN,
+                    "Заявка №" + request.getId() + " «" + request.getTitle()
+                            + "»: не удалось провести отчёт производства в 1С: " + e.getMessage(), null);
         }
     }
 
-    /** Тот же проход, что и по расписанию, но вызываемый вручную — бросает исключение, если 1С не настроена. */
+    /**
+     * "Завершить" — вручную проводит требование-накладную (списание сырья) в 1С, когда состав
+     * заявки точно больше не изменится (вызывается кнопкой на карточке заявки, см. web/mobile
+     * контроллеры). В отличие от {@link #tryPostReport}, бросает исключение вместо тихого
+     * логирования — пользователь должен увидеть причину, если провести не удалось.
+     */
     @Transactional
-    public PostResult postEligibleRequests() {
+    public void postRequisition(ProductionRequest request) {
         if (!oneCClient.isConfigured()) {
             throw new IllegalStateException("Подключение к 1С не настроено (crm.onec.base-url/username/password)");
         }
-        int posted = 0;
-        int alreadyPosted = 0;
-        List<String> failed = new ArrayList<>();
-        List<ProductionRequest> candidates = requestRepository.findAll().stream()
-                .filter(r -> r.getOneCReportKey() != null && r.getOneCRequisitionKey() != null)
-                .filter(r -> POSTABLE_STATUSES.contains(r.getStatus()))
-                .toList();
-        for (ProductionRequest request : candidates) {
-            try {
-                boolean reportPosted = Boolean.TRUE.equals(
-                        oneCClient.fetchPosted("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey()));
-                boolean requisitionPosted = Boolean.TRUE.equals(
-                        oneCClient.fetchPosted("Document_ТребованиеНакладная", request.getOneCRequisitionKey()));
-                if (reportPosted && requisitionPosted) {
-                    alreadyPosted++;
-                    continue;
-                }
-                if (!reportPosted) {
-                    oneCClient.postDocument("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey());
-                }
-                if (!requisitionPosted) {
-                    oneCClient.postDocument("Document_ТребованиеНакладная", request.getOneCRequisitionKey());
-                }
-                request.setOneCSyncError(null);
-                requestRepository.save(request);
-                posted++;
-            } catch (Exception e) {
-                log.warn("Не удалось провести документы заявки №{} в 1С: {}", request.getId(), e.getMessage());
-                request.setOneCSyncError("Не удалось провести в 1С: " + e.getMessage());
-                requestRepository.save(request);
-                notificationService.notifyRole(Role.ADMIN,
-                        "Заявка №" + request.getId() + " «" + request.getTitle()
-                                + "» не удалось провести в 1С: " + e.getMessage(), null);
-                failed.add("№" + request.getId() + ": " + e.getMessage());
-            }
+        if (request.getOneCRequisitionKey() == null) {
+            throw new IllegalStateException("Требование-накладная ещё не выгружена в 1С — сначала синхронизируйте заявку");
         }
-        return new PostResult(posted, alreadyPosted, failed);
+        if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ТребованиеНакладная", request.getOneCRequisitionKey()))) {
+            throw new IllegalStateException("Требование-накладная №" + request.getOneCRequisitionNumber() + " уже проведена в 1С");
+        }
+        try {
+            oneCClient.postDocument("Document_ТребованиеНакладная", request.getOneCRequisitionKey());
+        } catch (Exception e) {
+            request.setOneCSyncError("Не удалось провести в 1С: " + e.getMessage());
+            requestRepository.save(request);
+            notificationService.notifyRole(Role.ADMIN,
+                    "Заявка №" + request.getId() + " «" + request.getTitle()
+                            + "»: не удалось провести требование-накладную в 1С: " + e.getMessage(), null);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+        request.setOneCSyncError(null);
+        requestRepository.save(request);
+        log.info("Заявка №{} — требование-накладная №{} проведена в 1С вручную ('Завершить')",
+                request.getId(), request.getOneCRequisitionNumber());
     }
 
-    public record PostResult(int posted, int alreadyPosted, List<String> failed) {
+    /**
+     * "Отменить" — обратное {@link #postRequisition}: распроводит требование-накладную в 1С,
+     * когда после "Завершить" нашли ошибку в составе сырья и её нужно снова поправить (см.
+     * ProductionRequestService.cancelCompletion — снова разрешает редактировать/удалять/
+     * добавлять позиции после успешной распроводки).
+     */
+    @Transactional
+    public void unpostRequisition(ProductionRequest request) {
+        if (!oneCClient.isConfigured()) {
+            throw new IllegalStateException("Подключение к 1С не настроено (crm.onec.base-url/username/password)");
+        }
+        if (request.getOneCRequisitionKey() == null) {
+            throw new IllegalStateException("Требование-накладная ещё не выгружена в 1С");
+        }
+        try {
+            oneCClient.unpostDocument("Document_ТребованиеНакладная", request.getOneCRequisitionKey());
+        } catch (Exception e) {
+            request.setOneCSyncError("Не удалось отменить проведение в 1С: " + e.getMessage());
+            requestRepository.save(request);
+            notificationService.notifyRole(Role.ADMIN,
+                    "Заявка №" + request.getId() + " «" + request.getTitle()
+                            + "»: не удалось отменить проведение требования-накладной в 1С: " + e.getMessage(), null);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+        request.setOneCSyncError(null);
+        requestRepository.save(request);
+        log.info("Заявка №{} — требование-накладная №{} распроведена в 1С вручную ('Отменить')",
+                request.getId(), request.getOneCRequisitionNumber());
     }
 }

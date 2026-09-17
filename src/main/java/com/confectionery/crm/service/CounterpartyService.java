@@ -1,9 +1,11 @@
 package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Counterparty;
+import com.confectionery.crm.domain.Role;
 import com.confectionery.crm.repository.CounterpartyRepository;
 import com.confectionery.crm.repository.PurchaseRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,9 +13,10 @@ import java.util.List;
 
 /**
  * Справочник контрагентов (в первую очередь поставщиков сырья, см. Purchase) — либо заводится
- * вручную, либо разово выгружается из 1С целиком (см. {@link #syncFromOneC}). См. класс-javadoc
- * {@link com.confectionery.crm.domain.Counterparty}.
+ * вручную (и сразу же выгружается в 1С, см. {@link #create}), либо разово выгружается из 1С
+ * целиком (см. {@link #syncFromOneC}). См. класс-javadoc {@link com.confectionery.crm.domain.Counterparty}.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CounterpartyService {
@@ -21,6 +24,7 @@ public class CounterpartyService {
     private final CounterpartyRepository counterpartyRepository;
     private final PurchaseRepository purchaseRepository;
     private final OneCClient oneCClient;
+    private final NotificationService notificationService;
 
     public List<Counterparty> findAll() {
         return counterpartyRepository.findAllByOrderByNameAsc();
@@ -31,6 +35,12 @@ public class CounterpartyService {
                 .orElseThrow(() -> new IllegalArgumentException("Контрагент не найден: " + id));
     }
 
+    /**
+     * Создаёт контрагента локально и сразу же пытается создать соответствующий элемент в
+     * справочнике 1С "Контрагенты" (см. {@link #tryCreateInOneC}) — чтобы закупки на него сразу
+     * могли выгружаться в 1С (см. OneCPurchaseSyncService.sync, требует oneCContragentKey), а не
+     * молча зависали с ошибкой "контрагент не привязан к 1С" до следующей ручной загрузки.
+     */
     @Transactional
     public Counterparty create(String name) {
         if (name == null || name.isBlank()) {
@@ -38,19 +48,72 @@ public class CounterpartyService {
         }
         Counterparty counterparty = new Counterparty();
         counterparty.setName(name.trim());
-        return counterpartyRepository.save(counterparty);
+        counterparty = counterpartyRepository.save(counterparty);
+        tryCreateInOneC(counterparty);
+        return counterparty;
     }
 
-    /** Purchase ссылается на контрагента жёсткой FK (см. Counterparty class-javadoc) — если по нему уже есть закупки, удалить нельзя. */
+    /**
+     * Best-effort, как и остальная интеграция с 1С (см. OneCOrderSyncService.trySyncOrder):
+     * контрагент в CRM уже сохранён и не откатывается, если 1С недоступна или создание не
+     * удалось — причина пишется в {@link Counterparty#getOneCSyncError()} и уходит уведомлением
+     * админу. Повторно синхронизировать такого контрагента вручную нельзя (нет кнопки ресинка,
+     * не запрошено) — единственный путь восстановления: удалить и создать заново.
+     */
+    private void tryCreateInOneC(Counterparty counterparty) {
+        if (!oneCClient.isConfigured()) {
+            return;
+        }
+        try {
+            String ref = oneCClient.createContragent(counterparty.getName());
+            counterparty.setOneCContragentKey(ref);
+            counterparty.setOneCSyncError(null);
+            counterpartyRepository.save(counterparty);
+        } catch (Exception e) {
+            log.warn("Не удалось создать контрагента «{}» в 1С: {}", counterparty.getName(), e.getMessage());
+            counterparty.setOneCSyncError(e.getMessage());
+            counterpartyRepository.save(counterparty);
+            notificationService.notifyRole(Role.ADMIN,
+                    "Контрагент «" + counterparty.getName() + "» не выгружен в 1С: " + e.getMessage(), null);
+        }
+    }
+
+    /**
+     * Purchase ссылается на контрагента жёсткой FK (см. Counterparty class-javadoc) — если по
+     * нему уже есть закупки, удалить нельзя (в CRM удаление вообще не происходит, значит и в 1С
+     * ничего помечать не нужно). Если закупок нет — контрагент сначала помечается на удаление в
+     * 1С (см. {@link #tryMarkForDeletion}, best-effort), затем удаляется локально.
+     */
     @Transactional
     public void delete(Long id) {
-        if (!counterpartyRepository.existsById(id)) {
-            throw new IllegalArgumentException("Контрагент не найден: " + id);
-        }
+        Counterparty counterparty = findById(id);
         if (purchaseRepository.existsByCounterpartyId(id)) {
             throw new IllegalStateException("Нельзя удалить — на этого контрагента есть закупки");
         }
+        tryMarkForDeletion(counterparty);
         counterpartyRepository.deleteById(id);
+    }
+
+    /**
+     * Ставит флаг "Пометка удаления" на элементе справочника 1С (не физическое удаление — см.
+     * OneCClient.markForDeletion, тот же приём, что и у ProductionRequest/Order). Best-effort:
+     * недоступность 1С не блокирует удаление в CRM — откатывать всё равно нечего (закупок на
+     * контрагента нет, иначе delete() выше уже бросил бы исключение). Ничего не делает, если
+     * контрагент никогда не был связан с 1С (заведён вручную, и создание в 1С не удалось/не
+     * запускалось — см. {@link #tryCreateInOneC}).
+     */
+    private void tryMarkForDeletion(Counterparty counterparty) {
+        if (!oneCClient.isConfigured() || counterparty.getOneCContragentKey() == null) {
+            return;
+        }
+        try {
+            oneCClient.markForDeletion("Catalog_Контрагенты", counterparty.getOneCContragentKey(), true);
+        } catch (Exception e) {
+            log.warn("Не удалось пометить контрагента «{}» на удаление в 1С: {}", counterparty.getName(), e.getMessage());
+            notificationService.notifyRole(Role.ADMIN,
+                    "Контрагент «" + counterparty.getName() + "» удалён в CRM, но не помечен на удаление в 1С: "
+                            + e.getMessage(), null);
+        }
     }
 
     /**

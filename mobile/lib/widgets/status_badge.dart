@@ -4,9 +4,14 @@ class StatusBadge extends StatelessWidget {
   final String status;
   final String label;
 
-  const StatusBadge({super.key, required this.status, required this.label});
+  /// Например, "Оприходовано" на карточке заявки, если что-то оприходовано меньше нормы —
+  /// красным вместо обычного зелёного (см. production_requests_screen.dart).
+  final bool insufficient;
+
+  const StatusBadge({super.key, required this.status, required this.label, this.insufficient = false});
 
   Color _bg(BuildContext context) {
+    if (insufficient) return const Color(0xFFF6E0DF);
     switch (status) {
       case 'NEW':
       case 'PENDING':
@@ -32,6 +37,7 @@ class StatusBadge extends StatelessWidget {
   }
 
   Color _fg(BuildContext context) {
+    if (insufficient) return const Color(0xFFB8433F);
     switch (status) {
       case 'NEW':
       case 'PENDING':

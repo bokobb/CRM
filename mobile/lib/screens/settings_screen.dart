@@ -12,6 +12,10 @@ class SettingsScreen extends StatelessWidget {
     final role = ApiClient.currentSession?.role;
     final canManageBusiness = role == 'ADMIN' || role == 'SALES' || role == 'ACCOUNTANT';
     final canManageAdmin = role == 'ADMIN' || role == 'ACCOUNTANT';
+    // Контрагенты (поставщики сырья) — те же роли, что управляют ими на вебе (см.
+    // CounterpartyController @PreAuthorize), не входят ни в одну группу выше: WAREHOUSE_RAW
+    // не управляет бизнес-справочниками (клиенты/товары/цены) и не админ.
+    final canManageCounterparties = role == 'ADMIN' || role == 'WAREHOUSE_RAW';
     return Scaffold(
       appBar: AppBar(title: const Text('Настройки')),
       drawer: const AppDrawer(currentRoute: '/settings'),
@@ -78,6 +82,16 @@ class SettingsScreen extends StatelessWidget {
               title: const Text('Пользователи'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).pushNamed('/settings/users'),
+            ),
+          ],
+          if (canManageCounterparties) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.handshake_outlined),
+              title: const Text('Контрагенты'),
+              subtitle: const Text('Поставщики сырья для закупок'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).pushNamed('/settings/counterparties'),
             ),
           ],
         ],

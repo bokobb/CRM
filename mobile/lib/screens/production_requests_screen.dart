@@ -43,6 +43,11 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
     return role == 'ADMIN' || role == 'ACCOUNTANT';
   }
 
+  /// По просьбе пользователя — только на телефоне и только для WAREHOUSE_RAW: карточка
+  /// завершённой заявки (требование-накладная уже проведена в 1С) становится серой, чтобы
+  /// отличаться от остальных в списке. Веб не трогаем — не входило в запрос.
+  bool get _isWarehouseRaw => ApiClient.currentSession?.role == 'WAREHOUSE_RAW';
+
   @override
   void initState() {
     super.initState();
@@ -141,10 +146,17 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                       return AppListTile(
                         leadingIcon: Icons.science_outlined,
                         leadingColor: const Color(0xFFD9A73F),
+                        backgroundColor: (_isWarehouseRaw && r.requisitionCompleted) ? Colors.grey.shade300 : null,
                         title: r.title,
                         subtitle: '№${r.id} · ${r.productNames.join(", ")} · ${formatQty(r.totalBatches)} замес. всего · '
                             '${r.createdBy} · ${formatDate(r.documentDate)}',
-                        trailing: StatusBadge(status: r.status, label: r.statusLabel),
+                        subtitleExtra: r.hasShortfall
+                            ? Text(
+                                'Недостаточно: ${r.shortfallText}',
+                                style: const TextStyle(color: Color(0xFFB8433F), fontWeight: FontWeight.w600, fontSize: 12),
+                              )
+                            : null,
+                        trailing: StatusBadge(status: r.status, label: r.statusLabel, insufficient: r.hasShortfall),
                         onTap: () => _openDetail(r.id),
                       );
                     },

@@ -9,6 +9,7 @@ import 'screens/client_form_screen.dart';
 import 'screens/client_prices_screen.dart';
 import 'screens/clients_screen.dart';
 import 'screens/company_profile_screen.dart';
+import 'screens/counterparties_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/debts_screen.dart';
 import 'screens/ingredient_form_screen.dart';
@@ -265,6 +266,11 @@ class CrmApp extends StatelessWidget {
           case '/settings/whatsapp':
             return MaterialPageRoute(
               builder: (_) => const WhatsAppSessionScreen(),
+              settings: settings,
+            );
+          case '/settings/counterparties':
+            return MaterialPageRoute(
+              builder: (_) => const CounterpartiesScreen(),
               settings: settings,
             );
         }

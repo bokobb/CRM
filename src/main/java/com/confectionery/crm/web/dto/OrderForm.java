@@ -18,6 +18,9 @@ public class OrderForm {
     /** Заполняется только WhatsAppOrderIntakeService — не выставляется формами ручного ввода. */
     private boolean fromWhatsapp;
 
+    /** Заполняется только ShopController (публичная витрина /shop) — заказ создал сам клиент. */
+    private boolean fromShop;
+
     private List<OrderItemForm> items = new ArrayList<>();
 
     public Long getClientId() {
@@ -58,6 +61,14 @@ public class OrderForm {
 
     public void setFromWhatsapp(boolean fromWhatsapp) {
         this.fromWhatsapp = fromWhatsapp;
+    }
+
+    public boolean isFromShop() {
+        return fromShop;
+    }
+
+    public void setFromShop(boolean fromShop) {
+        this.fromShop = fromShop;
     }
 
     public static class OrderItemForm {

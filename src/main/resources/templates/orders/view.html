@@ -80,7 +80,9 @@
                 </p>
                 <table>
                     <tr>
-                        <th th:if="${order.status.name() == 'NEW'}"></th>
+                        <th th:if="${order.status.name() == 'NEW'}">
+                            <input type="checkbox" id="crmOrderSelectAll" title="Выбрать все" onchange="crmToggleSelectAll(this)">
+                        </th>
                         <th>Товар</th><th>Кол-во</th><th>Цена</th><th>Сумма</th>
                         <th th:if="${order.status.name() == 'NEW'}">На складе</th>
                         <th th:if="${order.status.name() == 'NEW'}" sec:authorize="hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')">Изменить кол-во</th>
@@ -155,11 +157,28 @@
     </main>
 </div>
 <script th:inline="none" th:if="${order.status.name() == 'NEW'}">
+    function crmToggleSelectAll(master) {
+        var boxes = document.querySelectorAll('.crm-order-collect-check');
+        for (var i = 0; i < boxes.length; i++) {
+            boxes[i].checked = master.checked;
+        }
+        crmCheckAllOrderCollected();
+    }
     function crmCheckAllOrderCollected() {
         var boxes = document.querySelectorAll('.crm-order-collect-check');
         var allChecked = boxes.length > 0 && Array.prototype.every.call(boxes, function (b) { return b.checked; });
-        document.getElementById('crmOrderConfirmBtn').disabled = !allChecked;
+        var someChecked = Array.prototype.some.call(boxes, function (b) { return b.checked; });
+        var master = document.getElementById('crmOrderSelectAll');
+        if (master) {
+            master.checked = allChecked;
+            master.indeterminate = !allChecked && someChecked;
+        }
+        var btn = document.getElementById('crmOrderConfirmBtn');
+        if (btn) {
+            btn.disabled = !allChecked;
+        }
     }
+    crmCheckAllOrderCollected();
 </script>
 </body>
 </html>

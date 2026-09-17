@@ -37,4 +37,12 @@ public class Counterparty {
 
     /** GUID основного договора контрагента в 1С (ОсновнойДоговорКонтрагента_Key) — подбирается автоматически вместе с oneCContragentKey. */
     private String oneCContractKey;
+
+    /**
+     * Причина, по которой последняя попытка синхронизации с 1С (создание нового контрагента —
+     * см. CounterpartyService.create — или пометка на удаление — см. CounterpartyService.delete)
+     * не удалась. Null, если проблем не было (или синхронизация ещё не запускалась).
+     */
+    @Column(length = 500)
+    private String oneCSyncError;
 }

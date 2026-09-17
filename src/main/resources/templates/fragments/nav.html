@@ -12,7 +12,6 @@
     <a th:href="@{/warehouse/writeoffs}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'warehouse-writeoffs'} ? 'active'">Списание</a>
     <a th:href="@{/ingredients}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'ingredients'} ? 'active'">Сырьё</a>
     <a th:href="@{/purchases}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" th:classappend="${activePage == 'purchases'} ? 'active'">Покупки</a>
-    <a th:href="@{/counterparties}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" th:classappend="${activePage == 'counterparties'} ? 'active'">Контрагенты</a>
     <a th:href="@{/production-requests}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Заявки на сырьё</a>
     <a th:href="@{/production-requests/report}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Отчёт</a>
     <a th:href="@{/orders}" class="nav-link" th:classappend="${activePage == 'orders'} ? 'active'">Заказы</a>
@@ -20,6 +19,10 @@
     <a th:href="@{/debts}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'debts'} ? 'active'">Долги</a>
     <a th:href="@{/whatsapp-inbox}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'whatsapp-inbox'} ? 'active'">WhatsApp-заказы</a>
     <a th:href="@{/notifications}" class="nav-link" th:classappend="${activePage == 'notifications'} ? 'active'">Уведомления</a>
+    <div sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:0 12px 4px">Настройки</div>
+        <a th:href="@{/counterparties}" class="nav-link" th:classappend="${activePage == 'counterparties'} ? 'active'">Контрагенты</a>
+    </div>
     <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">
         <div sec:authentication="name" style="margin-bottom:8px"></div>
         <form th:action="@{/logout}" method="post" style="margin:0">

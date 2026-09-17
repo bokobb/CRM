@@ -186,7 +186,6 @@ public class ProductionRequestService {
         request.getLines().clear();
         request.getItems().clear();
         populate(request, lines);
-        notifyUpdated(request, updatedBy);
         oneCProductionSyncService.trySyncRequest(request);
         return request;
     }
@@ -240,35 +239,25 @@ public class ProductionRequestService {
     }
 
     /**
-     * Отмена ещё не собранной заявки — сырьё со склада ещё не списано (это происходит только
-     * при {@link #collect}), поэтому отмена не требует никаких обратных складских движений.
+     * Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой (раньше отмена работала только для
+     * статуса «Новая», а откат склада/удаление документов в 1С были отдельной кнопкой «Удалить
+     * заявку» — теперь вся эта функциональность объединена здесь по просьбе пользователя, кнопка
+     * «Удалить заявку» убрана из UI). Откатывает всё, что заявка успела сделать со складом
+     * (возвращает списанное сырьё, вычитает оприходованную продукцию обратно), и если по ней уже
+     * создавались документы в 1С (см. OneCProductionSyncService) — помечает их там на удаление
+     * (best-effort, не блокирует отмену в CRM, если 1С недоступна). В отличие от прежнего
+     * "Удалить" заявка НЕ стирается из БД — остаётся записью в статусе CANCELLED, видна в
+     * истории/отчётах.
      */
     @Transactional
     public ProductionRequest cancel(Long requestId, String by) {
         ProductionRequest request = findById(requestId);
-        if (request.getStatus() != ProductionRequestStatus.NEW) {
-            throw new IllegalStateException("Отменить можно только заявку в статусе «Новая»");
+        if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
+            throw new IllegalStateException("Заявка уже отменена");
         }
-        request.setStatus(ProductionRequestStatus.CANCELLED);
-        String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» отменена (" + by + ")";
-        notificationService.notifyRole(Role.ADMIN, message, null);
-        notificationService.notifyRole(Role.ACCOUNTANT, message, null);
-        notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);
-        return request;
-    }
-
-    /**
-     * Полное удаление заявки (в отличие от {@link #cancel}, которая работает только для
-     * статуса «Новая» и не трогает склад) — можно удалить заявку в ЛЮБОМ статусе, включая уже
-     * собранную/оприходованную: откатывает всё, что она успела сделать со складом (возвращает
-     * списанное сырьё, вычитает оприходованную продукцию обратно), и если по ней уже
-     * создавались документы в 1С (см. OneCProductionSyncService) — помечает их там на
-     * удаление (best-effort, не блокирует удаление в CRM, если 1С недоступна). Только ADMIN —
-     * необратимо и затрагивает реальные остатки.
-     */
-    @Transactional
-    public void delete(Long requestId) {
-        ProductionRequest request = findById(requestId);
+        if (request.isRequisitionCompleted()) {
+            throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
+        }
 
         boolean materialsWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
                 || request.getStatus() == ProductionRequestStatus.RECEIVED;
@@ -287,22 +276,34 @@ public class ProductionRequestService {
             }
         }
 
+        request.setStatus(ProductionRequestStatus.CANCELLED);
         oneCProductionSyncService.tryMarkForDeletion(request);
 
-        String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» удалена";
+        String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» отменена (" + by + ")";
         notificationService.notifyRole(Role.ADMIN, message, null);
         notificationService.notifyRole(Role.ACCOUNTANT, message, null);
-        requestRepository.delete(request);
+        notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);
+        return request;
     }
 
     /**
      * Замена сырья в позиции заявки — например, нужного не хватило на складе и вместо него
-     * решили выдать другое. Доступно, только пока заявка ещё не собрана (сырьё физически ещё
-     * не списано — после сборки менять позицию задним числом нельзя, это разошлось бы с уже
-     * произошедшим списанием). Количество можно поменять вместе с сырьём (замена не всегда
-     * 1:1), если не передано — остаётся прежним. Настоящее название сырья по рецепту
-     * сохраняется в {@link ProductionRequestItem#getOriginalIngredientName()} — видно в
-     * заявке, что здесь была замена.
+     * решили выдать другое, либо во время производства понадобилось больше исходного. Доступно
+     * ADMIN и WAREHOUSE_RAW (см. @PreAuthorize в контроллерах) в ЛЮБОМ статусе заявки, кроме
+     * отменённой — раньше это разрешалось только до сборки (сырьё ещё не списано), но по
+     * просьбе бизнеса зав. складу сырья и админу нужно поправлять состав и во время
+     * производства. Количество можно поменять вместе с сырьём (замена не всегда 1:1), если не
+     * передано — остаётся прежним. Настоящее название сырья по рецепту сохраняется в
+     * {@link ProductionRequestItem#getOriginalIngredientName()} — видно в заявке, что здесь
+     * была замена.
+     *
+     * <p>Если заявка уже собрана ({@link ProductionRequestStatus#COLLECTED}/{@link
+     * ProductionRequestStatus#RECEIVED}) — сырьё уже физически списано со склада в
+     * {@link #collect}, поэтому любое изменение требуемого количества здесь ЖИВОЕ движение по
+     * складу (см. {@link StockService#writeOffForProduction}/{@link StockService#receiveForProduction}):
+     * увеличили — довписываем со склада, уменьшили или заменили сырьё — лишнее возвращается
+     * обратно. Пока заявка ещё «Новая», склад этой правкой не трогаем — списание произойдёт
+     * позже, при сборке, уже по новым цифрам.
      *
      * <p>{@code newIngredientId == null} — отдельный случай "изменить только количество, сырьё
      * не трогать" (в этом случае {@code newQuantity} обязателен): без этого пользователю
@@ -313,14 +314,22 @@ public class ProductionRequestService {
     public ProductionRequest substituteItem(Long requestId, Long itemId, Long newIngredientId,
                                              BigDecimal newQuantity, String by) {
         ProductionRequest request = findById(requestId);
-        if (request.getStatus() != ProductionRequestStatus.NEW) {
-            throw new IllegalStateException("Заменить сырьё можно только в ещё не собранной заявке");
+        if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
+            throw new IllegalStateException("Нельзя менять состав отменённой заявки");
         }
+        if (request.isRequisitionCompleted()) {
+            throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
+        }
+        boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
+                || request.getStatus() == ProductionRequestStatus.RECEIVED;
         ProductionRequestItem item = request.getItems().stream()
                 .filter(i -> i.getId().equals(itemId)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Позиция заявки не найдена: " + itemId));
+        String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — правка состава";
 
-        String message;
+        // Без push-уведомлений — по просьбе бизнеса: во время производства состав может
+        // правиться сколько угодно раз, спамить на каждую правку не нужно (см. notifyReceivedSummary
+        // и completeRequisition — там одна сводная нотификация в конце, этого достаточно).
         if (newIngredientId == null) {
             if (newQuantity == null) {
                 throw new IllegalArgumentException("Укажите новое количество");
@@ -329,38 +338,188 @@ public class ProductionRequestService {
                 throw new IllegalArgumentException("Количество должно быть больше нуля");
             }
             BigDecimal oldQuantity = item.getRequiredQuantity();
+            if (stockAlreadyWrittenOff) {
+                BigDecimal diff = newQuantity.subtract(oldQuantity);
+                if (diff.signum() > 0) {
+                    stockService.writeOffForProduction(item.getIngredient(), diff, reason, by);
+                } else if (diff.signum() < 0) {
+                    stockService.receiveForProduction(item.getIngredient(), diff.negate(), reason, by);
+                }
+            }
             item.setRequiredQuantity(newQuantity);
-            message = "Заявка №" + request.getId() + " «" + request.getTitle() + "»: количество «"
-                    + item.getIngredient().getName() + "» изменено с " + oldQuantity.stripTrailingZeros().toPlainString()
-                    + " на " + newQuantity.stripTrailingZeros().toPlainString() + " — " + by;
         } else {
             Ingredient newIngredient = ingredientRepository.findById(newIngredientId)
                     .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + newIngredientId));
 
-            String oldName = item.getIngredient().getName();
+            Ingredient oldIngredient = item.getIngredient();
+            String oldName = oldIngredient.getName();
             BigDecimal oldQuantity = item.getRequiredQuantity();
+            BigDecimal newQty = newQuantity != null ? newQuantity : oldQuantity;
+            if (newQty.signum() <= 0) {
+                throw new IllegalArgumentException("Количество должно быть больше нуля");
+            }
+            if (stockAlreadyWrittenOff) {
+                // Возвращаем на склад ранее списанное старое сырьё и списываем новое — заявка
+                // уже собрана, значит физическая замена происходит прямо сейчас.
+                stockService.receiveForProduction(oldIngredient, oldQuantity, reason, by);
+                stockService.writeOffForProduction(newIngredient, newQty, reason, by);
+            }
             if (item.getOriginalIngredientName() == null) {
                 item.setOriginalIngredientName(oldName);
             }
             item.setIngredient(newIngredient);
-            if (newQuantity != null) {
-                if (newQuantity.signum() <= 0) {
-                    throw new IllegalArgumentException("Количество должно быть больше нуля");
-                }
-                item.setRequiredQuantity(newQuantity);
-            }
-            message = "Заявка №" + request.getId() + " «" + request.getTitle() + "»: замена сырья — "
-                    + oldName + " (" + oldQuantity.stripTrailingZeros().toPlainString() + ") заменено на "
-                    + newIngredient.getName() + " (" + item.getRequiredQuantity().stripTrailingZeros().toPlainString() + ") — " + by;
+            item.setRequiredQuantity(newQty);
         }
 
-        notificationService.notifyRole(Role.ADMIN, message, null);
-        notificationService.notifyRole(Role.ACCOUNTANT, message, null);
-        notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);
         oneCProductionSyncService.trySyncRequest(request);
         return request;
     }
 
+    /**
+     * Добавляет в заявку СОВСЕМ НОВУЮ позицию сырья — которого не было в исходном рецепте, но
+     * которое понадобилось во время производства (например, для допзамеса/поправки). Доступно
+     * ADMIN и WAREHOUSE_RAW (см. @PreAuthorize в контроллерах) в ЛЮБОМ статусе заявки, кроме
+     * отменённой — та же логика, что и у {@link #substituteItem}. Если это сырьё уже есть в
+     * заявке — не создаёт вторую строку, а просто увеличивает количество существующей (иначе
+     * пользователь получил бы задвоенную позицию в списке).
+     *
+     * <p>Если заявка уже собрана — сырьё уже физически списано со склада в {@link #collect}, а
+     * тут добавляется НОВАЯ позиция, значит списание нужно сделать прямо сейчас (см.
+     * {@link StockService#writeOffForProduction}); пока заявка ещё «Новая» — склад не трогаем,
+     * спишется при сборке вместе со всеми остальными позициями.
+     */
+    @Transactional
+    public ProductionRequest addItem(Long requestId, Long ingredientId, BigDecimal quantity, String by) {
+        ProductionRequest request = findById(requestId);
+        if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
+            throw new IllegalStateException("Нельзя менять состав отменённой заявки");
+        }
+        if (request.isRequisitionCompleted()) {
+            throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
+        }
+        if (quantity == null || quantity.signum() <= 0) {
+            throw new IllegalArgumentException("Количество должно быть больше нуля");
+        }
+        Ingredient ingredient = ingredientRepository.findById(ingredientId)
+                .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + ingredientId));
+        boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
+                || request.getStatus() == ProductionRequestStatus.RECEIVED;
+        String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — добавлена позиция";
+
+        ProductionRequestItem existing = request.getItems().stream()
+                .filter(i -> i.getIngredient().getId().equals(ingredientId))
+                .findFirst().orElse(null);
+        if (existing != null) {
+            if (stockAlreadyWrittenOff) {
+                stockService.writeOffForProduction(ingredient, quantity, reason, by);
+            }
+            existing.setRequiredQuantity(existing.getRequiredQuantity().add(quantity));
+        } else {
+            if (stockAlreadyWrittenOff) {
+                stockService.writeOffForProduction(ingredient, quantity, reason, by);
+            }
+            ProductionRequestItem item = new ProductionRequestItem();
+            item.setIngredient(ingredient);
+            item.setRequiredQuantity(quantity);
+            request.addItem(item);
+        }
+
+        oneCProductionSyncService.trySyncRequest(request);
+        return request;
+    }
+
+    /**
+     * Удаляет позицию сырья из заявки — например, добавили лишнюю через {@link #addItem} по
+     * ошибке. Доступно ADMIN и WAREHOUSE_RAW (см. @PreAuthorize в контроллерах) в любом статусе,
+     * кроме отменённой и завершённой. Если заявка уже собрана — сырьё уже физически списано со
+     * склада в {@link #collect}, поэтому удаление позиции возвращает списанное количество
+     * обратно (симметрично {@link #addItem}).
+     */
+    @Transactional
+    public ProductionRequest removeItem(Long requestId, Long itemId, String by) {
+        ProductionRequest request = findById(requestId);
+        if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
+            throw new IllegalStateException("Нельзя менять состав отменённой заявки");
+        }
+        if (request.isRequisitionCompleted()) {
+            throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
+        }
+        ProductionRequestItem item = request.getItems().stream()
+                .filter(i -> i.getId().equals(itemId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Позиция заявки не найдена: " + itemId));
+        boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
+                || request.getStatus() == ProductionRequestStatus.RECEIVED;
+        if (stockAlreadyWrittenOff) {
+            String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — удалена позиция";
+            stockService.receiveForProduction(item.getIngredient(), item.getRequiredQuantity(), reason, by);
+        }
+        request.getItems().remove(item);
+
+        oneCProductionSyncService.trySyncRequest(request);
+        return request;
+    }
+
+    /**
+     * "Завершить" — вручную проводит требование-накладную (списание сырья) в 1С, когда состав
+     * заявки точно больше не изменится (см. OneCProductionSyncService.postRequisition —
+     * бросает исключение с понятной причиной, если не удалось, тогда сводная нотификация ниже
+     * не отправляется). Доступна только после ПОЛНОГО оприходования заявки (статус RECEIVED,
+     * см. {@link #receiveLine}) — раньше была доступна уже после сборки (COLLECTED), но по
+     * просьбе пользователя завершать требование-накладную нужно только когда весь факт выхода
+     * продукции уже известен. Отчёт производства эта кнопка не трогает — он проводится сам при
+     * полном оприходовании (см. {@link #receiveLine}). После завершения состав сырья менять
+     * нельзя — редактировать/удалять/добавлять позиции скрыто в UI, пока не нажали "Отменить"
+     * (см. {@link #cancelCompletion}).
+     */
+    @Transactional
+    public ProductionRequest completeRequisition(Long requestId) {
+        ProductionRequest request = findById(requestId);
+        if (request.getStatus() != ProductionRequestStatus.RECEIVED) {
+            throw new IllegalStateException("Завершить можно только полностью оприходованную заявку");
+        }
+        oneCProductionSyncService.postRequisition(request);
+        request.setRequisitionCompleted(true);
+        notifyReceivedSummary(request);
+        return request;
+    }
+
+    /**
+     * "Отменить" (после "Завершить") — распроводит требование-накладную в 1С и снова разрешает
+     * редактировать/удалять/добавлять позиции сырья (см. {@link #completeRequisition}).
+     */
+    @Transactional
+    public ProductionRequest cancelCompletion(Long requestId) {
+        ProductionRequest request = findById(requestId);
+        if (!request.isRequisitionCompleted()) {
+            throw new IllegalStateException("Заявка ещё не завершена");
+        }
+        oneCProductionSyncService.unpostRequisition(request);
+        request.setRequisitionCompleted(false);
+        return request;
+    }
+
+    /**
+     * Одна сводная push-нотификация "Оприходовано" по кнопке "Завершить" — вместо push на
+     * каждую отдельно оприходованную строку (см. {@link #receiveLine}, убрано намеренно: в
+     * заявке обычно несколько позиций продукции, оприходуются по одной, спамить на каждую не
+     * нужно). Ничего не отправляет, если оприходованных строк ещё нет.
+     */
+    private void notifyReceivedSummary(ProductionRequest request) {
+        List<ProductionRequestLine> received = request.getLines().stream()
+                .filter(ProductionRequestLine::isReceived).toList();
+        if (received.isEmpty()) {
+            return;
+        }
+        String summary = received.stream()
+                .map(l -> l.getReceivedQuantity().stripTrailingZeros().toPlainString() + " " + safeUnit(l.getProduct())
+                        + " «" + l.getProduct().getName() + "»")
+                .collect(Collectors.joining(", "));
+        String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — оприходовано: " + summary;
+        notificationService.notifyRole(Role.ADMIN, message, null);
+        notificationService.notifyRole(Role.ACCOUNTANT, message, null);
+    }
+
+    /** Только WAREHOUSE_RAW — именно он собирает заявку по чек-листу, остальным push не нужен. */
     private void notifyCreated(ProductionRequest request) {
         BigDecimal totalBatches = request.getLines().stream()
                 .map(ProductionRequestLine::getBatches).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -369,21 +528,6 @@ public class ProductionRequestService {
                 .collect(Collectors.joining(", "));
         String message = "Новая заявка №" + request.getId() + " «" + request.getTitle() + "»: "
                 + totalBatches.stripTrailingZeros().toPlainString() + " замес. всего (" + lineSummary + ")";
-        notificationService.notifyRole(Role.ADMIN, message, null);
-        notificationService.notifyRole(Role.ACCOUNTANT, message, null);
-        notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);
-    }
-
-    private void notifyUpdated(ProductionRequest request, String by) {
-        BigDecimal totalBatches = request.getLines().stream()
-                .map(ProductionRequestLine::getBatches).reduce(BigDecimal.ZERO, BigDecimal::add);
-        String lineSummary = request.getLines().stream()
-                .map(l -> l.getProduct().getName() + " — " + l.getBatches().stripTrailingZeros().toPlainString() + " замес.")
-                .collect(Collectors.joining(", "));
-        String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» изменена (" + by + "): "
-                + totalBatches.stripTrailingZeros().toPlainString() + " замес. всего (" + lineSummary + ")";
-        notificationService.notifyRole(Role.ADMIN, message, null);
-        notificationService.notifyRole(Role.ACCOUNTANT, message, null);
         notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);
     }
 
@@ -412,7 +556,6 @@ public class ProductionRequestService {
 
         String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» собрана — ждёт оприходования";
         notificationService.notifyRole(Role.ADMIN, message, null);
-        notificationService.notifyRole(Role.WAREHOUSE_FG, message, null);
         return request;
     }
 
@@ -421,7 +564,9 @@ public class ProductionRequestService {
      * есть оприходование. Когда оприходованы все строки, вся заявка помечается RECEIVED. Каждое
      * оприходование сразу корректирует уже выгруженные в 1С документы (см.
      * OneCProductionSyncService) — количество этой строки в отчёте производства заменяется с
-     * планового на фактическое.
+     * планового на фактическое. Когда оприходована последняя строка, отчёт производства сразу
+     * же проводится в 1С (см. {@link OneCProductionSyncService#tryPostReport}) — требование-накладную
+     * это не трогает, её проводит отдельно кнопка "Завершить" (см. {@link #completeRequisition}).
      */
     @Transactional
     public ProductionRequest receiveLine(Long requestId, Long lineId, BigDecimal receivedQuantity, String by) {
@@ -450,14 +595,13 @@ public class ProductionRequestService {
             request.setStatus(ProductionRequestStatus.RECEIVED);
         }
 
-        String receivedMessage = "Заявка №" + request.getId() + " «" + request.getTitle()
-                + "»: оприходовано " + receivedQuantity.stripTrailingZeros().toPlainString() + " " + safeUnit(line.getProduct())
-                + " «" + line.getProduct().getName() + "»"
-                + (allReceived ? " — заявка выполнена полностью" : "");
-        notificationService.notifyRole(Role.ADMIN, receivedMessage, null);
-        notificationService.notifyRole(Role.ACCOUNTANT, receivedMessage, null);
-
+        // Без push на каждую отдельно оприходованную строку — в заявке обычно несколько
+        // позиций, оприходуются по одной, спамить на каждую не нужно. Одна сводная
+        // нотификация уходит по кнопке "Завершить" (см. completeRequisition/notifyReceivedSummary).
         oneCProductionSyncService.trySyncRequest(request);
+        if (allReceived) {
+            oneCProductionSyncService.tryPostReport(request);
+        }
         return request;
     }
 

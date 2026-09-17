@@ -9,9 +9,17 @@ class AppListTile extends StatelessWidget {
   final Widget? leading;
   final String title;
   final String? subtitle;
+
+  /// Доп. строка под обычным (серым) subtitle — например, красным текстом "Недостаточно:
+  /// ..." на карточке заявки (см. production_requests_screen.dart).
+  final Widget? subtitleExtra;
   final Widget? trailing;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+
+  /// Переопределяет цвет фона карточки — например, серым, чтобы визуально отличить завершённую
+  /// заявку от остальных (см. production_requests_screen.dart). Null — обычный цвет темы.
+  final Color? backgroundColor;
 
   const AppListTile({
     super.key,
@@ -20,33 +28,47 @@ class AppListTile extends StatelessWidget {
     this.leading,
     required this.title,
     this.subtitle,
+    this.subtitleExtra,
     this.trailing,
     this.onTap,
     this.onLongPress,
+    this.backgroundColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final color = leadingColor ?? const Color(0xFFB8324A);
     return Card(
+      color: backgroundColor,
       margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        leading: leading ??
-            (leadingIcon != null
-                ? CircleAvatar(
-                    radius: 20,
-                    backgroundColor: color.withValues(alpha: 0.12),
-                    child: Icon(leadingIcon, color: color, size: 20),
-                  )
-                : null),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: subtitle != null && subtitle!.isNotEmpty
-            ? Text(subtitle!, style: const TextStyle(color: Colors.grey, fontSize: 12.5))
-            : null,
-        trailing: trailing,
-        onTap: onTap,
-        onLongPress: onLongPress,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            leading: leading ??
+                (leadingIcon != null
+                    ? CircleAvatar(
+                        radius: 20,
+                        backgroundColor: color.withValues(alpha: 0.12),
+                        child: Icon(leadingIcon, color: color, size: 20),
+                      )
+                    : null),
+            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: subtitle != null && subtitle!.isNotEmpty
+                ? Text(subtitle!, style: const TextStyle(color: Colors.grey, fontSize: 12.5))
+                : null,
+            trailing: trailing,
+            onTap: onTap,
+            onLongPress: onLongPress,
+          ),
+          if (subtitleExtra != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              child: subtitleExtra!,
+            ),
+        ],
       ),
     );
   }

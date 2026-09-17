@@ -26,7 +26,9 @@ import java.util.Map;
  * сводному РУЧНОМУ приходу готовой продукции за день (см. OneCReceiptSyncService — этот, в
  * отличие от "Реализации", создаётся сразу проведённым); {@link #createProductionReport}/
  * {@link #createMaterialsRequisition} для пары "Отчёт производства за смену"/"Требование-
- * накладная" по заявке на производство (см. OneCProductionSyncService, тоже черновики).
+ * накладная" по заявке на производство (см. OneCProductionSyncService, тоже черновики);
+ * {@link #createContragent} для нового элемента справочника "Контрагенты" (см.
+ * CounterpartyService — единственная запись в справочник, а не в документ, во всём проекте).
  * {@link #postDocument} и {@link #fetchPosted} общие для всех типов документов, которые CRM
  * создаёт непроведёнными — никогда не трогаем документ, который уже кто-то провёл сам.
  */
@@ -190,6 +192,25 @@ class OneCClient {
             skip += PAGE_SIZE;
         }
         return result;
+    }
+
+    /**
+     * Создаёт новый элемент справочника "Контрагенты" — минимальный набор полей (только
+     * наименование), см. CounterpartyService.create. В отличие от документов, справочники в
+     * этой базе 1С не требуют шапки-заготовки со счетами учёта и т.п. — просто новый элемент.
+     * Возвращает Ref_Key нового элемента (без основного договора — он появится позже, если
+     * бухгалтер сам заведёт его в 1С; тогда контрагент подхватит {@code oneCContractKey} при
+     * следующей разовой синхронизации, см. {@link #fetchContragents}).
+     */
+    String createContragent(String name) {
+        JsonNode response = restClient.post()
+                .uri(b -> b.path("/Catalog_Контрагенты")
+                        .queryParam("$format", "json")
+                        .build())
+                .body(Map.of("Description", name))
+                .retrieve()
+                .body(JsonNode.class);
+        return response.path("Ref_Key").asText("");
     }
 
     /**
@@ -442,6 +463,17 @@ class OneCClient {
                         .queryParam("$format", "json")
                         .build())
                 .body(Map.of("Posted", true))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    /** Отменяет проведение документа (Posted:false) — обратное {@link #postDocument}. */
+    void unpostDocument(String entitySet, String ref) {
+        restClient.patch()
+                .uri(b -> b.path("/" + entitySet + "(guid'" + ref + "')")
+                        .queryParam("$format", "json")
+                        .build())
+                .body(Map.of("Posted", false))
                 .retrieve()
                 .toBodilessEntity();
     }

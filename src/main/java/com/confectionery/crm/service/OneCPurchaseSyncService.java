@@ -25,8 +25,8 @@ import java.util.Map;
 /**
  * При оформлении закупки в CRM (см. PurchaseService.create) создаёт в 1С документ "Поступление
  * товаров и услуг" — сразу проведённым (Posted:true), как и "Оприходование товаров" (см.
- * OneCReceiptSyncService), с тем же временем документа 06:00 — чтобы попадал в тот же
- * хронологический порядок, что и остальные документы дня. Все позиции закупки (см.
+ * OneCReceiptSyncService), с фиксированным временем документа 05:00 — раньше времени остальных
+ * документов дня (Покупка приходит на склад первой, до начала смены). Все позиции закупки (см.
  * PurchaseItem) — одним документом, вид операции и аналитика шапки/строк берутся с ЛЮБОГО
  * существующего в базе документа этого типа (см.
  * OneCClient.findAnyGoodsReceiptTemplate/findAnyGoodsReceiptLineTemplate) — тот же приём, что и
@@ -46,7 +46,7 @@ import java.util.Map;
 public class OneCPurchaseSyncService {
 
     private static final DateTimeFormatter ONEC_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-    private static final LocalTime PURCHASE_TIME = LocalTime.of(6, 0);
+    private static final LocalTime PURCHASE_TIME = LocalTime.of(5, 0);
 
     private final OneCClient oneCClient;
     private final PurchaseRepository purchaseRepository;

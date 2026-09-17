@@ -432,6 +432,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     title: 'Состав заказа',
                     icon: Icons.checklist_rounded,
                     children: [
+                      if (o.items.isNotEmpty)
+                        ReceiptSelectAllRow(
+                          value: o.items.every((it) => _checkedItems.contains(it.id))
+                              ? true
+                              : (_checkedItems.isEmpty ? false : null),
+                          onChanged: (selectAll) => setState(() {
+                            if (selectAll == true) {
+                              _checkedItems.addAll(o.items.map((it) => it.id));
+                            } else {
+                              _checkedItems.clear();
+                            }
+                          }),
+                        ),
                       for (int i = 0; i < o.items.length; i++)
                         ReceiptRow(
                           index: i + 1,
@@ -472,15 +485,28 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
-                          child: Text(
-                            o.items.any((i) => i.isInsufficient)
-                                ? 'Не хватает на складе — отмечено красным'
-                                : 'Отмечено ${_checkedItems.length} из ${o.items.length}',
-                            softWrap: true,
-                            style: TextStyle(
-                              color: o.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
-                              fontSize: 12.5,
-                              fontWeight: o.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: () => setState(() {
+                              if (o.items.isNotEmpty && o.items.every((it) => _checkedItems.contains(it.id))) {
+                                _checkedItems.clear();
+                              } else {
+                                _checkedItems.addAll(o.items.map((it) => it.id));
+                              }
+                            }),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Text(
+                                o.items.any((i) => i.isInsufficient)
+                                    ? 'Не хватает на складе — отмечено красным'
+                                    : 'Отмечено ${_checkedItems.length} из ${o.items.length}',
+                                softWrap: true,
+                                style: TextStyle(
+                                  color: o.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
+                                  fontSize: 12.5,
+                                  fontWeight: o.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -583,7 +609,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: (_actionInProgress || _checkedItems.length != o.items.length)
+                        onPressed: (_actionInProgress || o.items.isEmpty || !o.items.every((it) => _checkedItems.contains(it.id)))
                             ? null
                             : () => _runAction(() => _api.confirmOrder(o.id), celebrate: true),
                         icon: const Icon(Icons.check_circle_outline),

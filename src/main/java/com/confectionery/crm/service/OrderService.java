@@ -104,8 +104,14 @@ public class OrderService {
                 "Новый заказ №" + order.getId() + " (" + client.getName() + ") — нужно собрать", order);
         notificationService.notifyRole(Role.ACCOUNTANT,
                 "Новый заказ №" + order.getId() + " (" + client.getName() + ") на сумму " + order.getTotalPrice(), order);
-        notificationService.notifyRole(Role.ADMIN,
-                "Новый заказ №" + order.getId() + " (" + client.getName() + ") на сумму " + order.getTotalPrice(), order);
+        // ADMIN — только если заказ создал сам клиент (витрина /shop или WhatsApp), без участия
+        // сотрудника: тогда админу нужен присмотр. Если заказ завёл сотрудник (менеджер/админ
+        // через веб или мобильное приложение) — он и так в курсе, отдельный push не нужен.
+        if (form.isFromShop() || form.isFromWhatsapp()) {
+            notificationService.notifyRole(Role.ADMIN,
+                    "Новый заказ №" + order.getId() + " (" + client.getName() + ") на сумму " + order.getTotalPrice()
+                            + " — создан клиентом", order);
+        }
         oneCOrderSyncService.trySyncOrder(order);
         return order;
     }
@@ -241,6 +247,13 @@ public class OrderService {
         notificationService.notifyRole(Role.ACCOUNTANT, message, order);
         notificationService.notifyRole(Role.ADMIN, message, order);
         sendInvoiceToClient(order);
+        // Документ в 1С уже существует непроведённым черновиком (создан при оформлении заказа —
+        // с датой создания заказа), но дата документа должна быть датой ФАКТИЧЕСКОЙ отгрузки —
+        // shippedAt выше уже проставлен, поэтому trySyncOrder здесь перезапишет дату на неё
+        // (см. OneCOrderSyncService class-javadoc) перед тем, как tryPostOrder проведёт документ.
+        // Вместо прежнего ежедневного будильника в 20:00.
+        oneCOrderSyncService.trySyncOrder(order);
+        oneCOrderSyncService.tryPostOrder(order);
         return order;
     }
 

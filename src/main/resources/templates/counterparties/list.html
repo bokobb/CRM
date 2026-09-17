@@ -10,7 +10,8 @@
     <nav th:replace="~{fragments/nav :: nav}"></nav>
     <main class="content">
         <div class="page-header">
-            <div><h1>Контрагенты</h1><p class="subtitle">Поставщики сырья — выбираются в поле "Поставщик" при оформлении закупки</p></div>
+            <div><h1>Контрагенты</h1><p class="subtitle">Поставщики сырья — выбираются в поле "Поставщик" при оформлении закупки.
+                Новый контрагент сразу создаётся и в 1С; удаление (если на него ещё нет закупок) там же помечается на удаление.</p></div>
             <form th:action="@{/counterparties/sync-1c}" method="post">
                 <button class="btn" type="submit">Загрузить из 1С</button>
             </form>
@@ -33,10 +34,15 @@
 
         <div class="panel">
             <table th:if="${not #lists.isEmpty(counterparties)}">
-                <tr><th>Название</th><th>Источник</th><th></th></tr>
+                <tr><th>Название</th><th>1С</th><th></th></tr>
                 <tr th:each="c : ${counterparties}" th:attr="data-name=${#strings.toLowerCase(c.name)}">
                     <td th:text="${c.name}"></td>
-                    <td th:text="${c.oneCContragentKey != null} ? '1С' : 'вручную'"></td>
+                    <td>
+                        <span th:if="${c.oneCContragentKey != null}" style="color:#4C8A5E">привязан</span>
+                        <span th:if="${c.oneCContragentKey == null and c.oneCSyncError != null}"
+                              style="color:#B8433F" th:title="${c.oneCSyncError}">ошибка</span>
+                        <span th:if="${c.oneCContragentKey == null and c.oneCSyncError == null}" class="subtitle">—</span>
+                    </td>
                     <td class="actions">
                         <form th:action="@{/counterparties/{id}/delete(id=${c.id})}" method="post"
                               onsubmit="return confirm('Удалить контрагента?');">

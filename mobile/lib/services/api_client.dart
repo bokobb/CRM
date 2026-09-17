@@ -646,23 +646,16 @@ class ApiClient {
     return ProductionRequest.fromJson(_decode(res));
   }
 
-  /// Отмена ещё не собранной заявки — доступна только пока сырьё со склада не списано (статус «Новая»).
+  /// Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой — откатывает складские остатки, если
+  /// сырьё уже было списано/продукция оприходована, и помечает связанные документы в 1С на
+  /// удаление (см. ProductionRequestService.cancel на бэкенде). Раньше откат остатков в любом
+  /// статусе был отдельным DELETE-запросом — теперь объединено с отменой. Только ADMIN.
   Future<ProductionRequest> cancelProductionRequest(int id) async {
     final res = await http.post(
       await _uri('/production-requests/$id/cancel'),
       headers: await _authHeaders(),
     );
     return ProductionRequest.fromJson(_decode(res));
-  }
-
-  /// Полное удаление заявки в любом статусе (не только «Новая», в отличие от отмены выше) —
-  /// откатывает складские остатки (см. ProductionRequestService.delete на бэкенде). Только ADMIN.
-  Future<void> deleteProductionRequest(int id) async {
-    final res = await http.delete(
-      await _uri('/production-requests/$id'),
-      headers: await _authHeaders(),
-    );
-    _decode(res);
   }
 
   /// itemIds должны покрывать ВСЕ позиции заявки — иначе сервер отклонит сборку.
@@ -687,12 +680,56 @@ class ApiClient {
     return ProductionRequest.fromJson(_decode(res));
   }
 
+  /// Добавление совсем новой позиции сырья, которой не было в заявке — например, во время
+  /// производства понадобилось что-то, чего не было в исходном рецепте (см.
+  /// ProductionRequestService.addItem на бэкенде). Если сырьё уже есть в заявке — сервер просто
+  /// увеличит его количество, не создавая вторую строку.
+  Future<ProductionRequest> addProductionRequestItem(int requestId, int ingredientId, double quantity) async {
+    final res = await http.post(
+      await _uri('/production-requests/$requestId/items/add'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'ingredientId': ingredientId, 'quantity': quantity}),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  /// Удаление позиции сырья из заявки (см. ProductionRequestService.removeItem на бэкенде).
+  Future<ProductionRequest> deleteProductionRequestItem(int requestId, int itemId) async {
+    final res = await http.delete(
+      await _uri('/production-requests/$requestId/items/$itemId'),
+      headers: await _authHeaders(),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
   /// Повторная ручная синхронизация заявки с 1С — на случай, если автоматическая (при
   /// создании/редактировании/замене сырья/оприходовании) не сработала (см.
   /// ProductionRequestService.resyncOneC на бэкенде).
   Future<ProductionRequest> syncProductionRequestOneC(int id) async {
     final res = await http.post(
       await _uri('/production-requests/$id/sync-1c'),
+      headers: await _authHeaders(),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  /// "Завершить" — вручную проводит требование-накладную (списание сырья) в 1С, когда состав
+  /// заявки точно больше не изменится (см. ProductionRequestService.completeRequisition на
+  /// бэкенде). Отчёт производства эта кнопка не трогает — он проводится сам при полном
+  /// оприходовании.
+  Future<ProductionRequest> completeProductionRequestOneC(int id) async {
+    final res = await http.post(
+      await _uri('/production-requests/$id/complete-1c'),
+      headers: await _authHeaders(),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  /// "Отменить" (после "Завершить") — распроводит требование-накладную в 1С и снова разрешает
+  /// править состав сырья (см. ProductionRequestService.cancelCompletion на бэкенде).
+  Future<ProductionRequest> cancelProductionRequestCompletion(int id) async {
+    final res = await http.post(
+      await _uri('/production-requests/$id/cancel-completion'),
       headers: await _authHeaders(),
     );
     return ProductionRequest.fromJson(_decode(res));
@@ -763,14 +800,27 @@ class ApiClient {
     }).toList();
   }
 
-  /// Справочник контрагентов — для выбора поставщика в форме закупки (см. purchases_screen.dart).
-  /// Управление списком (создание/удаление, загрузка из 1С) — только на вебе (/counterparties).
+  /// Справочник контрагентов — для выбора поставщика в форме закупки (см. purchases_screen.dart)
+  /// и для экрана "Настройки → Контрагенты" (см. counterparties_screen.dart). Удаление и разовая
+  /// загрузка из 1С по-прежнему только на вебе (/counterparties).
   Future<List<Counterparty>> getCounterparties() async {
     final res = await http.get(
       await _uri('/counterparties'),
       headers: await _authHeaders(),
     );
     return (_decode(res) as List).map((e) => Counterparty.fromJson(e)).toList();
+  }
+
+  /// Создаёт контрагента — бэкенд сразу же пытается создать соответствующий элемент в 1С (см.
+  /// CounterpartyService.create), поэтому результат может прийти с oneCLinked=false/oneCSyncError
+  /// заполненным, если 1С недоступна — сам контрагент при этом уже создан в CRM.
+  Future<Counterparty> createCounterparty(String name) async {
+    final res = await http.post(
+      await _uri('/counterparties'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'name': name}),
+    );
+    return Counterparty.fromJson(_decode(res));
   }
 
   Future<List<Purchase>> getPurchases() async {

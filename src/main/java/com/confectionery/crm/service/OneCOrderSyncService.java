@@ -11,7 +11,6 @@ import com.confectionery.crm.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,8 +38,11 @@ import java.util.Map;
  * "Пометка удаления" — не проводит и не изменяет его иначе, фактическое удаление в 1С (со всеми
  * её проверками на зависимые движения) бухгалтер выполняет сам.
  *
- * <p>Дата документа ({@code Date}) — дата создания заказа, время ВСЕГДА фиксированное 18:00
- * (конец рабочего дня) — так принято в этой базе 1С.
+ * <p>Дата документа ({@code Date}) — пока заказ не отгружен, дата его создания в CRM (черновик
+ * ещё может переезжать датой вместе с правками состава); как только нажата кнопка "Отгружен"
+ * (см. OrderService.ship — обновляет документ перед проведением, см. {@link #tryPostOrder}),
+ * дата меняется на фактическую дату отгрузки — именно она отражает, когда товар реально ушёл
+ * со склада. Время документа ВСЕГДА фиксированное 07:00 — так принято в этой базе 1С.
  *
  * <p>Best-effort, как и остальные интеграции (см. WhatsAppGatewayClient.sendInvoiceToClient):
  * заказ в CRM уже сохранён и не откатывается, если 1С недоступна или что-то не сопоставилось —
@@ -121,26 +123,41 @@ public class OneCOrderSyncService {
     private static final List<OrderStatus> POSTABLE_STATUSES = List.of(OrderStatus.DELIVERED, OrderStatus.COMPLETED);
 
     /**
-     * Раз в сутки проводит в 1С документы отгруженных/завершённых заказов (долг по оплате
-     * проведение не блокирует — это отдельный вопрос бухгалтерии, а не готовности отгрузки).
-     * Только заказы, которые сама CRM выгрузила в 1С (есть oneCDocumentKey) — ничего другого
-     * в базе не трогаем. Одна неудача (нет доступа, 1С отклонила проведение) не прерывает
-     * обработку остальных заказов в пакете.
+     * Проводит документ ЭТОГО заказа в 1С сразу в момент отгрузки (см. OrderService.ship) —
+     * вместо прежнего ежедневного будильника в 20:00 (убран целиком, см. историю). Best-effort,
+     * как и остальная синхронизация: заказ уже отгружен в CRM и не откатывается, если 1С
+     * недоступна или проведение не удалось — причина пишется в {@link Order#getOneCSyncError()}
+     * и уходит уведомлением админу. Ничего не делает, если заказ в 1С не выгружался (нет
+     * oneCDocumentKey) — тогда и проводить нечего.
      */
-    @Scheduled(cron = "${crm.onec.post-cron:0 0 20 * * *}")
-    public void scheduledPostEligibleOrders() {
-        if (!oneCClient.isConfigured()) {
+    @Transactional
+    public void tryPostOrder(Order order) {
+        if (!oneCClient.isConfigured() || order.getOneCDocumentKey() == null) {
             return;
         }
-        PostResult result = postEligibleOrders();
-        log.info("Автопроведение в 1С: проведено {}, уже было проведено {}, не удалось {}",
-                result.posted(), result.alreadyPosted(), result.failed().size());
-        if (!result.failed().isEmpty()) {
-            log.warn("Не удалось провести в 1С: {}", result.failed());
+        try {
+            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_РеализацияТоваровУслуг", order.getOneCDocumentKey()))) {
+                return;
+            }
+            oneCClient.postDocument("Document_РеализацияТоваровУслуг", order.getOneCDocumentKey());
+            order.setOneCSyncError(null);
+            orderRepository.save(order);
+            log.info("Заказ №{} — документ №{} проведён в 1С при отгрузке", order.getId(), order.getOneCDocumentNumber());
+        } catch (Exception e) {
+            log.warn("Не удалось провести документ №{} в 1С при отгрузке (заказ №{}): {}",
+                    order.getOneCDocumentNumber(), order.getId(), e.getMessage());
+            order.setOneCSyncError("Не удалось провести в 1С: " + e.getMessage());
+            orderRepository.save(order);
+            notifyAdmin(order, "не удалось провести — " + e.getMessage());
         }
     }
 
-    /** Тот же проход, что и по расписанию, но вызываемый вручную (см. web-контроллер) — бросает исключение, если 1С не настроена. */
+    /**
+     * Пакетное проведение — раньше запускалось по расписанию в 20:00, теперь только вручную
+     * (кнопка "Провести в 1С" на списке заказов, см. web-контроллер) как подстраховка на случай,
+     * если 1С была недоступна в момент отгрузки ({@link #tryPostOrder}) и заказ не проведён
+     * сам. Бросает исключение, если 1С не настроена.
+     */
     @Transactional
     public PostResult postEligibleOrders() {
         if (!oneCClient.isConfigured()) {
@@ -225,10 +242,13 @@ public class OneCOrderSyncService {
         }
 
         Map<String, Object> body = new LinkedHashMap<>();
-        // Время всегда фиксированное 18:00 (конец рабочего дня) — так принято в этой базе 1С;
-        // дата — дата создания заказа в CRM (сегодня, если почему-то не проставлена).
-        LocalDate orderDate = order.getCreatedAt() != null ? order.getCreatedAt().toLocalDate() : LocalDate.now();
-        body.put("Date", ONEC_DATE.format(orderDate.atTime(18, 0)));
+        // Время всегда фиксированное 07:00 — так принято в этой базе 1С. Дата — как только заказ
+        // отгружен (order.shippedAt проставляется в OrderService.ship), фактическая дата
+        // отгрузки; до тех пор — дата создания заказа в CRM (сегодня, если почему-то не
+        // проставлена) как временный черновик.
+        LocalDate orderDate = order.getShippedAt() != null ? order.getShippedAt().toLocalDate()
+                : order.getCreatedAt() != null ? order.getCreatedAt().toLocalDate() : LocalDate.now();
+        body.put("Date", ONEC_DATE.format(orderDate.atTime(7, 0)));
         body.put("Posted", false);
         body.put("Организация_Key", organizationKey);
         body.put("Контрагент_Key", client.getOneCContragentKey());

@@ -66,21 +66,17 @@ public class ProductionRequestApiController {
         return ProductionRequestDto.from(requestService.update(id, lines, authentication.getName(), req.documentDate()));
     }
 
-    /** Отмена ещё не собранной заявки. */
+    /**
+     * Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой — см. ProductionRequestService.cancel:
+     * откатывает складские остатки (если были списаны/оприходованы) и помечает документы в 1С
+     * на удаление, если они уже создавались. Раньше это было отдельным DELETE-эндпоинтом
+     * (ADMIN-only, физически удалял запись) — теперь объединено с отменой; только ADMIN,
+     * т.к. может затрагивать реальные остатки склада.
+     */
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ProductionRequestDto cancel(@PathVariable Long id, Authentication authentication) {
         return ProductionRequestDto.from(requestService.cancel(id, authentication.getName()));
-    }
-
-    /**
-     * Полное удаление заявки в ЛЮБОМ статусе (в отличие от cancel — только для «Новой») — см.
-     * ProductionRequestService.delete. Только ADMIN — необратимо, откатывает складские остатки.
-     */
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public void delete(@PathVariable Long id) {
-        requestService.delete(id);
     }
 
     /** Замена сырья в позиции — например, нужного не хватило на складе (см. ProductionRequestService.substituteItem). */
@@ -91,6 +87,22 @@ public class ProductionRequestApiController {
                                                 Authentication authentication) {
         return ProductionRequestDto.from(
                 requestService.substituteItem(id, itemId, req.ingredientId(), req.quantity(), authentication.getName()));
+    }
+
+    /** Добавление совсем новой позиции сырья, которой не было в заявке (см. ProductionRequestService.addItem). */
+    @PostMapping("/{id}/items/add")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
+    public ProductionRequestDto addItem(@PathVariable Long id, @Valid @RequestBody ProductionRequestAddItemRequest req,
+                                         Authentication authentication) {
+        return ProductionRequestDto.from(
+                requestService.addItem(id, req.ingredientId(), req.quantity(), authentication.getName()));
+    }
+
+    /** Удаление позиции сырья из заявки (см. ProductionRequestService.removeItem). */
+    @DeleteMapping("/{id}/items/{itemId}")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
+    public ProductionRequestDto removeItem(@PathVariable Long id, @PathVariable Long itemId, Authentication authentication) {
+        return ProductionRequestDto.from(requestService.removeItem(id, itemId, authentication.getName()));
     }
 
     @PostMapping("/{id}/collect")
@@ -114,6 +126,29 @@ public class ProductionRequestApiController {
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public ProductionRequestDto syncOneC(@PathVariable Long id) {
         return ProductionRequestDto.from(requestService.resyncOneC(id));
+    }
+
+    /**
+     * "Завершить" — вручную проводит требование-накладную (списание сырья) в 1С, когда состав
+     * заявки точно больше не изменится (см. ProductionRequestService.completeRequisition).
+     * Отчёт производства эта кнопка не трогает — он проводится сам при полном оприходовании.
+     * WAREHOUSE_RAW — не ACCOUNTANT: именно зав. склада сырья видит, что после готовки осталось
+     * лишнее сырьё, корректирует состав (см. substituteItem) и завершает заявку сам.
+     */
+    @PostMapping("/{id}/complete-1c")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW')")
+    public ProductionRequestDto completeOneC(@PathVariable Long id) {
+        return ProductionRequestDto.from(requestService.completeRequisition(id));
+    }
+
+    /**
+     * "Отменить" (после "Завершить") — распроводит требование-накладную в 1С и снова разрешает
+     * править состав сырья (см. ProductionRequestService.cancelCompletion).
+     */
+    @PostMapping("/{id}/cancel-completion")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW')")
+    public ProductionRequestDto cancelCompletion(@PathVariable Long id) {
+        return ProductionRequestDto.from(requestService.cancelCompletion(id));
     }
 
     /** Дневной отчёт "сколько сегодня изготовили" — date не задан = сегодня. */

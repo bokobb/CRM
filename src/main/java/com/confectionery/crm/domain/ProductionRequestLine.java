@@ -51,4 +51,22 @@ public class ProductionRequestLine {
     public boolean isReceived() {
         return receivedQuantity != null;
     }
+
+    /**
+     * Сколько не хватает до нормы (plannedQuantity − receivedQuantity) — 0, если ещё не
+     * оприходовано, план не задан, или оприходовано >= плана. Красным в UI вместо зелёного —
+     * см. isInsufficient.
+     */
+    public BigDecimal getShortfall() {
+        if (receivedQuantity == null || plannedQuantity == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal diff = plannedQuantity.subtract(receivedQuantity);
+        return diff.signum() > 0 ? diff : BigDecimal.ZERO;
+    }
+
+    /** true — оприходовано МЕНЬШЕ нормы (см. getShortfall), в UI это красным, иначе зелёным. */
+    public boolean isInsufficient() {
+        return getShortfall().signum() > 0;
+    }
 }

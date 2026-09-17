@@ -127,6 +127,19 @@ public class StockService {
     }
 
     /**
+     * Обратное {@link #writeOffForProduction} — возврат сырья на склад при пересмотре состава
+     * уже собранной заявки (ProductionRequestService.substituteItem: уменьшили количество или
+     * заменили сырьё после того, как прежнее уже было списано в {@link #writeOffForProduction}).
+     */
+    @Transactional
+    public StockMovement receiveForProduction(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
+        requirePositive(quantity, "поступления");
+        ingredient.setQuantityInStock(ingredient.getQuantityInStock().add(quantity));
+        ingredientRepository.save(ingredient);
+        return logMovement(ingredient, null, StockMovementType.RECEIPT, quantity, reason, by, false);
+    }
+
+    /**
      * Оприходование строки заявки на производство (ProductionRequestService.receiveLine) — см.
      * {@link #writeOffForProduction}. Для полуфабриката (Product.semiFinished, например
      * "Пряник" — испечён без упаковки, сам идёт сырьём в рецепт другого товара) остаток ЗЕРКАЛИТСЯ
