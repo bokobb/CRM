@@ -84,6 +84,7 @@ class ApiClient {
   static const _fullNameKey = 'auth_full_name';
   static const _roleKey = 'auth_role';
   static const _roleLabelKey = 'auth_role_label';
+  static const _rememberedUsernameKey = 'remembered_username';
 
   static AuthSession? _session;
 
@@ -238,6 +239,23 @@ class ApiClient {
     await _saveSession(session);
     await PushService.subscribeToRole(session.role);
     return session;
+  }
+
+  /// "Запомнить меня" на экране логина — переживает [logout] (в отличие от [_usernameKey]
+  /// выше, который часть текущей сессии и чистится при выходе). Пароль намеренно НЕ хранится —
+  /// только логин, чтобы не держать пароль в открытом виде на устройстве.
+  static Future<void> saveRememberedUsername(String? username) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (username == null || username.isEmpty) {
+      await prefs.remove(_rememberedUsernameKey);
+    } else {
+      await prefs.setString(_rememberedUsernameKey, username);
+    }
+  }
+
+  static Future<String?> getRememberedUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_rememberedUsernameKey);
   }
 
   Future<void> logout() async {

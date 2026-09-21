@@ -17,11 +17,33 @@
         </div>
         <div class="field">
             <label for="password">Пароль</label>
-            <input type="password" id="password" name="password" required>
+            <div class="password-field">
+                <input type="password" id="password" name="password" required>
+                <button type="button" class="password-toggle" onclick="crmTogglePassword()" tabindex="-1" aria-label="Показать пароль">
+                    <svg id="crm-eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                </button>
+            </div>
         </div>
+        <label class="remember-me">
+            <input type="checkbox" name="remember-me" style="width:auto">
+            Запомнить меня
+        </label>
         <button class="btn primary" type="submit">Войти</button>
     </form>
 </div>
 <script th:src="@{/js/btn-animate.js}"></script>
+<script th:inline="none">
+    function crmTogglePassword() {
+        var input = document.getElementById('password');
+        var isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        document.getElementById('crm-eye-icon').innerHTML = isHidden
+            ? '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 4.22-5.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a20.4 20.4 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/>'
+            : '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>';
+    }
+</script>
 </body>
 </html>

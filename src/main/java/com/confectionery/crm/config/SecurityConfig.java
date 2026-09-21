@@ -4,6 +4,7 @@ import com.confectionery.crm.security.JwtAuthFilter;
 import com.confectionery.crm.security.JwtService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -13,6 +14,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -32,6 +34,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtService jwtService;
+    private final UserDetailsService userDetailsService;
+
+    @Value("${crm.remember-me.secret}")
+    private String rememberMeSecret;
+
+    @Value("${crm.remember-me.validity-seconds}")
+    private int rememberMeValiditySeconds;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -105,6 +114,14 @@ public class SecurityConfig {
                         .defaultSuccessUrl("/", false)
                         .failureUrl("/login?error")
                         .permitAll())
+                // "Запомнить меня" — чекбокс с именем "remember-me" на форме логина (см.
+                // login.html), стандартное для Spring Security имя параметра, ничего в
+                // formLogin для этого настраивать не нужно. Без галочки — обычная сессионная
+                // кука, слетает при закрытии браузера, как и раньше.
+                .rememberMe(rm -> rm
+                        .key(rememberMeSecret)
+                        .tokenValiditySeconds(rememberMeValiditySeconds)
+                        .userDetailsService(userDetailsService))
                 .logout(logout -> logout
                         .logoutUrl("/logout")
                         .logoutSuccessUrl("/login")

@@ -317,6 +317,16 @@ textarea { min-height: 80px; resize: vertical; }
 .login-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; width: 100%; max-width: 340px; }
 .login-card .brand { color: var(--ink); font-size: 18px; font-weight: 700; margin-bottom: 22px; justify-content: center; }
 .login-card .btn.primary { width: 100%; text-align: center; }
+.password-field { position: relative; }
+.password-field input { padding-right: 40px; }
+.password-toggle {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--muted);
+}
+.password-toggle:hover { color: var(--ink); }
+.password-toggle svg { width: 20px; height: 20px; }
+.remember-me { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); font-weight: normal; margin: -4px 0 16px; cursor: pointer; }
 
 .hero-card { background: var(--accent); color: #fff; border-radius: var(--radius); padding: 20px 22px; margin-bottom: 16px; }
 .hero-card .value { font-size: 30px; font-weight: 700; }

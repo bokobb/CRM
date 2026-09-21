@@ -17,7 +17,22 @@ class _LoginScreenState extends State<LoginScreen> {
   final _username = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;
+  bool _obscurePassword = true;
+  bool _rememberMe = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    ApiClient.getRememberedUsername().then((saved) {
+      if (saved != null && mounted) {
+        setState(() {
+          _username.text = saved;
+          _rememberMe = true;
+        });
+      }
+    });
+  }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -27,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       final session = await _api.login(_username.text.trim(), _password.text);
+      await ApiClient.saveRememberedUsername(_rememberMe ? _username.text.trim() : null);
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil(homeRouteForRole(session.role), (route) => false);
       }
@@ -91,13 +107,29 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _password,
-                      decoration: const InputDecoration(labelText: 'Пароль'),
-                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Пароль',
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                          tooltip: _obscurePassword ? 'Показать пароль' : 'Скрыть пароль',
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      obscureText: _obscurePassword,
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => _login(),
                       validator: (v) => (v == null || v.isEmpty) ? 'Укажите пароль' : null,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 4),
+                    CheckboxListTile(
+                      value: _rememberMe,
+                      onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Запомнить меня'),
+                    ),
+                    const SizedBox(height: 12),
                     FilledButton(
                       onPressed: _loading ? null : _login,
                       child: _loading
