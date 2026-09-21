@@ -77,20 +77,39 @@ class AppDrawer extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Image.asset('assets/images/logo-full.png', width: 170),
-                  if (session != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      '${session.fullName} · ${session.roleLabel}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                  ClipOval(
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Юг Сладости',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (session != null)
+                          Text(
+                            '${session.fullName} · ${session.roleLabel}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
