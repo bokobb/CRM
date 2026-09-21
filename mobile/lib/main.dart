@@ -13,6 +13,7 @@ import 'screens/counterparties_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/debts_screen.dart';
 import 'screens/ingredient_form_screen.dart';
+import 'screens/ingredient_warehouse_screen.dart';
 import 'screens/ingredients_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -177,12 +178,27 @@ class CrmApp extends StatelessWidget {
             );
           case '/warehouse/receipts':
             return MaterialPageRoute(
-              builder: (_) => const StockMovementScreen(isReceipt: true),
+              builder: (_) => const StockMovementScreen(isReceipt: true, isProduct: true),
               settings: settings,
             );
           case '/warehouse/writeoffs':
             return MaterialPageRoute(
-              builder: (_) => const StockMovementScreen(isReceipt: false),
+              builder: (_) => const StockMovementScreen(isReceipt: false, isProduct: true),
+              settings: settings,
+            );
+          case '/ingredients-warehouse':
+            return MaterialPageRoute(
+              builder: (_) => const IngredientWarehouseScreen(),
+              settings: settings,
+            );
+          case '/ingredients/receipts':
+            return MaterialPageRoute(
+              builder: (_) => const StockMovementScreen(isReceipt: true, isProduct: false),
+              settings: settings,
+            );
+          case '/ingredients/writeoffs':
+            return MaterialPageRoute(
+              builder: (_) => const StockMovementScreen(isReceipt: false, isProduct: false),
               settings: settings,
             );
           case '/orders':

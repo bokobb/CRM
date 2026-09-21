@@ -45,7 +45,7 @@
             </form>
         </div>
 
-        <div th:if="${request.status.name() == 'NEW'}" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')"
+        <div th:if="${canEditLines}" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')"
              style="display:flex;gap:8px;margin-bottom:16px">
             <a class="btn small" th:href="@{/production-requests/{id}/edit(id=${request.id})}">Редактировать</a>
         </div>

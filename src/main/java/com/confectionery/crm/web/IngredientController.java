@@ -2,8 +2,10 @@ package com.confectionery.crm.web;
 
 import com.confectionery.crm.domain.Ingredient;
 import com.confectionery.crm.service.IngredientService;
+import com.confectionery.crm.service.OneCStockSyncService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -16,6 +18,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class IngredientController {
 
     private final IngredientService ingredientService;
+    private final OneCStockSyncService oneCStockSyncService;
 
     @GetMapping
     public String list(Model model) {
@@ -45,6 +48,24 @@ public class IngredientController {
             return "ingredients/form";
         }
         ingredientService.save(ingredient);
+        return "redirect:/ingredients";
+    }
+
+    /** Ручной запуск синхронизации с 1С — обычно она идёт по расписанию (crm.onec.sync-cron), см. WarehouseStockController. */
+    @PostMapping("/sync-1c")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String syncWithOneC(RedirectAttributes redirectAttributes) {
+        try {
+            var result = oneCStockSyncService.sync();
+            String message = "Обновлено сырья: " + result.ingredientsUpdated() + ", товаров: " + result.productsUpdated();
+            if (!result.unmatched().isEmpty()) {
+                message += ". Не сопоставлено с каталогом: " + result.unmatched().size()
+                        + " (" + String.join(", ", result.unmatched()) + ")";
+            }
+            redirectAttributes.addFlashAttribute("success", message);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось синхронизировать с 1С: " + e.getMessage());
+        }
         return "redirect:/ingredients";
     }
 

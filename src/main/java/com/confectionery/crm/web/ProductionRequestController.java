@@ -2,6 +2,7 @@ package com.confectionery.crm.web;
 
 import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
 import com.confectionery.crm.domain.ProductionRequest;
+import com.confectionery.crm.domain.ProductionRequestLine;
 import com.confectionery.crm.domain.ProductionRequestStatus;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.ProductionReportPdfService;
@@ -113,8 +114,13 @@ public class ProductionRequestController {
     @GetMapping("/{id}")
     public String view(@PathVariable Long id, Model model) {
         model.addAttribute("activePage", "production-requests");
-        model.addAttribute("request", requestService.findById(id));
+        ProductionRequest request = requestService.findById(id);
+        model.addAttribute("request", request);
         model.addAttribute("ingredients", ingredientService.findAll());
+        boolean canEditLines = request.getStatus() == ProductionRequestStatus.NEW
+                || (request.getStatus() == ProductionRequestStatus.COLLECTED
+                        && request.getLines().stream().noneMatch(ProductionRequestLine::isReceived));
+        model.addAttribute("canEditLines", canEditLines);
         return "production-requests/view";
     }
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <title>Сырьё — Юг Сладости</title>
@@ -11,9 +11,15 @@
     <main class="content">
         <div class="page-header">
             <div><h1>Сырьё</h1><p class="subtitle">Остатки сырья и пороги для автоматических уведомлений</p></div>
-            <a class="btn primary" th:href="@{/ingredients/new}">+ Ингредиент</a>
+            <div style="display:flex;gap:8px">
+                <form method="post" th:action="@{/ingredients/sync-1c}" sec:authorize="hasRole('ADMIN')">
+                    <button type="submit" class="btn">Синхронизировать с 1С</button>
+                </form>
+                <a class="btn primary" th:href="@{/ingredients/new}">+ Ингредиент</a>
+            </div>
         </div>
 
+        <div class="alert success" th:if="${success}" th:text="${success}"></div>
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
 
         <input type="text" id="crm-ingredient-search" class="product-search"

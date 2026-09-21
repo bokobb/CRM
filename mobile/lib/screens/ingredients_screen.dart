@@ -41,6 +41,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   bool _lowStockOnly = false;
   String _query = '';
   _SortMode _sortMode = _SortMode.qtyDesc;
+  bool _syncing = false;
 
   List<Ingredient> _sortIngredients(List<Ingredient> ingredients) {
     final sorted = [...ingredients];
@@ -66,6 +67,29 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
       _future = _api.getIngredients();
     });
     await _future;
+  }
+
+  /// Обычно синхронизация идёт по расписанию на бэкенде — эта кнопка (только у ADMIN) нужна
+  /// для проверки без ожидания, см. OneCStockSyncService.
+  Future<void> _syncOneC() async {
+    setState(() => _syncing = true);
+    try {
+      final result = await _api.syncOneC();
+      var message = 'Обновлено сырья: ${result.ingredientsUpdated}, товаров: ${result.productsUpdated}';
+      if (result.unmatched.isNotEmpty) {
+        message += '. Не сопоставлено: ${result.unmatched.length}';
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+      await _refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
   }
 
   Future<void> _delete(Ingredient i) async {
@@ -110,9 +134,21 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
             tooltip: 'Сортировка: ${_sortMode.label}',
             onPressed: () => setState(() => _sortMode = _sortMode.next),
           ),
+          if (ApiClient.currentSession?.role == 'ADMIN')
+            IconButton(
+              icon: _syncing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+              tooltip: 'Синхронизировать с 1С',
+              onPressed: _syncing ? null : _syncOneC,
+            ),
         ],
       ),
-      drawer: const AppDrawer(currentRoute: '/warehouse'),
+      drawer: const AppDrawer(currentRoute: '/ingredients-warehouse'),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.of(context).pushNamed('/ingredients/new');

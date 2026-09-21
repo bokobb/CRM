@@ -19,10 +19,17 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * Только WAREHOUSE_FG/ADMIN/ACCOUNTANT видят приход товара (см. {@link #receive}) — сырьё
+ * обычно приходует Покупками (см. PurchaseService), не этой ручной формой. Остальные методы
+ * (список движений, списание, удаление) открыты и WAREHOUSE_RAW — тому же в мобильном
+ * приложении нужен раздел "Склад сырья" (Остатки/Поступления/Списание, см. IngredientWarehouseScreen
+ * в мобильном приложении и IngredientController/WarehouseMovementController на вебе).
+ */
 @RestController
 @RequestMapping("/api/stock")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','ACCOUNTANT')")
+@PreAuthorize("hasAnyRole('WAREHOUSE_FG','WAREHOUSE_RAW','ADMIN','ACCOUNTANT')")
 public class StockMovementApiController {
 
     private final StockService stockService;
@@ -44,6 +51,7 @@ public class StockMovementApiController {
     }
 
     @PostMapping("/receipts")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','ACCOUNTANT')")
     public StockMovementDto receive(@Valid @RequestBody StockMovementRequest req, Authentication authentication) {
         if (req.productId() != null) {
             var product = productService.findById(req.productId());

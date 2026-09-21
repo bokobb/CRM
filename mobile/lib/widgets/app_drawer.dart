@@ -11,12 +11,11 @@ const _clients = ('/clients', 'Клиенты', Icons.people_outline);
 const _products = ('/products', 'Товары', Icons.cake_outlined);
 const _recipes = ('/recipes', 'Рецепты', Icons.menu_book_outlined);
 const _warehouse = ('/warehouse', 'Склад', Icons.inventory_2_outlined);
-const _ingredients = ('/ingredients', 'Сырьё', Icons.grain_outlined);
+const _ingredientWarehouse = ('/ingredients-warehouse', 'Склад сырья', Icons.grain_outlined);
 const _production = ('/production', 'Производство', Icons.factory_outlined);
 const _productionRequests = ('/production-requests', 'Заявки на сырьё', Icons.science_outlined);
 const _productionReport = ('/production-requests/report', 'Отчёт', Icons.summarize_outlined);
 const _purchases = ('/purchases', 'Покупки', Icons.local_shipping_outlined);
-const _warehouseWriteoffs = ('/warehouse/writeoffs', 'Списание', Icons.remove_circle_outline);
 const _debts = ('/debts', 'Долги', Icons.hourglass_bottom_outlined);
 const _whatsappInbox = ('/whatsapp-inbox', 'WhatsApp-заказы', Icons.chat_bubble_outline);
 const _notifications = (
@@ -36,16 +35,17 @@ class AppDrawer extends StatelessWidget {
       case 'ACCOUNTANT':
         // Бухгалтер имеет полный доступ ко всему разделу приложения (кроме кнопок
         // "Заказ собран"/"Отгрузил" — те гейтятся отдельно внутри order_detail_screen.dart).
+        // Порядок зеркалит веб-меню (см. fragments/nav.html).
         return [
           _dashboard,
           _orders,
-          _clients,
+          _productionRequests,
+          _purchases,
           _products,
           _recipes,
           _warehouse,
-          _ingredients,
-          _purchases,
-          _productionRequests,
+          _ingredientWarehouse,
+          _clients,
           _productionReport,
           _production,
           _debts,
@@ -55,12 +55,12 @@ class AppDrawer extends StatelessWidget {
       case 'SALES':
         return [_dashboard, _orders, _clients, _products, _recipes, _whatsappInbox, _notifications];
       case 'WAREHOUSE_FG':
-        return [_orders, _warehouse, _ingredients, _productionRequests, _productionReport, _notifications];
+        return [_orders, _productionRequests, _warehouse, _ingredientWarehouse, _productionReport, _notifications];
       case 'WAREHOUSE_RAW':
-        // Склад сырья: дашборд по производству (не по заказам — см. DashboardScreen),
-        // заявки (сборка по чек-листу), покупки (приход от поставщиков), списание
-        // (порча/недостача вне процесса заявок) и сама карточка сырья.
-        return [_dashboard, _productionRequests, _purchases, _warehouseWriteoffs, _ingredients, _notifications];
+        // Дашборд по производству (не по заказам — см. DashboardScreen), заявки (сборка по
+        // чек-листу), покупки (приход от поставщиков) и склад сырья (остатки/поступления/
+        // списание — раньше был только пункт "Списание", теперь та же тройка, что у всех).
+        return [_dashboard, _productionRequests, _purchases, _ingredientWarehouse, _notifications];
       default:
         return [_dashboard];
     }

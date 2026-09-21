@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -168,24 +169,74 @@ public class ProductionRequestService {
     }
 
     /**
-     * Редактирование ещё не собранной заявки — позиции и просуммированное сырьё пересчитываются
+     * Редактирование позиций (товар/замесов) — позиции и просуммированное сырьё пересчитываются
      * заново с нуля (как при создании), название заявки не меняется (группа определяется один
-     * раз при создании, см. {@link #createGrouped}). После сборки (списание сырья со склада уже
-     * произошло) редактировать нельзя — иначе список сырья разъедется с тем, что реально списано.
+     * раз при создании, см. {@link #createGrouped}). Доступно и после сборки ({@link
+     * ProductionRequestStatus#COLLECTED}) — по просьбе пользователя (склад может ошибиться в
+     * замесах уже после того, как нажал «Собрано»); сырьё к этому моменту уже физически списано
+     * со склада в {@link #collect}, поэтому разница между старым и новым составом сырья здесь
+     * ЖИВОЕ движение по складу — та же логика, что и в {@link #substituteItem}. Если по заявке
+     * уже есть оприходованная продукция ({@link ProductionRequestLine#isReceived()}) — править
+     * позиции нельзя, иначе бесследно исчезнет факт оприходования и разъедется остаток товара на
+     * складе; как только заявка полностью оприходована ({@link ProductionRequestStatus#RECEIVED})
+     * или завершена — тоже нельзя, дальше состав меняют только через позиции сырья
+     * ({@link #substituteItem}/{@link #addItem}/{@link #removeItem}).
      * @param documentDate дата документа для 1С; null — не менять текущую.
      */
     @Transactional
     public ProductionRequest update(Long requestId, List<Line> lines, String updatedBy, LocalDate documentDate) {
         ProductionRequest request = findById(requestId);
-        if (request.getStatus() != ProductionRequestStatus.NEW) {
-            throw new IllegalStateException("Редактировать можно только заявку в статусе «Новая»");
+        if (request.getStatus() == ProductionRequestStatus.CANCELLED
+                || request.getStatus() == ProductionRequestStatus.RECEIVED) {
+            throw new IllegalStateException("Редактировать позиции можно только до полного оприходования заявки");
+        }
+        if (request.isRequisitionCompleted()) {
+            throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
+        }
+        boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED;
+        if (stockAlreadyWrittenOff && request.getLines().stream().anyMatch(ProductionRequestLine::isReceived)) {
+            throw new IllegalStateException("Нельзя менять позиции — по заявке уже есть оприходованная продукция");
         }
         if (documentDate != null) {
             request.setDocumentDate(documentDate);
         }
+
+        Map<Long, BigDecimal> oldRequirements = new LinkedHashMap<>();
+        Map<Long, Ingredient> ingredientsById = new LinkedHashMap<>();
+        if (stockAlreadyWrittenOff) {
+            for (ProductionRequestItem item : request.getItems()) {
+                oldRequirements.merge(item.getIngredient().getId(), item.getRequiredQuantity(), BigDecimal::add);
+                ingredientsById.put(item.getIngredient().getId(), item.getIngredient());
+            }
+        }
+
         request.getLines().clear();
         request.getItems().clear();
         populate(request, lines);
+
+        if (stockAlreadyWrittenOff) {
+            Map<Long, BigDecimal> newRequirements = new LinkedHashMap<>();
+            for (ProductionRequestItem item : request.getItems()) {
+                newRequirements.merge(item.getIngredient().getId(), item.getRequiredQuantity(), BigDecimal::add);
+                ingredientsById.put(item.getIngredient().getId(), item.getIngredient());
+            }
+            String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — правка позиций";
+            Set<Long> allIngredientIds = new LinkedHashSet<>();
+            allIngredientIds.addAll(oldRequirements.keySet());
+            allIngredientIds.addAll(newRequirements.keySet());
+            for (Long ingredientId : allIngredientIds) {
+                BigDecimal oldQty = oldRequirements.getOrDefault(ingredientId, BigDecimal.ZERO);
+                BigDecimal newQty = newRequirements.getOrDefault(ingredientId, BigDecimal.ZERO);
+                BigDecimal diff = newQty.subtract(oldQty);
+                Ingredient ingredient = ingredientsById.get(ingredientId);
+                if (diff.signum() > 0) {
+                    stockService.writeOffForProduction(ingredient, diff, reason, updatedBy);
+                } else if (diff.signum() < 0) {
+                    stockService.receiveForProduction(ingredient, diff.negate(), reason, updatedBy);
+                }
+            }
+        }
+
         oneCProductionSyncService.trySyncRequest(request);
         return request;
     }

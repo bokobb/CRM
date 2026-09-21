@@ -4,21 +4,30 @@
 <nav th:fragment="nav" class="sidebar">
     <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
     <a th:href="@{/}" class="nav-link" sec:authorize="!hasRole('WAREHOUSE_FG')" th:classappend="${activePage == 'dashboard'} ? 'active'">Дашборд</a>
-    <a th:href="@{/clients}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'clients'} ? 'active'">Клиенты</a>
+    <a th:href="@{/orders}" class="nav-link" th:classappend="${activePage == 'orders'} ? 'active'">Заказы</a>
+    <a th:href="@{/production-requests}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Заявки на сырьё</a>
+    <a th:href="@{/purchases}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" th:classappend="${activePage == 'purchases'} ? 'active'">Покупки</a>
     <a th:href="@{/products}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'products'} ? 'active'">Товары</a>
     <a th:href="@{/products/recipes}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'products-recipes'} ? 'active'">Рецепты</a>
+
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:12px 12px 4px" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')">Склад</div>
     <a th:href="@{/warehouse/stock}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'warehouse-stock'} ? 'active'">Остатки</a>
     <a th:href="@{/warehouse/receipts}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'warehouse-receipts'} ? 'active'">Поступления</a>
     <a th:href="@{/warehouse/writeoffs}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'warehouse-writeoffs'} ? 'active'">Списание</a>
-    <a th:href="@{/ingredients}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'ingredients'} ? 'active'">Сырьё</a>
-    <a th:href="@{/purchases}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" th:classappend="${activePage == 'purchases'} ? 'active'">Покупки</a>
-    <a th:href="@{/production-requests}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Заявки на сырьё</a>
-    <a th:href="@{/production-requests/report}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Отчёт</a>
-    <a th:href="@{/orders}" class="nav-link" th:classappend="${activePage == 'orders'} ? 'active'">Заказы</a>
-    <a th:href="@{/production}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'production'} ? 'active'">Производство</a>
-    <a th:href="@{/debts}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'debts'} ? 'active'">Долги</a>
-    <a th:href="@{/whatsapp-inbox}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'whatsapp-inbox'} ? 'active'">WhatsApp-заказы</a>
-    <a th:href="@{/notifications}" class="nav-link" th:classappend="${activePage == 'notifications'} ? 'active'">Уведомления</a>
+
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:12px 12px 4px" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')">Склад сырья</div>
+    <a th:href="@{/ingredients}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'ingredients'} ? 'active'">Остатки</a>
+    <a th:href="@{/ingredients/receipts}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'ingredients-receipts'} ? 'active'">Поступления</a>
+    <a th:href="@{/ingredients/writeoffs}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG','WAREHOUSE_RAW')" th:classappend="${activePage == 'ingredients-writeoffs'} ? 'active'">Списание</a>
+
+    <div style="margin-top:8px">
+        <a th:href="@{/clients}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'clients'} ? 'active'">Клиенты</a>
+        <a th:href="@{/production-requests/report}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Отчёт</a>
+        <a th:href="@{/production}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'production'} ? 'active'">Производство</a>
+        <a th:href="@{/debts}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT')" th:classappend="${activePage == 'debts'} ? 'active'">Долги</a>
+        <a th:href="@{/whatsapp-inbox}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','SALES')" th:classappend="${activePage == 'whatsapp-inbox'} ? 'active'">WhatsApp-заказы</a>
+        <a th:href="@{/notifications}" class="nav-link" th:classappend="${activePage == 'notifications'} ? 'active'">Уведомления</a>
+    </div>
     <div sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_RAW')" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:0 12px 4px">Настройки</div>
         <a th:href="@{/counterparties}" class="nav-link" th:classappend="${activePage == 'counterparties'} ? 'active'">Контрагенты</a>

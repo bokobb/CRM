@@ -25,7 +25,7 @@ class WarehouseScreen extends StatelessWidget {
             leadingIcon: Icons.add_box_outlined,
             leadingColor: const Color(0xFF3F8F5B),
             title: 'Поступления',
-            subtitle: 'Приход сырья или готовой продукции',
+            subtitle: 'Приход готовой продукции на склад',
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: () => Navigator.of(context).pushNamed('/warehouse/receipts'),
           ),

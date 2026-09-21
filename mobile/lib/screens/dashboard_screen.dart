@@ -182,23 +182,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             trailing: StatusBadge(status: g.status, label: g.statusLabel),
                             onTap: () => showOrderNotificationHistory(context, g),
                           ),
-                      if (d.generalNotifications.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        Text('Прочие уведомления', style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 8),
-                        Card(
-                          child: Column(
-                            children: [
-                              for (final n in d.generalNotifications)
-                                ListTile(
-                                  title: Text(n.message),
-                                  subtitle: Text(formatDateTime(n.createdAt)),
-                                  dense: true,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
                     ],
                   );
                 },

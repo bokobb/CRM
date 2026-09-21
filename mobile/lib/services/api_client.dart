@@ -573,7 +573,7 @@ class ApiClient {
     _decode(res);
   }
 
-  /// Ручной запуск синхронизации остатков с 1С (обычно идёт по расписанию раз в час на
+  /// Ручной запуск синхронизации остатков с 1С (обычно идёт по расписанию каждые 5 минут на
   /// бэкенде) — только для ADMIN, см. OneCStockSyncService/StockMovementApiController.
   Future<({int productsUpdated, int ingredientsUpdated, List<String> unmatched})> syncOneC() async {
     final res = await http.post(

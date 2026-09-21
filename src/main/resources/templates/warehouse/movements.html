@@ -12,11 +12,11 @@
         <div class="page-header">
             <div>
                 <h1 th:text="${isReceipt ? 'Поступления' : 'Списание'}"></h1>
-                <p class="subtitle" th:text="${isReceipt
-                        ? 'Приход сырья и готовой продукции на склад'
-                        : 'Списание порчи, недостачи и т.п. со склада'}"></p>
+                <p class="subtitle" th:text="${kind == 'PRODUCT'
+                        ? (isReceipt ? 'Приход готовой продукции на склад' : 'Списание порчи, недостачи и т.п. готовой продукции')
+                        : (isReceipt ? 'Приход сырья на склад' : 'Списание порчи, недостачи и т.п. сырья')}"></p>
             </div>
-            <form th:if="${isReceipt}" method="post" th:action="@{/warehouse/receipts/post-1c}"
+            <form th:if="${isReceipt and kind == 'PRODUCT'}" method="post" th:action="@{/warehouse/receipts/post-1c}"
                   sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_FG')"
                   onsubmit="return confirm('Собрать все сегодняшние ручные поступления товара в один документ и провести в 1С на 06:00? (приход от заявок на производство сюда не входит — он выгружается сам)');">
                 <button type="submit" class="btn">Общее оприходование</button>
@@ -26,35 +26,21 @@
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
         <div class="alert success" th:if="${success}" th:text="${success}"></div>
 
-        <form class="panel" th:action="@{${isReceipt ? '/warehouse/receipts' : '/warehouse/writeoffs'}}"
+        <form class="panel" th:action="@{${isReceipt ? receiptsUrl : writeoffsUrl}}"
               method="post" style="max-width:520px">
             <h2 th:text="${isReceipt ? 'Новое поступление' : 'Новое списание'}"></h2>
 
-            <div class="field">
-                <label>Вид</label>
-                <div class="row">
-                    <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);flex:none">
-                        <input type="radio" name="kind" value="INGREDIENT" checked
-                               onchange="crmToggleStockKind(this)" style="width:auto"> Сырьё
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);flex:none">
-                        <input type="radio" name="kind" value="PRODUCT"
-                               onchange="crmToggleStockKind(this)" style="width:auto"> Готовая продукция
-                    </label>
-                </div>
-            </div>
-
-            <div class="field" id="crm-kind-ingredient">
+            <div class="field" th:if="${kind == 'INGREDIENT'}">
                 <label>Сырьё</label>
-                <select name="ingredientId">
+                <select name="ingredientId" required>
                     <option value="">— выберите сырьё —</option>
                     <option th:each="i : ${ingredients}" th:value="${i.id}"
                             th:text="${i.name} + ' (' + ${i.quantityInStock} + ' ' + ${i.unit} + ')'"></option>
                 </select>
             </div>
-            <div class="field hidden-row" id="crm-kind-product">
+            <div class="field" th:if="${kind == 'PRODUCT'}">
                 <label>Товар</label>
-                <select name="productId">
+                <select name="productId" required>
                     <option value="">— выберите товар —</option>
                     <option th:each="p : ${products}" th:value="${p.id}"
                             th:text="${p.name} + ' (' + ${p.quantityInStock} + ' ' + ${p.unit ?: 'шт'} + ')'"></option>
@@ -88,17 +74,16 @@
                 </div>
                 <div class="field" style="margin:0;flex:2">
                     <label>Название</label>
-                    <input type="text" name="q" th:value="${q}" placeholder="Сырьё или товар...">
+                    <input type="text" name="q" th:value="${q}" th:placeholder="${kind == 'PRODUCT' ? 'Товар...' : 'Сырьё...'}">
                 </div>
                 <button class="btn small" type="submit">Найти</button>
                 <a class="btn small" th:if="${from != null or to != null or (q != null and !#strings.isEmpty(q))}"
-                   th:href="@{${isReceipt ? '/warehouse/receipts' : '/warehouse/writeoffs'}}">Сбросить</a>
+                   th:href="@{${isReceipt ? receiptsUrl : writeoffsUrl}}">Сбросить</a>
             </form>
             <table th:if="${not #lists.isEmpty(movements)}">
-                <tr><th>Дата</th><th>Вид</th><th>Позиция</th><th>Количество</th><th>Причина</th><th>Кто</th><th></th></tr>
+                <tr><th>Дата</th><th>Позиция</th><th>Количество</th><th>Причина</th><th>Кто</th><th></th></tr>
                 <tr th:each="m : ${movements}">
                     <td th:text="${#temporals.format(m.createdAt, 'dd.MM.yyyy HH:mm')}"></td>
-                    <td th:text="${m.product != null ? 'Товар' : 'Сырьё'}"></td>
                     <td th:text="${m.product != null ? m.product.name : m.ingredient.name}"></td>
                     <td th:text="${isReceipt ? '+' : '−'} + ${m.quantity} + ' ' + ${m.product != null ? (m.product.unit ?: 'шт') : m.ingredient.unit}"></td>
                     <td th:text="${m.reason}"></td>
@@ -115,11 +100,5 @@
         </div>
     </main>
 </div>
-<script th:inline="none">
-    function crmToggleStockKind(radio) {
-        document.getElementById('crm-kind-ingredient').classList.toggle('hidden-row', radio.value !== 'INGREDIENT');
-        document.getElementById('crm-kind-product').classList.toggle('hidden-row', radio.value !== 'PRODUCT');
-    }
-</script>
 </body>
 </html>

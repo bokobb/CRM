@@ -24,16 +24,25 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Поступления и списания сырья/готовой продукции (журнал StockMovement) — веб-аналог
- * мобильного экрана StockMovementScreen (см. mobile/lib/screens/stock_movement_screen.dart),
- * поверх уже готового StockService, которым и мобильное приложение пользуется через REST
- * (см. StockMovementApiController). "Остатки" — отдельно, см. WarehouseStockController.
+ * Поступления и списания готовой продукции ("Склад", см. WarehouseStockController) и сырья
+ * ("Склад сырья", см. IngredientController) — журнал StockMovement, веб-аналог мобильного
+ * экрана StockMovementScreen (см. mobile/lib/screens/stock_movement_screen.dart), поверх уже
+ * готового StockService, которым и мобильное приложение пользуется через REST (см.
+ * StockMovementApiController). "Остатки" — отдельно (WarehouseStockController/IngredientController).
  * Показываются только РУЧНЫЕ движения (см. StockMovement.manual) — то, что списывается/
  * приходуется автоматически заявками на производство, здесь намеренно не отображается.
+ *
+ * <p>Товар и сырьё — две независимые пары страниц ("Склад" и "Склад сырья" в меню), каждая
+ * видит только свой вид номенклатуры — раньше это была одна пара страниц с переключателем
+ * "Вид" внутри формы, из-за чего приход/списание сырья и товара было не различить в общем
+ * меню; теперь структура зеркальна "Остаткам", где такое разделение уже было.
  */
 @Controller
 @RequiredArgsConstructor
 public class WarehouseMovementController {
+
+    private static final String PRODUCT = "PRODUCT";
+    private static final String INGREDIENT = "INGREDIENT";
 
     private final StockService stockService;
     private final ProductService productService;
@@ -42,42 +51,59 @@ public class WarehouseMovementController {
     private final StockMovementRepository stockMovementRepository;
 
     @GetMapping("/warehouse/receipts")
-    public String receipts(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
-                            @RequestParam(required = false) String q, Model model) {
-        return page(model, StockMovementType.RECEIPT, "warehouse-receipts", from, to, q);
+    public String productReceipts(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+                                   @RequestParam(required = false) String q, Model model) {
+        return page(model, StockMovementType.RECEIPT, PRODUCT, "warehouse-receipts", from, to, q);
     }
 
     @GetMapping("/warehouse/writeoffs")
-    public String writeoffs(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
-                             @RequestParam(required = false) String q, Model model) {
-        return page(model, StockMovementType.WRITE_OFF, "warehouse-writeoffs", from, to, q);
+    public String productWriteoffs(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+                                    @RequestParam(required = false) String q, Model model) {
+        return page(model, StockMovementType.WRITE_OFF, PRODUCT, "warehouse-writeoffs", from, to, q);
     }
 
-    private String page(Model model, StockMovementType type, String activePage, LocalDate from, LocalDate to, String q) {
+    @GetMapping("/ingredients/receipts")
+    public String ingredientReceipts(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+                                      @RequestParam(required = false) String q, Model model) {
+        return page(model, StockMovementType.RECEIPT, INGREDIENT, "ingredients-receipts", from, to, q);
+    }
+
+    @GetMapping("/ingredients/writeoffs")
+    public String ingredientWriteoffs(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+                                       @RequestParam(required = false) String q, Model model) {
+        return page(model, StockMovementType.WRITE_OFF, INGREDIENT, "ingredients-writeoffs", from, to, q);
+    }
+
+    private String page(Model model, StockMovementType type, String kind, String activePage, LocalDate from, LocalDate to, String q) {
         model.addAttribute("activePage", activePage);
         model.addAttribute("isReceipt", type == StockMovementType.RECEIPT);
-        model.addAttribute("movements", stockService.findMovements(type,
+        model.addAttribute("kind", kind);
+        model.addAttribute("receiptsUrl", kind.equals(PRODUCT) ? "/warehouse/receipts" : "/ingredients/receipts");
+        model.addAttribute("writeoffsUrl", kind.equals(PRODUCT) ? "/warehouse/writeoffs" : "/ingredients/writeoffs");
+        var movements = stockService.findMovements(type,
                 from == null ? null : from.atStartOfDay(),
                 to == null ? null : to.plusDays(1).atStartOfDay(),
-                q));
+                q).stream()
+                .filter(m -> kind.equals(PRODUCT) ? m.getProduct() != null : m.getIngredient() != null)
+                .toList();
+        model.addAttribute("movements", movements);
         model.addAttribute("from", from);
         model.addAttribute("to", to);
         model.addAttribute("q", q);
-        model.addAttribute("products", productService.findAll());
-        model.addAttribute("ingredients", ingredientService.findAll());
+        if (kind.equals(PRODUCT)) {
+            model.addAttribute("products", productService.findAll());
+        } else {
+            model.addAttribute("ingredients", ingredientService.findAll());
+        }
         return "warehouse/movements";
     }
 
     @PostMapping("/warehouse/receipts")
     @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','ACCOUNTANT')")
-    public String createReceipt(@RequestParam String kind,
-                                 @RequestParam(required = false) Long productId,
-                                 @RequestParam(required = false) Long ingredientId,
-                                 @RequestParam BigDecimal quantity,
-                                 @RequestParam(required = false) String reason,
-                                 Authentication authentication,
-                                 RedirectAttributes redirectAttributes) {
-        submit(StockMovementType.RECEIPT, kind, productId, ingredientId, quantity, reason, authentication, redirectAttributes);
+    public String createProductReceipt(@RequestParam Long productId, @RequestParam BigDecimal quantity,
+                                        @RequestParam(required = false) String reason,
+                                        Authentication authentication, RedirectAttributes redirectAttributes) {
+        submit(StockMovementType.RECEIPT, PRODUCT, productId, null, quantity, reason, authentication, redirectAttributes);
         return "redirect:/warehouse/receipts";
     }
 
@@ -109,27 +135,44 @@ public class WarehouseMovementController {
 
     @PostMapping("/warehouse/writeoffs")
     @PreAuthorize("hasAnyRole('WAREHOUSE_FG','WAREHOUSE_RAW','ADMIN','ACCOUNTANT')")
-    public String createWriteOff(@RequestParam String kind,
-                                  @RequestParam(required = false) Long productId,
-                                  @RequestParam(required = false) Long ingredientId,
-                                  @RequestParam BigDecimal quantity,
-                                  @RequestParam(required = false) String reason,
-                                  Authentication authentication,
-                                  RedirectAttributes redirectAttributes) {
-        submit(StockMovementType.WRITE_OFF, kind, productId, ingredientId, quantity, reason, authentication, redirectAttributes);
+    public String createProductWriteOff(@RequestParam Long productId, @RequestParam BigDecimal quantity,
+                                         @RequestParam(required = false) String reason,
+                                         Authentication authentication, RedirectAttributes redirectAttributes) {
+        submit(StockMovementType.WRITE_OFF, PRODUCT, productId, null, quantity, reason, authentication, redirectAttributes);
         return "redirect:/warehouse/writeoffs";
+    }
+
+    @PostMapping("/ingredients/receipts")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','ACCOUNTANT')")
+    public String createIngredientReceipt(@RequestParam Long ingredientId, @RequestParam BigDecimal quantity,
+                                           @RequestParam(required = false) String reason,
+                                           Authentication authentication, RedirectAttributes redirectAttributes) {
+        submit(StockMovementType.RECEIPT, INGREDIENT, null, ingredientId, quantity, reason, authentication, redirectAttributes);
+        return "redirect:/ingredients/receipts";
+    }
+
+    @PostMapping("/ingredients/writeoffs")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','WAREHOUSE_RAW','ADMIN','ACCOUNTANT')")
+    public String createIngredientWriteOff(@RequestParam Long ingredientId, @RequestParam BigDecimal quantity,
+                                            @RequestParam(required = false) String reason,
+                                            Authentication authentication, RedirectAttributes redirectAttributes) {
+        submit(StockMovementType.WRITE_OFF, INGREDIENT, null, ingredientId, quantity, reason, authentication, redirectAttributes);
+        return "redirect:/ingredients/writeoffs";
     }
 
     /**
      * Удаление ошибочно созданного ручного поступления/списания — откатывает остаток (см.
-     * StockService.deleteMovement). Редиректим обратно на ту же страницу, откуда удаляли
-     * (тип движения смотрим до удаления, т.к. после него сущности уже нет).
+     * StockService.deleteMovement). Редиректим обратно на ту же страницу, откуда удаляли (вид
+     * номенклатуры и тип движения смотрим до удаления, т.к. после него сущности уже нет).
      */
     @PostMapping("/warehouse/movements/{id}/delete")
     @PreAuthorize("hasAnyRole('WAREHOUSE_FG','WAREHOUSE_RAW','ADMIN','ACCOUNTANT')")
     public String deleteMovement(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         String redirectTo = stockMovementRepository.findById(id)
-                .map(m -> m.getType() == StockMovementType.RECEIPT ? "/warehouse/receipts" : "/warehouse/writeoffs")
+                .map(m -> {
+                    String base = m.getProduct() != null ? "/warehouse" : "/ingredients";
+                    return base + (m.getType() == StockMovementType.RECEIPT ? "/receipts" : "/writeoffs");
+                })
                 .orElse("/warehouse/receipts");
         try {
             stockService.deleteMovement(id);
@@ -144,7 +187,7 @@ public class WarehouseMovementController {
                          String reason, Authentication authentication, RedirectAttributes redirectAttributes) {
         try {
             String by = authentication.getName();
-            if ("PRODUCT".equals(kind)) {
+            if (PRODUCT.equals(kind)) {
                 if (productId == null) {
                     throw new IllegalArgumentException("Выберите товар");
                 }

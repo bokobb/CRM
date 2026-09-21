@@ -9,12 +9,17 @@ import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 
-/// Общий экран для "Поступления" и "Списание товара" — отличаются только типом движения
-/// (RECEIPT/WRITE_OFF), заголовком и тем, какой метод ApiClient дёргается при сохранении.
+/// Общий экран для "Поступления" и "Списание" — товара и сырья (см. [isProduct]) — отличаются
+/// типом движения (RECEIPT/WRITE_OFF), видом номенклатуры, заголовком и тем, какой метод
+/// ApiClient дёргается при сохранении. Раньше вид (сырьё/товар) выбирался переключателем внутри
+/// одного и того же экрана — теперь это два отдельных пункта меню ("Склад"/"Склад сырья", см.
+/// AppDrawer), каждый видит только свою номенклатуру, зеркально "Остаткам"
+/// (ProductStockScreen/IngredientsScreen).
 class StockMovementScreen extends StatefulWidget {
   final bool isReceipt;
+  final bool isProduct;
 
-  const StockMovementScreen({super.key, required this.isReceipt});
+  const StockMovementScreen({super.key, required this.isReceipt, required this.isProduct});
 
   @override
   State<StockMovementScreen> createState() => _StockMovementScreenState();
@@ -32,18 +37,27 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
   int? _deleteModeId;
 
   String get _type => widget.isReceipt ? 'RECEIPT' : 'WRITE_OFF';
-  String get _title => widget.isReceipt ? 'Поступления' : 'Списание товара';
+  String get _title {
+    if (widget.isProduct) return widget.isReceipt ? 'Поступления' : 'Списание товара';
+    return widget.isReceipt ? 'Поступления сырья' : 'Списание сырья';
+  }
+
   bool get _hasFilter => _search.text.isNotEmpty;
+
+  Future<List<StockMovement>> _load({String? q}) async {
+    final all = await _api.getStockMovements(type: _type, from: _range.start, to: _range.end, q: q);
+    return all.where((m) => m.isProduct == widget.isProduct).toList();
+  }
 
   @override
   void initState() {
     super.initState();
-    _future = _api.getStockMovements(type: _type, from: _range.start, to: _range.end);
+    _future = _load();
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _future = _api.getStockMovements(type: _type, from: _range.start, to: _range.end, q: _search.text.trim());
+      _future = _load(q: _search.text.trim());
     });
     await _future;
   }
@@ -71,7 +85,7 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _StockMovementForm(isReceipt: widget.isReceipt),
+      builder: (context) => _StockMovementForm(isReceipt: widget.isReceipt, isProduct: widget.isProduct),
     );
     if (saved == true) _refresh();
   }
@@ -117,7 +131,7 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
   @override
   Widget build(BuildContext context) {
     final role = ApiClient.currentSession?.role;
-    final canPostOneC = widget.isReceipt && (role == 'ADMIN' || role == 'WAREHOUSE_FG');
+    final canPostOneC = widget.isReceipt && widget.isProduct && (role == 'ADMIN' || role == 'WAREHOUSE_FG');
     return Scaffold(
       appBar: AppBar(
         title: Text(_title),
@@ -132,7 +146,7 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
             ),
         ],
       ),
-      drawer: const AppDrawer(currentRoute: '/warehouse'),
+      drawer: AppDrawer(currentRoute: widget.isProduct ? '/warehouse' : '/ingredients-warehouse'),
       floatingActionButton: FloatingActionButton(onPressed: _openForm, child: const Icon(Icons.add)),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -143,9 +157,9 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
               child: TextField(
                 controller: _search,
-                decoration: const InputDecoration(
-                  labelText: 'Название сырья или товара',
-                  prefixIcon: Icon(Icons.search),
+                decoration: InputDecoration(
+                  labelText: widget.isProduct ? 'Название товара' : 'Название сырья',
+                  prefixIcon: const Icon(Icons.search),
                   isDense: true,
                 ),
                 onSubmitted: (_) => _refresh(),
@@ -216,8 +230,9 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
 
 class _StockMovementForm extends StatefulWidget {
   final bool isReceipt;
+  final bool isProduct;
 
-  const _StockMovementForm({required this.isReceipt});
+  const _StockMovementForm({required this.isReceipt, required this.isProduct});
 
   @override
   State<_StockMovementForm> createState() => _StockMovementFormState();
@@ -228,7 +243,6 @@ class _StockMovementFormState extends State<_StockMovementForm> {
   final _formKey = GlobalKey<FormState>();
   final _quantity = TextEditingController();
   final _reason = TextEditingController();
-  bool _isProductKind = false;
   int? _itemId;
   List<Ingredient> _ingredients = [];
   List<Product> _products = [];
@@ -244,7 +258,7 @@ class _StockMovementFormState extends State<_StockMovementForm> {
 
   Future<void> _loadItems() async {
     setState(() => _loadingItems = true);
-    if (_isProductKind) {
+    if (widget.isProduct) {
       _products = await _api.getProducts();
     } else {
       _ingredients = await _api.getIngredients();
@@ -261,7 +275,7 @@ class _StockMovementFormState extends State<_StockMovementForm> {
     try {
       final qty = double.parse(_quantity.text.replaceAll(',', '.'));
       final reason = _reason.text.trim();
-      if (_isProductKind) {
+      if (widget.isProduct) {
         if (widget.isReceipt) {
           await _api.receiveProductStock(_itemId!, qty, reason);
         } else {
@@ -306,24 +320,9 @@ class _StockMovementFormState extends State<_StockMovementForm> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(_error!, style: const TextStyle(color: Colors.red)),
               ),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Сырьё'), icon: Icon(Icons.grain_outlined)),
-                ButtonSegment(value: true, label: Text('Готовая продукция'), icon: Icon(Icons.cake_outlined)),
-              ],
-              selected: {_isProductKind},
-              onSelectionChanged: (s) {
-                setState(() {
-                  _isProductKind = s.first;
-                  _itemId = null;
-                });
-                _loadItems();
-              },
-            ),
-            const SizedBox(height: 12),
             if (_loadingItems)
               const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
-            else if (_isProductKind)
+            else if (widget.isProduct)
               DropdownButtonFormField<int>(
                 initialValue: _itemId,
                 decoration: const InputDecoration(labelText: 'Товар'),
