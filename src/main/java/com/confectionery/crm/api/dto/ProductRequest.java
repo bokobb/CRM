@@ -14,6 +14,7 @@ public record ProductRequest(
         String unit,
         String imageUrl,
         boolean semiFinished,
+        String oneCDepartmentKey,
         BigDecimal netWeightGrams
 ) {
 }

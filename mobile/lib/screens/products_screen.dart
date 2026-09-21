@@ -20,6 +20,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   final _api = ApiClient();
   late Future<List<Product>> _future;
   String _query = '';
+  bool _importing = false;
 
   @override
   void initState() {
@@ -58,6 +59,43 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
+  Future<bool> _confirmImport(String message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Импорт из 1С'),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Продолжить')),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  /// "Импортировать спецификации из 1С" — на экране рецептуры конкретного товара (см.
+  /// RecipeScreen), здесь осталось только подразделение (единственное, что относится к списку
+  /// товаров целиком, а не к рецептуре одного товара).
+  Future<void> _importDepartments() async {
+    if (!await _confirmImport(
+        'Определить подразделение (Корпус А/B/С/D) для каждого товара по истории документов в 1С?')) {
+      return;
+    }
+    setState(() => _importing = true);
+    try {
+      final r = await _api.importDepartmentsFromOneC();
+      final message = 'Подразделение обновлено у товаров: ${r.updated}. '
+          'Без истории документов в 1С: ${r.skippedNoHistory}. Не найдено по названию: ${r.skippedNoOneCMatch}';
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isAdmin = ApiClient.currentSession?.role == 'ADMIN';
@@ -66,6 +104,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
         title: 'Товары',
         hintText: 'Название товара...',
         onQueryChanged: (v) => setState(() => _query = v),
+        extraActions: [
+          if (isAdmin)
+            IconButton(
+              icon: _importing
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.sync),
+              tooltip: 'Импортировать подразделения из 1С',
+              onPressed: _importing ? null : _importDepartments,
+            ),
+        ],
       ),
       drawer: const AppDrawer(currentRoute: '/products'),
       floatingActionButton: FloatingActionButton(
@@ -110,6 +158,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     if (p.category != null) p.category!,
                     formatMoney(p.price),
                     if (p.unit != null && p.unit!.isNotEmpty) p.unit!,
+                    if (oneCDepartmentNames[p.oneCDepartmentKey] != null) oneCDepartmentNames[p.oneCDepartmentKey]!,
                   ].join(' · '),
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) async {

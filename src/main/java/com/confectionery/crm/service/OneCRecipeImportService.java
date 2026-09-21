@@ -8,6 +8,7 @@ import com.confectionery.crm.web.dto.RecipeForm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -26,6 +27,8 @@ import java.util.stream.Collectors;
  * У некоторых товаров в 1С спецификация разбита на 2 части (например, "для сырья"/тесто и
  * "упаковка") — вторая ссылается на первую как на один из своих компонентов (сам на себя,
  * через Owner_Key). Здесь это разворачивается в один плоский список сырья (см. {@link #resolve}).
+ * Заодно запоминает на товаре GUID "верхней" спецификации ({@link Product#getOneCSpecificationKey()})
+ * — используется потом в OneCProductionSyncService при выгрузке отчёта производства в 1С.
  */
 @Slf4j
 @Service
@@ -45,16 +48,8 @@ public class OneCRecipeImportService {
         Map<String, String> names = oneCClient.fetchNomenclatureNames();
         Map<String, List<OneCClient.Specification>> byOwner = oneCClient.fetchSpecifications().stream()
                 .collect(Collectors.groupingBy(OneCClient.Specification::ownerKey));
-
-        Map<String, String> keyByExactName = new HashMap<>();
-        for (Map.Entry<String, String> e : names.entrySet()) {
-            keyByExactName.putIfAbsent(e.getValue().trim().toLowerCase(), e.getKey());
-        }
-
-        Map<String, Ingredient> ingredientByName = new HashMap<>();
-        for (Ingredient ingredient : ingredientRepository.findAll()) {
-            ingredientByName.putIfAbsent(ingredient.getName().trim().toLowerCase(), ingredient);
-        }
+        Map<String, String> keyByExactName = keyByExactName(names);
+        Map<String, Ingredient> ingredientByName = ingredientByName();
 
         int imported = 0;
         int skippedNoOneCMatch = 0;
@@ -63,46 +58,103 @@ public class OneCRecipeImportService {
 
         for (Product product : productRepository.findAll()) {
             String key = keyByExactName.get(product.getName().trim().toLowerCase());
-            if (key == null) {
-                skippedNoOneCMatch++;
-                continue;
+            Outcome outcome = importProduct(product, key, names, byOwner, ingredientByName, warnings);
+            switch (outcome) {
+                case IMPORTED -> imported++;
+                case NO_ONEC_MATCH -> skippedNoOneCMatch++;
+                case NO_SPEC -> skippedNoSpec++;
             }
-            if (!byOwner.containsKey(key)) {
-                skippedNoSpec++;
-                continue;
-            }
-
-            Resolved resolved = resolve(key, byOwner, 0);
-            if (resolved == null || resolved.raw().isEmpty()) {
-                skippedNoSpec++;
-                continue;
-            }
-
-            BigDecimal factor = precisionFactor(resolved.raw().values());
-
-            RecipeForm form = new RecipeForm();
-            form.setYieldQuantity(resolved.yield().multiply(factor).setScale(3, RoundingMode.HALF_UP));
-            for (Map.Entry<String, BigDecimal> e : resolved.raw().entrySet()) {
-                String ingName = names.getOrDefault(e.getKey(), "").trim().toLowerCase();
-                Ingredient ingredient = ingredientByName.get(ingName);
-                if (ingredient == null) {
-                    warnings.add(product.getName() + ": не найдено сырьё \"" + names.get(e.getKey()) + "\"");
-                    continue;
-                }
-                RecipeForm.RecipeItemForm itemForm = new RecipeForm.RecipeItemForm();
-                itemForm.setIngredientId(ingredient.getId());
-                itemForm.setQuantity(e.getValue().multiply(factor).setScale(3, RoundingMode.HALF_UP));
-                form.getItems().add(itemForm);
-            }
-            if (form.getItems().isEmpty()) {
-                skippedNoSpec++;
-                continue;
-            }
-            productService.saveRecipe(product.getId(), form);
-            imported++;
         }
 
         return new ImportResult(imported, skippedNoOneCMatch, skippedNoSpec, warnings);
+    }
+
+    /**
+     * Импортирует рецепт (состав сырья) и GUID спецификации ОДНОГО товара из 1С — кнопка
+     * "Импортировать рецепт из 1С" на экране рецептуры конкретного товара (мобильное
+     * приложение/веб). В отличие от {@link #importAll()}, не трогает остальные товары и
+     * бросает исключение с понятной причиной вместо того, чтобы тихо пропустить.
+     */
+    @Transactional
+    public void importOne(Long productId) {
+        if (!oneCClient.isConfigured()) {
+            throw new IllegalStateException("Подключение к 1С не настроено (crm.onec.base-url/username/password)");
+        }
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Товар не найден: " + productId));
+
+        Map<String, String> names = oneCClient.fetchNomenclatureNames();
+        Map<String, List<OneCClient.Specification>> byOwner = oneCClient.fetchSpecifications().stream()
+                .collect(Collectors.groupingBy(OneCClient.Specification::ownerKey));
+        Map<String, String> keyByExactName = keyByExactName(names);
+        Map<String, Ingredient> ingredientByName = ingredientByName();
+
+        String key = keyByExactName.get(product.getName().trim().toLowerCase());
+        List<String> warnings = new ArrayList<>();
+        Outcome outcome = importProduct(product, key, names, byOwner, ingredientByName, warnings);
+        if (outcome == Outcome.NO_ONEC_MATCH) {
+            throw new IllegalStateException("Товар «" + product.getName() + "» не найден в 1С по названию");
+        }
+        if (outcome == Outcome.NO_SPEC) {
+            throw new IllegalStateException("У товара «" + product.getName()
+                    + "» нет спецификации в 1С (или ни одно сырьё из неё не сопоставлено с CRM)");
+        }
+        if (!warnings.isEmpty()) {
+            log.warn("Импорт рецепта товара №{} «{}»: {}", productId, product.getName(), String.join("; ", warnings));
+        }
+    }
+
+    private Map<String, String> keyByExactName(Map<String, String> names) {
+        Map<String, String> keyByExactName = new HashMap<>();
+        for (Map.Entry<String, String> e : names.entrySet()) {
+            keyByExactName.putIfAbsent(e.getValue().trim().toLowerCase(), e.getKey());
+        }
+        return keyByExactName;
+    }
+
+    private Map<String, Ingredient> ingredientByName() {
+        Map<String, Ingredient> ingredientByName = new HashMap<>();
+        for (Ingredient ingredient : ingredientRepository.findAll()) {
+            ingredientByName.putIfAbsent(ingredient.getName().trim().toLowerCase(), ingredient);
+        }
+        return ingredientByName;
+    }
+
+    private enum Outcome { IMPORTED, NO_ONEC_MATCH, NO_SPEC }
+
+    /** Общая логика одного товара — используется и {@link #importAll()}, и {@link #importOne}. */
+    private Outcome importProduct(Product product, String key, Map<String, String> names,
+                                   Map<String, List<OneCClient.Specification>> byOwner,
+                                   Map<String, Ingredient> ingredientByName, List<String> warnings) {
+        if (key == null) return Outcome.NO_ONEC_MATCH;
+        if (!byOwner.containsKey(key)) return Outcome.NO_SPEC;
+
+        OneCClient.Specification topSpec = pickTopSpec(key, byOwner);
+        Resolved resolved = resolve(key, byOwner, 0);
+        if (resolved == null || resolved.raw().isEmpty()) return Outcome.NO_SPEC;
+
+        BigDecimal factor = precisionFactor(resolved.raw().values());
+
+        RecipeForm form = new RecipeForm();
+        form.setYieldQuantity(resolved.yield().multiply(factor).setScale(3, RoundingMode.HALF_UP));
+        for (Map.Entry<String, BigDecimal> e : resolved.raw().entrySet()) {
+            String ingName = names.getOrDefault(e.getKey(), "").trim().toLowerCase();
+            Ingredient ingredient = ingredientByName.get(ingName);
+            if (ingredient == null) {
+                warnings.add(product.getName() + ": не найдено сырьё \"" + names.get(e.getKey()) + "\"");
+                continue;
+            }
+            RecipeForm.RecipeItemForm itemForm = new RecipeForm.RecipeItemForm();
+            itemForm.setIngredientId(ingredient.getId());
+            itemForm.setQuantity(e.getValue().multiply(factor).setScale(3, RoundingMode.HALF_UP));
+            form.getItems().add(itemForm);
+        }
+        if (form.getItems().isEmpty()) return Outcome.NO_SPEC;
+
+        productService.saveRecipe(product.getId(), form);
+        product.setOneCSpecificationKey(topSpec.ref());
+        productRepository.save(product);
+        return Outcome.IMPORTED;
     }
 
     /**
@@ -126,7 +178,8 @@ public class OneCRecipeImportService {
         return factor;
     }
 
-    private OneCClient.Specification pickTopSpec(String key, Map<String, List<OneCClient.Specification>> byOwner) {
+    /** Package-private (не private) — переиспользуется в OneCSpecificationImportService. */
+    static OneCClient.Specification pickTopSpec(String key, Map<String, List<OneCClient.Specification>> byOwner) {
         List<OneCClient.Specification> list = byOwner.get(key);
         if (list.size() == 1) return list.get(0);
         return list.stream()

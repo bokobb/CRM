@@ -15,8 +15,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,8 +50,9 @@ import java.util.Map;
  * ВСЕГДА фиксированным временем 06:00 (начало смены) — так принято в этой базе 1С.
  *
  * <p>Оба документа создаются НЕпроведёнными, как и заказы: "Плановая себестоимость" каждой
- * строки продукции всегда 0 (в 1С этого значения взять неоткуда — не заведён отдельный
- * регистр/тип цен под это в данной базе), бухгалтер вписывает её вручную при проверке. Дальше
+ * строки продукции берётся из типа цен "Плановая" в 1С ({@code crm.onec.planned-price-type-key},
+ * см. {@link #fetchPlannedPrices}) — 0, если для номенклатуры в этом типе цен ничего не заведено
+ * (тогда бухгалтер вписывает её вручную при проверке, как и раньше). Дальше
  * они проводятся по-разному (прежний общий будильник в 20:00 убран целиком): отчёт производства
  * проводится сам, как только оприходована последняя строка заявки (см. {@link #tryPostReport},
  * вызывается из ProductionRequestService.receiveLine) — количество продукции в нём уже факт, а
@@ -105,6 +108,10 @@ public class OneCProductionSyncService {
     private String productionDepartmentKey;
     @Value("${crm.onec.production-cost-item-key:}")
     private String productionCostItemKey;
+    @Value("${crm.onec.planned-price-type-key:}")
+    private String plannedPriceTypeKey;
+    @Value("${crm.onec.default-nomenclature-group-key:}")
+    private String defaultNomenclatureGroupKey;
 
     /**
      * Никогда не бросает исключение наружу — вызывается при создании заявки, при любом
@@ -197,16 +204,32 @@ public class OneCProductionSyncService {
         if (firstNomenclatureKey == null) {
             throw new IllegalStateException("Не найдено в 1С по названию: " + firstProduct.getName());
         }
+        // Если у самого товара в 1С номенклатурная группа не задана (бывает — см.
+        // fetchNomenclatureGroup) и запасной вариант тоже не настроен, только тогда сдаёмся с
+        // понятной ошибкой; иначе используем "Основную номенклатурную группу" (или что
+        // настроено в crm.onec.default-nomenclature-group-key) вместо того, чтобы блокировать
+        // выгрузку всей заявки из-за одной незаполненной карточки товара в 1С.
         String groupKey = oneCClient.fetchNomenclatureGroup(firstNomenclatureKey);
         if (groupKey == null) {
-            throw new IllegalStateException("У товара «" + firstProduct.getName() + "» не задана номенклатурная группа в 1С");
+            if (defaultNomenclatureGroupKey.isBlank()) {
+                throw new IllegalStateException("У товара «" + firstProduct.getName() + "» не задана номенклатурная группа в 1С");
+            }
+            groupKey = defaultNomenclatureGroupKey;
         }
+        // Подразделение (Производство Корпус А/B/С/D) — по товару, если оно уже импортировано из
+        // истории реальных документов (см. OneCDepartmentImportService), иначе запасной вариант —
+        // единая константа из конфигурации, как было раньше. Заявка предполагается однородной
+        // (см. semiFinishedOutput/groupKey выше), поэтому решаем по первой строке.
+        String departmentKey = firstProduct.getOneCDepartmentKey() != null
+                ? firstProduct.getOneCDepartmentKey() : productionDepartmentKey;
 
         String comment = "Заявка на производство №" + request.getId() + " «" + request.getTitle() + "»";
         // Время в обоих документах всегда фиксированное 06:00 (начало смены) — так принято в
         // этой базе 1С, дату документа выбирает пользователь при создании/редактировании заявки
         // (см. ProductionRequest.documentDate), а не берётся текущее время синхронизации.
         String date = ONEC_DATE.format(request.getDocumentDate().atTime(6, 0));
+
+        Map<String, BigDecimal> plannedPrices = fetchPlannedPrices();
 
         List<Map<String, Object>> productionLines = new ArrayList<>();
         List<String> unresolved = new ArrayList<>();
@@ -217,19 +240,28 @@ public class OneCProductionSyncService {
                 unresolved.add(line.getProduct().getName());
                 continue;
             }
+            // Группа берётся по номенклатуре ИМЕННО этой строки — заявка обычно однородна (см.
+            // groupKey выше), но если для конкретного товара группу в 1С определить не удалось,
+            // подстраховываемся уже проверенной групповой для шапки, а не молчим нулевым GUID.
+            String lineGroupKey = oneCClient.fetchNomenclatureGroup(key);
+            if (lineGroupKey == null) lineGroupKey = groupKey;
+            BigDecimal quantity = line.isReceived() ? line.getReceivedQuantity() : line.getPlannedQuantity();
+            BigDecimal plannedPrice = plannedPrices.getOrDefault(key, BigDecimal.ZERO);
+            String specificationKey = line.getProduct().getOneCSpecificationKey();
+
             Map<String, Object> l = new LinkedHashMap<>();
             l.put("LineNumber", String.valueOf(lineNumber++));
             l.put("ЕдиницаИзмерения_Key", unitOrZero(key));
-            l.put("Количество", line.isReceived() ? line.getReceivedQuantity() : line.getPlannedQuantity());
+            l.put("Количество", quantity);
             l.put("Коэффициент", 1);
             l.put("Номенклатура_Key", key);
-            l.put("НоменклатурнаяГруппа_Key", ZERO_GUID);
+            l.put("НоменклатурнаяГруппа_Key", lineGroupKey);
             l.put("СчетБУ_Key", semiFinishedOutput ? materialsAccountBuKey : finishedGoodsAccountBuKey);
             l.put("СчетНУ_Key", semiFinishedOutput ? ZERO_GUID : finishedGoodsAccountNuKey);
             l.put("СчетЗатрат_Key", ZERO_GUID);
-            l.put("ПлановаяСтоимость", 0);
-            l.put("СуммаПлановая", 0);
-            l.put("Спецификация_Key", ZERO_GUID);
+            l.put("ПлановаяСтоимость", plannedPrice);
+            l.put("СуммаПлановая", plannedPrice.multiply(quantity));
+            l.put("Спецификация_Key", specificationKey != null ? specificationKey : ZERO_GUID);
             l.put("НомерГТД_Key", ZERO_GUID);
             productionLines.add(l);
         }
@@ -269,7 +301,7 @@ public class OneCProductionSyncService {
         reportBody.put("ВидУчетаНУ_Key", taxAccountingTypeKey);
         reportBody.put("СчетЗатратБУ_Key", productionCostAccountBuKey);
         reportBody.put("СчетЗатратНУ_Key", productionCostAccountNuKey);
-        reportBody.put("ПодразделениеОрганизации_Key", productionDepartmentKey);
+        reportBody.put("ПодразделениеОрганизации_Key", departmentKey);
         reportBody.put("НоменклатурнаяГруппа_Key", groupKey);
         reportBody.put("Комментарий", comment);
         reportBody.put("Продукция", productionLines);
@@ -314,7 +346,7 @@ public class OneCProductionSyncService {
         requisitionBody.put("ВидУчетаНУ_Key", taxAccountingTypeKey);
         requisitionBody.put("СчетЗатратБУ_Key", productionCostAccountBuKey);
         requisitionBody.put("СчетЗатратНУ_Key", ZERO_GUID);
-        requisitionBody.put("СубконтоЗатратБУ1", productionDepartmentKey);
+        requisitionBody.put("СубконтоЗатратБУ1", departmentKey);
         requisitionBody.put("СубконтоЗатратБУ1_Type", "StandardODATA.Catalog_ПодразделенияОрганизаций");
         requisitionBody.put("СубконтоЗатратБУ2", groupKey);
         requisitionBody.put("СубконтоЗатратБУ2_Type", "StandardODATA.Catalog_НоменклатурныеГруппы");
@@ -352,6 +384,32 @@ public class OneCProductionSyncService {
             log.info("Заявка №{} — обновлён состав непроведённой требование-накладной №{} в 1С",
                     request.getId(), request.getOneCRequisitionNumber());
         }
+    }
+
+    /**
+     * Плановая себестоимость по номенклатуре — из типа цен "Плановая" в 1С (регистр цен
+     * номенклатуры, тот же механизм, что и именные типы цен клиентов, см.
+     * OneCClientPriceSyncService.sync): регистр периодический, на каждую номенклатуру берём
+     * самую свежую АКТИВНУЮ запись ({@code period} сравнивается как строка — ISO-формат из 1С,
+     * лексикографический порядок совпадает с хронологическим). Пустая карта, если
+     * {@code crm.onec.planned-price-type-key} не задан или по этому типу цен в 1С ещё вообще
+     * ничего не заведено — тогда строки уходят с ПлановаяСтоимость:0, как и раньше.
+     */
+    private Map<String, BigDecimal> fetchPlannedPrices() {
+        if (plannedPriceTypeKey.isBlank()) {
+            return Map.of();
+        }
+        Map<String, OneCClient.PriceRow> latestByNomenclature = new HashMap<>();
+        for (OneCClient.PriceRow row : oneCClient.fetchPricesByType(plannedPriceTypeKey)) {
+            if (!row.active()) continue;
+            OneCClient.PriceRow current = latestByNomenclature.get(row.nomenclatureKey());
+            if (current == null || row.period().compareTo(current.period()) > 0) {
+                latestByNomenclature.put(row.nomenclatureKey(), row);
+            }
+        }
+        Map<String, BigDecimal> prices = new HashMap<>();
+        latestByNomenclature.forEach((key, row) -> prices.put(key, row.price()));
+        return prices;
     }
 
     private String unitOrZero(String nomenclatureKey) {

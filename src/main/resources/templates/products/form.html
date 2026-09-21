@@ -44,6 +44,13 @@
                     общей массе группы, а не по штукам (например, разные фасовки одного замеса, см. заявку на сырьё)</small>
             </div>
             <div class="field">
+                <label>Подразделение в 1С (корпус)</label>
+                <select th:field="*{oneCDepartmentKey}">
+                    <option value="">Не задано (используется общее по умолчанию)</option>
+                    <option th:each="entry : ${departments}" th:value="${entry.key}" th:text="${entry.value}"></option>
+                </select>
+            </div>
+            <div class="field">
                 <label>Описание</label>
                 <textarea th:field="*{description}"></textarea>
             </div>

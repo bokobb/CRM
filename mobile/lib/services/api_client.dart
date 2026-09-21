@@ -588,6 +588,27 @@ class ApiClient {
     );
   }
 
+  /// Определяет подразделение (корпус) каждого товара по истории реальных документов в 1С —
+  /// НЕ трогает рецепты. Только ADMIN, см. OneCDepartmentImportService/ProductApiController.
+  Future<({int updated, int skippedNoHistory, int skippedNoOneCMatch})> importDepartmentsFromOneC() async {
+    final res = await http.post(await _uri('/products/import-departments-1c'), headers: await _authHeaders());
+    final json = _decode(res) as Map<String, dynamic>;
+    return (
+      updated: json['updated'] as int,
+      skippedNoHistory: json['skippedNoHistory'] as int,
+      skippedNoOneCMatch: json['skippedNoOneCMatch'] as int,
+    );
+  }
+
+  /// Заполняет рецепт (состав сырья) и GUID спецификации ОДНОГО товара из 1С — не трогает
+  /// остальные товары, в отличие от полного импорта. Только ADMIN, см.
+  /// OneCRecipeImportService.importOne/ProductApiController. Бросает ApiException с понятной
+  /// причиной, если товар не сопоставлен с 1С по названию или у него там нет спецификации.
+  Future<Recipe> importRecipeForProduct(int productId) async {
+    final res = await http.post(await _uri('/products/$productId/import-recipe-1c'), headers: await _authHeaders());
+    return Recipe.fromJson(_decode(res));
+  }
+
   // ---- Production requests (заявки на сырьё) ----
   Future<List<ProductionRequestSummary>> getProductionRequests() async {
     final res = await http.get(

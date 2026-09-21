@@ -40,6 +40,7 @@ class _RecipeScreenState extends State<RecipeScreen> {
   final _yieldQuantity = TextEditingController(text: '1');
   final List<_RecipeRow> _rows = [];
   bool _saving = false;
+  bool _importingFromOneC = false;
   String? _error;
 
   @override
@@ -85,6 +86,50 @@ class _RecipeScreenState extends State<RecipeScreen> {
       if (ing.id == id) return ing;
     }
     return null;
+  }
+
+  /// Заполняет рецепт (состав сырья) и GUID спецификации ИМЕННО ЭТОГО товара из 1С — остальные
+  /// товары не трогает (см. OneCRecipeImportService.importOne на бэкенде).
+  Future<void> _importFromOneC() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Импорт из 1С'),
+        content: const Text('Заполнить рецепт этого товара данными из 1С? '
+            'Текущий состав (сырьё/количества) будет заменён.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Продолжить')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _importingFromOneC = true);
+    try {
+      final recipe = await _api.importRecipeForProduct(widget.productId);
+      setState(() {
+        _yieldQuantity.text = _fmt(recipe.yieldQuantity);
+        for (final row in _rows) {
+          row.dispose();
+        }
+        _rows.clear();
+        for (final item in recipe.items) {
+          _rows.add(_RecipeRow(
+            ingredientId: item.ingredientId,
+            quantity: _fmt(item.quantity),
+            ingredientName: item.ingredientName,
+          ));
+        }
+        _rows.add(_RecipeRow());
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Рецепт обновлён из 1С')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _importingFromOneC = false);
+    }
   }
 
   Future<void> _save() async {
@@ -187,6 +232,18 @@ class _RecipeScreenState extends State<RecipeScreen> {
                     style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
+                  if (ApiClient.currentSession?.role == 'ADMIN')
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: OutlinedButton.icon(
+                        onPressed: _importingFromOneC ? null : _importFromOneC,
+                        icon: _importingFromOneC
+                            ? const SizedBox(
+                                width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.sync, size: 18),
+                        label: const Text('Импортировать рецепт из 1С'),
+                      ),
+                    ),
                   OutlinedButton.icon(
                     onPressed: copyFromProduct,
                     icon: const Icon(Icons.content_copy, size: 18),

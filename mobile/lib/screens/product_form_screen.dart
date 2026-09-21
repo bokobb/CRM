@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../main.dart';
+import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/timeout_cache_manager.dart';
 
@@ -29,6 +30,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _imageUrl = TextEditingController();
   final _netWeightGrams = TextEditingController();
   bool _semiFinished = false;
+  String? _departmentKey;
   bool _loading = false;
   bool _initialLoading = false;
   String? _error;
@@ -54,6 +56,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _existingImageUrl = p.imageUrl;
         _netWeightGrams.text = p.netWeightGrams?.toString() ?? '';
         _semiFinished = p.semiFinished;
+        _departmentKey = p.oneCDepartmentKey;
         setState(() => _initialLoading = false);
       });
     }
@@ -112,6 +115,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           ? null
           : double.tryParse(_netWeightGrams.text.replaceAll(',', '.')),
       'semiFinished': _semiFinished,
+      'oneCDepartmentKey': _departmentKey,
     };
     try {
       final product =
@@ -218,6 +222,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       helperText: 'Используется, если фото с телефона не выбрано',
                     ),
                     keyboardType: TextInputType.url,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _departmentKey,
+                    decoration: const InputDecoration(labelText: 'Подразделение в 1С (корпус)'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Не задано (используется общее по умолчанию)'),
+                      ),
+                      ...oneCDepartmentNames.entries.map(
+                        (e) => DropdownMenuItem<String?>(value: e.key, child: Text(e.value)),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _departmentKey = v),
                   ),
                   const SizedBox(height: 4),
                   CheckboxListTile(

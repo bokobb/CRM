@@ -40,6 +40,8 @@
                             <span class="badge PENDING" th:if="${!p.active}">Архивный</span>
                         </div>
                         <div class="product-card-price" th:text="${p.price} + ' ₸'"></div>
+                        <div class="product-card-department"
+                             th:text="${departmentNames.get(p.oneCDepartmentKey)} ?: 'Подразделение не задано'"></div>
                     </div>
                     <div class="product-card-actions">
                         <a class="btn small" th:href="@{/products/{id}/edit(id=${p.id})}">Изменить</a>

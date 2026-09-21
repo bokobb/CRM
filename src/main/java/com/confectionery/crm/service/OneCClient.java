@@ -20,17 +20,19 @@ import java.util.Map;
  * OneCStockSyncService) — не из регистра накопления "Товары организаций", тот в этой базе не
  * ведётся (документы производства его не двигают, проверено вручную через саму 1С —
  * "Материальная ведомость" совпадает именно с бухгалтерским регистром). Запись в 1С —
- * {@link #createDraftSale}/{@link #updateDraftSale}/{@link #postDocument} для документа
- * "Реализация товаров и услуг" по заказу CRM (см. OneCOrderSyncService, черновик до явного
- * проведения); {@link #createReceiptDocument} для документа "Оприходование товаров" по
- * сводному РУЧНОМУ приходу готовой продукции за день (см. OneCReceiptSyncService — этот, в
- * отличие от "Реализации", создаётся сразу проведённым); {@link #createProductionReport}/
+ * {@link #createDraftSale}/{@link #updateDraftSale} для документа "Реализация товаров и услуг"
+ * по заказу CRM (см. OneCOrderSyncService) — создаётся и обновляется НЕпроведённым, проводит
+ * его бухгалтер вручную прямо в 1С (CRM это не делает, см. {@link #postDocument});
+ * {@link #createReceiptDocument} для документа "Оприходование товаров" по сводному РУЧНОМУ
+ * приходу готовой продукции за день (см. OneCReceiptSyncService — этот, в отличие от
+ * "Реализации", создаётся сразу проведённым); {@link #createProductionReport}/
  * {@link #createMaterialsRequisition} для пары "Отчёт производства за смену"/"Требование-
- * накладная" по заявке на производство (см. OneCProductionSyncService, тоже черновики);
- * {@link #createContragent} для нового элемента справочника "Контрагенты" (см.
- * CounterpartyService — единственная запись в справочник, а не в документ, во всём проекте).
- * {@link #postDocument} и {@link #fetchPosted} общие для всех типов документов, которые CRM
- * создаёт непроведёнными — никогда не трогаем документ, который уже кто-то провёл сам.
+ * накладная" по заявке на производство (см. OneCProductionSyncService, тоже черновики, но эти
+ * CRM сама и проводит через {@link #postDocument}); {@link #createContragent} для нового
+ * элемента справочника "Контрагенты" (см. CounterpartyService — единственная запись в
+ * справочник, а не в документ, во всём проекте). {@link #fetchPosted} общий для всех типов
+ * документов, которые CRM создаёт непроведёнными — никогда не трогаем документ, который уже
+ * кто-то провёл сам.
  */
 @Slf4j
 @Component
@@ -163,6 +165,70 @@ class OneCClient {
             skip += PAGE_SIZE;
         }
         return specs;
+    }
+
+    /**
+     * Шапки ВСЕХ документов "Отчёт производства за смену" в 1С (в т.ч. созданных не через CRM) —
+     * источник истины для реального подразделения товара (см. OneCDepartmentImportService):
+     * {@code comment} нужен, чтобы отличить документы, созданные самой CRM (там всегда одно и то
+     * же подразделение из {@code crm.onec.production-department-key} — не показатель), от
+     * настоящих, которые заводит вручную технолог/бухгалтер с правильным подразделением.
+     */
+    List<ProductionReportHeader> fetchProductionReportHeaders() {
+        List<ProductionReportHeader> headers = new ArrayList<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Document_ОтчетПроизводстваЗаСмену")
+                            .queryParam("$format", "json")
+                            .queryParam("$select", "Ref_Key,Комментарий,ПодразделениеОрганизации_Key")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                headers.add(new ProductionReportHeader(
+                        item.path("Ref_Key").asText(""),
+                        item.path("Комментарий").asText(""),
+                        item.path("ПодразделениеОрганизации_Key").asText("")
+                ));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return headers;
+    }
+
+    /**
+     * Строки табличной части "Продукция" ВСЕХ документов "Отчёт производства за смену" —
+     * {@code parentRef} совпадает с {@link ProductionReportHeader#ref()} той же строки. См.
+     * {@link #fetchProductionReportHeaders()}/OneCDepartmentImportService.
+     */
+    List<ProductionReportLine> fetchProductionReportLines() {
+        List<ProductionReportLine> lines = new ArrayList<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Document_ОтчетПроизводстваЗаСмену_Продукция")
+                            .queryParam("$format", "json")
+                            .queryParam("$select", "Ref_Key,Номенклатура_Key")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                lines.add(new ProductionReportLine(item.path("Ref_Key").asText(""), item.path("Номенклатура_Key").asText("")));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return lines;
     }
 
     /** Все контрагенты целиком, вместе с GUID основного договора (см. OneCOrderSyncService/OneCClientLinkService). */
@@ -343,7 +409,11 @@ class OneCClient {
                 .retrieve()
                 .body(JsonNode.class);
         String key = response.path("НоменклатурнаяГруппа_Key").asText("");
-        return key.isBlank() ? null : key;
+        // 1С отдаёт "отсутствие группы" не пустой строкой, а нулевым GUID (как и для остальных
+        // ссылочных полей, см. jsonToJava выше) — раньше эта проверка ловила только пустую
+        // строку, поэтому нулевой GUID тихо проходил как будто это настоящая группа (обнаружено
+        // на "Пряник"/"Орешки со сгущенкой шарики" — у них в 1С группа не задана вообще).
+        return key.isBlank() || key.equals(ZERO_GUID) ? null : key;
     }
 
     /** Ref_Key базовой единицы измерения номенклатуры (Catalog_Номенклатура.БазоваяЕдиницаИзмерения_Key) — null, если не задана. */
@@ -448,14 +518,15 @@ class OneCClient {
     }
 
     /**
-     * Проводит документ (Posted:true) — в отличие от простого выставления флага, платформа
-     * 1С при записи объекта с изменившимся Posted сама выполняет "обработку проведения"
-     * документа (формирует реальные движения по регистрам), в том числе и через OData —
-     * это не косметическая пометка. Если проведение не проходит по бизнес-правилам 1С
-     * (не хватает данных, остатков и т.п.) — 1С вернёт ошибку, документ останется непроведённым.
-     * {@code entitySet} — имя набора документа (например, "Document_РеализацияТоваровУслуг"),
-     * т.к. этот метод общий для всех типов документов, которые CRM создаёт непроведёнными.
-     * См. OneCOrderSyncService.postEligibleOrders / OneCProductionSyncService.
+     * Проводит документ (Posted:true) — платформа 1С при записи объекта с изменившимся Posted
+     * обычно сама выполняет "обработку проведения" (формирует движения по регистрам), в том
+     * числе и через OData. НО для документа "Реализация товаров и услуг" на практике это
+     * ненадёжно: 1С отвечала 200 OK и выставляла Posted:true, не формируя движений по складу
+     * (товар физически не списывался, требовалось открыть документ в 1С и нажать "Провести"
+     * вручную) — поэтому для "Реализации" CRM больше не вызывает этот метод вообще, проведение
+     * заказов теперь только вручную в 1С (см. OrderService.ship). Остаётся в использовании для
+     * "Отчёта производства за смену"/"Требования-накладной" (см. OneCProductionSyncService),
+     * где такой проблемы не наблюдалось. {@code entitySet} — имя набора документа.
      */
     void postDocument(String entitySet, String ref) {
         restClient.patch()
@@ -653,5 +724,11 @@ class OneCClient {
     }
 
     record Specification(String ref, String ownerKey, String description, BigDecimal yieldQuantity, List<SpecLine> lines) {
+    }
+
+    record ProductionReportHeader(String ref, String comment, String departmentKey) {
+    }
+
+    record ProductionReportLine(String parentRef, String nomenclatureKey) {
     }
 }

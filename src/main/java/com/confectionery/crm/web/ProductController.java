@@ -3,7 +3,10 @@ package com.confectionery.crm.web;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.service.FileStorageService;
 import com.confectionery.crm.service.IngredientService;
+import com.confectionery.crm.service.OneCDepartmentImportService;
+import com.confectionery.crm.service.OneCDepartments;
 import com.confectionery.crm.service.OneCRecipeImportService;
+import com.confectionery.crm.service.OneCSpecificationImportService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.RecipeForm;
 import jakarta.validation.Valid;
@@ -25,6 +28,8 @@ public class ProductController {
     private final IngredientService ingredientService;
     private final FileStorageService fileStorageService;
     private final OneCRecipeImportService oneCRecipeImportService;
+    private final OneCDepartmentImportService oneCDepartmentImportService;
+    private final OneCSpecificationImportService oneCSpecificationImportService;
 
     @GetMapping
     public String list(Model model) {
@@ -32,6 +37,7 @@ public class ProductController {
         var products = productService.findAll();
         model.addAttribute("products", products);
         model.addAttribute("productsByCategory", productService.groupByCategory(products));
+        model.addAttribute("departmentNames", OneCDepartments.NAMES);
         return "products/list";
     }
 
@@ -63,10 +69,41 @@ public class ProductController {
         return "redirect:/products/recipes";
     }
 
+    @PostMapping("/import-departments-1c")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String importDepartmentsFromOneC(RedirectAttributes redirectAttributes) {
+        try {
+            var result = oneCDepartmentImportService.importAll();
+            String message = "Подразделение обновлено у товаров: " + result.updated()
+                    + ". Без истории документов в 1С: " + result.skippedNoHistory()
+                    + ". Не найдено в 1С по названию: " + result.skippedNoOneCMatch();
+            redirectAttributes.addFlashAttribute("success", message);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось импортировать подразделения из 1С: " + e.getMessage());
+        }
+        return "redirect:/products/recipes";
+    }
+
+    @PostMapping("/import-specifications-1c")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String importSpecificationsFromOneC(RedirectAttributes redirectAttributes) {
+        try {
+            var result = oneCSpecificationImportService.importAll();
+            String message = "Спецификация обновлена у товаров: " + result.updated()
+                    + ". Без спецификации в 1С: " + result.skippedNoSpec()
+                    + ". Не найдено в 1С по названию: " + result.skippedNoOneCMatch();
+            redirectAttributes.addFlashAttribute("success", message);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Не удалось импортировать спецификации из 1С: " + e.getMessage());
+        }
+        return "redirect:/products/recipes";
+    }
+
     @GetMapping("/new")
     public String newForm(Model model) {
         model.addAttribute("activePage", "products");
         model.addAttribute("product", new Product());
+        model.addAttribute("departments", OneCDepartments.NAMES);
         return "products/form";
     }
 
@@ -74,6 +111,7 @@ public class ProductController {
     public String editForm(@PathVariable Long id, Model model) {
         model.addAttribute("activePage", "products");
         model.addAttribute("product", productService.findById(id));
+        model.addAttribute("departments", OneCDepartments.NAMES);
         return "products/form";
     }
 
@@ -82,7 +120,14 @@ public class ProductController {
                         @RequestParam(value = "imageFile", required = false) MultipartFile imageFile) {
         if (binding.hasErrors()) {
             model.addAttribute("activePage", "products");
+            model.addAttribute("departments", OneCDepartments.NAMES);
             return "products/form";
+        }
+        // Пустой выбор в select ("Не задано") приходит как "" — normализуем в null, иначе в 1С
+        // ушёл бы невалидный GUID вместо пустого значения/запасного варианта по умолчанию (см.
+        // OneCProductionSyncService).
+        if (product.getOneCDepartmentKey() != null && product.getOneCDepartmentKey().isBlank()) {
+            product.setOneCDepartmentKey(null);
         }
         Product saved = productService.save(product);
         if (imageFile != null && !imageFile.isEmpty()) {

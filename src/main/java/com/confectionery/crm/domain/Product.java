@@ -122,4 +122,24 @@ public class Product {
      */
     @Column(length = 4000)
     private String oneCReceiptTemplate;
+
+    /**
+     * GUID "верхней" спецификации номенклатуры в 1С (Catalog_СпецификацииНоменклатуры.Ref_Key) —
+     * запоминается при последнем импорте рецепта (см. OneCRecipeImportService.importAll/
+     * pickTopSpec) и подставляется в поле "Спецификация_Key" табличной части "Продукция"
+     * документа "Отчёт производства за смену" (см. OneCProductionSyncService). Null, пока рецепт
+     * товара ни разу не импортировался из 1С.
+     */
+    private String oneCSpecificationKey;
+
+    /**
+     * GUID подразделения организации в 1С (Catalog_ПодразделенияОрганизаций.Ref_Key) — в какой
+     * производственный корпус (А/B/С/D) на самом деле идёт этот товар. Определяется по истории
+     * РЕАЛЬНЫХ документов "Отчёт производства за смену", созданных вручную в 1С (не через CRM),
+     * см. OneCDepartmentImportService — в отличие от единой константы
+     * {@code crm.onec.production-department-key}, которую раньше CRM подставляла всем товарам
+     * без разбора. Null, пока подразделение ни разу не импортировалось (тогда используется та
+     * константа как запасной вариант, см. OneCProductionSyncService).
+     */
+    private String oneCDepartmentKey;
 }

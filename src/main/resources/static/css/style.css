@@ -308,6 +308,7 @@ textarea { min-height: 80px; resize: vertical; }
   overflow: hidden;
 }
 .product-card-price { color: var(--muted); font-size: 13px; }
+.product-card-department { color: var(--muted); font-size: 11px; }
 .product-card-stock { font-size: 13px; font-weight: 600; }
 .product-card-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px 14px; }
 .product-card-actions form { margin: 0; }

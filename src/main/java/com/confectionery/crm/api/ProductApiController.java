@@ -4,6 +4,8 @@ import com.confectionery.crm.api.dto.*;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.service.FileStorageService;
 import com.confectionery.crm.service.IngredientService;
+import com.confectionery.crm.service.OneCDepartmentImportService;
+import com.confectionery.crm.service.OneCRecipeImportService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.RecipeForm;
 import jakarta.validation.Valid;
@@ -22,6 +24,8 @@ public class ProductApiController {
     private final ProductService productService;
     private final IngredientService ingredientService;
     private final FileStorageService fileStorageService;
+    private final OneCDepartmentImportService oneCDepartmentImportService;
+    private final OneCRecipeImportService oneCRecipeImportService;
 
     /**
      * Без архивных — используется мобильным приложением и для поиска товара при оформлении
@@ -95,6 +99,30 @@ public class ProductApiController {
         product.setImageUrl(req.imageUrl());
         product.setSemiFinished(req.semiFinished());
         product.setNetWeightGrams(req.netWeightGrams());
+        // "" из выпадающего списка ("Не задано") означает то же самое, что и отсутствие поля —
+        // нормализуем в null, иначе в 1С ушёл бы невалидный GUID вместо запасного варианта по
+        // умолчанию (см. OneCProductionSyncService).
+        String departmentKey = req.oneCDepartmentKey();
+        product.setOneCDepartmentKey(departmentKey == null || departmentKey.isBlank() ? null : departmentKey);
         return product;
+    }
+
+    /** Только ADMIN — то же самое, что кнопка "Импортировать подразделения из 1С" в веб-версии. */
+    @PostMapping("/import-departments-1c")
+    @PreAuthorize("hasRole('ADMIN')")
+    public OneCDepartmentImportService.ImportResult importDepartmentsFromOneC() {
+        return oneCDepartmentImportService.importAll();
+    }
+
+    /**
+     * Только ADMIN — заполняет рецепт (состав сырья) и GUID спецификации ОДНОГО товара из 1С,
+     * не трогая остальные (см. OneCRecipeImportService.importOne) — кнопка "Импортировать рецепт
+     * из 1С" на экране рецептуры этого товара в мобильном приложении.
+     */
+    @PostMapping("/{id}/import-recipe-1c")
+    @PreAuthorize("hasRole('ADMIN')")
+    public RecipeDto importRecipeFromOneC(@PathVariable Long id) {
+        oneCRecipeImportService.importOne(id);
+        return RecipeDto.from(productService.findRecipe(id));
     }
 }

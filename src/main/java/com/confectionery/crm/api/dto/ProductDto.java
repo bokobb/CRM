@@ -15,10 +15,11 @@ public record ProductDto(
         BigDecimal quantityInStock,
         String imageUrl,
         boolean semiFinished,
+        String oneCDepartmentKey,
         BigDecimal netWeightGrams
 ) {
     public static ProductDto from(Product p) {
         return new ProductDto(p.getId(), p.getName(), p.getCategory(), p.getGroup(), p.getDescription(), p.getPrice(), p.getUnit(),
-                p.getQuantityInStock(), p.getImageUrl(), p.isSemiFinished(), p.getNetWeightGrams());
+                p.getQuantityInStock(), p.getImageUrl(), p.isSemiFinished(), p.getOneCDepartmentKey(), p.getNetWeightGrams());
     }
 }

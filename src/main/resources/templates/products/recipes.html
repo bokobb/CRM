@@ -15,8 +15,19 @@
                 <p class="subtitle" th:text="${#lists.size(products)} + ' товаров в каталоге'"></p>
             </div>
             <form method="post" th:action="@{/products/import-recipes-1c}" sec:authorize="hasRole('ADMIN')"
-                  onsubmit="return confirm('Перезаписать рецептуры данными из 1С там, где найдётся спецификация? Существующие рецепты будут заменены.');">
+                  onsubmit="return confirm('Перезаписать рецептуры данными из 1С там, где найдётся спецификация? Существующие рецепты будут заменены.');"
+                  style="display:inline">
                 <button type="submit" class="btn">Импортировать рецепты из 1С</button>
+            </form>
+            <form method="post" th:action="@{/products/import-departments-1c}" sec:authorize="hasRole('ADMIN')"
+                  onsubmit="return confirm('Определить подразделение (Корпус А/B/С/D) для каждого товара по истории документов в 1С?');"
+                  style="display:inline">
+                <button type="submit" class="btn">Импортировать подразделения из 1С</button>
+            </form>
+            <form method="post" th:action="@{/products/import-specifications-1c}" sec:authorize="hasRole('ADMIN')"
+                  onsubmit="return confirm('Заполнить GUID спецификации для каждого товара из 1С? Состав рецептов (сырьё/количества) не меняется, только GUID.');"
+                  style="display:inline">
+                <button type="submit" class="btn">Импортировать спецификации из 1С</button>
             </form>
         </div>
 

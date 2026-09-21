@@ -1,3 +1,13 @@
+/// Подразделения (корпуса) в 1С — GUID-ы из справочника "Подразделения организаций", те же,
+/// что и в вебе (см. OneCDepartments.NAMES на бэкенде) — захардкожены, справочник у клиента
+/// не меняется.
+const Map<String, String> oneCDepartmentNames = {
+  '8e8ccd44-7380-11f1-8dca-5254007c5efd': 'Производство Корпус А',
+  '778f254e-66ef-11f1-82c6-5254007c5efd': 'Производство Корпус B',
+  'b502dd92-7380-11f1-8dca-5254007c5efd': 'Производство Корпус С',
+  'e72d5a7c-7380-11f1-8dca-5254007c5efd': 'Производство Корпус D',
+};
+
 class Product {
   final int id;
   final String name;
@@ -13,6 +23,10 @@ class Product {
   /// другого товара) — скрыт из витрины заказов и "Остатков", остаток зеркалится в сырьё
   /// того же названия (см. Product.semiFinished на бэкенде).
   final bool semiFinished;
+
+  /// GUID подразделения (корпуса) в 1С — см. [oneCDepartmentNames]. Null, если не задано
+  /// (используется запасной вариант из конфигурации на бэкенде, см. OneCProductionSyncService).
+  final String? oneCDepartmentKey;
 
   /// Вес одной штуки, г — только для товаров, где норму при оприходовании нужно сверять по
   /// общей массе группы, а не по штукам (см. Product.netWeightGrams на бэкенде). Null — товар
@@ -30,6 +44,7 @@ class Product {
     required this.quantityInStock,
     this.imageUrl,
     this.semiFinished = false,
+    this.oneCDepartmentKey,
     this.netWeightGrams,
   });
 
@@ -44,6 +59,7 @@ class Product {
         quantityInStock: (json['quantityInStock'] as num).toDouble(),
         imageUrl: json['imageUrl'] as String?,
         semiFinished: json['semiFinished'] as bool? ?? false,
+        oneCDepartmentKey: json['oneCDepartmentKey'] as String?,
         netWeightGrams: (json['netWeightGrams'] as num?)?.toDouble(),
       );
 
@@ -60,6 +76,7 @@ class Product {
         quantityInStock: quantityInStock,
         imageUrl: url,
         semiFinished: semiFinished,
+        oneCDepartmentKey: oneCDepartmentKey,
         netWeightGrams: netWeightGrams,
       );
 }
