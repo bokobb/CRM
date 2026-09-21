@@ -53,9 +53,13 @@ public class CounterpartyController {
     public String syncOneC(RedirectAttributes redirectAttributes) {
         try {
             var result = counterpartyService.syncFromOneC();
-            redirectAttributes.addFlashAttribute("success",
-                    "Загружено из 1С: " + result.totalInOneC() + ", новых — " + result.created()
-                            + ", обновлено имён — " + result.updated());
+            String message = "Загружено из 1С: " + result.totalInOneC() + ", новых — " + result.created()
+                    + ", обновлено имён — " + result.updated() + ", удалено (пропали из 1С) — " + result.deleted();
+            if (!result.skippedHasPurchases().isEmpty()) {
+                message += ". Пропали из 1С, но не удалены — есть закупки: "
+                        + String.join(", ", result.skippedHasPurchases());
+            }
+            redirectAttributes.addFlashAttribute("success", message);
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", "Не удалось загрузить из 1С: " + e.getMessage());
         }

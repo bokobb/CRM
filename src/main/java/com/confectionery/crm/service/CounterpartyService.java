@@ -9,7 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Справочник контрагентов (в первую очередь поставщиков сырья, см. Purchase) — либо заводится
@@ -124,6 +127,14 @@ public class CounterpartyService {
      * основной договор), новые — создаются; контрагенты, заведённые в CRM вручную (без ключа
      * 1С), не трогаются и не дублируются, если их имя совпадает с новым из 1С — сопоставление
      * только по ключу, не по имени.
+     *
+     * <p>Заодно чистит "осиротевших" — контрагентов CRM, у которых {@code oneCContragentKey}
+     * задан (то есть когда-то пришли из 1С или были туда выгружены), но в текущем списке 1С их
+     * уже нет (удалили/переобъединили в 1С). Вручную заведённые (ключ ещё не пришёл или так и не
+     * настроена интеграция) не трогаются — только реальные "хвосты" от 1С. Тот же самый запрет,
+     * что и у ручного удаления (см. {@link #delete}) — если на контрагента уже есть закупки,
+     * не удаляем, а копим в {@code SyncResult.skippedHasPurchases} для ручной проверки: закупки
+     * важнее чистоты справочника, разбираться в этом случае должен человек.
      */
     @Transactional
     public SyncResult syncFromOneC() {
@@ -131,6 +142,10 @@ public class CounterpartyService {
             throw new IllegalStateException("Подключение к 1С не настроено (crm.onec.base-url/username/password)");
         }
         List<OneCClient.Contragent> contragents = oneCClient.fetchContragents();
+        Set<String> refsInOneC = contragents.stream()
+                .map(OneCClient.Contragent::ref)
+                .filter(ref -> !ref.isBlank())
+                .collect(Collectors.toSet());
         int created = 0;
         int updated = 0;
         for (OneCClient.Contragent contragent : contragents) {
@@ -154,9 +169,24 @@ public class CounterpartyService {
                 updated++;
             }
         }
-        return new SyncResult(created, updated, contragents.size());
+
+        int deleted = 0;
+        List<String> skippedHasPurchases = new ArrayList<>();
+        for (Counterparty counterparty : counterpartyRepository.findAll()) {
+            if (counterparty.getOneCContragentKey() == null || refsInOneC.contains(counterparty.getOneCContragentKey())) {
+                continue;
+            }
+            if (purchaseRepository.existsByCounterpartyId(counterparty.getId())) {
+                skippedHasPurchases.add(counterparty.getName());
+                continue;
+            }
+            counterpartyRepository.delete(counterparty);
+            deleted++;
+        }
+
+        return new SyncResult(created, updated, deleted, contragents.size(), skippedHasPurchases);
     }
 
-    public record SyncResult(int created, int updated, int totalInOneC) {
+    public record SyncResult(int created, int updated, int deleted, int totalInOneC, List<String> skippedHasPurchases) {
     }
 }

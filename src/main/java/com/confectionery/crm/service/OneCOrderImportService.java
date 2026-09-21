@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -38,6 +39,11 @@ import java.util.Map;
  * OneCClientLinkService/название) — документ, где хоть что-то не сопоставлено, пропускается
  * ЦЕЛИКОМ (частично импортированный заказ хуже отсутствующего), причина копится в отчёте и уходит
  * одним уведомлением ADMIN.
+ *
+ * <p>Импортируются только документы с датой = СЕГОДНЯ (по серверному времени) — заявка на весь
+ * накопленный за годы список "Реализаций" 1С сразу создала бы кучу заказов задним числом; более
+ * старые документы, если понадобится их занести, — вручную. Так как задача перезапускается
+ * каждые 5 минут (см. {@link #scheduledImport()}), в течение дня документ всё равно подхватится.
  */
 @Slf4j
 @Service
@@ -99,6 +105,9 @@ public class OneCOrderImportService {
                 continue;
             }
             if (orderRepository.findByOneCDocumentKey(header.ref()).isPresent()) {
+                continue;
+            }
+            if (!parseDate(header.date()).toLocalDate().isEqual(LocalDate.now())) {
                 continue;
             }
             Client client = clientRepository.findByOneCContragentKey(header.counterpartyKey()).orElse(null);

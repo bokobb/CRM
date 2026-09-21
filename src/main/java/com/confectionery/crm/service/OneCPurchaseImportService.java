@@ -35,6 +35,9 @@ import java.util.Map;
  * синхронизацией остатков (см. OneCStockSyncService, читает абсолютный остаток из 1С каждые 5
  * минут) не будет — она всё равно перезатирает остаток абсолютным значением из 1С, а не
  * складывает.
+ *
+ * <p>Импортируются только документы с датой = СЕГОДНЯ (см. {@link OneCOrderImportService} —
+ * то же ограничение и по той же причине).
  */
 @Slf4j
 @Service
@@ -98,6 +101,9 @@ public class OneCPurchaseImportService {
                 continue;
             }
             if (purchaseRepository.findByOneCDocumentKey(header.ref()).isPresent()) {
+                continue;
+            }
+            if (!parseDate(header.date()).toLocalDate().isEqual(LocalDate.now())) {
                 continue;
             }
             Counterparty counterparty = counterpartyRepository.findByOneCContragentKey(header.counterpartyKey()).orElse(null);
