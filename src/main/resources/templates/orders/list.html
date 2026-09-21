@@ -12,10 +12,6 @@
         <div class="page-header">
             <div><h1>Заказы</h1></div>
             <div>
-                <form method="post" th:action="@{/orders/post-1c}" sec:authorize="hasRole('ADMIN')" style="display:inline"
-                      onsubmit="return confirm('Провести в 1С все отгруженные/завершённые заказы, которые ещё не проведены?');">
-                    <button type="submit" class="btn">Провести в 1С</button>
-                </form>
                 <a class="btn primary" th:href="@{/orders/new}">+ Новый заказ</a>
             </div>
         </div>

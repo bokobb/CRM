@@ -3,7 +3,6 @@ package com.confectionery.crm.web;
 import com.confectionery.crm.api.dto.OrderItemUpdateRequest;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.service.ClientService;
-import com.confectionery.crm.service.OneCOrderSyncService;
 import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.service.ProductionTaskService;
@@ -28,7 +27,6 @@ public class OrderController {
     private final ClientService clientService;
     private final ProductService productService;
     private final ProductionTaskService productionTaskService;
-    private final OneCOrderSyncService oneCOrderSyncService;
 
     /** from/to не заданы — все даты; ссылки с дашборда передают диапазон явно. */
     @GetMapping
@@ -258,25 +256,4 @@ public class OrderController {
         return "redirect:/orders/" + id;
     }
 
-    /**
-     * Пакетное проведение вручную — подстраховка на случай, если 1С была недоступна в момент
-     * отгрузки заказа (см. OrderService.ship/OneCOrderSyncService.tryPostOrder, которые теперь
-     * проводят документ сразу) и он остался непроведённым. Прежнего ежедневного будильника
-     * в 20:00 больше нет — эта кнопка единственный способ провести такие "зависшие" заказы.
-     */
-    @PostMapping("/post-1c")
-    @PreAuthorize("hasRole('ADMIN')")
-    public String postOneC(RedirectAttributes redirectAttributes) {
-        try {
-            var result = oneCOrderSyncService.postEligibleOrders();
-            String message = "Проведено в 1С: " + result.posted() + ", уже было проведено: " + result.alreadyPosted();
-            if (!result.failed().isEmpty()) {
-                message += ". Не удалось: " + String.join("; ", result.failed());
-            }
-            redirectAttributes.addFlashAttribute("success", message);
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("error", "Не удалось запустить проведение в 1С: " + e.getMessage());
-        }
-        return "redirect:/orders";
-    }
 }
