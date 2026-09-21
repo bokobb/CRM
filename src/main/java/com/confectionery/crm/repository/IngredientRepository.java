@@ -14,4 +14,7 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
 
     /** См. StockService.receiveProductForProduction — сопоставление полуфабриката с сырьём по имени. */
     Optional<Ingredient> findByNameIgnoreCase(String name);
+
+    /** Сопоставление строки документа 1С с сырьём по GUID номенклатуры (см. OneCPurchaseImportService). */
+    Optional<Ingredient> findByOneCNomenclatureKey(String oneCNomenclatureKey);
 }

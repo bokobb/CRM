@@ -10,10 +10,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status);
+
+    /** Уже импортирован ли этот документ 1С как заказ — дедупликация в OneCOrderImportService. */
+    Optional<Order> findByOneCDocumentKey(String oneCDocumentKey);
 
     List<Order> findAllByOrderByCreatedAtDesc();
 

@@ -231,6 +231,144 @@ class OneCClient {
         return lines;
     }
 
+    /**
+     * Шапки ВСЕХ проведённых документов "Реализация товаров и услуг" в 1С — источник для
+     * OneCOrderImportService (читает то, что бухгалтер завёл в 1С напрямую, минуя CRM). Только
+     * проведённые ({@code Posted eq true}) — черновик CRM тоже станет проведённым документом
+     * позже (после ручной проводки бухгалтером), но пока не проведён, сюда не попадает; свои же
+     * документы (в т.ч. уже проведённые) дальше отсекаются по {@code Комментарий} и по уже
+     * заполненному {@code Order.oneCDocumentKey} — здесь фильтрации по автору нет.
+     */
+    List<SaleHeader> fetchSaleHeaders() {
+        List<SaleHeader> headers = new ArrayList<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Document_РеализацияТоваровУслуг")
+                            .queryParam("$format", "json")
+                            .queryParam("$filter", "Posted eq true")
+                            .queryParam("$select", "Ref_Key,Number,Date,Комментарий,Контрагент_Key")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                headers.add(new SaleHeader(
+                        item.path("Ref_Key").asText(""),
+                        item.path("Number").asText(""),
+                        item.path("Date").asText(""),
+                        item.path("Комментарий").asText(""),
+                        item.path("Контрагент_Key").asText("")
+                ));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return headers;
+    }
+
+    /**
+     * Строки табличной части "Товары" ВСЕХ проведённых документов "Реализация товаров и услуг" —
+     * {@code parentRef} совпадает с {@link SaleHeader#ref()} той же строки (1С отдаёт строки
+     * табличной части с Ref_Key владельца документа, см. {@link #fetchProductionReportLines()}).
+     */
+    List<SaleLine> fetchSaleLines() {
+        List<SaleLine> lines = new ArrayList<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Document_РеализацияТоваровУслуг_Товары")
+                            .queryParam("$format", "json")
+                            .queryParam("$select", "Ref_Key,Номенклатура_Key,Количество,Цена")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                lines.add(new SaleLine(
+                        item.path("Ref_Key").asText(""),
+                        item.path("Номенклатура_Key").asText(""),
+                        item.path("Количество").decimalValue(),
+                        item.path("Цена").decimalValue()
+                ));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return lines;
+    }
+
+    /**
+     * Шапки ВСЕХ проведённых документов "Поступление товаров и услуг" — источник для
+     * OneCPurchaseImportService, симметрично {@link #fetchSaleHeaders()}.
+     */
+    List<GoodsReceiptHeader> fetchGoodsReceiptHeaders() {
+        List<GoodsReceiptHeader> headers = new ArrayList<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Document_ПоступлениеТоваровУслуг")
+                            .queryParam("$format", "json")
+                            .queryParam("$filter", "Posted eq true")
+                            .queryParam("$select", "Ref_Key,Number,Date,Комментарий,Контрагент_Key")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                headers.add(new GoodsReceiptHeader(
+                        item.path("Ref_Key").asText(""),
+                        item.path("Number").asText(""),
+                        item.path("Date").asText(""),
+                        item.path("Комментарий").asText(""),
+                        item.path("Контрагент_Key").asText("")
+                ));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return headers;
+    }
+
+    /** Строки табличной части "Товары" ВСЕХ проведённых документов "Поступление товаров и услуг". */
+    List<GoodsReceiptLine> fetchGoodsReceiptLines() {
+        List<GoodsReceiptLine> lines = new ArrayList<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Document_ПоступлениеТоваровУслуг_Товары")
+                            .queryParam("$format", "json")
+                            .queryParam("$select", "Ref_Key,Номенклатура_Key,Количество,Цена")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                lines.add(new GoodsReceiptLine(
+                        item.path("Ref_Key").asText(""),
+                        item.path("Номенклатура_Key").asText(""),
+                        item.path("Количество").decimalValue(),
+                        item.path("Цена").decimalValue()
+                ));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return lines;
+    }
+
     /** Все контрагенты целиком, вместе с GUID основного договора (см. OneCOrderSyncService/OneCClientLinkService). */
     List<Contragent> fetchContragents() {
         List<Contragent> result = new ArrayList<>();
@@ -730,5 +868,18 @@ class OneCClient {
     }
 
     record ProductionReportLine(String parentRef, String nomenclatureKey) {
+    }
+
+    /** {@code date} — ISO-строка "yyyy-MM-ddTHH:mm:ss", как пришла из OData (парсится вызывающей стороной). */
+    record SaleHeader(String ref, String number, String date, String comment, String counterpartyKey) {
+    }
+
+    record SaleLine(String parentRef, String nomenclatureKey, BigDecimal quantity, BigDecimal price) {
+    }
+
+    record GoodsReceiptHeader(String ref, String number, String date, String comment, String counterpartyKey) {
+    }
+
+    record GoodsReceiptLine(String parentRef, String nomenclatureKey, BigDecimal quantity, BigDecimal price) {
     }
 }

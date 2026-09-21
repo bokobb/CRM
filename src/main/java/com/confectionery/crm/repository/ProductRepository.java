@@ -18,4 +18,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
      * одного (по документации поля должен быть максимум один).
      */
     Optional<Product> findFirstByGroupAndMassReferenceProductTrue(String group);
+
+    /** Сопоставление строки документа 1С с товаром по GUID номенклатуры (см. OneCOrderImportService). */
+    Optional<Product> findByOneCNomenclatureKey(String oneCNomenclatureKey);
 }
