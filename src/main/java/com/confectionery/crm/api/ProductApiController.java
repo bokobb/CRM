@@ -99,6 +99,7 @@ public class ProductApiController {
         product.setImageUrl(req.imageUrl());
         product.setSemiFinished(req.semiFinished());
         product.setNetWeightGrams(req.netWeightGrams());
+        product.setMassReferenceProduct(req.massReferenceProduct());
         // "" из выпадающего списка ("Не задано") означает то же самое, что и отсутствие поля —
         // нормализуем в null, иначе в 1С ушёл бы невалидный GUID вместо запасного варианта по
         // умолчанию (см. OneCProductionSyncService).

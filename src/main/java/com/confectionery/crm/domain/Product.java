@@ -53,6 +53,23 @@ public class Product {
     @Column(precision = 12, scale = 3)
     private BigDecimal netWeightGrams;
 
+    /**
+     * Эталон для пересчёта отклонения массы в штуки в сверке заявки на сырьё (например, «Чак Чак
+     * Б» — самый крупный вариант группы, см. ProductionRequestService.massSummary): «не хватает
+     * N кг» переводится в «≈ M шт. <это товар>», даже если сам он не входит в конкретную заявку.
+     * Должен быть отмечен максимум у одного товара в группе (product_group) и иметь заданный
+     * {@link #netWeightGrams} — иначе не учитывается. Если ни один товар группы так не отмечен,
+     * используется самый тяжёлый вариант, который реально есть в заявке (запасной вариант).
+     * Boolean (не примитив) и без {@code nullable=false} — колонка добавляется поверх уже
+     * существующей непустой таблицы products, ddl-auto=update не умеет NOT NULL с DEFAULT на
+     * ALTER TABLE (см. active/semiFinished выше); null трактуется как false в коде.
+     */
+    private Boolean massReferenceProduct = false;
+
+    public boolean isMassReferenceProduct() {
+        return Boolean.TRUE.equals(massReferenceProduct);
+    }
+
     /** Ссылка на фото товара (внешний URL) — показывается в мобильном приложении при оформлении заказа. */
     @Column(length = 2000)
     private String imageUrl;

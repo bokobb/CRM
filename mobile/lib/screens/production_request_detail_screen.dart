@@ -640,8 +640,10 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   s.insufficient
-                      ? 'Не хватает ${formatQty(s.deviationKg.abs())} кг сырья'
-                      : 'Нормы хватает (запас ${formatQty(s.deviationKg.abs())} кг)',
+                      ? 'Не хватает ${formatQty(s.deviationKg.abs())} кг сырья '
+                          '(≈ ${formatQty(s.deviationPiecesAbs)} шт. «${s.referenceProductName}»)'
+                      : 'Нормы хватает (запас ${formatQty(s.deviationKg.abs())} кг '
+                          '≈ ${formatQty(s.deviationPiecesAbs)} шт. «${s.referenceProductName}»)',
                   style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12.5),
                 ),
               ),

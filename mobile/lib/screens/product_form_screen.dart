@@ -30,6 +30,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _imageUrl = TextEditingController();
   final _netWeightGrams = TextEditingController();
   bool _semiFinished = false;
+  bool _massReferenceProduct = false;
   String? _departmentKey;
   bool _loading = false;
   bool _initialLoading = false;
@@ -56,6 +57,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _existingImageUrl = p.imageUrl;
         _netWeightGrams.text = p.netWeightGrams?.toString() ?? '';
         _semiFinished = p.semiFinished;
+        _massReferenceProduct = p.massReferenceProduct;
         _departmentKey = p.oneCDepartmentKey;
         setState(() => _initialLoading = false);
       });
@@ -115,6 +117,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           ? null
           : double.tryParse(_netWeightGrams.text.replaceAll(',', '.')),
       'semiFinished': _semiFinished,
+      'massReferenceProduct': _massReferenceProduct,
       'oneCDepartmentKey': _departmentKey,
     };
     try {
@@ -206,6 +209,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     validator: (v) => (v != null && v.trim().isNotEmpty && double.tryParse(v.replaceAll(',', '.')) == null)
                         ? 'Введите число'
                         : null,
+                  ),
+                  const SizedBox(height: 4),
+                  CheckboxListTile(
+                    value: _massReferenceProduct,
+                    onChanged: (v) => setState(() => _massReferenceProduct = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Эталон для пересчёта массы в штуки'),
+                    subtitle: const Text('В заявке на сырьё "не хватает N кг" переведётся в "≈ M шт. этого товара" '
+                        '(максимум один такой товар в группе, с заданным весом выше)'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

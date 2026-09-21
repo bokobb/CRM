@@ -34,10 +34,11 @@ public record ProductionRequestDto(
      * Null, если весом (netWeightGrams) отмечено меньше двух позиций заявки.
      */
     public record MassSummary(BigDecimal plannedKg, BigDecimal actualKg, BigDecimal deviationKg,
-                               boolean insufficient, boolean allWeightedReceived) {
+                               boolean insufficient, boolean allWeightedReceived,
+                               String referenceProductName, BigDecimal deviationPiecesAbs) {
         static MassSummary from(ProductionRequestService.MassSummary s) {
             return s == null ? null : new MassSummary(s.getPlannedKg(), s.getActualKg(), s.getDeviationKg(),
-                    s.isInsufficient(), s.allWeightedReceived());
+                    s.isInsufficient(), s.allWeightedReceived(), s.referenceProductName(), s.getDeviationPiecesAbs());
         }
     }
 
@@ -61,7 +62,13 @@ public record ProductionRequestDto(
         }
     }
 
-    public static ProductionRequestDto from(ProductionRequest r) {
+    /**
+     * {@code massSummary} считается в {@link ProductionRequestService#massSummary} и передаётся
+     * сюда готовым — этот record не имеет доступа к сервисам/репозиториям (нужны для поиска
+     * товара-эталона группы, см. Product.massReferenceProduct), поэтому вызывающая сторона
+     * (см. ProductionRequestApiController) считает его сама.
+     */
+    public static ProductionRequestDto from(ProductionRequest r, ProductionRequestService.MassSummary massSummary) {
         return new ProductionRequestDto(
                 r.getId(),
                 r.getTitle(),
@@ -78,7 +85,7 @@ public record ProductionRequestDto(
                 r.isRequisitionCompleted(),
                 r.getLines().stream().map(Line::from).toList(),
                 r.getItems().stream().map(Item::from).toList(),
-                MassSummary.from(ProductionRequestService.massSummary(r))
+                MassSummary.from(massSummary)
         );
     }
 }

@@ -44,6 +44,13 @@
                     общей массе группы, а не по штукам (например, разные фасовки одного замеса, см. заявку на сырьё)</small>
             </div>
             <div class="field">
+                <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+                    <input type="checkbox" th:field="*{massReferenceProduct}" style="width:auto">
+                    Эталон для пересчёта массы в штуки — в заявке на сырьё «не хватает N кг» переведётся
+                    в «≈ M шт. этого товара» (должен быть максимум один такой товар в группе, с заданным весом выше)
+                </label>
+            </div>
+            <div class="field">
                 <label>Подразделение в 1С (корпус)</label>
                 <select th:field="*{oneCDepartmentKey}">
                     <option value="">Не задано (используется общее по умолчанию)</option>

@@ -149,12 +149,22 @@ class ProductionMassSummary {
   /// показывается только тогда, иначе факт ещё неполный.
   final bool allWeightedReceived;
 
+  /// Название самого крупного по весу варианта в группе (например, "Чак Чак Б") — единица
+  /// пересчёта отклонения массы в штуки, см. [deviationPiecesAbs].
+  final String referenceProductName;
+
+  /// Модуль отклонения, пересчитанный в штуки [referenceProductName] — "не хватает N шт.
+  /// Чак Чак Б", а не просто "N кг сырья". Условная величина для ориентира, не точный расчёт.
+  final double deviationPiecesAbs;
+
   ProductionMassSummary({
     required this.plannedKg,
     required this.actualKg,
     required this.deviationKg,
     required this.insufficient,
     required this.allWeightedReceived,
+    required this.referenceProductName,
+    required this.deviationPiecesAbs,
   });
 
   factory ProductionMassSummary.fromJson(Map<String, dynamic> json) => ProductionMassSummary(
@@ -163,6 +173,8 @@ class ProductionMassSummary {
         deviationKg: (json['deviationKg'] as num).toDouble(),
         insufficient: json['insufficient'] as bool,
         allWeightedReceived: json['allWeightedReceived'] as bool,
+        referenceProductName: json['referenceProductName'] as String,
+        deviationPiecesAbs: (json['deviationPiecesAbs'] as num).toDouble(),
       );
 }
 

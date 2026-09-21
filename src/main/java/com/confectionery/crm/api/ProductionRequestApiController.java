@@ -1,6 +1,7 @@
 package com.confectionery.crm.api;
 
 import com.confectionery.crm.api.dto.*;
+import com.confectionery.crm.domain.ProductionRequest;
 import com.confectionery.crm.service.ProductionReportPdfService;
 import com.confectionery.crm.service.ProductionRequestService;
 import jakarta.validation.Valid;
@@ -32,7 +33,7 @@ public class ProductionRequestApiController {
 
     @GetMapping("/{id}")
     public ProductionRequestDto get(@PathVariable Long id) {
-        return ProductionRequestDto.from(requestService.findById(id));
+        return toDto(requestService.findById(id));
     }
 
     /** Товары, у которых есть рецептура — для выбора (с поиском) при создании заявки. */
@@ -52,7 +53,7 @@ public class ProductionRequestApiController {
                 .map(i -> new ProductionRequestService.Line(i.productId(), i.batches()))
                 .toList();
         return requestService.createGrouped(lines, authentication.getName(), req.documentDate()).stream()
-                .map(ProductionRequestDto::from).toList();
+                .map(this::toDto).toList();
     }
 
     /** Редактирование ещё не собранной заявки — только позиции и дата документа, название заявки не меняется. */
@@ -63,7 +64,7 @@ public class ProductionRequestApiController {
         List<ProductionRequestService.Line> lines = req.items().stream()
                 .map(i -> new ProductionRequestService.Line(i.productId(), i.batches()))
                 .toList();
-        return ProductionRequestDto.from(requestService.update(id, lines, authentication.getName(), req.documentDate()));
+        return toDto(requestService.update(id, lines, authentication.getName(), req.documentDate()));
     }
 
     /**
@@ -76,7 +77,7 @@ public class ProductionRequestApiController {
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasRole('ADMIN')")
     public ProductionRequestDto cancel(@PathVariable Long id, Authentication authentication) {
-        return ProductionRequestDto.from(requestService.cancel(id, authentication.getName()));
+        return toDto(requestService.cancel(id, authentication.getName()));
     }
 
     /** Замена сырья в позиции — например, нужного не хватило на складе (см. ProductionRequestService.substituteItem). */
@@ -85,7 +86,7 @@ public class ProductionRequestApiController {
     public ProductionRequestDto substituteItem(@PathVariable Long id, @PathVariable Long itemId,
                                                 @Valid @RequestBody ProductionRequestSubstituteRequest req,
                                                 Authentication authentication) {
-        return ProductionRequestDto.from(
+        return toDto(
                 requestService.substituteItem(id, itemId, req.ingredientId(), req.quantity(), authentication.getName()));
     }
 
@@ -94,7 +95,7 @@ public class ProductionRequestApiController {
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
     public ProductionRequestDto addItem(@PathVariable Long id, @Valid @RequestBody ProductionRequestAddItemRequest req,
                                          Authentication authentication) {
-        return ProductionRequestDto.from(
+        return toDto(
                 requestService.addItem(id, req.ingredientId(), req.quantity(), authentication.getName()));
     }
 
@@ -102,14 +103,14 @@ public class ProductionRequestApiController {
     @DeleteMapping("/{id}/items/{itemId}")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
     public ProductionRequestDto removeItem(@PathVariable Long id, @PathVariable Long itemId, Authentication authentication) {
-        return ProductionRequestDto.from(requestService.removeItem(id, itemId, authentication.getName()));
+        return toDto(requestService.removeItem(id, itemId, authentication.getName()));
     }
 
     @PostMapping("/{id}/collect")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
     public ProductionRequestDto collect(@PathVariable Long id, @Valid @RequestBody ProductionRequestCollectRequest req,
                                          Authentication authentication) {
-        return ProductionRequestDto.from(requestService.collect(id, Set.copyOf(req.itemIds()), authentication.getName()));
+        return toDto(requestService.collect(id, Set.copyOf(req.itemIds()), authentication.getName()));
     }
 
     /** Оприходовать ОДНУ строку заявки — у каждого товара в заявке свой фактический выход. */
@@ -118,14 +119,14 @@ public class ProductionRequestApiController {
     public ProductionRequestDto receiveLine(@PathVariable Long id, @PathVariable Long lineId,
                                              @Valid @RequestBody ProductionRequestReceiveRequest req,
                                              Authentication authentication) {
-        return ProductionRequestDto.from(requestService.receiveLine(id, lineId, req.quantity(), authentication.getName()));
+        return toDto(requestService.receiveLine(id, lineId, req.quantity(), authentication.getName()));
     }
 
     /** Повторная ручная выгрузка в 1С — см. ProductionRequestService.resyncOneC. */
     @PostMapping("/{id}/sync-1c")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public ProductionRequestDto syncOneC(@PathVariable Long id) {
-        return ProductionRequestDto.from(requestService.resyncOneC(id));
+        return toDto(requestService.resyncOneC(id));
     }
 
     /**
@@ -138,7 +139,7 @@ public class ProductionRequestApiController {
     @PostMapping("/{id}/complete-1c")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW')")
     public ProductionRequestDto completeOneC(@PathVariable Long id) {
-        return ProductionRequestDto.from(requestService.completeRequisition(id));
+        return toDto(requestService.completeRequisition(id));
     }
 
     /**
@@ -148,7 +149,11 @@ public class ProductionRequestApiController {
     @PostMapping("/{id}/cancel-completion")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW')")
     public ProductionRequestDto cancelCompletion(@PathVariable Long id) {
-        return ProductionRequestDto.from(requestService.cancelCompletion(id));
+        return toDto(requestService.cancelCompletion(id));
+    }
+
+    private ProductionRequestDto toDto(ProductionRequest r) {
+        return ProductionRequestDto.from(r, requestService.massSummary(r));
     }
 
     /** Дневной отчёт "сколько сегодня изготовили" — date не задан = сегодня. */

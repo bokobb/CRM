@@ -160,20 +160,31 @@ public class ProductionRequestService {
      * отрицательное значение — по массе не хватает.
      * @return null, если весом отмечено меньше двух позиций заявки — тогда построчной проверки
      * достаточно, сводка по массе не добавляет информации.
-     * Статический метод (не использует состояние сервиса) — вызывается и из web-контроллера, и
-     * напрямую из {@link com.confectionery.crm.api.dto.ProductionRequestDto#from} для мобильного API.
+     * Вызывается и из web-контроллера, и из {@link com.confectionery.crm.api.dto.ProductionRequestDto#from}
+     * (передаёт готовый результат явно — DTO не имеет доступа к сервисам) для мобильного API.
      */
-    public static MassSummary massSummary(ProductionRequest request) {
+    public MassSummary massSummary(ProductionRequest request) {
         BigDecimal plannedGrams = BigDecimal.ZERO;
         BigDecimal actualGrams = BigDecimal.ZERO;
         int weightedLines = 0;
         boolean allWeightedReceived = true;
+        // Самый крупный по весу вариант СРЕДИ ТОГО, ЧТО ЕСТЬ В ЗАЯВКЕ — запасной вариант единицы
+        // пересчёта отклонения массы в штуки, если ни один товар группы не отмечен явным
+        // эталоном (см. ниже) — например, заявка не включает сам эталонный товар.
+        String fallbackReferenceName = null;
+        BigDecimal fallbackReferenceWeight = null;
+        String group = null;
         for (ProductionRequestLine line : request.getLines()) {
+            group = line.getProduct().getGroup();
             BigDecimal weight = line.getProduct().getNetWeightGrams();
             if (weight == null) {
                 continue;
             }
             weightedLines++;
+            if (fallbackReferenceWeight == null || weight.compareTo(fallbackReferenceWeight) > 0) {
+                fallbackReferenceWeight = weight;
+                fallbackReferenceName = line.getProduct().getName();
+            }
             if (line.getPlannedQuantity() != null) {
                 plannedGrams = plannedGrams.add(line.getPlannedQuantity().multiply(weight, MathContext.DECIMAL64));
             }
@@ -186,10 +197,21 @@ public class ProductionRequestService {
         if (weightedLines < 2) {
             return null;
         }
-        return new MassSummary(plannedGrams, actualGrams, allWeightedReceived);
+
+        String referenceProductName = fallbackReferenceName;
+        BigDecimal referenceWeight = fallbackReferenceWeight;
+        if (group != null) {
+            Product explicitReference = productRepository.findFirstByGroupAndMassReferenceProductTrue(group).orElse(null);
+            if (explicitReference != null && explicitReference.getNetWeightGrams() != null) {
+                referenceProductName = explicitReference.getName();
+                referenceWeight = explicitReference.getNetWeightGrams();
+            }
+        }
+        return new MassSummary(plannedGrams, actualGrams, allWeightedReceived, referenceProductName, referenceWeight);
     }
 
-    public record MassSummary(BigDecimal plannedGrams, BigDecimal actualGrams, boolean allWeightedReceived) {
+    public record MassSummary(BigDecimal plannedGrams, BigDecimal actualGrams, boolean allWeightedReceived,
+                               String referenceProductName, BigDecimal referenceWeightGrams) {
         private static final BigDecimal GRAMS_PER_KG = BigDecimal.valueOf(1000);
 
         public BigDecimal getDeviationGrams() {
@@ -216,6 +238,16 @@ public class ProductionRequestService {
         /** Модуль отклонения в кг — знак (не хватает/с запасом) показывается отдельно в UI. */
         public BigDecimal getDeviationKgAbs() {
             return getDeviationGrams().abs().divide(GRAMS_PER_KG, 3, RoundingMode.HALF_UP);
+        }
+
+        /**
+         * Модуль отклонения, пересчитанный в штуки {@link #referenceProductName} (самого
+         * крупного варианта группы) — "не хватает N шт. Чак Чак Б", а не просто "N кг сырья".
+         * Условная величина — реальная недостача может закрываться любым сочетанием фасовок,
+         * это просто наглядный ориентир для кладовщика.
+         */
+        public BigDecimal getDeviationPiecesAbs() {
+            return getDeviationGrams().abs().divide(referenceWeightGrams, 1, RoundingMode.HALF_UP);
         }
     }
 

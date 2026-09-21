@@ -33,6 +33,10 @@ class Product {
   /// в такой сверке не участвует.
   final double? netWeightGrams;
 
+  /// Эталон группы для пересчёта отклонения массы в штуки (см. Product.massReferenceProduct на
+  /// бэкенде) — максимум один товар в группе, с заданным [netWeightGrams].
+  final bool massReferenceProduct;
+
   Product({
     required this.id,
     required this.name,
@@ -46,6 +50,7 @@ class Product {
     this.semiFinished = false,
     this.oneCDepartmentKey,
     this.netWeightGrams,
+    this.massReferenceProduct = false,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -61,6 +66,7 @@ class Product {
         semiFinished: json['semiFinished'] as bool? ?? false,
         oneCDepartmentKey: json['oneCDepartmentKey'] as String?,
         netWeightGrams: (json['netWeightGrams'] as num?)?.toDouble(),
+        massReferenceProduct: json['massReferenceProduct'] as bool? ?? false,
       );
 
   /// Копия с другим imageUrl — используется, чтобы превратить относительный путь
@@ -78,6 +84,7 @@ class Product {
         semiFinished: semiFinished,
         oneCDepartmentKey: oneCDepartmentKey,
         netWeightGrams: netWeightGrams,
+        massReferenceProduct: massReferenceProduct,
       );
 }
 

@@ -15,6 +15,7 @@ public record ProductRequest(
         String imageUrl,
         boolean semiFinished,
         String oneCDepartmentKey,
-        BigDecimal netWeightGrams
+        BigDecimal netWeightGrams,
+        boolean massReferenceProduct
 ) {
 }
