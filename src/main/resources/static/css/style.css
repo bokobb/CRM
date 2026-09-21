@@ -57,7 +57,8 @@ body {
   gap: 10px;
 }
 .brand img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
-.login-card .brand img { width: 40px; height: 40px; }
+
+.sidebar-logo { display: block; width: 100%; max-width: 180px; height: auto; margin: 0 auto 22px; }
 
 .nav-link {
   display: block;
@@ -315,7 +316,7 @@ textarea { min-height: 80px; resize: vertical; }
 
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
 .login-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; width: 100%; max-width: 340px; }
-.login-card .brand { color: var(--ink); font-size: 18px; font-weight: 700; margin-bottom: 22px; justify-content: center; }
+.login-logo { display: block; width: 100%; max-width: 260px; height: auto; margin: 0 auto 24px; }
 .login-card .btn.primary { width: 100%; text-align: center; }
 .password-field { position: relative; }
 .password-field input { padding-right: 40px; }

@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <body>
 <nav th:fragment="nav" class="sidebar">
-    <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
+    <img class="sidebar-logo" th:src="@{/images/logo-full.png}" alt="Юг Сладости">
     <a th:href="@{/}" class="nav-link" sec:authorize="!hasRole('WAREHOUSE_FG')" th:classappend="${activePage == 'dashboard'} ? 'active'">Дашборд</a>
     <a th:href="@{/orders}" class="nav-link" th:classappend="${activePage == 'orders'} ? 'active'">Заказы</a>
     <a th:href="@{/production-requests}" class="nav-link" sec:authorize="hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW','WAREHOUSE_FG')" th:classappend="${activePage == 'production-requests'} ? 'active'">Заявки на сырьё</a>
