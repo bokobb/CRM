@@ -38,6 +38,10 @@ import java.util.Map;
  *
  * <p>Импортируются только документы с датой = СЕГОДНЯ (см. {@link OneCOrderImportService} —
  * то же ограничение и по той же причине).
+ *
+ * <p>Контрагент и сырьё сопоставляются по GUID; если в 1С контрагент/номенклатура реально есть,
+ * а в CRM карточки ещё нет — заводим сами (см. {@link OneCOrderImportService} — тот же приём и
+ * по той же причине: не спамить одним и тем же "не сопоставлено" каждые 5 минут).
  */
 @Slf4j
 @Service
@@ -63,17 +67,20 @@ public class OneCPurchaseImportService {
         }
         try {
             ImportResult result = importAll();
-            if (result.imported() > 0 || !result.unmatched().isEmpty()) {
-                log.info("Импорт закупок из 1С: создано {}, не сопоставлено {}", result.imported(), result.unmatched().size());
+            if (result.imported() > 0 || result.counterpartiesCreated() > 0 || result.ingredientsCreated() > 0 || !result.unmatched().isEmpty()) {
+                log.info("Импорт закупок из 1С: создано закупок {}, контрагентов {}, сырья {}, не сопоставлено {}",
+                        result.imported(), result.counterpartiesCreated(), result.ingredientsCreated(), result.unmatched().size());
             }
             if (result.imported() > 0) {
-                notificationService.notifyRole(Role.ADMIN,
-                        "Импорт из 1С: создано закупок из документов \"Поступление\" — " + result.imported(), null);
+                String message = "Импорт из 1С: создано закупок из документов \"Поступление\" — " + result.imported();
+                if (result.counterpartiesCreated() > 0) message += ", новых контрагентов — " + result.counterpartiesCreated();
+                if (result.ingredientsCreated() > 0) message += ", нового сырья — " + result.ingredientsCreated();
+                notificationService.notifyRole(Role.ADMIN, message, null);
             }
             if (!result.unmatched().isEmpty()) {
                 notificationService.notifyRole(Role.ADMIN,
                         "Импорт из 1С: не удалось сопоставить " + result.unmatched().size()
-                                + " документ(ов) \"Поступление\" — " + String.join("; ", result.unmatched()), null);
+                                + " документ(ов) \"Поступление\" (нет даже в 1С) — " + String.join("; ", result.unmatched()), null);
             }
         } catch (Exception e) {
             log.warn("Импорт закупок из 1С не удался: {}", e.getMessage());
@@ -93,8 +100,14 @@ public class OneCPurchaseImportService {
         for (Ingredient i : ingredientRepository.findAll()) {
             ingredientByName.putIfAbsent(i.getName().trim().toLowerCase(), i);
         }
+        Map<String, OneCClient.Contragent> contragentsByRef = new HashMap<>();
+        for (OneCClient.Contragent c : oneCClient.fetchContragents()) {
+            contragentsByRef.putIfAbsent(c.ref(), c);
+        }
 
         int imported = 0;
+        int counterpartiesCreated = 0;
+        int ingredientsCreated = 0;
         List<String> unmatched = new ArrayList<>();
         for (OneCClient.GoodsReceiptHeader header : headers) {
             if (header.comment() != null && header.comment().startsWith(CRM_MARKER)) {
@@ -108,27 +121,49 @@ public class OneCPurchaseImportService {
             }
             Counterparty counterparty = counterpartyRepository.findByOneCContragentKey(header.counterpartyKey()).orElse(null);
             if (counterparty == null) {
-                unmatched.add("№" + header.number() + ": контрагент не привязан к CRM");
-                continue;
+                OneCClient.Contragent contragent = contragentsByRef.get(header.counterpartyKey());
+                if (contragent == null || contragent.description().isBlank()) {
+                    unmatched.add("№" + header.number() + ": контрагент " + header.counterpartyKey() + " не найден в 1С");
+                    continue;
+                }
+                counterparty = new Counterparty();
+                counterparty.setName(contragent.description().trim());
+                counterparty.setOneCContragentKey(contragent.ref());
+                counterparty.setOneCContractKey(contragent.contractKey());
+                counterparty = counterpartyRepository.save(counterparty);
+                counterpartiesCreated++;
             }
             List<OneCClient.GoodsReceiptLine> docLines = linesByParent.getOrDefault(header.ref(), List.of());
             if (docLines.isEmpty()) {
                 continue;
             }
-            // Сначала проверяем, что сопоставится ВСЁ — приход по StockService необратим без
-            // отдельного списания, поэтому частично собранный документ здесь не оставляем.
+            // Сначала проверяем, что сопоставится/создастся ВСЁ — приход по StockService
+            // необратим без отдельного списания, поэтому частично собранный документ не оставляем.
             List<Ingredient> resolvedIngredients = new ArrayList<>();
             String unmatchedLine = null;
             for (OneCClient.GoodsReceiptLine line : docLines) {
-                Ingredient ingredient = resolveIngredient(line.nomenclatureKey(), nomenclatureNames, ingredientByName);
+                Ingredient ingredient = ingredientRepository.findByOneCNomenclatureKey(line.nomenclatureKey()).orElse(null);
                 if (ingredient == null) {
-                    unmatchedLine = nomenclatureNames.getOrDefault(line.nomenclatureKey(), line.nomenclatureKey());
-                    break;
+                    ingredient = resolveIngredientByName(line.nomenclatureKey(), nomenclatureNames, ingredientByName);
+                }
+                if (ingredient == null) {
+                    String name = nomenclatureNames.get(line.nomenclatureKey());
+                    if (name == null || name.isBlank()) {
+                        unmatchedLine = line.nomenclatureKey() + " (нет в 1С)";
+                        break;
+                    }
+                    ingredient = new Ingredient();
+                    ingredient.setName(name.trim());
+                    ingredient.setUnit("шт");
+                    ingredient.setOneCNomenclatureKey(line.nomenclatureKey());
+                    ingredient = ingredientRepository.save(ingredient);
+                    ingredientByName.put(name.trim().toLowerCase(), ingredient);
+                    ingredientsCreated++;
                 }
                 resolvedIngredients.add(ingredient);
             }
             if (unmatchedLine != null) {
-                unmatched.add("№" + header.number() + ": сырьё «" + unmatchedLine + "» не найдено в CRM");
+                unmatched.add("№" + header.number() + ": номенклатура «" + unmatchedLine + "»");
                 continue;
             }
 
@@ -154,14 +189,11 @@ public class OneCPurchaseImportService {
             purchaseRepository.save(purchase);
             imported++;
         }
-        return new ImportResult(imported, unmatched);
+        return new ImportResult(imported, counterpartiesCreated, ingredientsCreated, unmatched);
     }
 
-    private Ingredient resolveIngredient(String nomenclatureKey, Map<String, String> nomenclatureNames, Map<String, Ingredient> ingredientByName) {
-        Ingredient byKey = ingredientRepository.findByOneCNomenclatureKey(nomenclatureKey).orElse(null);
-        if (byKey != null) {
-            return byKey;
-        }
+    /** Сырьё уже было в CRM, но без привязки к 1С — ищем по точному названию номенклатуры и кэшируем GUID на будущее. */
+    private Ingredient resolveIngredientByName(String nomenclatureKey, Map<String, String> nomenclatureNames, Map<String, Ingredient> ingredientByName) {
         String name = nomenclatureNames.get(nomenclatureKey);
         if (name == null) {
             return null;
@@ -182,6 +214,6 @@ public class OneCPurchaseImportService {
         }
     }
 
-    public record ImportResult(int imported, List<String> unmatched) {
+    public record ImportResult(int imported, int counterpartiesCreated, int ingredientsCreated, List<String> unmatched) {
     }
 }

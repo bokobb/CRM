@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -35,10 +36,14 @@ import java.util.Map;
  * помечены в {@code Комментарий} строкой "Заказ CRM №..." — такие пропускаем всегда, даже уже
  * проведённые бухгалтером вручную; 2) на случай, если этот импорт уже создал Заказ по документу
  * раньше — проверяем {@link Order#getOneCDocumentKey()} через {@link OrderRepository#findByOneCDocumentKey}.
- * Контрагент и номенклатура сопоставляются по GUID (заранее привязанным через
- * OneCClientLinkService/название) — документ, где хоть что-то не сопоставлено, пропускается
- * ЦЕЛИКОМ (частично импортированный заказ хуже отсутствующего), причина копится в отчёте и уходит
- * одним уведомлением ADMIN.
+ * Контрагент и номенклатура сопоставляются по GUID; если в 1С такой контрагент/номенклатура
+ * реально есть, а в CRM карточки ещё нет — заводим её сами (минимально: имя/название, GUID для
+ * связи, цена товара — из самой строки документа), а не пропускаем документ с ошибкой. Раньше
+ * несопоставленное просто копилось в отчёте с уведомлением ADMIN — на каждый перезапуск (каждые
+ * 5 минут) это давало один и тот же спам, пока кто-то не сопоставит вручную; теперь чинится сразу
+ * само. Документ пропускается ЦЕЛИКОМ только если по GUID контрагента/номенклатуры не нашлось
+ * вообще ничего даже в самом 1С (не должно случаться в норме — тогда это уже проблема данных в
+ * 1С, а не CRM) — такие редкие случаи по-прежнему уходят одним уведомлением ADMIN.
  *
  * <p>Импортируются только документы с датой = СЕГОДНЯ (по серверному времени) — заявка на весь
  * накопленный за годы список "Реализаций" 1С сразу создала бы кучу заказов задним числом; более
@@ -67,17 +72,20 @@ public class OneCOrderImportService {
         }
         try {
             ImportResult result = importAll();
-            if (result.imported() > 0 || !result.unmatched().isEmpty()) {
-                log.info("Импорт заказов из 1С: создано {}, не сопоставлено {}", result.imported(), result.unmatched().size());
+            if (result.imported() > 0 || result.clientsCreated() > 0 || result.productsCreated() > 0 || !result.unmatched().isEmpty()) {
+                log.info("Импорт заказов из 1С: создано заказов {}, клиентов {}, товаров {}, не сопоставлено {}",
+                        result.imported(), result.clientsCreated(), result.productsCreated(), result.unmatched().size());
             }
             if (result.imported() > 0) {
-                notificationService.notifyRole(Role.ADMIN,
-                        "Импорт из 1С: создано заказов из документов \"Реализация\" — " + result.imported(), null);
+                String message = "Импорт из 1С: создано заказов из документов \"Реализация\" — " + result.imported();
+                if (result.clientsCreated() > 0) message += ", новых клиентов — " + result.clientsCreated();
+                if (result.productsCreated() > 0) message += ", новых товаров — " + result.productsCreated();
+                notificationService.notifyRole(Role.ADMIN, message, null);
             }
             if (!result.unmatched().isEmpty()) {
                 notificationService.notifyRole(Role.ADMIN,
                         "Импорт из 1С: не удалось сопоставить " + result.unmatched().size()
-                                + " документ(ов) \"Реализация\" — " + String.join("; ", result.unmatched()), null);
+                                + " документ(ов) \"Реализация\" (нет даже в 1С) — " + String.join("; ", result.unmatched()), null);
             }
         } catch (Exception e) {
             log.warn("Импорт заказов из 1С не удался: {}", e.getMessage());
@@ -97,8 +105,14 @@ public class OneCOrderImportService {
         for (Product p : productRepository.findAll()) {
             productByName.putIfAbsent(p.getName().trim().toLowerCase(), p);
         }
+        Map<String, OneCClient.Contragent> contragentsByRef = new HashMap<>();
+        for (OneCClient.Contragent c : oneCClient.fetchContragents()) {
+            contragentsByRef.putIfAbsent(c.ref(), c);
+        }
 
         int imported = 0;
+        int clientsCreated = 0;
+        int productsCreated = 0;
         List<String> unmatched = new ArrayList<>();
         for (OneCClient.SaleHeader header : headers) {
             if (header.comment() != null && header.comment().startsWith(CRM_MARKER)) {
@@ -112,8 +126,17 @@ public class OneCOrderImportService {
             }
             Client client = clientRepository.findByOneCContragentKey(header.counterpartyKey()).orElse(null);
             if (client == null) {
-                unmatched.add("№" + header.number() + ": контрагент не привязан к клиенту CRM");
-                continue;
+                OneCClient.Contragent contragent = contragentsByRef.get(header.counterpartyKey());
+                if (contragent == null || contragent.description().isBlank()) {
+                    unmatched.add("№" + header.number() + ": контрагент " + header.counterpartyKey() + " не найден в 1С");
+                    continue;
+                }
+                client = new Client();
+                client.setName(contragent.description().trim());
+                client.setOneCContragentKey(contragent.ref());
+                client.setOneCContractKey(contragent.contractKey());
+                client = clientRepository.save(client);
+                clientsCreated++;
             }
             List<OneCClient.SaleLine> docLines = linesByParent.getOrDefault(header.ref(), List.of());
             if (docLines.isEmpty()) {
@@ -122,10 +145,24 @@ public class OneCOrderImportService {
             List<OrderItem> items = new ArrayList<>();
             String unmatchedLine = null;
             for (OneCClient.SaleLine line : docLines) {
-                Product product = resolveProduct(line.nomenclatureKey(), nomenclatureNames, productByName);
+                Product product = productRepository.findByOneCNomenclatureKey(line.nomenclatureKey()).orElse(null);
                 if (product == null) {
-                    unmatchedLine = nomenclatureNames.getOrDefault(line.nomenclatureKey(), line.nomenclatureKey());
-                    break;
+                    product = resolveProductByName(line.nomenclatureKey(), nomenclatureNames, productByName);
+                }
+                if (product == null) {
+                    String name = nomenclatureNames.get(line.nomenclatureKey());
+                    if (name == null || name.isBlank()) {
+                        unmatchedLine = line.nomenclatureKey() + " (нет в 1С)";
+                        break;
+                    }
+                    product = new Product();
+                    product.setName(name.trim());
+                    product.setUnit("шт");
+                    product.setPrice(line.price() != null ? line.price() : BigDecimal.ZERO);
+                    product.setOneCNomenclatureKey(line.nomenclatureKey());
+                    product = productRepository.save(product);
+                    productByName.put(name.trim().toLowerCase(), product);
+                    productsCreated++;
                 }
                 OrderItem item = new OrderItem();
                 item.setProduct(product);
@@ -134,7 +171,7 @@ public class OneCOrderImportService {
                 items.add(item);
             }
             if (unmatchedLine != null) {
-                unmatched.add("№" + header.number() + ": товар «" + unmatchedLine + "» не найден в CRM");
+                unmatched.add("№" + header.number() + ": номенклатура «" + unmatchedLine + "»");
                 continue;
             }
 
@@ -151,14 +188,11 @@ public class OneCOrderImportService {
             orderRepository.save(order);
             imported++;
         }
-        return new ImportResult(imported, unmatched);
+        return new ImportResult(imported, clientsCreated, productsCreated, unmatched);
     }
 
-    private Product resolveProduct(String nomenclatureKey, Map<String, String> nomenclatureNames, Map<String, Product> productByName) {
-        Product byKey = productRepository.findByOneCNomenclatureKey(nomenclatureKey).orElse(null);
-        if (byKey != null) {
-            return byKey;
-        }
+    /** Товар уже был в CRM, но без привязки к 1С — ищем по точному названию номенклатуры и кэшируем GUID на будущее. */
+    private Product resolveProductByName(String nomenclatureKey, Map<String, String> nomenclatureNames, Map<String, Product> productByName) {
         String name = nomenclatureNames.get(nomenclatureKey);
         if (name == null) {
             return null;
@@ -179,6 +213,6 @@ public class OneCOrderImportService {
         }
     }
 
-    public record ImportResult(int imported, List<String> unmatched) {
+    public record ImportResult(int imported, int clientsCreated, int productsCreated, List<String> unmatched) {
     }
 }
