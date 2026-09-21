@@ -94,6 +94,7 @@ public class ProductApiController {
         product.setUnit(req.unit());
         product.setImageUrl(req.imageUrl());
         product.setSemiFinished(req.semiFinished());
+        product.setNetWeightGrams(req.netWeightGrams());
         return product;
     }
 }

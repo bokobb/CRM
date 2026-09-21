@@ -27,6 +27,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _price = TextEditingController();
   final _unit = TextEditingController();
   final _imageUrl = TextEditingController();
+  final _netWeightGrams = TextEditingController();
   bool _semiFinished = false;
   bool _loading = false;
   bool _initialLoading = false;
@@ -51,6 +52,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _unit.text = p.unit ?? '';
         _imageUrl.text = p.imageUrl ?? '';
         _existingImageUrl = p.imageUrl;
+        _netWeightGrams.text = p.netWeightGrams?.toString() ?? '';
         _semiFinished = p.semiFinished;
         setState(() => _initialLoading = false);
       });
@@ -106,6 +108,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       'price': double.tryParse(_price.text.replaceAll(',', '.')) ?? 0,
       'unit': _unit.text.trim(),
       'imageUrl': _imageUrl.text.trim(),
+      'netWeightGrams': _netWeightGrams.text.trim().isEmpty
+          ? null
+          : double.tryParse(_netWeightGrams.text.replaceAll(',', '.')),
       'semiFinished': _semiFinished,
     };
     try {
@@ -182,6 +187,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   TextFormField(
                     controller: _unit,
                     decoration: const InputDecoration(labelText: 'Ед. изм.', hintText: 'шт, кг...'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _netWeightGrams,
+                    decoration: const InputDecoration(
+                      labelText: 'Вес 1 шт, г',
+                      hintText: 'Необязательно',
+                      helperText: 'Только если норму при оприходовании нужно сверять по общей массе '
+                          'группы (разные фасовки одного замеса), а не по штукам',
+                      helperMaxLines: 2,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    validator: (v) => (v != null && v.trim().isNotEmpty && double.tryParse(v.replaceAll(',', '.')) == null)
+                        ? 'Введите число'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

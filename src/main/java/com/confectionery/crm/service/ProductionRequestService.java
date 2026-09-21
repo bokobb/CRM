@@ -150,6 +150,76 @@ public class ProductionRequestService {
     }
 
     /**
+     * Сверка нормы по ОБЩЕЙ МАССЕ вместо штук — для товаров вроде Чак-чака, где несколько
+     * фасовок (Б/мини/резанный/резанный мини) режутся из одного замеса: если рабочие перепутали
+     * пропорции при нарезке, построчная проверка (см. {@link ProductionRequestLine#isInsufficient()})
+     * ошибочно покажет недостачу по одной позиции и избыток по другой, хотя по массе сырья всё
+     * в порядке. Считает только по строкам, где у товара задан {@link Product#getNetWeightGrams()}
+     * (см. заполнение поля в карточке товара) — остальные строки в сумму не попадают и
+     * продолжают сверяться по старой построчной логике. {@code deviationGrams} = факт − норма;
+     * отрицательное значение — по массе не хватает.
+     * @return null, если весом отмечено меньше двух позиций заявки — тогда построчной проверки
+     * достаточно, сводка по массе не добавляет информации.
+     * Статический метод (не использует состояние сервиса) — вызывается и из web-контроллера, и
+     * напрямую из {@link com.confectionery.crm.api.dto.ProductionRequestDto#from} для мобильного API.
+     */
+    public static MassSummary massSummary(ProductionRequest request) {
+        BigDecimal plannedGrams = BigDecimal.ZERO;
+        BigDecimal actualGrams = BigDecimal.ZERO;
+        int weightedLines = 0;
+        boolean allWeightedReceived = true;
+        for (ProductionRequestLine line : request.getLines()) {
+            BigDecimal weight = line.getProduct().getNetWeightGrams();
+            if (weight == null) {
+                continue;
+            }
+            weightedLines++;
+            if (line.getPlannedQuantity() != null) {
+                plannedGrams = plannedGrams.add(line.getPlannedQuantity().multiply(weight, MathContext.DECIMAL64));
+            }
+            if (line.isReceived()) {
+                actualGrams = actualGrams.add(line.getReceivedQuantity().multiply(weight, MathContext.DECIMAL64));
+            } else {
+                allWeightedReceived = false;
+            }
+        }
+        if (weightedLines < 2) {
+            return null;
+        }
+        return new MassSummary(plannedGrams, actualGrams, allWeightedReceived);
+    }
+
+    public record MassSummary(BigDecimal plannedGrams, BigDecimal actualGrams, boolean allWeightedReceived) {
+        private static final BigDecimal GRAMS_PER_KG = BigDecimal.valueOf(1000);
+
+        public BigDecimal getDeviationGrams() {
+            return actualGrams.subtract(plannedGrams);
+        }
+
+        public boolean isInsufficient() {
+            return getDeviationGrams().signum() < 0;
+        }
+
+        public BigDecimal getPlannedKg() {
+            return plannedGrams.divide(GRAMS_PER_KG, 3, RoundingMode.HALF_UP);
+        }
+
+        public BigDecimal getActualKg() {
+            return actualGrams.divide(GRAMS_PER_KG, 3, RoundingMode.HALF_UP);
+        }
+
+        /** Отклонение в кг со знаком: факт − норма (отрицательное — не хватает). */
+        public BigDecimal getDeviationKg() {
+            return getDeviationGrams().divide(GRAMS_PER_KG, 3, RoundingMode.HALF_UP);
+        }
+
+        /** Модуль отклонения в кг — знак (не хватает/с запасом) показывается отдельно в UI. */
+        public BigDecimal getDeviationKgAbs() {
+            return getDeviationGrams().abs().divide(GRAMS_PER_KG, 3, RoundingMode.HALF_UP);
+        }
+    }
+
+    /**
      * @param title название заявки — задаёт пользователь (например, "Коржик"), пусто не бывает
      *              благодаря валидации на уровне контроллера/формы.
      * @param documentDate дата документа для 1С; null — сегодня (см. {@link ProductionRequest#getDocumentDate()}).

@@ -14,6 +14,11 @@ class Product {
   /// того же названия (см. Product.semiFinished на бэкенде).
   final bool semiFinished;
 
+  /// Вес одной штуки, г — только для товаров, где норму при оприходовании нужно сверять по
+  /// общей массе группы, а не по штукам (см. Product.netWeightGrams на бэкенде). Null — товар
+  /// в такой сверке не участвует.
+  final double? netWeightGrams;
+
   Product({
     required this.id,
     required this.name,
@@ -25,6 +30,7 @@ class Product {
     required this.quantityInStock,
     this.imageUrl,
     this.semiFinished = false,
+    this.netWeightGrams,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -38,6 +44,7 @@ class Product {
         quantityInStock: (json['quantityInStock'] as num).toDouble(),
         imageUrl: json['imageUrl'] as String?,
         semiFinished: json['semiFinished'] as bool? ?? false,
+        netWeightGrams: (json['netWeightGrams'] as num?)?.toDouble(),
       );
 
   /// Копия с другим imageUrl — используется, чтобы превратить относительный путь
@@ -53,6 +60,7 @@ class Product {
         quantityInStock: quantityInStock,
         imageUrl: url,
         semiFinished: semiFinished,
+        netWeightGrams: netWeightGrams,
       );
 }
 

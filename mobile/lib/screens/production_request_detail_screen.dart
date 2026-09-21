@@ -375,6 +375,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 const Text('Позиции заявки', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 for (final line in r.lines) _buildLineCard(r, line),
+                if (r.massSummary != null) _buildMassSummaryCard(r.massSummary!),
                 const SizedBox(height: 8),
 
                 if (r.status == 'NEW' && _canCollect) ...[
@@ -610,6 +611,42 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Часть товаров в заявке — разные фасовки одного замеса (задан вес 1 шт в карточке товара),
+  /// поэтому норма сверяется по общей массе, а не по штукам построчно — не страшно, если
+  /// рабочие перепутали пропорции между фасовками при нарезке (см. Product.netWeightGrams).
+  Widget _buildMassSummaryCard(ProductionMassSummary s) {
+    final done = s.allWeightedReceived;
+    final color = !done ? Colors.grey : (s.insufficient ? const Color(0xFFB8433F) : const Color(0xFF4C8A5E));
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Сверка по общей массе', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text(
+              'Норма: ${formatQty(s.plannedKg)} кг'
+              '${!done ? ' · факт (пока не всё оприходовано): ${formatQty(s.actualKg)} кг' : ' · факт: ${formatQty(s.actualKg)} кг'}',
+              style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+            ),
+            if (done)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  s.insufficient
+                      ? 'Не хватает ${formatQty(s.deviationKg.abs())} кг сырья'
+                      : 'Нормы хватает (запас ${formatQty(s.deviationKg.abs())} кг)',
+                  style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12.5),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

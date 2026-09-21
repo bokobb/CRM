@@ -13,6 +13,7 @@ public record ProductRequest(
         @NotNull BigDecimal price,
         String unit,
         String imageUrl,
-        boolean semiFinished
+        boolean semiFinished,
+        BigDecimal netWeightGrams
 ) {
 }

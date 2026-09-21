@@ -134,6 +134,38 @@ class ProductionRequestLine {
       );
 }
 
+/// Сверка нормы по общей массе вместо штук — для товаров вроде Чак-чака, где несколько фасовок
+/// режутся из одного замеса (см. Product.netWeightGrams/ProductionRequestService.massSummary на
+/// бэкенде): если у товара задан вес 1 шт, штуки в позиции переводятся в массу и норма/факт
+/// сравниваются суммарно по группе, а не построчно — так рабочие могут случайно перепутать
+/// пропорции между фасовками при нарезке, не показывая ложную недостачу по одной из них.
+class ProductionMassSummary {
+  final double plannedKg;
+  final double actualKg;
+  final double deviationKg;
+  final bool insufficient;
+
+  /// Все позиции с заданным весом уже оприходованы — окончательный вывод "хватает/не хватает"
+  /// показывается только тогда, иначе факт ещё неполный.
+  final bool allWeightedReceived;
+
+  ProductionMassSummary({
+    required this.plannedKg,
+    required this.actualKg,
+    required this.deviationKg,
+    required this.insufficient,
+    required this.allWeightedReceived,
+  });
+
+  factory ProductionMassSummary.fromJson(Map<String, dynamic> json) => ProductionMassSummary(
+        plannedKg: (json['plannedKg'] as num).toDouble(),
+        actualKg: (json['actualKg'] as num).toDouble(),
+        deviationKg: (json['deviationKg'] as num).toDouble(),
+        insufficient: json['insufficient'] as bool,
+        allWeightedReceived: json['allWeightedReceived'] as bool,
+      );
+}
+
 class ProductionRequest {
   final int id;
   final String title;
@@ -157,6 +189,7 @@ class ProductionRequest {
   final bool requisitionCompleted;
   final List<ProductionRequestLine> lines;
   final List<ProductionRequestItem> items;
+  final ProductionMassSummary? massSummary;
 
   double get totalBatches => lines.fold(0, (sum, l) => sum + l.batches);
   bool get allLinesReceived => lines.every((l) => l.isReceived);
@@ -177,6 +210,7 @@ class ProductionRequest {
     this.requisitionCompleted = false,
     required this.lines,
     required this.items,
+    this.massSummary,
   });
 
   factory ProductionRequest.fromJson(Map<String, dynamic> json) => ProductionRequest(
@@ -197,6 +231,9 @@ class ProductionRequest {
         items: (json['items'] as List)
             .map((e) => ProductionRequestItem.fromJson(e as Map<String, dynamic>))
             .toList(),
+        massSummary: json['massSummary'] != null
+            ? ProductionMassSummary.fromJson(json['massSummary'] as Map<String, dynamic>)
+            : null,
       );
 }
 

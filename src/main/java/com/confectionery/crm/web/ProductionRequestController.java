@@ -121,6 +121,7 @@ public class ProductionRequestController {
                 || (request.getStatus() == ProductionRequestStatus.COLLECTED
                         && request.getLines().stream().noneMatch(ProductionRequestLine::isReceived));
         model.addAttribute("canEditLines", canEditLines);
+        model.addAttribute("massSummary", ProductionRequestService.massSummary(request));
         return "production-requests/view";
     }
 

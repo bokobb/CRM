@@ -90,6 +90,25 @@
             </table>
         </div>
 
+        <div class="panel" th:if="${massSummary != null}">
+            <h2>Сверка по общей массе</h2>
+            <p class="subtitle" style="margin:0 0 12px">
+                Часть товаров в заявке — разные фасовки одного замеса (у них задан вес 1 шт в карточке
+                товара), поэтому норма ниже сверяется по общей массе, а не по штукам отдельно на каждую
+                позицию — не страшно, если рабочие перепутали пропорции между фасовками при нарезке.
+            </p>
+            <p style="margin:0">
+                Норма: <b th:text="${massSummary.plannedKg} + ' кг'"></b>
+                · Факт<span th:unless="${massSummary.allWeightedReceived}"> (пока оприходовано не всё)</span>:
+                <b th:text="${massSummary.actualKg} + ' кг'"></b>
+            </p>
+            <p th:if="${massSummary.allWeightedReceived}" style="margin:8px 0 0"
+               th:style="${massSummary.insufficient} ? 'color:#c0392b;font-weight:600' : 'color:var(--ok,#4c8a5e);font-weight:600'">
+                <span th:if="${massSummary.insufficient}">не хватает <span th:text="${massSummary.deviationKgAbs}"></span> кг сырья</span>
+                <span th:unless="${massSummary.insufficient}">нормы хватает (запас <span th:text="${massSummary.deviationKgAbs}"></span> кг)</span>
+            </p>
+        </div>
+
         <div class="panel">
             <h2>Состав заявки (сырьё, общее по всем позициям)</h2>
             <p th:if="${request.requisitionCompleted}" class="subtitle" style="margin:0 0 12px">

@@ -3,6 +3,7 @@ package com.confectionery.crm.api.dto;
 import com.confectionery.crm.domain.ProductionRequest;
 import com.confectionery.crm.domain.ProductionRequestItem;
 import com.confectionery.crm.domain.ProductionRequestLine;
+import com.confectionery.crm.service.ProductionRequestService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,8 +25,22 @@ public record ProductionRequestDto(
         String oneCSyncError,
         boolean requisitionCompleted,
         List<Line> lines,
-        List<Item> items
+        List<Item> items,
+        MassSummary massSummary
 ) {
+    /**
+     * Сверка нормы по общей массе вместо штук — для товаров вроде Чак-чака, где несколько
+     * фасовок режутся из одного замеса (см. {@link ProductionRequestService#massSummary}).
+     * Null, если весом (netWeightGrams) отмечено меньше двух позиций заявки.
+     */
+    public record MassSummary(BigDecimal plannedKg, BigDecimal actualKg, BigDecimal deviationKg,
+                               boolean insufficient, boolean allWeightedReceived) {
+        static MassSummary from(ProductionRequestService.MassSummary s) {
+            return s == null ? null : new MassSummary(s.getPlannedKg(), s.getActualKg(), s.getDeviationKg(),
+                    s.isInsufficient(), s.allWeightedReceived());
+        }
+    }
+
     public record Line(
             Long id, Long productId, String productName, String productUnit,
             BigDecimal batches, BigDecimal plannedQuantity,
@@ -62,7 +77,8 @@ public record ProductionRequestDto(
                 r.getOneCSyncError(),
                 r.isRequisitionCompleted(),
                 r.getLines().stream().map(Line::from).toList(),
-                r.getItems().stream().map(Item::from).toList()
+                r.getItems().stream().map(Item::from).toList(),
+                MassSummary.from(ProductionRequestService.massSummary(r))
         );
     }
 }

@@ -38,6 +38,12 @@
                 </div>
             </div>
             <div class="field">
+                <label>Вес 1 шт, г</label>
+                <input type="number" step="0.001" min="0" th:field="*{netWeightGrams}" placeholder="Необязательно">
+                <small style="color:var(--muted)">Только для товаров, где норму при оприходовании нужно сверять по
+                    общей массе группы, а не по штукам (например, разные фасовки одного замеса, см. заявку на сырьё)</small>
+            </div>
+            <div class="field">
                 <label>Описание</label>
                 <textarea th:field="*{description}"></textarea>
             </div>

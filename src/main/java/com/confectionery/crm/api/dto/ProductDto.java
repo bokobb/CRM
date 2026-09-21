@@ -14,10 +14,11 @@ public record ProductDto(
         String unit,
         BigDecimal quantityInStock,
         String imageUrl,
-        boolean semiFinished
+        boolean semiFinished,
+        BigDecimal netWeightGrams
 ) {
     public static ProductDto from(Product p) {
         return new ProductDto(p.getId(), p.getName(), p.getCategory(), p.getGroup(), p.getDescription(), p.getPrice(), p.getUnit(),
-                p.getQuantityInStock(), p.getImageUrl(), p.isSemiFinished());
+                p.getQuantityInStock(), p.getImageUrl(), p.isSemiFinished(), p.getNetWeightGrams());
     }
 }
