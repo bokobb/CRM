@@ -663,8 +663,11 @@ class OneCClient {
      * (товар физически не списывался, требовалось открыть документ в 1С и нажать "Провести"
      * вручную) — поэтому для "Реализации" CRM больше не вызывает этот метод вообще, проведение
      * заказов теперь только вручную в 1С (см. OrderService.ship). Остаётся в использовании для
-     * "Отчёта производства за смену"/"Требования-накладной" (см. OneCProductionSyncService),
-     * где такой проблемы не наблюдалось. {@code entitySet} — имя набора документа.
+     * "Требования-накладной" (см. OneCProductionSyncService.postRequisition) и "Поступления
+     * товаров и услуг" (см. OneCPurchaseSyncService) — отдельным PATCH после создания
+     * НЕпроведённого документа, где такой проблемы не наблюдалось (в отличие от Posted:true
+     * прямо в теле создания — см. историю в OneCPurchaseSyncService, там это не срабатывало
+     * молча, документ оставался непроведённым). {@code entitySet} — имя набора документа.
      */
     void postDocument(String entitySet, String ref) {
         restClient.patch()
@@ -755,7 +758,10 @@ class OneCClient {
                 List.of("Ref_Key", "LineNumber", "Номенклатура_Key", "Количество", "Цена", "Сумма"));
     }
 
-    /** Создаёт и сразу проводит (Posted:true) документ "Поступление товаров и услуг" — см. OneCPurchaseSyncService. */
+    /**
+     * Создаёт НЕпроведённый документ "Поступление товаров и услуг" — проводится отдельным
+     * PATCH сразу после ({@link #postDocument}), см. OneCPurchaseSyncService.
+     */
     CreatedDocument createGoodsReceiptDocument(Map<String, Object> body) {
         JsonNode response = restClient.post()
                 .uri(b -> b.path("/Document_ПоступлениеТоваровУслуг")
