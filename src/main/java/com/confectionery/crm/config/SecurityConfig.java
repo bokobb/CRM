@@ -21,8 +21,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Три фильтр-чейна: /api/** — stateless JWT (мобильное приложение), /product-images/** —
- * публичная статика со своим Cache-Control (см. ниже, почему отдельным чейном), всё
+ * Фильтр-чейны: /api/** — stateless JWT (мобильное приложение И веб-сборка Flutter, см.
+ * /app/** ниже — та же авторизация, ApiClient), /product-images/** — публичная статика со
+ * своим Cache-Control (см. ниже, почему отдельным чейном), /app/** — статика веб-сборки
+ * Flutter (см. WebAppConfig) — сама по себе публичная (index.html/JS/иконки), авторизация
+ * происходит уже ВНУТРИ приложения через тот же /api/auth/login, что и у мобильного, всё
  * остальное (Thymeleaf-веб) — сессионный логин через форму, теми же учётками/ролями, что и у
  * мобильного приложения (см. CrmUserDetailsService — общий для обоих). H2-консоль
  * оставлена открытой сознательно — это dev-инструмент, не часть бизнес-функциональности.
@@ -101,8 +104,22 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Статика веб-сборки Flutter (index.html/main.dart.js/иконки и т.п., см. WebAppConfig) —
+     * публичная, как и /product-images: сама страница ничего секретного не содержит, вход
+     * происходит внутри неё через /api/auth/login (JWT), а не через сессию этого чейна.
+     */
     @Bean
     @Order(4)
+    public SecurityFilterChain webAppFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/app/**")
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Order(5)
     public SecurityFilterChain webFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher("/**")
                 .csrf(csrf -> csrf.disable())

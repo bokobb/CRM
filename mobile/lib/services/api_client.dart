@@ -1,8 +1,6 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -124,15 +122,10 @@ class ApiClient {
   /// доступен из любой сети по HTTPS. Временный адрес через nip.io — как только заведётся
   /// домен yug-sladosti.kz, сменить здесь на него (и на веб-сервере — Nginx server_name уже
   /// содержит оба варианта, так что смена этой константы не потребует правок на сервере).
-  static String defaultBaseUrl() {
-    if (kIsWeb) return 'http://localhost:8080/api';
-    try {
-      if (Platform.isAndroid) return 'https://94.131.90.178.nip.io/api';
-    } catch (_) {
-      // Platform недоступен вне мобильных/десктоп таргетов — считаем это web-подобным случаем.
-    }
-    return 'http://localhost:8080/api';
-  }
+  /// Один и тот же адрес для всех платформ (Android/iOS/web) — localhost:8080 был лишь
+  /// заглушкой со времён, когда веб/iOS ещё не собирались всерьёз (обнаружено 2026-09-22 при
+  /// первой сборке под веб — запросы падали в ERR_CONNECTION_REFUSED на localhost телефона).
+  static String defaultBaseUrl() => 'https://94.131.90.178.nip.io/api';
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();

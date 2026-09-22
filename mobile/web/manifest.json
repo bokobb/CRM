@@ -1,11 +1,11 @@
 {
-    "name": "crm_mobile",
-    "short_name": "crm_mobile",
+    "name": "Юг Сладости",
+    "short_name": "Юг Сладости",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Мобильное приложение CRM для кондитерской",
+    "background_color": "#c96a4b",
+    "theme_color": "#c96a4b",
+    "description": "CRM для кондитерской «Юг Сладости»",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
