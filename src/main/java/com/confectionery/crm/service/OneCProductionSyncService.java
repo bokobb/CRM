@@ -168,21 +168,28 @@ public class OneCProductionSyncService {
         if (!oneCClient.isConfigured()) {
             return;
         }
-        if (request.getOneCRequisitionKey() != null) {
-            try {
-                oneCClient.markForDeletion("Document_ТребованиеНакладная", request.getOneCRequisitionKey(), true);
-            } catch (Exception e) {
-                log.warn("Не удалось пометить требование-накладную на удаление в 1С (заявка №{}): {}",
-                        request.getId(), e.getMessage());
-            }
+        unpostAndMark(request, "Document_ТребованиеНакладная", request.getOneCRequisitionKey(), "требование-накладную");
+        unpostAndMark(request, "Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey(), "отчёт производства");
+    }
+
+    /**
+     * Сначала распроводим, потом помечаем на удаление: проведённый документ продолжает держать
+     * движения по складу, и пометка удаления их не снимает — а отмена заявки как раз и должна
+     * откатить всё, что заявка сделала. Отчёт производства к этому моменту может быть проведён
+     * автоматически ({@link #postReport}), поэтому шаг обязателен.
+     */
+    private void unpostAndMark(ProductionRequest request, String entitySet, String ref, String what) {
+        if (ref == null) {
+            return;
         }
-        if (request.getOneCReportKey() != null) {
-            try {
-                oneCClient.markForDeletion("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey(), true);
-            } catch (Exception e) {
-                log.warn("Не удалось пометить отчёт производства на удаление в 1С (заявка №{}): {}",
-                        request.getId(), e.getMessage());
+        try {
+            if (Boolean.TRUE.equals(oneCClient.fetchPosted(entitySet, ref))) {
+                oneCClient.unpostDocument(entitySet, ref);
+                log.info("Заявка №{} — {} распроведена в 1С перед пометкой на удаление", request.getId(), what);
             }
+            oneCClient.markForDeletion(entitySet, ref, true);
+        } catch (Exception e) {
+            log.warn("Не удалось пометить {} на удаление в 1С (заявка №{}): {}", what, request.getId(), e.getMessage());
         }
     }
 
@@ -318,14 +325,20 @@ public class OneCProductionSyncService {
             requestRepository.save(request);
             log.info("Заявка №{} — создан непроведённый отчёт производства №{} в 1С", request.getId(), reportNumber);
         } else {
-            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey()))) {
-                throw new IllegalStateException("Отчёт производства №" + request.getOneCReportNumber()
-                        + " уже проведён в 1С — корректировку внесите туда вручную");
-            }
             reportRef = request.getOneCReportKey();
             reportNumber = request.getOneCReportNumber();
-            oneCClient.updateDocument("Document_ОтчетПроизводстваЗаСмену", reportRef, reportBody);
-            log.info("Заявка №{} — обновлён состав непроведённого отчёта производства №{} в 1С", request.getId(), reportNumber);
+            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ОтчетПроизводстваЗаСмену", reportRef))) {
+                // Проведённый отчёт не трогаем, но и синхронизацию из-за него не обрываем (раньше
+                // здесь была ошибка — она заодно оставляла без обновления требование-накладную
+                // ниже). Его состав с этого момента и не может измениться: позиции продукции
+                // после полного оприходования редактировать нельзя (см.
+                // ProductionRequestService.update), а правки сырья едут в требование-накладную.
+                log.info("Заявка №{} — отчёт производства №{} уже проведён в 1С, состав не меняем",
+                        request.getId(), reportNumber);
+            } else {
+                oneCClient.updateDocument("Document_ОтчетПроизводстваЗаСмену", reportRef, reportBody);
+                log.info("Заявка №{} — обновлён состав непроведённого отчёта производства №{} в 1С", request.getId(), reportNumber);
+            }
         }
 
         List<String> substitutions = new ArrayList<>();
@@ -460,6 +473,42 @@ public class OneCProductionSyncService {
      * блокируется. Уже проведённый документ (кто-то провёл вручную в 1С раньше) — не ошибка,
      * цель и так достигнута.
      */
+    /**
+     * Проводит "Отчёт производства за смену" — автоматически, как только заявка оприходована
+     * ЦЕЛИКОМ (см. ProductionRequestService.receiveLine): к этому моменту фактический выход
+     * продукции известен полностью, и проведение ставит её на склад в 1С. Требование-накладную
+     * (списание сырья) здесь не трогаем — её проводит кнопка "Завершить"
+     * ({@link #postRequisition}), потому что состав сырья после оприходования ещё уточняют.
+     *
+     * <p>Best-effort, как и остальная синхронизация: оприходование в CRM из-за 1С не падает,
+     * причина неудачи — в {@link ProductionRequest#getOneCSyncError()} и уведомлением ADMIN.
+     * Уже проведённый отчёт (бухгалтер успел вручную) — не ошибка, цель достигнута.
+     */
+    @Transactional
+    public void postReport(ProductionRequest request) {
+        if (!oneCClient.isConfigured() || request.getOneCReportKey() == null) {
+            return;
+        }
+        try {
+            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey()))) {
+                return;
+            }
+            oneCClient.postDocument("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey());
+            request.setOneCSyncError(null);
+            requestRepository.save(request);
+            log.info("Заявка №{} — отчёт производства №{} проведён в 1С (заявка оприходована полностью)",
+                    request.getId(), request.getOneCReportNumber());
+        } catch (Exception e) {
+            String message = "отчёт производства №" + request.getOneCReportNumber()
+                    + " не проведён в 1С: " + e.getMessage();
+            log.warn("Заявка №{} — {}", request.getId(), message);
+            request.setOneCSyncError(message);
+            requestRepository.save(request);
+            notificationService.notifyRole(Role.ADMIN,
+                    "Заявка №" + request.getId() + " «" + request.getTitle() + "» — " + message, null);
+        }
+    }
+
     @Transactional
     public void postRequisition(ProductionRequest request) {
         if (!oneCClient.isConfigured()) {

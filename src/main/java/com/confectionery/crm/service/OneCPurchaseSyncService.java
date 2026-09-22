@@ -31,15 +31,24 @@ import java.util.Map;
  * OneCClient.findAnyGoodsReceiptTemplate/findAnyGoodsReceiptLineTemplate) — тот же приём, что и
  * у "Реализации"/"Оприходования".
  *
- * <p>Документ создаётся и остаётся НЕпроведённым — бухгалтер проводит его в 1С сам. Раньше
- * пробовали и Posted:true прямо в теле создания (молча не срабатывало — 1С отвечала 200 OK, но
- * документ оставался непроведённым, без движений по складу, проверено 2026-09-22 тестовой
- * закупкой №163), и отдельный PATCH сразу после создания — тем же приёмом, что надёжно работает
- * у "Требования-накладной" ({@link OneCClient#postDocument}) — но для этого типа документа PATCH
- * стабильно возвращает {@code 405 Not Allowed} (закупка №164, и с автоматической, и с повторной
- * ручной попыткой), похоже на ограничение прав OData-пользователя в 1cFresh именно на
- * "Поступление товаров и услуг" — чинится не в коде, а в настройках 1cFresh (если понадобится
- * автопроведение — сначала проверить права аккаунта на PATCH этого документа там).
+ * <p>Документ создаётся непроведённым и тут же проводится штатной OData-операцией
+ * {@code /Post} (см. {@link OneCClient#postDocument}) — чтобы сырьё реально встало на склад в
+ * 1С, а не просто появился документ. Прежние попытки провести закупку через {@code Posted:true}
+ * (и в теле создания, и отдельным PATCH) не работали: в первом случае 1С молча отвечала 200 OK
+ * и оставляла документ непроведённым (закупка №163), во втором — {@code 405 Not Allowed}
+ * (закупка №164). Обе — следствие того, что запись реквизита не запускает обработку проведения.
+ *
+ * <p>Вторая половина той же истории — почему и {@code /Post} сначала не помогал: документы,
+ * созданные до 2026-09-22, несли мусорные реквизиты, скопированные с документа-образца, и 1С
+ * отказывалась их перезаписывать (подробности в {@link OneCClient#findAnyGoodsReceiptTemplate()}).
+ * Такие документы так и останутся непроводимыми через OData — их проводит бухгалтер вручную;
+ * закупки, созданные после правки шаблона, проводятся сами.
+ *
+ * <p>Проведение — отдельный шаг, который НЕ роняет синхронизацию: документ уже создан и его
+ * ссылка сохранена, поэтому неудачу проведения мы просто пишем в
+ * {@link Purchase#getOneCSyncError()} и шлём админу, а бухгалтер проводит документ в 1С руками.
+ * Иначе откат транзакции потерял бы {@code oneCDocumentKey}, и повторная попытка создала бы в
+ * учёте дубль документа.
  *
  * <p>Best-effort — закупка в CRM уже сохранена и не откатывается, если 1С недоступна или
  * что-то не сопоставилось; причина пишется в {@link Purchase#getOneCSyncError()} и уходит
@@ -104,6 +113,13 @@ public class OneCPurchaseSyncService {
     }
 
     private void sync(Purchase purchase) {
+        // Документ уже создан прошлой попыткой (не удалось только проведение) — повторно его не
+        // создаём, иначе в учёте появится дубль; остаётся довести до конца проведение.
+        if (purchase.getOneCDocumentKey() != null) {
+            post(purchase);
+            return;
+        }
+
         Counterparty counterparty = purchase.getCounterparty();
         if (counterparty.getOneCContragentKey() == null) {
             String message = "Контрагент «" + counterparty.getName() + "» не привязан к 1С — загрузите контрагентов из 1С на странице «Контрагенты»";
@@ -166,8 +182,24 @@ public class OneCPurchaseSyncService {
         purchase.setOneCDocumentNumber(created.number());
         purchase.setOneCSyncError(null);
         purchaseRepository.save(purchase);
-        log.info("Закупка №{} выгружена в 1С непроведённым документом №{} — бухгалтер проводит сам",
-                purchase.getId(), created.number());
+        log.info("Закупка №{} выгружена в 1С документом №{}", purchase.getId(), created.number());
+        post(purchase);
+    }
+
+    private void post(Purchase purchase) {
+        try {
+            oneCClient.postDocument("Document_ПоступлениеТоваровУслуг", purchase.getOneCDocumentKey());
+            purchase.setOneCSyncError(null);
+            purchaseRepository.save(purchase);
+            log.info("Закупка №{} — документ №{} проведён в 1С", purchase.getId(), purchase.getOneCDocumentNumber());
+        } catch (Exception e) {
+            String message = "документ №" + purchase.getOneCDocumentNumber()
+                    + " создан, но не проведён в 1С: " + e.getMessage();
+            log.warn("Закупка №{} — {}", purchase.getId(), message);
+            purchase.setOneCSyncError(message);
+            purchaseRepository.save(purchase);
+            notificationService.notifyRole(Role.ADMIN, "Закупка №" + purchase.getId() + " — " + message, null);
+        }
     }
 
     private String resolveIngredientKey(Ingredient ingredient) {

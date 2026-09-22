@@ -518,7 +518,12 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     ),
                   ),
                 ],
-                if (r.status == 'NEW' && _canEdit) ...[
+                // Позиции продукции правятся и после «Собрано» — пока ни одна строка не
+                // оприходована (те же условия, что на бэкенде в ProductionRequestService.update
+                // и в вебе, см. ProductionRequestController.canEditLines).
+                if (_canEdit &&
+                    (r.status == 'NEW' ||
+                        (r.status == 'COLLECTED' && !r.lines.any((l) => l.isReceived)))) ...[
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,

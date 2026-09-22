@@ -41,9 +41,13 @@ import java.util.Map;
  * ещё может переезжать датой вместе с правками состава); как только нажата кнопка "Отгружен"
  * (см. OrderService.ship), дата меняется на фактическую дату отгрузки — именно она отражает,
  * когда товар реально ушёл со склада. Время документа ВСЕГДА фиксированное 07:00 — так принято
- * в этой базе 1С. Само проведение документа (Posted:true) в CRM не делается никогда — через
- * OData оно не формировало движений по складу (флаг выставлялся, товар физически не списывался),
- * поэтому бухгалтер проводит документ вручную прямо в 1С.
+ * в этой базе 1С. Тогда же документ и проводится (см. {@link #postIfShipped}) — это и есть
+ * фактическое списание товара со склада в 1С.
+ *
+ * <p>Раньше автопроведение отсюда было убрано: {@code PATCH Posted:true} выставлял флаг, но
+ * движений по складу не формировал. Причина оказалась не в этом документе — запись реквизита
+ * вообще не запускает проведение, нужна OData-операция {@code /Post} (см.
+ * {@link OneCClient#postDocument}). С ней проведение работает.
  *
  * <p>Best-effort, как и остальные интеграции (см. WhatsAppGatewayClient.sendInvoiceToClient):
  * заказ в CRM уже сохранён и не откатывается, если 1С недоступна или что-то не сопоставилось —
@@ -195,6 +199,7 @@ public class OneCOrderSyncService {
             order.setOneCSyncError(null);
             orderRepository.save(order);
             log.info("Заказ №{} выгружен в 1С непроведённым документом №{}", order.getId(), created.number());
+            postIfShipped(order);
             return;
         }
 
@@ -212,6 +217,37 @@ public class OneCOrderSyncService {
         orderRepository.save(order);
         log.info("Заказ №{} — обновлён состав непроведённого документа №{} в 1С",
                 order.getId(), order.getOneCDocumentNumber());
+        postIfShipped(order);
+    }
+
+    /**
+     * Проводит "Реализацию" в 1С — только когда заказ реально отгружен ({@code shippedAt}
+     * проставлен в OrderService.ship): до отгрузки документ живёт черновиком и ещё может
+     * переехать датой и составом. Проведение — то, чем товар физически списывается со склада в
+     * 1С, поэтому и привязано именно к отгрузке.
+     *
+     * <p>Отдельный шаг, который НЕ роняет синхронизацию: документ уже создан/обновлён, его
+     * ссылка сохранена, и откатывать всё из-за неудачного проведения незачем — причина уходит в
+     * {@link Order#getOneCSyncError()} и уведомлением админу, а бухгалтер проводит документ в 1С
+     * руками. Сама отгрузка в CRM не блокируется в любом случае.
+     */
+    private void postIfShipped(Order order) {
+        if (order.getShippedAt() == null) {
+            return;
+        }
+        try {
+            oneCClient.postDocument("Document_РеализацияТоваровУслуг", order.getOneCDocumentKey());
+            order.setOneCSyncError(null);
+            orderRepository.save(order);
+            log.info("Заказ №{} — документ №{} проведён в 1С", order.getId(), order.getOneCDocumentNumber());
+        } catch (Exception e) {
+            String message = "документ №" + order.getOneCDocumentNumber()
+                    + " выгружен, но не проведён в 1С: " + e.getMessage();
+            log.warn("Заказ №{} — {}", order.getId(), message);
+            order.setOneCSyncError(message);
+            orderRepository.save(order);
+            notifyAdmin(order, message);
+        }
     }
 
     /**

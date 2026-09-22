@@ -2,6 +2,7 @@ package com.confectionery.crm.api.dto;
 
 import com.confectionery.crm.domain.ProductionRequest;
 import com.confectionery.crm.domain.ProductionRequestLine;
+import com.confectionery.crm.service.ProductionRequestService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -29,8 +30,13 @@ public record ProductionRequestSummaryDto(
 ) {
     public static ProductionRequestSummaryDto from(ProductionRequest r) {
         BigDecimal total = r.getLines().stream().map(l -> l.getBatches()).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Та же поблажка, что и в карточке заявки (см. ProductionRequestDto.Line): если товар
+        // участвует в сверке по общей массе и по массе нормы хватает — построчную недостачу
+        // не показываем, рабочие просто перепутали пропорции между фасовками при нарезке.
+        boolean massNormFulfilled = ProductionRequestService.massNormFulfilled(r);
         String shortfallText = r.getLines().stream()
-                .filter(ProductionRequestLine::isInsufficient)
+                .filter(l -> l.isInsufficient()
+                        && !(massNormFulfilled && l.getProduct().getNetWeightGrams() != null))
                 .map(l -> l.getProduct().getName() + " — " + l.getShortfall().stripTrailingZeros().toPlainString()
                         + " " + safeUnit(l))
                 .collect(Collectors.joining(", "));

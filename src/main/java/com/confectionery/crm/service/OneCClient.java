@@ -21,8 +21,8 @@ import java.util.Map;
  * ведётся (документы производства его не двигают, проверено вручную через саму 1С —
  * "Материальная ведомость" совпадает именно с бухгалтерским регистром). Запись в 1С —
  * {@link #createDraftSale}/{@link #updateDraftSale} для документа "Реализация товаров и услуг"
- * по заказу CRM (см. OneCOrderSyncService) — создаётся и обновляется НЕпроведённым, проводит
- * его бухгалтер вручную прямо в 1С (CRM это не делает, см. {@link #postDocument});
+ * по заказу CRM (см. OneCOrderSyncService) — живёт непроведённым черновиком, пока заказ не
+ * отгружен, и проводится через {@link #postDocument} по кнопке "Отгружен";
  * {@link #createReceiptDocument} для документа "Оприходование товаров" по сводному РУЧНОМУ
  * приходу готовой продукции за день (см. OneCReceiptSyncService — этот, в отличие от
  * "Реализации", создаётся сразу проведённым); {@link #createProductionReport}/
@@ -537,6 +537,21 @@ class OneCClient {
         return template;
     }
 
+    /**
+     * Обратный {@link #extractTemplate}: копирует с документа-образца ТОЛЬКО перечисленные поля.
+     * Нужен там, где образец — произвольный документ из базы и его лишние реквизиты не просто
+     * бесполезны, а ядовиты: см. {@link #findAnyGoodsReceiptTemplate()}.
+     */
+    private static Map<String, Object> extractFields(JsonNode row, List<String> fields) {
+        Map<String, Object> template = new LinkedHashMap<>();
+        for (String key : fields) {
+            JsonNode value = row.path(key);
+            if (value.isMissingNode() || value.isNull() || value.isArray() || value.isObject()) continue;
+            template.put(key, jsonToJava(value, key));
+        }
+        return template;
+    }
+
     /** Ref_Key номенклатурной группы товара (Catalog_Номенклатура.НоменклатурнаяГруппа_Key) — null, если не задана. */
     String fetchNomenclatureGroup(String nomenclatureKey) {
         JsonNode response = restClient.get()
@@ -656,37 +671,42 @@ class OneCClient {
     }
 
     /**
-     * Проводит документ (Posted:true) — платформа 1С при записи объекта с изменившимся Posted
-     * обычно сама выполняет "обработку проведения" (формирует движения по регистрам), в том
-     * числе и через OData. НО для документа "Реализация товаров и услуг" на практике это
-     * ненадёжно: 1С отвечала 200 OK и выставляла Posted:true, не формируя движений по складу
-     * (товар физически не списывался, требовалось открыть документ в 1С и нажать "Провести"
-     * вручную) — поэтому для "Реализации" CRM больше не вызывает этот метод вообще, проведение
-     * заказов теперь только вручную в 1С (см. OrderService.ship). Остаётся в использовании для
-     * "Требования-накладной" (см. OneCProductionSyncService.postRequisition), где такой
-     * проблемы не наблюдалось. Для "Поступления товаров и услуг" (закупки) этот метод НЕ
-     * подходит по другой причине — 1С возвращает {@code 405 Not Allowed} на PATCH этого типа
-     * документа (похоже на ограничение прав OData-пользователя в 1cFresh именно на этот
-     * документ, см. OneCPurchaseSyncService), поэтому закупки остаются непроведёнными. {@code
-     * entitySet} — имя набора документа.
+     * Проводит документ штатной OData-операцией {@code /Post} — именно она запускает в 1С
+     * настоящую "обработку проведения" (формирует движения по регистрам).
+     *
+     * <p>Раньше здесь был {@code PATCH {"Posted": true}} — простая перезапись реквизита. 1С
+     * отвечала {@code 200 OK}, галочка "Проведён" вставала, но движений не появлялось и товар
+     * физически не списывался: помогало только открыть документ в 1С и нажать "Провести"
+     * вручную. Сначала это поймали на "Реализации товаров и услуг" (из-за чего проведение
+     * заказов тогда вообще отдали бухгалтеру — вернули после этой правки), потом 2026-09-22 — на
+     * "Требовании-накладной" по кнопке "Завершить". Для "Поступления товаров и услуг" (закупки)
+     * PATCH вдобавок стабильно отвечал {@code 405 Not Allowed}.
+     *
+     * <p>{@code PostingModeOperational=false} — неоперативное проведение: документы CRM часто
+     * идут прошедшей датой (см. Purchase.purchaseDate, ProductionRequest.documentDate), а
+     * оперативный режим 1С такое отклоняет. После операции перечитываем {@code Posted} и
+     * ругаемся, если он всё-таки false — молчаливый "200 OK без движений" больше не должен
+     * выглядеть как успех. {@code entitySet} — имя набора документа.
      */
     void postDocument(String entitySet, String ref) {
-        restClient.patch()
-                .uri(b -> b.path("/" + entitySet + "(guid'" + ref + "')")
+        restClient.post()
+                .uri(b -> b.path("/" + entitySet + "(guid'" + ref + "')/Post")
+                        .queryParam("PostingModeOperational", "false")
                         .queryParam("$format", "json")
                         .build())
-                .body(Map.of("Posted", true))
                 .retrieve()
                 .toBodilessEntity();
+        if (!fetchPosted(entitySet, ref)) {
+            throw new IllegalStateException("1С приняла запрос на проведение, но документ остался непроведённым — проведите его в 1С вручную");
+        }
     }
 
-    /** Отменяет проведение документа (Posted:false) — обратное {@link #postDocument}. */
+    /** Отменяет проведение документа операцией {@code /Unpost} — обратное {@link #postDocument}. */
     void unpostDocument(String entitySet, String ref) {
-        restClient.patch()
-                .uri(b -> b.path("/" + entitySet + "(guid'" + ref + "')")
+        restClient.post()
+                .uri(b -> b.path("/" + entitySet + "(guid'" + ref + "')/Unpost")
                         .queryParam("$format", "json")
                         .build())
-                .body(Map.of("Posted", false))
                 .retrieve()
                 .toBodilessEntity();
     }
@@ -714,11 +734,20 @@ class OneCClient {
     }
 
     /**
-     * Шаблон-заготовка шапки документа "Поступление товаров и услуг" (счета учёта расчётов с
-     * контрагентом, вид операции, аналитика НДС и т.п.) — с ЛЮБОГО существующего документа
-     * этого типа в базе, по той же идее, что {@link #findAnyLineTemplate()} и
-     * {@link #findAnyReceiptLineTemplate()}: не гадаем GUID-ы констант шапки руками, а
-     * копируем их с реального документа. Null, если в 1С ещё нет ни одного такого документа.
+     * Шаблон-заготовка шапки документа "Поступление товаров и услуг" — счета учёта расчётов с
+     * контрагентом и валютные реквизиты, снятые с ЛЮБОГО существующего документа этого типа в
+     * базе, по той же идее, что {@link #findAnyLineTemplate()}: не гадаем GUID-ы констант руками,
+     * а копируем их с реального документа. Null, если в 1С ещё нет ни одного такого документа.
+     *
+     * <p>Копируем строго по белому списку, а не "всё кроме своего" — иначе вместе с нужными
+     * счетами едут случайные реквизиты документа-образца, и один такой реквизит сделал закупки
+     * непроводимыми. В базе клиента образец нёс {@code ВидВходящегоДокумента} и
+     * {@code НомерВходящегоДокумента} с GUID-ами в текстовых полях; 1С такой документ отдаёт по
+     * GET и даже создаёт, но ПЕРЕЗАПИСАТЬ его через OData уже не может — а проведение это и есть
+     * перезапись объекта. Наружу это выглядело как HTTP 301 на страницу /availability/ от
+     * 1cFresh (см. {@link #postDocument}), то есть как отказ в правах, хотя дело было в данных:
+     * проверено 2026-09-22 — документ с этим же составом, но без лишних реквизитов, проводится
+     * с первого раза.
      */
     Map<String, Object> findAnyGoodsReceiptTemplate() {
         JsonNode response = restClient.get()
@@ -730,15 +759,16 @@ class OneCClient {
                 .body(JsonNode.class);
         JsonNode values = response.path("value");
         if (values.isEmpty()) return null;
-        // ВидОперации ("Товары"/"Услуги"/"ОсновныеСредства" и т.п.) — тоже исключаем из
-        // копирования: "любой" документ в базе может оказаться не тем видом операции (так и
-        // случилось на реальной базе — первый попавшийся был "ОсновныеСредства", закупка
-        // сырья ушла не в тот раздел 1С и без товаров в табличной части). Проставляется явно
-        // в OneCPurchaseSyncService.
-        return extractTemplate(values.get(0), List.of("Ref_Key", "Number", "Date", "Posted", "DeletionMark",
-                "Организация_Key", "Контрагент_Key", "ДоговорКонтрагента_Key", "Склад_Key", "Комментарий", "Товары",
-                "ВидОперации"));
+        return extractFields(values.get(0), GOODS_RECEIPT_HEADER_FIELDS);
     }
+
+    // Всё остальное в шапке "Поступления" OneCPurchaseSyncService заполняет сам (организация,
+    // контрагент, договор, склад, дата, вид операции, комментарий, товары) — или это вообще не
+    // наше дело, и пусть 1С подставляет свои умолчания.
+    private static final List<String> GOODS_RECEIPT_HEADER_FIELDS = List.of(
+            "СчетУчетаРасчетовСКонтрагентом_Key", "СчетУчетаРасчетовПоАвансам_Key",
+            "ВалютаДокумента_Key", "КурсВзаиморасчетов", "КратностьВзаиморасчетов",
+            "СуммаВключаетНДС", "УчитыватьНДС");
 
     /**
      * Шаблон-заготовка строки табличной части "Товары" документа "Поступление товаров и
@@ -755,14 +785,19 @@ class OneCClient {
                 .body(JsonNode.class);
         JsonNode values = response.path("value");
         if (values.isEmpty()) return null;
-        return extractTemplate(values.get(0),
-                List.of("Ref_Key", "LineNumber", "Номенклатура_Key", "Количество", "Цена", "Сумма"));
+        return extractFields(values.get(0), GOODS_RECEIPT_LINE_FIELDS);
     }
 
+    // По белому списку — по той же причине, что и шапка (см. findAnyGoodsReceiptTemplate):
+    // строка-образец взята с произвольного документа, её суммы и ставки НДС к нашей закупке
+    // отношения не имеют, нужны только счета учёта и единица измерения.
+    private static final List<String> GOODS_RECEIPT_LINE_FIELDS = List.of(
+            "ЕдиницаИзмерения_Key", "Коэффициент", "НДСВидОборота", "НДСВидПоступления_Key",
+            "СчетУчетаБУ_Key", "СчетУчетаНУ_Key");
+
     /**
-     * Создаёт НЕпроведённый документ "Поступление товаров и услуг" — бухгалтер проводит сам в
-     * 1С, см. OneCPurchaseSyncService (там же — почему {@link #postDocument} для этого типа
-     * документа не подходит).
+     * Создаёт документ "Поступление товаров и услуг" непроведённым — проводится следующим шагом
+     * через {@link #postDocument}, см. OneCPurchaseSyncService.
      */
     CreatedDocument createGoodsReceiptDocument(Map<String, Object> body) {
         JsonNode response = restClient.post()

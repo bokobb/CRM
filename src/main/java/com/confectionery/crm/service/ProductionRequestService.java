@@ -164,13 +164,43 @@ public class ProductionRequestService {
      * (передаёт готовый результат явно — DTO не имеет доступа к сервисам) для мобильного API.
      */
     public MassSummary massSummary(ProductionRequest request) {
+        MassTotals totals = massTotals(request);
+        if (totals == null) {
+            return null;
+        }
+        String referenceProductName = totals.fallbackReferenceName();
+        BigDecimal referenceWeight = totals.fallbackReferenceWeight();
+        if (totals.group() != null) {
+            Product explicitReference = productRepository.findFirstByGroupAndMassReferenceProductTrue(totals.group()).orElse(null);
+            if (explicitReference != null && explicitReference.getNetWeightGrams() != null) {
+                referenceProductName = explicitReference.getName();
+                referenceWeight = explicitReference.getNetWeightGrams();
+            }
+        }
+        return new MassSummary(totals.plannedGrams(), totals.actualGrams(), totals.allWeightedReceived(),
+                referenceProductName, referenceWeight);
+    }
+
+    /**
+     * Нормы по общей массе хватает (см. {@link #massSummary}) — значит, построчную "недостачу"
+     * по взвешенным товарам показывать не надо. Статический и без обращения к базе, поэтому
+     * годится для списков заявок (см. {@link com.confectionery.crm.api.dto.ProductionRequestSummaryDto}):
+     * там нужен только сам факт "хватает/не хватает", а не товар-эталон для пересчёта в штуки.
+     */
+    public static boolean massNormFulfilled(ProductionRequest request) {
+        MassTotals totals = massTotals(request);
+        return totals != null && totals.actualGrams().compareTo(totals.plannedGrams()) >= 0;
+    }
+
+    /** @return null, если весом отмечено меньше двух позиций — сверка по массе неприменима. */
+    private static MassTotals massTotals(ProductionRequest request) {
         BigDecimal plannedGrams = BigDecimal.ZERO;
         BigDecimal actualGrams = BigDecimal.ZERO;
         int weightedLines = 0;
         boolean allWeightedReceived = true;
         // Самый крупный по весу вариант СРЕДИ ТОГО, ЧТО ЕСТЬ В ЗАЯВКЕ — запасной вариант единицы
         // пересчёта отклонения массы в штуки, если ни один товар группы не отмечен явным
-        // эталоном (см. ниже) — например, заявка не включает сам эталонный товар.
+        // эталоном (см. massSummary) — например, заявка не включает сам эталонный товар.
         String fallbackReferenceName = null;
         BigDecimal fallbackReferenceWeight = null;
         String group = null;
@@ -197,17 +227,12 @@ public class ProductionRequestService {
         if (weightedLines < 2) {
             return null;
         }
+        return new MassTotals(plannedGrams, actualGrams, allWeightedReceived, fallbackReferenceName,
+                fallbackReferenceWeight, group);
+    }
 
-        String referenceProductName = fallbackReferenceName;
-        BigDecimal referenceWeight = fallbackReferenceWeight;
-        if (group != null) {
-            Product explicitReference = productRepository.findFirstByGroupAndMassReferenceProductTrue(group).orElse(null);
-            if (explicitReference != null && explicitReference.getNetWeightGrams() != null) {
-                referenceProductName = explicitReference.getName();
-                referenceWeight = explicitReference.getNetWeightGrams();
-            }
-        }
-        return new MassSummary(plannedGrams, actualGrams, allWeightedReceived, referenceProductName, referenceWeight);
+    private record MassTotals(BigDecimal plannedGrams, BigDecimal actualGrams, boolean allWeightedReceived,
+                               String fallbackReferenceName, BigDecimal fallbackReferenceWeight, String group) {
     }
 
     public record MassSummary(BigDecimal plannedGrams, BigDecimal actualGrams, boolean allWeightedReceived,
@@ -718,11 +743,11 @@ public class ProductionRequestService {
      * есть оприходование. Когда оприходованы все строки, вся заявка помечается RECEIVED. Каждое
      * оприходование сразу корректирует уже выгруженные в 1С документы (см.
      * OneCProductionSyncService) — количество этой строки в отчёте производства заменяется с
-     * планового на фактическое. Отчёт производства CRM больше не проводит сама (как и
-     * "Реализацию" заказов — Document.Posted=true через OData оказался ненадёжен: 1С отвечала
-     * 200 OK, но реальных движений по складу не формировала, пока документ не открывали в самой
-     * 1С и не нажимали "Провести" вручную) — бухгалтер проводит его в 1С сам. Требование-накладную
-     * тоже не трогает — её проводит отдельно кнопка "Завершить" (см. {@link #completeRequisition}).
+     * планового на фактическое. Когда оприходована ПОСЛЕДНЯЯ строка, отчёт производства тут же
+     * и проводится (см. {@link OneCProductionSyncService#postReport}): фактический выход
+     * продукции уже известен целиком, и проведение ставит её на склад в 1С. Требование-накладную
+     * это не трогает — её проводит отдельно кнопка "Завершить" (см. {@link #completeRequisition}),
+     * потому что состав сырья после оприходования ещё уточняют.
      */
     @Transactional
     public ProductionRequest receiveLine(Long requestId, Long lineId, BigDecimal receivedQuantity, String by) {
@@ -755,6 +780,9 @@ public class ProductionRequestService {
         // позиций, оприходуются по одной, спамить на каждую не нужно. Одна сводная
         // нотификация уходит по кнопке "Завершить" (см. completeRequisition/notifyReceivedSummary).
         oneCProductionSyncService.trySyncRequest(request);
+        if (allReceived) {
+            oneCProductionSyncService.postReport(request);
+        }
         return request;
     }
 
