@@ -20,9 +20,12 @@ import java.util.concurrent.TimeUnit;
  * ради неё, просто копируем build/web поверх этой папки на сервере (rsync/scp), аналогично
  * тому, как раздаётся APK (см. память yandex_cloud_deployment — /etc/nginx/snippets/downloads.conf).
  *
- * <p>index.html без кеша (может обновиться), сами хешированные ассеты (main.dart.js,
- * canvaskit и т.п. — Flutter сам версионирует их в имени/содержимом) — с длинным кешем,
- * чтобы повторные заходы не перекачивали по 20+ МБ каждый раз.
+ * <p>Один обработчик на весь /app/** с умеренным кешем — отдельная попытка завести index.html
+ * своим отдельным ResourceHandler (без {@code **} в паттерне, под no-cache) сломалась
+ * (2026-09-22): Spring резолвит "остаток пути" внутри точного, без-wildcard паттерна как
+ * пустую строку, а не "index.html", запрос падал мимо и в итоге улетал в security-чейн для
+ * остального сайта (редирект на /login) — то же самое случалось для ЛЮБОГО отсутствующего
+ * файла под /app/**, просто совпало по симптому. Полдня на кеш index.html не стоят той цены.
  */
 @Configuration
 public class WebAppConfig implements WebMvcConfigurer {
@@ -33,14 +36,9 @@ public class WebAppConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         String location = "file:" + Path.of(webAppDir).toAbsolutePath().normalize() + "/";
-        // index.html — без кеша (может обновиться при новом деплое), остальное (main.dart.js,
-        // canvaskit и т.п.) — с длинным кешем: повторные заходы не перекачивают по 20+ МБ.
-        registry.addResourceHandler("/app/index.html")
-                .addResourceLocations(location)
-                .setCacheControl(CacheControl.noCache());
         registry.addResourceHandler("/app/**")
                 .addResourceLocations(location)
-                .setCacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic());
+                .setCacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePublic());
     }
 
     /** /app и /app/ (без имени файла) — на index.html, ResourceHandler сам directory index не угадывает. */
