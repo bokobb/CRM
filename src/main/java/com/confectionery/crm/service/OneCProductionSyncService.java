@@ -452,34 +452,41 @@ public class OneCProductionSyncService {
     /**
      * "Завершить" — вручную проводит требование-накладную (списание сырья) в 1С, когда состав
      * заявки точно больше не изменится (вызывается кнопкой на карточке заявки, см. web/mobile
-     * контроллеры). Бросает исключение вместо тихого логирования — пользователь должен увидеть
-     * причину, если провести не удалось.
+     * контроллеры). Best-effort, как и остальная синхронизация (2026-09-22, по просьбе
+     * пользователя: "Завершить"/"Отгрузил"/"Собрано" не должны блокироваться из-за 1С — источник
+     * истины по остаткам мы и так читаем ИЗ 1С отдельным опросом, а не выводим из этих действий;
+     * раньше ошибка здесь не давала завершить заявку в CRM вообще). Причина неудачи — в
+     * {@link ProductionRequest#getOneCSyncError()} и уведомлением ADMIN, действие в CRM не
+     * блокируется. Уже проведённый документ (кто-то провёл вручную в 1С раньше) — не ошибка,
+     * цель и так достигнута.
      */
     @Transactional
     public void postRequisition(ProductionRequest request) {
         if (!oneCClient.isConfigured()) {
-            throw new IllegalStateException("Подключение к 1С не настроено (crm.onec.base-url/username/password)");
-        }
-        if (request.getOneCRequisitionKey() == null) {
-            throw new IllegalStateException("Требование-накладная ещё не выгружена в 1С — сначала синхронизируйте заявку");
-        }
-        if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ТребованиеНакладная", request.getOneCRequisitionKey()))) {
-            throw new IllegalStateException("Требование-накладная №" + request.getOneCRequisitionNumber() + " уже проведена в 1С");
+            return;
         }
         try {
+            if (request.getOneCRequisitionKey() == null) {
+                throw new IllegalStateException("Требование-накладная ещё не выгружена в 1С — сначала синхронизируйте заявку");
+            }
+            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ТребованиеНакладная", request.getOneCRequisitionKey()))) {
+                request.setOneCSyncError(null);
+                requestRepository.save(request);
+                return;
+            }
             oneCClient.postDocument("Document_ТребованиеНакладная", request.getOneCRequisitionKey());
+            request.setOneCSyncError(null);
+            requestRepository.save(request);
+            log.info("Заявка №{} — требование-накладная №{} проведена в 1С вручную ('Завершить')",
+                    request.getId(), request.getOneCRequisitionNumber());
         } catch (Exception e) {
-            request.setOneCSyncError("Не удалось провести в 1С: " + e.getMessage());
+            log.warn("Не удалось провести требование-накладную заявки №{} в 1С: {}", request.getId(), e.getMessage());
+            request.setOneCSyncError(e.getMessage());
             requestRepository.save(request);
             notificationService.notifyRole(Role.ADMIN,
                     "Заявка №" + request.getId() + " «" + request.getTitle()
                             + "»: не удалось провести требование-накладную в 1С: " + e.getMessage(), null);
-            throw new IllegalStateException(e.getMessage(), e);
         }
-        request.setOneCSyncError(null);
-        requestRepository.save(request);
-        log.info("Заявка №{} — требование-накладная №{} проведена в 1С вручную ('Завершить')",
-                request.getId(), request.getOneCRequisitionNumber());
     }
 
     /**
