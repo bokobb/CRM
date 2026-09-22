@@ -62,15 +62,17 @@
             <h2>Позиции заявки</h2>
             <table>
                 <tr><th>Товар</th><th>Замесов</th><th>≈ Ожидается</th><th>Факт</th><th></th></tr>
-                <tr th:each="l : ${request.lines}">
+                <tr th:each="l : ${request.lines}"
+                    th:with="weighted=${massSummary != null and l.product.netWeightGrams != null},
+                             effInsufficient=${l.insufficient and !(weighted and !massSummary.insufficient)}">
                     <td th:text="${l.product.name}"></td>
                     <td th:text="${l.batches}"></td>
                     <td th:text="${l.plannedQuantity != null ? (l.plannedQuantity + ' ' + (l.product.unit ?: 'шт')) : '—'}"></td>
                     <td>
                         <div th:if="${l.receivedQuantity != null}">
-                            <span th:style="${l.insufficient} ? 'color:#c0392b;font-weight:600' : 'color:var(--ok,#4c8a5e);font-weight:600'"
+                            <span th:style="${effInsufficient} ? 'color:#c0392b;font-weight:600' : 'color:var(--ok,#4c8a5e);font-weight:600'"
                                   th:text="${l.receivedQuantity} + ' ' + (l.product.unit ?: 'шт')"></span>
-                            <div th:if="${l.insufficient}" style="color:#c0392b;font-size:12px">
+                            <div th:if="${effInsufficient}" style="color:#c0392b;font-size:12px">
                                 недостаточно нормы на <span th:text="${l.shortfall}"></span> <span th:text="${l.product.unit ?: 'шт'}"></span>
                             </div>
                         </div>

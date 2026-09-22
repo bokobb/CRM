@@ -681,7 +681,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 '${formatDateTime(line.receivedAt!)}',
                 style: const TextStyle(color: Color(0xFF4C8A5E), fontWeight: FontWeight.w600, fontSize: 12.5),
               ),
-              if (line.isInsufficient)
+              if (line.insufficient)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Text(

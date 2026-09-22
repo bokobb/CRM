@@ -45,11 +45,25 @@ public record ProductionRequestDto(
     public record Line(
             Long id, Long productId, String productName, String productUnit,
             BigDecimal batches, BigDecimal plannedQuantity,
-            String receivedBy, LocalDateTime receivedAt, BigDecimal receivedQuantity
+            String receivedBy, LocalDateTime receivedAt, BigDecimal receivedQuantity,
+            boolean insufficient
     ) {
-        static Line from(ProductionRequestLine l) {
+        /**
+         * {@code insufficient} — построчная норма (см. {@link ProductionRequestLine#isInsufficient()}),
+         * НО если товар участвует в сверке по общей массе (задан {@code netWeightGrams}, см.
+         * {@link ProductionRequestService#massSummary}) и сама сверка показывает, что нормы
+         * ХВАТАЕТ — гасим построчную "недостаточно": рабочие могли просто перепутать пропорции
+         * между фасовками при нарезке, по массе всё в порядке (см. коммит "Сверка нормы по общей
+         * массе..."). Не наоборот — если по массе как раз недостача, а конкретно эта строка сама
+         * по себе свою норму выполнила, её отдельно красным не делаем (аггрегированная недостача
+         * не про эту позицию персонально).
+         */
+        static Line from(ProductionRequestLine l, ProductionRequestService.MassSummary massSummary) {
+            boolean weighted = massSummary != null && l.getProduct().getNetWeightGrams() != null;
+            boolean insufficient = l.isInsufficient() && !(weighted && !massSummary.isInsufficient());
             return new Line(l.getId(), l.getProduct().getId(), l.getProduct().getName(), l.getProduct().getUnit(),
-                    l.getBatches(), l.getPlannedQuantity(), l.getReceivedBy(), l.getReceivedAt(), l.getReceivedQuantity());
+                    l.getBatches(), l.getPlannedQuantity(), l.getReceivedBy(), l.getReceivedAt(), l.getReceivedQuantity(),
+                    insufficient);
         }
     }
 
@@ -83,7 +97,7 @@ public record ProductionRequestDto(
                 r.getOneCRequisitionNumber(),
                 r.getOneCSyncError(),
                 r.isRequisitionCompleted(),
-                r.getLines().stream().map(Line::from).toList(),
+                r.getLines().stream().map(l -> Line.from(l, massSummary)).toList(),
                 r.getItems().stream().map(Item::from).toList(),
                 MassSummary.from(massSummary)
         );

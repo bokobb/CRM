@@ -101,13 +101,21 @@ class ProductionRequestLine {
   final DateTime? receivedAt;
   final double? receivedQuantity;
 
+  /// Красным в UI вместо зелёного — построчная норма, НО если товар участвует в сверке по общей
+  /// массе (см. ProductionMassSummary) и по массе как раз хватает — построчная "недостаточно"
+  /// гасится (ложная тревога из-за перепутанных пропорций между фасовками при нарезке).
+  /// Считается на бэкенде (см. ProductionRequestDto.Line.from), не дублируем логику на клиенте.
+  final bool insufficient;
+
   bool get isReceived => receivedQuantity != null;
 
-  /// Оприходовано МЕНЬШЕ нормы (plannedQuantity) — красным в UI вместо зелёного.
-  bool get isInsufficient => isReceived && plannedQuantity != null && receivedQuantity! < plannedQuantity!;
-
-  /// Сколько не хватает до нормы — 0, если хватает/план не задан/ещё не оприходовано.
-  double get shortfall => isInsufficient ? plannedQuantity! - receivedQuantity! : 0;
+  /// Сколько не хватает до нормы — 0, если хватает/план не задан/ещё не оприходовано. Безопасно
+  /// опирается на plannedQuantity/receivedQuantity: [insufficient] может быть true, только если
+  /// строка сама по себе не дотянула до своей нормы (см. ProductionRequestDto.Line.from на
+  /// бэкенде — сверка по массе только гасит false-positive, но не создаёт его на пустом месте).
+  double get shortfall => insufficient && plannedQuantity != null && receivedQuantity != null
+      ? plannedQuantity! - receivedQuantity!
+      : 0;
 
   ProductionRequestLine({
     required this.id,
@@ -119,6 +127,7 @@ class ProductionRequestLine {
     this.receivedBy,
     this.receivedAt,
     this.receivedQuantity,
+    required this.insufficient,
   });
 
   factory ProductionRequestLine.fromJson(Map<String, dynamic> json) => ProductionRequestLine(
@@ -131,6 +140,7 @@ class ProductionRequestLine {
         receivedBy: json['receivedBy'] as String?,
         receivedAt: json['receivedAt'] != null ? DateTime.parse(json['receivedAt'] as String) : null,
         receivedQuantity: json['receivedQuantity'] != null ? (json['receivedQuantity'] as num).toDouble() : null,
+        insufficient: json['insufficient'] as bool,
       );
 }
 
