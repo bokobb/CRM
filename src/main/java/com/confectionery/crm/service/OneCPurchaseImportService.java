@@ -85,12 +85,6 @@ public class OneCPurchaseImportService {
                 log.info("Импорт закупок из 1С: создано закупок {}, контрагентов {}, сырья {}, не сопоставлено {}",
                         result.imported(), result.counterpartiesCreated(), result.ingredientsCreated(), result.unmatched().size());
             }
-            if (result.imported() > 0) {
-                String message = "Импорт из 1С: создано закупок из документов \"Поступление\" — " + result.imported();
-                if (result.counterpartiesCreated() > 0) message += ", новых контрагентов — " + result.counterpartiesCreated();
-                if (result.ingredientsCreated() > 0) message += ", нового сырья — " + result.ingredientsCreated();
-                notificationService.notifyRole(Role.ADMIN, message, null);
-            }
             if (!result.unmatched().isEmpty()) {
                 notificationService.notifyRole(Role.ADMIN,
                         "Импорт из 1С: не удалось сопоставить " + result.unmatched().size()

@@ -39,12 +39,19 @@ import java.util.Map;
  * обычному циклу сборки/отгрузки в CRM как любой другой заказ — {@code Order.oneCDocumentKey}
  * уже проставлен, поэтому при отгрузке {@link OneCOrderSyncService#trySyncOrder} допишет тот же
  * документ в 1С (а не создаст второй), и корректно откажется его трогать, если к тому моменту
- * бухгалтер уже успеет провести документ сам.
+ * бухгалтер уже успеет провести документ сам. Симметрично: если бухгалтер провёл документ в 1С
+ * РАНЬШЕ, чем заказ дошёл до отгрузки в CRM (обычная ситуация — цикл сборки в CRM может занять
+ * время) — этот же импорт при следующем прогоне (каждые 5 минут) увидит {@code Posted:true} у
+ * уже существующего Заказа в статусе "Новый" и сам доведёт его до "Завершён" + проставит
+ * {@code shippedAt}, не дожидаясь, пока кто-то в CRM пройдёт весь цикл сборки/отгрузки вручную —
+ * товар по факту уже отгружен, раз бухгалтер провёл документ.
  *
  * <p>Дедупликация — двухслойная: 1) документы, созданные самой CRM (см. OneCOrderSyncService),
  * помечены в {@code Комментарий} строкой "Заказ CRM №..." — такие пропускаем всегда, даже уже
- * проведённые бухгалтером вручную; 2) на случай, если этот импорт уже создал Заказ по документу
- * раньше — проверяем {@link Order#getOneCDocumentKey()} через {@link OrderRepository#findByOneCDocumentKey}.
+ * проведённые бухгалтером вручную (тот же путь довершения статуса их не касается — им занимается
+ * обычный цикл CRM); 2) документ, по которому этот импорт уже когда-то создал Заказ — проверяем
+ * {@link Order#getOneCDocumentKey()} через {@link OrderRepository#findByOneCDocumentKey}, и это
+ * тот самый момент, где проверяется довершение статуса (см. выше), а не просто пропуск.
  * Контрагент и номенклатура сопоставляются по GUID; если в 1С такой контрагент/номенклатура
  * реально есть, а в CRM карточки ещё нет — заводим её сами (минимально: имя/название, GUID для
  * связи, цена товара — из самой строки документа), а не пропускаем документ с ошибкой. Раньше
@@ -94,9 +101,9 @@ public class OneCOrderImportService {
         }
         try {
             ImportResult result = importAll();
-            if (result.imported() > 0 || result.clientsCreated() > 0 || result.productsCreated() > 0 || !result.unmatched().isEmpty()) {
-                log.info("Импорт заказов из 1С: создано заказов {}, клиентов {}, товаров {}, не сопоставлено {}",
-                        result.imported(), result.clientsCreated(), result.productsCreated(), result.unmatched().size());
+            if (result.imported() > 0 || result.completed() > 0 || result.clientsCreated() > 0 || result.productsCreated() > 0 || !result.unmatched().isEmpty()) {
+                log.info("Импорт заказов из 1С: создано заказов {}, довершено (проведены в 1С) {}, клиентов {}, товаров {}, не сопоставлено {}",
+                        result.imported(), result.completed(), result.clientsCreated(), result.productsCreated(), result.unmatched().size());
             }
             if (!result.unmatched().isEmpty()) {
                 notificationService.notifyRole(Role.ADMIN,
@@ -127,6 +134,7 @@ public class OneCOrderImportService {
         }
 
         int imported = 0;
+        int completed = 0;
         int clientsCreated = 0;
         int productsCreated = 0;
         List<String> unmatched = new ArrayList<>();
@@ -134,7 +142,18 @@ public class OneCOrderImportService {
             if (header.comment() != null && header.comment().startsWith(CRM_MARKER)) {
                 continue;
             }
-            if (orderRepository.findByOneCDocumentKey(header.ref()).isPresent()) {
+            Order existing = orderRepository.findByOneCDocumentKey(header.ref()).orElse(null);
+            if (existing != null) {
+                // Заводили Заказом "Новый", т.к. документ ещё не был проведён (см. ниже) —
+                // бухгалтер мог провести его в 1С позже, вручную; при следующем прогоне (каждые
+                // 5 минут) видим это и довершаем статус, не дожидаясь, пока кто-то в CRM вручную
+                // проведёт заказ через обычную сборку/отгрузку — товар и так уже фактически ушёл.
+                if (header.posted() && existing.getStatus() == OrderStatus.NEW) {
+                    existing.setStatus(OrderStatus.COMPLETED);
+                    existing.setShippedAt(parseDate(header.date()));
+                    orderRepository.save(existing);
+                    completed++;
+                }
                 continue;
             }
             if (!parseDate(header.date()).toLocalDate().isEqual(LocalDate.now())) {
@@ -208,7 +227,7 @@ public class OneCOrderImportService {
             orderRepository.save(order);
             imported++;
         }
-        return new ImportResult(imported, clientsCreated, productsCreated, unmatched);
+        return new ImportResult(imported, completed, clientsCreated, productsCreated, unmatched);
     }
 
     /** Товар уже был в CRM, но без привязки к 1С — ищем по точному названию номенклатуры и кэшируем GUID на будущее. */
@@ -233,6 +252,6 @@ public class OneCOrderImportService {
         }
     }
 
-    public record ImportResult(int imported, int clientsCreated, int productsCreated, List<String> unmatched) {
+    public record ImportResult(int imported, int completed, int clientsCreated, int productsCreated, List<String> unmatched) {
     }
 }
