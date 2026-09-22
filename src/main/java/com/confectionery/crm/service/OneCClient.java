@@ -232,12 +232,12 @@ class OneCClient {
     }
 
     /**
-     * Шапки ВСЕХ проведённых документов "Реализация товаров и услуг" в 1С — источник для
-     * OneCOrderImportService (читает то, что бухгалтер завёл в 1С напрямую, минуя CRM). Только
-     * проведённые ({@code Posted eq true}) — черновик CRM тоже станет проведённым документом
-     * позже (после ручной проводки бухгалтером), но пока не проведён, сюда не попадает; свои же
-     * документы (в т.ч. уже проведённые) дальше отсекаются по {@code Комментарий} и по уже
-     * заполненному {@code Order.oneCDocumentKey} — здесь фильтрации по автору нет.
+     * Шапки ВСЕХ документов "Реализация товаров и услуг" в 1С (и проведённых, и черновиков) —
+     * источник для OneCOrderImportService (читает то, что бухгалтер завёл в 1С напрямую, минуя
+     * CRM). {@code Posted} отдаётся как есть — по нему вызывающая сторона решает, заводить Заказ
+     * сразу "Завершённым" или "Новым" (пока не проведут). Свои же документы (в т.ч. уже
+     * проведённые) дальше отсекаются по {@code Комментарий} и по уже заполненному {@code
+     * Order.oneCDocumentKey} — здесь фильтрации по автору нет.
      */
     List<SaleHeader> fetchSaleHeaders() {
         List<SaleHeader> headers = new ArrayList<>();
@@ -247,8 +247,7 @@ class OneCClient {
             JsonNode response = restClient.get()
                     .uri(b -> b.path("/Document_РеализацияТоваровУслуг")
                             .queryParam("$format", "json")
-                            .queryParam("$filter", "Posted eq true")
-                            .queryParam("$select", "Ref_Key,Number,Date,Комментарий,Контрагент_Key")
+                            .queryParam("$select", "Ref_Key,Number,Date,Комментарий,Контрагент_Key,Posted")
                             .queryParam("$top", PAGE_SIZE)
                             .queryParam("$skip", currentSkip)
                             .build())
@@ -261,7 +260,8 @@ class OneCClient {
                         item.path("Number").asText(""),
                         item.path("Date").asText(""),
                         item.path("Комментарий").asText(""),
-                        item.path("Контрагент_Key").asText("")
+                        item.path("Контрагент_Key").asText(""),
+                        item.path("Posted").asBoolean(false)
                 ));
             }
             if (values.size() < PAGE_SIZE) break;
@@ -878,8 +878,12 @@ class OneCClient {
     record ProductionReportLine(String parentRef, String nomenclatureKey) {
     }
 
-    /** {@code date} — ISO-строка "yyyy-MM-ddTHH:mm:ss", как пришла из OData (парсится вызывающей стороной). */
-    record SaleHeader(String ref, String number, String date, String comment, String counterpartyKey) {
+    /**
+     * {@code date} — ISO-строка "yyyy-MM-ddTHH:mm:ss", как пришла из OData (парсится вызывающей
+     * стороной). {@code posted} — см. {@link OneCOrderImportService}: непроведённые документы
+     * заводятся Заказом в статусе "Новый", проведённые — сразу "Завершён".
+     */
+    record SaleHeader(String ref, String number, String date, String comment, String counterpartyKey, boolean posted) {
     }
 
     record SaleLine(String parentRef, String nomenclatureKey, BigDecimal quantity, BigDecimal price) {

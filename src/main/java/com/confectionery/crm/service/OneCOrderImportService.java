@@ -27,10 +27,17 @@ import java.util.Map;
 /**
  * Обратный импорт: бухгалтер иногда заводит "Реализацию товаров и услуг" ПРЯМО в 1С, минуя CRM
  * (например, разовая продажа не через обычный процесс заказа) — тогда CRM о ней не знает. Этот
- * сервис читает такие документы из 1С и заводит по ним обычные Заказы в CRM, сразу в статусе
- * "Завершён" (см. {@link OrderStatus#COMPLETED}) — цикл сборки/отгрузки не нужен, товар и так
- * уже физически ушёл со склада (сам остаток CRM подтягивает отдельно, см. OneCStockSyncService,
- * поэтому здесь остаток не трогаем — только сохраняем сам факт продажи в истории CRM).
+ * сервис читает такие документы из 1С и заводит по ним обычные Заказы в CRM. Статус зависит от
+ * {@link com.confectionery.crm.service.OneCClient.SaleHeader#posted()}: документ уже проведён —
+ * Заказ сразу в статусе "Завершён" (см. {@link OrderStatus#COMPLETED}, {@code shippedAt} =
+ * дата документа) — цикл сборки/отгрузки не нужен, товар и так уже физически ушёл со склада (сам
+ * остаток CRM подтягивает отдельно, см. OneCStockSyncService, поэтому здесь остаток не трогаем —
+ * только сохраняем сам факт продажи в истории CRM); документ ещё черновик (не проведён) — Заказ
+ * заводится "Новым" (см. {@link OrderStatus#NEW}), без {@code shippedAt}, и дальше идёт по
+ * обычному циклу сборки/отгрузки в CRM как любой другой заказ — {@code Order.oneCDocumentKey}
+ * уже проставлен, поэтому при отгрузке {@link OneCOrderSyncService#trySyncOrder} допишет тот же
+ * документ в 1С (а не создаст второй), и корректно откажется его трогать, если к тому моменту
+ * бухгалтер уже успеет провести документ сам.
  *
  * <p>Дедупликация — двухслойная: 1) документы, созданные самой CRM (см. OneCOrderSyncService),
  * помечены в {@code Комментарий} строкой "Заказ CRM №..." — такие пропускаем всегда, даже уже
@@ -75,12 +82,6 @@ public class OneCOrderImportService {
             if (result.imported() > 0 || result.clientsCreated() > 0 || result.productsCreated() > 0 || !result.unmatched().isEmpty()) {
                 log.info("Импорт заказов из 1С: создано заказов {}, клиентов {}, товаров {}, не сопоставлено {}",
                         result.imported(), result.clientsCreated(), result.productsCreated(), result.unmatched().size());
-            }
-            if (result.imported() > 0) {
-                String message = "Импорт из 1С: создано заказов из документов \"Реализация\" — " + result.imported();
-                if (result.clientsCreated() > 0) message += ", новых клиентов — " + result.clientsCreated();
-                if (result.productsCreated() > 0) message += ", новых товаров — " + result.productsCreated();
-                notificationService.notifyRole(Role.ADMIN, message, null);
             }
             if (!result.unmatched().isEmpty()) {
                 notificationService.notifyRole(Role.ADMIN,
@@ -178,9 +179,13 @@ public class OneCOrderImportService {
             LocalDateTime date = parseDate(header.date());
             Order order = new Order();
             order.setClient(client);
-            order.setStatus(OrderStatus.COMPLETED);
+            if (header.posted()) {
+                order.setStatus(OrderStatus.COMPLETED);
+                order.setShippedAt(date);
+            } else {
+                order.setStatus(OrderStatus.NEW);
+            }
             order.setCreatedAt(date);
-            order.setShippedAt(date);
             order.setNotes("Импортировано из 1С, документ №" + header.number());
             order.setOneCDocumentKey(header.ref());
             order.setOneCDocumentNumber(header.number());
