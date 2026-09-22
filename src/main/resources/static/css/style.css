@@ -753,3 +753,64 @@ input.qty-input {
    админки, но обёрнуты в <a>, т.к. вся карточка кликабельна (переход на товар крупным планом). */
 .shop-product-card { text-decoration: none; color: inherit; }
 
+/* === Мобильная адаптация админки (2026-09-22) =========================================
+   Раньше .app/.sidebar считали, что экран всегда широкий (без viewport meta — на телефоне
+   рендерилось в виртуальные ~980px и масштабировалось, тот же баг, что чинили в /shop, см.
+   product_images_stale_urls/product-images history). Задумано под PWA "Добавить на экран
+   Домой" для iPhone (через Safari — см. переписку) — цель: обычной страницей веб-CRM
+   пользоваться как приложением с телефона, не трогая рабочий стол/десктоп-вёрстку выше. */
+.nav-toggle {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1001;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: #2b2420;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.nav-overlay { display: none; }
+
+@media (max-width: 860px) {
+  .content { padding: 64px 16px 24px; }
+
+  .nav-toggle { display: flex; align-items: center; justify-content: center; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -270px;
+    width: 250px;
+    max-width: 80vw;
+    z-index: 1000;
+    transition: left .22s ease;
+    box-shadow: 2px 0 16px rgba(0,0,0,.25);
+  }
+  .sidebar.open { left: 0; }
+  .sidebar.open .nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: -1;
+  }
+
+  /* Плотные таблицы (заказы/закупки/сырьё и т.п.) физически не влезают в экран телефона —
+     проще горизонтальный скролл самой таблицы, чем городить по карточке на страницу под
+     каждую из три десятков таблиц. thead/tbody/tr остаются table-* — только сам <table>
+     становится блочным скролл-контейнером, устоявшийся приём без обёрточных <div>. */
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  thead, tbody, tr { display: table; width: 100%; table-layout: auto; }
+
+  .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+  .row, .item-row { flex-direction: column; align-items: stretch; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+}
+/* === /Мобильная адаптация админки === */
+
