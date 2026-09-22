@@ -717,9 +717,11 @@ public class ProductionRequestService {
      * есть оприходование. Когда оприходованы все строки, вся заявка помечается RECEIVED. Каждое
      * оприходование сразу корректирует уже выгруженные в 1С документы (см.
      * OneCProductionSyncService) — количество этой строки в отчёте производства заменяется с
-     * планового на фактическое. Когда оприходована последняя строка, отчёт производства сразу
-     * же проводится в 1С (см. {@link OneCProductionSyncService#tryPostReport}) — требование-накладную
-     * это не трогает, её проводит отдельно кнопка "Завершить" (см. {@link #completeRequisition}).
+     * планового на фактическое. Отчёт производства CRM больше не проводит сама (как и
+     * "Реализацию" заказов — Document.Posted=true через OData оказался ненадёжен: 1С отвечала
+     * 200 OK, но реальных движений по складу не формировала, пока документ не открывали в самой
+     * 1С и не нажимали "Провести" вручную) — бухгалтер проводит его в 1С сам. Требование-накладную
+     * тоже не трогает — её проводит отдельно кнопка "Завершить" (см. {@link #completeRequisition}).
      */
     @Transactional
     public ProductionRequest receiveLine(Long requestId, Long lineId, BigDecimal receivedQuantity, String by) {
@@ -752,9 +754,6 @@ public class ProductionRequestService {
         // позиций, оприходуются по одной, спамить на каждую не нужно. Одна сводная
         // нотификация уходит по кнопке "Завершить" (см. completeRequisition/notifyReceivedSummary).
         oneCProductionSyncService.trySyncRequest(request);
-        if (allReceived) {
-            oneCProductionSyncService.tryPostReport(request);
-        }
         return request;
     }
 

@@ -9,7 +9,6 @@ import com.confectionery.crm.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,12 +35,11 @@ import java.util.Map;
  * реально используется только для ручных корректировок остатков без производства (найденный
  * товар и т.п.) — этому сервису здесь и место.
  *
- * <p>Запускается двумя путями: вручную кнопкой "Общее оприходование" на странице
- * "Поступления" (см. web/mobile), и автоматически раз в сутки в 20:00 ({@link
- * #scheduledPostDailyReceipts}) — на случай, если зав. складом забыл нажать кнопку сам. Оба
- * пути вызывают один и тот же {@link #postDailyReceipts}, который просто берёт все ещё не
- * выгруженные движения за день — если кнопку уже нажимали и всё выгрузили, повторный запуск
- * (в т.ч. из расписания) найдёт 0 движений и ничего не сделает.
+ * <p>Запускается только вручную кнопкой "Общее оприходование" на странице "Поступления" (см.
+ * web/mobile) — {@link #postDailyReceipts} создаёт документ сразу проведённым (Posted:true), а
+ * ежедневный автозапуск по расписанию в 20:00 убран (2026-09-22, по той же причине, что и
+ * автопроведение заказов/отчёта производства — риск, что 1С вернёт 200 OK, но реальных движений
+ * по складу не сформирует, лучше подтверждать явным кликом, а не тихим будильником).
  */
 @Slf4j
 @Service
@@ -64,23 +62,6 @@ public class OneCReceiptSyncService {
     private String warehouseKey;
     @Value("${crm.onec.receipt-price-type-key:9a6a136a-e4a6-11f0-8ef7-5254007c5efd}")
     private String receiptPriceTypeKey;
-
-    /** Автоматический прогон за СЕГОДНЯ в 20:00 — на случай, если зав. складом забыл нажать кнопку сам. */
-    @Scheduled(cron = "${crm.onec.post-cron:0 0 20 * * *}")
-    public void scheduledPostDailyReceipts() {
-        if (!oneCClient.isConfigured()) {
-            return;
-        }
-        try {
-            PostReceiptsResult result = postDailyReceipts(LocalDate.now());
-            if (result.movementsCount() > 0 || !result.unresolved().isEmpty()) {
-                log.info("Автооприходование в 1С за {}: позиций {}, документ №{}, не сопоставлено: {}",
-                        LocalDate.now(), result.movementsCount(), result.documentNumber(), result.unresolved());
-            }
-        } catch (Exception e) {
-            log.warn("Не удалось выполнить автооприходование в 1С: {}", e.getMessage());
-        }
-    }
 
     /**
      * Вызывается и кнопкой "Общее оприходование", и расписанием выше. Берёт все ещё не

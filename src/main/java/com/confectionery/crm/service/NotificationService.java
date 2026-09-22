@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
 public class NotificationService {
 
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+    private static final int MESSAGE_MAX_LENGTH = 2000; // должно совпадать с Notification.message length
 
     private final NotificationRepository notificationRepository;
     private final JavaMailSender mailSender;
@@ -43,6 +44,7 @@ public class NotificationService {
     private boolean emailEnabled;
 
     public Notification notify(String recipient, String message, Order order) {
+        message = truncate(message);
         Notification notification = new Notification();
         notification.setRecipient(recipient);
         notification.setMessage(message);
@@ -54,6 +56,15 @@ public class NotificationService {
 
         log.info("[Уведомление -> {}] {}", recipient, message);
         return notificationRepository.save(notification);
+    }
+
+    /** Защита от переполнения {@code notifications.message varchar(2000)} — например, список
+     * несопоставленных документов 1С может оказаться сколь угодно длинным. */
+    private String truncate(String message) {
+        if (message == null || message.length() <= MESSAGE_MAX_LENGTH) {
+            return message;
+        }
+        return message.substring(0, MESSAGE_MAX_LENGTH - 1) + "…";
     }
 
     private boolean trySendEmail(String recipient, String message) {
@@ -77,6 +88,7 @@ public class NotificationService {
      * просто без реальной отправки push.
      */
     public Notification notifyRole(Role role, String message, Order order) {
+        message = truncate(message);
         Notification notification = new Notification();
         notification.setRecipient("role:" + role.name());
         notification.setMessage(message);
