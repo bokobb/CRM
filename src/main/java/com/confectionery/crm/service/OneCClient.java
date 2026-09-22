@@ -663,11 +663,12 @@ class OneCClient {
      * (товар физически не списывался, требовалось открыть документ в 1С и нажать "Провести"
      * вручную) — поэтому для "Реализации" CRM больше не вызывает этот метод вообще, проведение
      * заказов теперь только вручную в 1С (см. OrderService.ship). Остаётся в использовании для
-     * "Требования-накладной" (см. OneCProductionSyncService.postRequisition) и "Поступления
-     * товаров и услуг" (см. OneCPurchaseSyncService) — отдельным PATCH после создания
-     * НЕпроведённого документа, где такой проблемы не наблюдалось (в отличие от Posted:true
-     * прямо в теле создания — см. историю в OneCPurchaseSyncService, там это не срабатывало
-     * молча, документ оставался непроведённым). {@code entitySet} — имя набора документа.
+     * "Требования-накладной" (см. OneCProductionSyncService.postRequisition), где такой
+     * проблемы не наблюдалось. Для "Поступления товаров и услуг" (закупки) этот метод НЕ
+     * подходит по другой причине — 1С возвращает {@code 405 Not Allowed} на PATCH этого типа
+     * документа (похоже на ограничение прав OData-пользователя в 1cFresh именно на этот
+     * документ, см. OneCPurchaseSyncService), поэтому закупки остаются непроведёнными. {@code
+     * entitySet} — имя набора документа.
      */
     void postDocument(String entitySet, String ref) {
         restClient.patch()
@@ -759,8 +760,9 @@ class OneCClient {
     }
 
     /**
-     * Создаёт НЕпроведённый документ "Поступление товаров и услуг" — проводится отдельным
-     * PATCH сразу после ({@link #postDocument}), см. OneCPurchaseSyncService.
+     * Создаёт НЕпроведённый документ "Поступление товаров и услуг" — бухгалтер проводит сам в
+     * 1С, см. OneCPurchaseSyncService (там же — почему {@link #postDocument} для этого типа
+     * документа не подходит).
      */
     CreatedDocument createGoodsReceiptDocument(Map<String, Object> body) {
         JsonNode response = restClient.post()
