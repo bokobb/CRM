@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -23,6 +24,11 @@ import java.util.Set;
  * продукция" на складе готовой продукции обновляет {@link Product#getQuantityInStock()},
  * счёт "Сырье и материалы" на складе сырья обновляет {@link Ingredient#getQuantityInStock()}.
  * Сопоставление — по точному названию номенклатуры (см. ProductMatcher для товаров).
+ *
+ * <p>Пропускается, если давно не было реальных пользователей (см. {@link UserActivityTracker},
+ * {@code crm.onec.idle-skip-minutes}) — запрос к 1С медленный (полный перебор справочника
+ * номенклатуры + регистра остатков), гонять его каждые 5 минут круглые сутки ради данных,
+ * которые в этот момент никто не смотрит, не нужно (2026-09-22, жалоба на общее замедление).
  */
 @Slf4j
 @Service
@@ -35,6 +41,7 @@ public class OneCStockSyncService {
     private final OneCClient oneCClient;
     private final ProductRepository productRepository;
     private final IngredientRepository ingredientRepository;
+    private final UserActivityTracker userActivityTracker;
 
     @Value("${crm.onec.finished-goods-account-code:1320}")
     private String finishedGoodsAccountCode;
@@ -44,11 +51,17 @@ public class OneCStockSyncService {
     private String finishedGoodsWarehouseKey;
     @Value("${crm.onec.materials-warehouse-key:ca2e388a-4f43-11f1-9670-5254007c5efd}")
     private String materialsWarehouseKey;
+    @Value("${crm.onec.idle-skip-minutes:10}")
+    private int idleSkipMinutes;
 
     @Scheduled(cron = "${crm.onec.sync-cron:0 0 * * * *}")
     public void scheduledSync() {
         if (!oneCClient.isConfigured()) {
             log.debug("Синхронизация с 1С не настроена (crm.onec.base-url/username/password пусты) — пропускаю");
+            return;
+        }
+        if (!userActivityTracker.recentlyActive(Duration.ofMinutes(idleSkipMinutes))) {
+            log.debug("Пользователи неактивны более {} мин — пропускаю синхронизацию с 1С", idleSkipMinutes);
             return;
         }
         try {

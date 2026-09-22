@@ -11,10 +11,12 @@ import com.confectionery.crm.repository.IngredientRepository;
 import com.confectionery.crm.repository.PurchaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -58,11 +60,23 @@ public class OneCPurchaseImportService {
     private final IngredientRepository ingredientRepository;
     private final StockService stockService;
     private final NotificationService notificationService;
+    private final UserActivityTracker userActivityTracker;
 
-    /** Каждые 5 минут в рабочее время (7:00–18:55) — симметрично {@link OneCOrderImportService#scheduledImport()}. */
+    @Value("${crm.onec.idle-skip-minutes:10}")
+    private int idleSkipMinutes;
+
+    /**
+     * Каждые 5 минут в рабочее время (7:00–18:55) — симметрично
+     * {@link OneCOrderImportService#scheduledImport()}, включая пропуск при неактивности
+     * пользователей (см. {@link UserActivityTracker}, {@code crm.onec.idle-skip-minutes}).
+     */
     @Scheduled(cron = "${crm.onec.document-import-cron:0 */5 7-18 * * *}")
     public void scheduledImport() {
         if (!oneCClient.isConfigured()) {
+            return;
+        }
+        if (!userActivityTracker.recentlyActive(Duration.ofMinutes(idleSkipMinutes))) {
+            log.debug("Пользователи неактивны более {} мин — пропускаю импорт закупок из 1С", idleSkipMinutes);
             return;
         }
         try {
