@@ -771,7 +771,9 @@ input.qty-input {
 }
 .shop-tabbar a.active { color: var(--accent-dark); font-weight: 600; }
 .shop-tab-icon { position: relative; display: inline-block; font-size: 20px; line-height: 1; }
-.shop-content-with-tabbar { padding-bottom: 12px; }
+/* Отступ под закреплённую панель (~60px) с запасом + нижняя «чёлка» iPhone — иначе последняя
+   карточка (кнопка «Повторить заказ», последний товар) пряталась под панелью. */
+.shop-content-with-tabbar { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 .shop-tab-badge {
   position: absolute;
   top: -6px;
