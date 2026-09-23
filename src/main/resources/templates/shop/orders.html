@@ -29,7 +29,7 @@
 
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
 
-        <div th:each="row : ${rows}" class="shop-order-card">
+        <div th:each="row : ${rows}" class="shop-order-card items-closed">
             <div class="shop-order-top">
                 <div>
                     <div class="shop-order-date"
@@ -96,13 +96,17 @@
             if (!window.shopReturnsToggleBound) {
                 window.shopReturnsToggleBound = true;
                 document.addEventListener('click', function (e) {
-                    var items = e.target.closest && e.target.closest('.shop-items-toggle');
-                    if (items) {
-                        items.closest('.shop-order-card').classList.toggle('items-closed');
+                    if (!e.target.closest) return;
+                    var btn = e.target.closest('.shop-returns-toggle');
+                    if (!btn) {
+                        // Нажатие в любом месте карточки открывает/скрывает состав заказа (по
+                        // умолчанию скрыт) — кроме кнопок, форм и раскрытого списка возвратов.
+                        var card = e.target.closest('.shop-order-card');
+                        if (card && !e.target.closest('button:not(.shop-items-toggle), form, a, .shop-returns')) {
+                            card.classList.toggle('items-closed');
+                        }
                         return;
                     }
-                    var btn = e.target.closest && e.target.closest('.shop-returns-toggle');
-                    if (!btn) return;
                     var card = btn.closest('.shop-order-card');
                     var open = card.classList.toggle('returns-open');
                     btn.textContent = open ? 'Скрыть возврат' : 'Показать возврат (' + btn.dataset.count + ')';

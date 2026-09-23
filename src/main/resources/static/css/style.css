@@ -486,6 +486,8 @@ a.stat-card:hover { border-color: var(--accent); }
 
 /* История заказов клиента (/shop/orders) — карточка на заказ с кнопкой "Повторить заказ". */
 .shop-order-card {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
