@@ -23,9 +23,12 @@ public interface ProductReturnRepository extends JpaRepository<ProductReturn, Lo
 
     List<ProductReturn> findByOrderIdOrderByCreatedAtDesc(Long orderId);
 
-    /** Сумма возвратов за период по дате возврата — вычитается из продаж на дашборде. */
+    /**
+     * Сумма возвратов за период по дате возврата — вычитается из продаж на дашборде. Только
+     * закреплённые за заказом: незакреплённый возврат нейтрален, пока его не привязали.
+     */
     @Query("SELECT COALESCE(SUM(i.price * i.quantity), 0) FROM ProductReturn r JOIN r.items i " +
-            "WHERE r.returnDate BETWEEN :from AND :to")
+            "WHERE r.order IS NOT NULL AND r.returnDate BETWEEN :from AND :to")
     BigDecimal sumBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
     boolean existsByItems_Product_Id(Long productId);

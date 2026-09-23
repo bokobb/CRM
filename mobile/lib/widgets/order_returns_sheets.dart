@@ -5,7 +5,7 @@ import '../screens/returns_screen.dart';
 import '../services/api_client.dart';
 import 'error_view.dart';
 import 'format.dart';
-import 'receipt_card.dart';
+import 'returns_receipt.dart';
 
 /// Расчёт по заказу с учётом закреплённых возвратов: "Заказ − Возврат = Итого" — открывается
 /// долгим нажатием на карточку заказа (см. orders_screen.dart). Отсюда же открывается любой
@@ -82,7 +82,10 @@ class _CalculationSheetState extends State<_CalculationSheet> {
                 ] else ...[
                   _row('Возврат (${returns.length})', '−${formatMoney(returnTotal)}', color: returnColor),
                   const SizedBox(height: 8),
-                  _receipt(returns),
+                  ReturnsReceipt(
+                    returns: returns,
+                    onTap: (r) => showReturnDetails(context, r, onChanged: _reload),
+                  ),
                 ],
                 const Divider(height: 24),
                 _row('Итого', formatMoney(widget.orderTotal - returnTotal), bold: true),
@@ -130,62 +133,6 @@ class _CalculationSheetState extends State<_CalculationSheet> {
         );
         if (saved != null && mounted) _reload();
       },
-    );
-  }
-
-  static const _mono = TextStyle(fontFamily: 'monospace', fontSize: 13, color: Color(0xFF2B1F1A));
-  static const _monoMuted = TextStyle(fontFamily: 'monospace', fontSize: 11.5, color: Color(0xFFB8A88F));
-
-  /// Позиции всех закреплённых возвратов в виде кассового чека: наименование · кол-во · сумма.
-  /// Нажатие на строку открывает её возврат (изменить/удалить).
-  Widget _receipt(List<ProductReturn> returns) {
-    Widget line(Widget name, Widget qty, Widget sum) => Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: name),
-        SizedBox(
-          width: 56,
-          child: Align(alignment: Alignment.centerRight, child: qty),
-        ),
-        SizedBox(
-          width: 96,
-          child: Align(alignment: Alignment.centerRight, child: sum),
-        ),
-      ],
-    );
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE3D9C8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          line(
-            const Text('НАИМЕНОВАНИЕ', style: _monoMuted),
-            const Text('КОЛ-ВО', style: _monoMuted),
-            const Text('СУММА', style: _monoMuted),
-          ),
-          const SizedBox(height: 6),
-          const ReceiptDashedLine(),
-          const SizedBox(height: 4),
-          for (final r in returns)
-            for (final i in r.items)
-              InkWell(
-                onTap: () => showReturnDetails(context, r, onChanged: _reload),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: line(
-                    Text(i.productName, style: _mono),
-                    Text(formatQty(i.quantity), style: _mono),
-                    Text(formatMoney(i.sum), style: _mono.copyWith(fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ),
-        ],
-      ),
     );
   }
 

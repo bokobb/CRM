@@ -54,7 +54,7 @@ public class OneCStockSyncService {
     @Value("${crm.onec.idle-skip-minutes:10}")
     private int idleSkipMinutes;
 
-    @Scheduled(cron = "${crm.onec.sync-cron:0 0 * * * *}")
+    @Scheduled(cron = "${crm.onec.sync-cron:0 0 * * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
     public void scheduledSync() {
         if (!oneCClient.isConfigured()) {
             log.debug("Синхронизация с 1С не настроена (crm.onec.base-url/username/password пусты) — пропускаю");

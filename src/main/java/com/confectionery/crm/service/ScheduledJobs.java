@@ -22,7 +22,7 @@ public class ScheduledJobs {
     private final OrderService orderService;
     private final NotificationService notificationService;
 
-    @Scheduled(cron = "${crm.stock.low-stock-check-cron}")
+    @Scheduled(cron = "${crm.stock.low-stock-check-cron}", zone = "${crm.schedule-zone:GMT+05:00}")
     public void checkLowStock() {
         for (Ingredient ingredient : ingredientService.findLowStock()) {
             String prefix = "Низкий остаток: " + ingredient.getName();
@@ -38,7 +38,7 @@ public class ScheduledJobs {
      * нужны его API-ключи), поэтому "SMS бухгалтеру" реализовано как push/лог-уведомление роли
      * ACCOUNTANT — тем же каналом, что и остальные уведомления в приложении.
      */
-    @Scheduled(cron = "${crm.debts.overdue-check-cron}")
+    @Scheduled(cron = "${crm.debts.overdue-check-cron}", zone = "${crm.schedule-zone:GMT+05:00}")
     public void checkOverdueDebts() {
         for (Order order : orderService.findOverdueDebts()) {
             String prefix = "Просрочен долг по заказу №" + order.getId();

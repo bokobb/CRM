@@ -60,7 +60,7 @@ public class OneCReturnImportService {
      * Каждые 5 минут — но только если пользователи недавно были активны (см.
      * {@link UserActivityTracker}, {@code crm.onec.idle-skip-minutes}): без них 1С не трогаем.
      */
-    @Scheduled(cron = "${crm.onec.return-import-cron:0 */5 * * * *}")
+    @Scheduled(cron = "${crm.onec.return-import-cron:0 */5 * * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
     public void scheduledImport() {
         if (!oneCClient.isConfigured()) {
             return;

@@ -7,6 +7,7 @@ import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/returns_receipt.dart';
 import '../widgets/searchable_app_bar.dart';
 import 'return_form_screen.dart';
 
@@ -149,37 +150,24 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                         );
                       }
                       final r = returns[index - 1];
-                      final itemsSummary = r.items.map((i) => '${i.productName} × ${formatQty(i.quantity)}').join(', ');
                       final syncing = _syncingIds.contains(r.id);
                       return AppListTile(
                         leadingIcon: Icons.assignment_return_outlined,
                         leadingColor: returnColor,
-                        title: '№${r.id} · ${r.clientName}',
-                        subtitle: [
-                          itemsSummary,
-                          formatDate(r.returnDate),
-                          if (r.reason != null) r.reason!,
-                          r.orderId != null ? 'заказ #${r.orderId}' : 'не закреплён',
-                        ].join(' · '),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        title: r.clientName,
+                        subtitle: formatDate(r.returnDate),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(formatMoney(r.totalSum)),
-                            const SizedBox(width: 6),
+                            Text(formatMoney(r.totalSum), style: const TextStyle(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 4),
                             if (syncing)
-                              const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                            else if (r.oneCSyncError != null)
-                              IconButton(
-                                icon: const Icon(Icons.sync_problem, color: Colors.red),
-                                tooltip: _canResync ? '${r.oneCSyncError}\nНажмите, чтобы повторить' : r.oneCSyncError,
-                                onPressed: _canResync ? () => _syncOneC(r) : null,
-                              )
-                            else if (r.oneCDocumentNumber != null)
-                              Icon(
-                                Icons.check_circle_outline,
-                                color: const Color(0xFF4C8A5E),
-                                size: 20,
-                                semanticLabel: 'В 1С №${r.oneCDocumentNumber}',
+                              const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            else
+                              GestureDetector(
+                                onTap: r.oneCSyncError != null && _canResync ? () => _syncOneC(r) : null,
+                                child: ReturnStatusChip(r),
                               ),
                           ],
                         ),
@@ -192,6 +180,31 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Статус возврата: ошибка выгрузки в 1С (красный), закреплён за заказом — учитывается на
+/// дашборде (зелёный), не закреплён — нейтральный, на дашборд не влияет (серый).
+class ReturnStatusChip extends StatelessWidget {
+  final ProductReturn r;
+
+  const ReturnStatusChip(this.r, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, fg, bg) = r.oneCSyncError != null
+        ? ('Ошибка 1С', const Color(0xFFB8433F), const Color(0xFFF6E0DF))
+        : r.orderId != null
+        ? ('Заказ #${r.orderId}', const Color(0xFF4C8A5E), const Color(0xFFE3F0E6))
+        : ('Не закреплён', const Color(0xFF777777), const Color(0xFFEEEEEE));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Text(
+        label,
+        style: TextStyle(color: fg, fontSize: 11.5, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -212,35 +225,26 @@ void showReturnDetails(BuildContext context, ProductReturn r, {VoidCallback? onC
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Возврат №${r.id} · ${r.clientName}', style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Возврат №${r.id} · ${r.clientName}', style: Theme.of(context).textTheme.titleMedium),
+                ),
+                ReturnStatusChip(r),
+              ],
+            ),
             const SizedBox(height: 4),
             Text(
               [
                 formatDate(r.returnDate),
+                if (r.oneCDocumentNumber != null) '1С №${r.oneCDocumentNumber}',
                 if (r.reason != null) r.reason!,
-                r.orderId != null ? 'закреплён за заказом #${r.orderId}' : 'не закреплён за заказом',
               ].join(' · '),
               style: const TextStyle(color: Colors.grey),
             ),
-            if (r.oneCDocumentNumber != null)
-              Text('1С: документ №${r.oneCDocumentNumber}', style: const TextStyle(color: Colors.grey)),
             if (r.oneCSyncError != null) Text(r.oneCSyncError!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 8),
-            for (final i in r.items)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(i.productName),
-                subtitle: Text('${formatQty(i.quantity)} × ${formatMoney(i.price)}'),
-                trailing: Text(formatMoney(i.sum)),
-              ),
-            const Divider(),
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Итого', style: TextStyle(fontWeight: FontWeight.bold)),
-              trailing: Text(formatMoney(r.totalSum), style: const TextStyle(fontWeight: FontWeight.bold)),
-            ),
+            const SizedBox(height: 12),
+            ReturnsReceipt(returns: [r], showTotal: true),
             const SizedBox(height: 8),
             Row(
               children: [

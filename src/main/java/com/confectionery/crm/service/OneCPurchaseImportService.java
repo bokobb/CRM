@@ -70,7 +70,7 @@ public class OneCPurchaseImportService {
      * {@link OneCOrderImportService#scheduledImport()}, включая пропуск при неактивности
      * пользователей (см. {@link UserActivityTracker}, {@code crm.onec.idle-skip-minutes}).
      */
-    @Scheduled(cron = "${crm.onec.document-import-cron:0 */5 7-18 * * *}")
+    @Scheduled(cron = "${crm.onec.document-import-cron:0 */5 7-18 * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
     public void scheduledImport() {
         if (!oneCClient.isConfigured()) {
             return;

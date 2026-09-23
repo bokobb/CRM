@@ -90,7 +90,7 @@ public class OneCOrderImportService {
      * пользователей (см. {@link UserActivityTracker}, {@code crm.onec.idle-skip-minutes}) —
      * запрос к 1С медленный, гонять его без надобности не стоит.
      */
-    @Scheduled(cron = "${crm.onec.document-import-cron:0 */5 7-18 * * *}")
+    @Scheduled(cron = "${crm.onec.document-import-cron:0 */5 7-18 * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
     public void scheduledImport() {
         if (!oneCClient.isConfigured()) {
             return;
