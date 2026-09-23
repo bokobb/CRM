@@ -61,7 +61,7 @@ public class DashboardController {
         model.addAttribute("pendingTasks", productionTaskService.findByStatus(ProductionTaskStatus.PENDING).size());
         // Фактическая продажа — за вычетом возвратов за тот же период (как в мобильном дашборде).
         model.addAttribute("salesTotal", orderRepository.sumSalesBetween(start, end)
-                .subtract(productReturnRepository.sumBetween(rangeFrom, rangeTo)));
+                .subtract(productReturnRepository.sumForSalesBetween(start, end)));
         model.addAttribute("lowStock", ingredientService.findLowStock());
         model.addAttribute("orderGroups",
                 notificationService.grouped(10, 10, start, end, userService.roleOf(authentication.getName())).orderGroups());

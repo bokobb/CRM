@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,12 +25,15 @@ public interface ProductReturnRepository extends JpaRepository<ProductReturn, Lo
     List<ProductReturn> findByOrderIdOrderByCreatedAtDesc(Long orderId);
 
     /**
-     * Сумма возвратов за период по дате возврата — вычитается из продаж на дашборде. Только
-     * закреплённые за заказом: незакреплённый возврат нейтрален, пока его не привязали.
+     * Сумма возвратов, вычитаемая из продаж на дашборде: только закреплённые за заказом
+     * (незакреплённый возврат нейтрален) и по той же дате, по которой засчитана сама продажа —
+     * дате отгрузки заказа (см. OrderRepository.sumSalesBetween), а не дате оформления
+     * возврата: возврат по вчерашнему заказу уменьшает вчерашнюю продажу.
      */
-    @Query("SELECT COALESCE(SUM(i.price * i.quantity), 0) FROM ProductReturn r JOIN r.items i " +
-            "WHERE r.order IS NOT NULL AND r.returnDate BETWEEN :from AND :to")
-    BigDecimal sumBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
+    @Query("SELECT COALESCE(SUM(i.price * i.quantity), 0) FROM ProductReturn r JOIN r.items i JOIN r.order o " +
+            "WHERE o.status IN (com.confectionery.crm.domain.OrderStatus.DELIVERED, com.confectionery.crm.domain.OrderStatus.COMPLETED) " +
+            "AND o.shippedAt BETWEEN :start AND :end")
+    BigDecimal sumForSalesBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     boolean existsByItems_Product_Id(Long productId);
 

@@ -46,7 +46,7 @@ public class DashboardApiController {
 
         var grouped = notificationService.grouped(8, 8, start, end, userService.roleOf(authentication.getName()));
         BigDecimal grossSales = orderRepository.sumSalesBetween(start, end);
-        BigDecimal returns = productReturnRepository.sumBetween(rangeFrom, rangeTo);
+        BigDecimal returns = productReturnRepository.sumForSalesBetween(start, end);
         return new DashboardDto(
                 rangeFrom, rangeTo,
                 orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.NEW, start, end),
