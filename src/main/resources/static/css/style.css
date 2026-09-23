@@ -538,6 +538,37 @@ a.stat-card:hover { border-color: var(--accent); }
 .shop-return-reason { color: var(--muted); font-size: 12.5px; margin-bottom: 4px; }
 .shop-return .shop-order-items { margin-bottom: 0; }
 
+/* Состав заказа — сворачивается/разворачивается нажатием (по умолчанию открыт). */
+.shop-items-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 0;
+  margin-bottom: 2px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  cursor: pointer;
+}
+.shop-items-toggle .chevron { font-size: 18px; line-height: 1; transition: transform .3s ease; }
+.shop-order-card.items-closed .shop-items-toggle .chevron { transform: rotate(-90deg); }
+.shop-items-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: top center;
+  transition: grid-template-rows .35s ease, opacity .3s ease, transform .35s cubic-bezier(.34,1.56,.64,1);
+}
+.shop-items-collapse-inner { overflow: hidden; min-height: 0; }
+.shop-order-card.items-closed .shop-items-collapse { grid-template-rows: 0fr; opacity: 0; transform: scale(0.92); }
+.shop-order-card.items-closed .shop-items-collapse .shop-order-items { margin-bottom: 8px; }
+
 /* Недельный фильтр истории заказов. */
 .shop-week-nav {
   display: flex;

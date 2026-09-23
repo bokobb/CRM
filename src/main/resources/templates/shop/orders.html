@@ -43,13 +43,21 @@
                 </div>
             </div>
 
-            <ul class="shop-order-items">
-                <li th:each="it : ${row.items}">
-                    <span class="name" th:text="${it.name}"></span>
-                    <span class="qty" th:text="${it.qtyLabel}"></span>
-                    <span class="sum" th:text="${it.sumLabel}"></span>
-                </li>
-            </ul>
+            <button class="shop-items-toggle" type="button">
+                <span th:text="'Состав заказа (' + ${#lists.size(row.items)} + ')'"></span>
+                <span class="chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="shop-items-collapse">
+                <div class="shop-items-collapse-inner">
+                    <ul class="shop-order-items">
+                        <li th:each="it : ${row.items}">
+                            <span class="name" th:text="${it.name}"></span>
+                            <span class="qty" th:text="${it.qtyLabel}"></span>
+                            <span class="sum" th:text="${it.sumLabel}"></span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
 
             <div class="shop-order-actions">
                 <form th:action="@{/shop/orders/{id}/repeat(id=${row.order.id})}" method="post" data-turbo="false">
@@ -88,6 +96,11 @@
             if (!window.shopReturnsToggleBound) {
                 window.shopReturnsToggleBound = true;
                 document.addEventListener('click', function (e) {
+                    var items = e.target.closest && e.target.closest('.shop-items-toggle');
+                    if (items) {
+                        items.closest('.shop-order-card').classList.toggle('items-closed');
+                        return;
+                    }
                     var btn = e.target.closest && e.target.closest('.shop-returns-toggle');
                     if (!btn) return;
                     var card = btn.closest('.shop-order-card');
