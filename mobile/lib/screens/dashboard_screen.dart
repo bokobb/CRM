@@ -114,9 +114,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Продажи за ${_rangeLabel(d.from, d.to)}',
+                                'Фактическая продажа за ${_rangeLabel(d.from, d.to)}',
                                 style: const TextStyle(color: Colors.white70, fontSize: 13),
                               ),
+                              if (d.returnsTotal > 0) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Продано ${formatMoney(d.grossSalesTotal)} · возвраты −${formatMoney(d.returnsTotal)}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                ),
+                              ],
                             ],
                           ),
                         ),

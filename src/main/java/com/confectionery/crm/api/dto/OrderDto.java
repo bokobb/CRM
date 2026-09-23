@@ -24,7 +24,10 @@ public record OrderDto(
         boolean debtPaid,
         boolean fromWhatsapp,
         List<OrderItemDto> items,
-        List<ProductionTaskDto> productionTasks
+        List<ProductionTaskDto> productionTasks,
+        BigDecimal returnTotal,
+        BigDecimal netTotal,
+        int returnsCount
 ) {
     public static OrderDto from(Order o) {
         return new OrderDto(
@@ -34,7 +37,8 @@ public record OrderDto(
                 o.getVehicleNumber(), o.getShippedAt(), o.getShippedByName(),
                 o.getDebtDueDate(), Boolean.TRUE.equals(o.getDebtPaid()), Boolean.TRUE.equals(o.getFromWhatsapp()),
                 o.getItems().stream().map(OrderItemDto::from).toList(),
-                o.getProductionTasks().stream().map(ProductionTaskDto::from).toList()
+                o.getProductionTasks().stream().map(ProductionTaskDto::from).toList(),
+                o.getReturnTotal(), o.getNetTotal(), o.getReturns().size()
         );
     }
 
@@ -42,6 +46,7 @@ public record OrderDto(
         return new OrderSummaryDto(o.getId(), o.getClient().getId(), o.getClient().getName(),
                 o.getStatus().name(), o.getStatus().getLabel(), o.getCreatedAt(), o.getDueDate(), o.getTotalPrice(),
                 o.getVehicleNumber(), o.getShippedAt(), o.getDebtDueDate(), Boolean.TRUE.equals(o.getDebtPaid()),
-                Boolean.TRUE.equals(o.getFromWhatsapp()));
+                Boolean.TRUE.equals(o.getFromWhatsapp()),
+                o.getReturnTotal(), o.getNetTotal(), o.getReturns().size());
     }
 }

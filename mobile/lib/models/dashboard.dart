@@ -7,7 +7,10 @@ class Dashboard {
   final DateTime to;
   final int newOrders;
   final int readyOrders;
+  /// Фактическая продажа — отгружено минус возвраты за период.
   final double todaySalesTotal;
+  final double grossSalesTotal;
+  final double returnsTotal;
   final List<Ingredient> lowStock;
   final List<OrderNotificationGroup> orderNotifications;
   final List<AppNotification> generalNotifications;
@@ -18,6 +21,8 @@ class Dashboard {
     required this.newOrders,
     required this.readyOrders,
     required this.todaySalesTotal,
+    this.grossSalesTotal = 0,
+    this.returnsTotal = 0,
     required this.lowStock,
     required this.orderNotifications,
     required this.generalNotifications,
@@ -29,6 +34,8 @@ class Dashboard {
     newOrders: json['newOrders'] as int,
     readyOrders: json['readyOrders'] as int,
     todaySalesTotal: (json['todaySalesTotal'] as num).toDouble(),
+    grossSalesTotal: (json['grossSalesTotal'] as num?)?.toDouble() ?? 0,
+    returnsTotal: (json['returnsTotal'] as num?)?.toDouble() ?? 0,
     lowStock: (json['lowStock'] as List)
         .map((e) => Ingredient.fromJson(e as Map<String, dynamic>))
         .toList(),

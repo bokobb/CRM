@@ -72,6 +72,10 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionTask> productionTasks = new ArrayList<>();
 
+    /** Возвраты, закреплённые за заказом (см. ProductReturn.order) — без каскада, возврат живёт сам по себе. */
+    @OneToMany(mappedBy = "order")
+    private List<ProductReturn> returns = new ArrayList<>();
+
     public void addItem(OrderItem item) {
         item.setOrder(this);
         items.add(item);
@@ -81,5 +85,16 @@ public class Order {
         return items.stream()
                 .map(i -> i.getPrice().multiply(i.getQuantity()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal getReturnTotal() {
+        return returns.stream()
+                .map(ProductReturn::getTotalSum)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** Фактическая сумма заказа: заказано минус закреплённые возвраты. */
+    public BigDecimal getNetTotal() {
+        return getTotalPrice().subtract(getReturnTotal());
     }
 }

@@ -810,6 +810,82 @@ class OneCClient {
         return new CreatedDocument(response.path("Ref_Key").asText(""), response.path("Number").asText(""));
     }
 
+    /**
+     * Шаблон-заготовка шапки документа "Возврат товаров от покупателя" — по белому списку, по той
+     * же причине, что и у "Поступления" (см. {@link #findAnyGoodsReceiptTemplate()}). В базе клиента
+     * бухгалтер уже заводит такие возвраты руками на склад "Испорченные товары" — с них и берём
+     * счета расчётов. Null, если в 1С ещё нет ни одного такого документа.
+     */
+    Map<String, Object> findAnyCustomerReturnTemplate() {
+        JsonNode response = restClient.get()
+                .uri(b -> b.path("/Document_ВозвратТоваровОтПокупателя")
+                        .queryParam("$format", "json")
+                        .queryParam("$filter", "Posted eq true")
+                        .queryParam("$top", 1)
+                        .build())
+                .retrieve()
+                .body(JsonNode.class);
+        JsonNode values = response.path("value");
+        if (values.isEmpty()) return null;
+        return extractFields(values.get(0), CUSTOMER_RETURN_HEADER_FIELDS);
+    }
+
+    private static final List<String> CUSTOMER_RETURN_HEADER_FIELDS = List.of(
+            "ВалютаДокумента_Key", "ВидУчетаНУ_Key", "КурсВзаиморасчетов", "КратностьВзаиморасчетов",
+            "СуммаВключаетНДС", "УчитыватьНДС", "СуммаВключаетАкциз", "УчитыватьАкциз", "УчитыватьКПН",
+            "СчетУчетаРасчетовСКонтрагентом_Key", "СчетУчетаРасчетовПоВозвратам_Key");
+
+    /**
+     * Шаблон-заготовка строки "Товары" документа "Возврат товаров от покупателя" — счета учёта,
+     * доходов и списания себестоимости одинаковы для всех товаров, различается только
+     * аналитика по номенклатурной группе/номенклатуре (её подставляет OneCReturnSyncService).
+     * Null, если в 1С ещё нет ни одного проведённого возврата.
+     */
+    Map<String, Object> findAnyCustomerReturnLineTemplate() {
+        JsonNode response = restClient.get()
+                .uri(b -> b.path("/Document_ВозвратТоваровОтПокупателя_Товары")
+                        .queryParam("$format", "json")
+                        .queryParam("$top", 1)
+                        .build())
+                .retrieve()
+                .body(JsonNode.class);
+        JsonNode values = response.path("value");
+        if (values.isEmpty()) return null;
+        return extractFields(values.get(0), CUSTOMER_RETURN_LINE_FIELDS);
+    }
+
+    // Третьи субконто НУ (СубконтоДоходовНУ3/СубконтоСписанияСебестоимостиНУ3) в образце пустые с
+    // типом Undefined — не копируем, иначе jsonToJava подставит нулевой GUID в поле без типа.
+    private static final List<String> CUSTOMER_RETURN_LINE_FIELDS = List.of(
+            "ЕдиницаИзмерения_Key", "Коэффициент", "СтавкаНДС_Key",
+            "СчетУчетаБУ_Key", "СчетУчетаНУ_Key",
+            "СчетДоходовБУ_Key",
+            "СубконтоДоходовБУ1", "СубконтоДоходовБУ1_Type", "СубконтоДоходовБУ2_Type",
+            "СубконтоДоходовБУ3", "СубконтоДоходовБУ3_Type",
+            "СчетДоходовНУ_Key",
+            "СубконтоДоходовНУ1", "СубконтоДоходовНУ1_Type", "СубконтоДоходовНУ2_Type",
+            "СчетСписанияСебестоимостиБУ_Key",
+            "СубконтоСписанияСебестоимостиБУ1", "СубконтоСписанияСебестоимостиБУ1_Type",
+            "СубконтоСписанияСебестоимостиБУ2_Type",
+            "СубконтоСписанияСебестоимостиБУ3", "СубконтоСписанияСебестоимостиБУ3_Type",
+            "СчетСписанияСебестоимостиНУ_Key",
+            "СубконтоСписанияСебестоимостиНУ1", "СубконтоСписанияСебестоимостиНУ1_Type",
+            "СубконтоСписанияСебестоимостиНУ2_Type",
+            "СчетУчетаНДСПоРеализации_Key", "НДСВидОперацииРеализации_Key",
+            "СтавкаАкциза_Key", "СчетУчетаАкцизаПоРеализации_Key", "АкцизВидОперацииРеализации_Key");
+
+    /** Создаёт документ "Возврат товаров от покупателя" непроведённым — проводится следом через {@link #postDocument}. */
+    CreatedDocument createCustomerReturn(Map<String, Object> body) {
+        JsonNode response = restClient.post()
+                .uri(b -> b.path("/Document_ВозвратТоваровОтПокупателя")
+                        .queryParam("$format", "json")
+                        .build())
+                .body(body)
+                .retrieve()
+                .body(JsonNode.class);
+        return new CreatedDocument(response.path("Ref_Key").asText(""), response.path("Number").asText(""));
+    }
+
     /** Создаёт и сразу проводит (Posted:true) документ "Оприходование товаров" — см. OneCReceiptSyncService. */
     CreatedDocument createReceiptDocument(Map<String, Object> body) {
         JsonNode response = restClient.post()

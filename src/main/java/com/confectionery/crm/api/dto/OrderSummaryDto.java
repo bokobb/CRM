@@ -18,6 +18,9 @@ public record OrderSummaryDto(
         LocalDateTime shippedAt,
         LocalDate debtDueDate,
         boolean debtPaid,
-        boolean fromWhatsapp
+        boolean fromWhatsapp,
+        BigDecimal returnTotal,
+        BigDecimal netTotal,
+        int returnsCount
 ) {
 }

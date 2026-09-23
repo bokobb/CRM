@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../models/order.dart';
 import '../services/api_client.dart';
+import 'returns_screen.dart';
 import '../widgets/app_choice_chip.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/order_returns_sheets.dart';
 import '../widgets/status_badge.dart';
 
 /// Аргументы навигации на экран заказов с предустановленным фильтром — используется,
@@ -157,12 +159,34 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             ? const Color(0xFFC99A2E)
                             : (o.fromWhatsapp ? const Color(0xFF25D366) : null),
                         title: '#${o.id} · ${o.clientName}',
-                        subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}',
-                        trailing: StatusBadge(status: o.status, label: o.statusLabel),
+                        subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}'
+                            '${o.returnsCount > 0 ? ' · возврат −${formatMoney(o.returnTotal)}' : ''}',
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Закрепить возврат за заказом; оранжевая — возврат уже закреплён.
+                            IconButton(
+                              icon: Icon(
+                                o.returnsCount > 0 ? Icons.assignment_return : Icons.assignment_return_outlined,
+                                color: o.returnsCount > 0 ? returnColor : Colors.grey,
+                              ),
+                              tooltip: 'Возвраты по заказу',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () async {
+                                await showAttachReturnSheet(context,
+                                    orderId: o.id, clientId: o.clientId, clientName: o.clientName);
+                                _refresh();
+                              },
+                            ),
+                            StatusBadge(status: o.status, label: o.statusLabel),
+                          ],
+                        ),
                         onTap: () async {
                           await Navigator.of(context).pushNamed('/orders/detail', arguments: o.id);
                           _refresh();
                         },
+                        onLongPress: () => showOrderReturnsCalculation(context,
+                            orderId: o.id, clientName: o.clientName, orderTotal: o.totalPrice),
                       );
                     },
                   );

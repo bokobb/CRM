@@ -30,6 +30,7 @@ import 'screens/production_request_form_screen.dart';
 import 'screens/production_requests_screen.dart';
 import 'screens/production_screen.dart';
 import 'screens/purchases_screen.dart';
+import 'screens/returns_screen.dart';
 import 'screens/recipe_screen.dart';
 import 'screens/recipes_screen.dart';
 import 'screens/settings_screen.dart';
@@ -242,6 +243,11 @@ class CrmApp extends StatelessWidget {
           case '/notifications':
             return MaterialPageRoute(
               builder: (_) => const NotificationsScreen(),
+              settings: settings,
+            );
+          case '/returns':
+            return MaterialPageRoute(
+              builder: (_) => const ReturnsScreen(),
               settings: settings,
             );
           case '/debts':

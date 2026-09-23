@@ -9,7 +9,10 @@ public record DashboardDto(
         LocalDate to,
         long newOrders,
         long readyOrders,
+        /** Фактическая продажа: отгружено минус возвраты за период. */
         BigDecimal todaySalesTotal,
+        BigDecimal grossSalesTotal,
+        BigDecimal returnsTotal,
         List<IngredientDto> lowStock,
         List<OrderNotificationGroupDto> orderNotifications,
         List<NotificationDto> generalNotifications

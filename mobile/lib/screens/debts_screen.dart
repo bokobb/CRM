@@ -84,7 +84,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
                       : const Color(0xFFD9A73F),
                   title: '#${o.id} · ${o.clientName}',
                   subtitle:
-                      '${formatMoney(o.totalPrice)} · срок ${formatDate(o.debtDueDate!)}'
+                      '${formatMoney(o.netTotal)}${o.returnsCount > 0 ? ' (с учётом возврата)' : ''} · срок ${formatDate(o.debtDueDate!)}'
                       '${overdue ? " · просрочен" : ""}',
                   trailing: Icon(
                     Icons.chevron_right,

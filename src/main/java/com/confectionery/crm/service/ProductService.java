@@ -10,6 +10,7 @@ import com.confectionery.crm.repository.IngredientRepository;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductAliasRepository;
 import com.confectionery.crm.repository.ProductRepository;
+import com.confectionery.crm.repository.ProductReturnRepository;
 import com.confectionery.crm.repository.ProductionRequestRepository;
 import com.confectionery.crm.repository.RecipeRepository;
 import com.confectionery.crm.repository.StockMovementRepository;
@@ -39,6 +40,7 @@ public class ProductService {
     private final StockMovementRepository stockMovementRepository;
     private final ProductionRequestRepository productionRequestRepository;
     private final WhatsAppInboundMessageRepository whatsAppInboundMessageRepository;
+    private final ProductReturnRepository productReturnRepository;
 
     public List<Product> findAll() {
         return productRepository.findAll();
@@ -90,7 +92,8 @@ public class ProductService {
         boolean hasHistory = orderRepository.existsByItems_Product_Id(id)
                 || stockMovementRepository.existsByProductId(id)
                 || productionRequestRepository.existsByLinesProductId(id)
-                || whatsAppInboundMessageRepository.existsByItems_Product_Id(id);
+                || whatsAppInboundMessageRepository.existsByItems_Product_Id(id)
+                || productReturnRepository.existsByItems_Product_Id(id);
         if (hasHistory) {
             product.setActive(false);
             productRepository.save(product);

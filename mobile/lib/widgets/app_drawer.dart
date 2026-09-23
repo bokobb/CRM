@@ -17,6 +17,7 @@ const _productionRequests = ('/production-requests', 'Заявки на сырь
 const _productionReport = ('/production-requests/report', 'Отчёт', Icons.summarize_outlined);
 const _purchases = ('/purchases', 'Покупки', Icons.local_shipping_outlined);
 const _debts = ('/debts', 'Долги', Icons.hourglass_bottom_outlined);
+const _returns = ('/returns', 'Возвраты', Icons.assignment_return_outlined);
 const _whatsappInbox = ('/whatsapp-inbox', 'WhatsApp-заказы', Icons.chat_bubble_outline);
 const _notifications = (
   '/notifications',
@@ -39,6 +40,7 @@ class AppDrawer extends StatelessWidget {
         return [
           _dashboard,
           _orders,
+          _returns,
           _productionRequests,
           _purchases,
           _products,
@@ -53,9 +55,9 @@ class AppDrawer extends StatelessWidget {
           _notifications,
         ];
       case 'SALES':
-        return [_dashboard, _orders, _clients, _products, _recipes, _whatsappInbox, _notifications];
+        return [_dashboard, _orders, _returns, _clients, _products, _recipes, _whatsappInbox, _notifications];
       case 'WAREHOUSE_FG':
-        return [_orders, _productionRequests, _warehouse, _ingredientWarehouse, _productionReport, _notifications];
+        return [_orders, _returns, _productionRequests, _warehouse, _ingredientWarehouse, _productionReport, _notifications];
       case 'WAREHOUSE_RAW':
         // Дашборд по производству (не по заказам — см. DashboardScreen), заявки (сборка по
         // чек-листу), покупки (приход от поставщиков) и склад сырья (остатки/поступления/

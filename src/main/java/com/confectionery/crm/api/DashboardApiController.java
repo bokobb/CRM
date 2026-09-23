@@ -6,6 +6,7 @@ import com.confectionery.crm.api.dto.ProductionDashboardDto;
 import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.repository.OrderRepository;
+import com.confectionery.crm.repository.ProductReturnRepository;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.NotificationService;
 import com.confectionery.crm.service.ProductionRequestService;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -26,6 +28,7 @@ import java.time.LocalDateTime;
 public class DashboardApiController {
 
     private final OrderRepository orderRepository;
+    private final ProductReturnRepository productReturnRepository;
     private final IngredientService ingredientService;
     private final NotificationService notificationService;
     private final UserService userService;
@@ -42,11 +45,15 @@ public class DashboardApiController {
         LocalDateTime end = rangeTo.plusDays(1).atStartOfDay();
 
         var grouped = notificationService.grouped(8, 8, start, end, userService.roleOf(authentication.getName()));
+        BigDecimal grossSales = orderRepository.sumSalesBetween(start, end);
+        BigDecimal returns = productReturnRepository.sumBetween(rangeFrom, rangeTo);
         return new DashboardDto(
                 rangeFrom, rangeTo,
                 orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.NEW, start, end),
                 orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.READY, start, end),
-                orderRepository.sumSalesBetween(start, end),
+                grossSales.subtract(returns),
+                grossSales,
+                returns,
                 ingredientService.findLowStock().stream().map(IngredientDto::from).toList(),
                 grouped.orderGroups(),
                 grouped.general()

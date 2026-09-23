@@ -4,6 +4,7 @@ import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.domain.ProductionTaskStatus;
 import com.confectionery.crm.repository.OrderRepository;
+import com.confectionery.crm.repository.ProductReturnRepository;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.NotificationService;
 import com.confectionery.crm.service.ProductionRequestService;
@@ -24,6 +25,7 @@ import java.time.LocalDateTime;
 public class DashboardController {
 
     private final OrderRepository orderRepository;
+    private final ProductReturnRepository productReturnRepository;
     private final IngredientService ingredientService;
     private final NotificationService notificationService;
     private final ProductionTaskService productionTaskService;
@@ -57,7 +59,9 @@ public class DashboardController {
         model.addAttribute("inProduction", orderRepository.countByStatus(OrderStatus.IN_PRODUCTION));
         model.addAttribute("readyOrders", orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.READY, start, end));
         model.addAttribute("pendingTasks", productionTaskService.findByStatus(ProductionTaskStatus.PENDING).size());
-        model.addAttribute("salesTotal", orderRepository.sumSalesBetween(start, end));
+        // Фактическая продажа — за вычетом возвратов за тот же период (как в мобильном дашборде).
+        model.addAttribute("salesTotal", orderRepository.sumSalesBetween(start, end)
+                .subtract(productReturnRepository.sumBetween(rangeFrom, rangeTo)));
         model.addAttribute("lowStock", ingredientService.findLowStock());
         model.addAttribute("orderGroups",
                 notificationService.grouped(10, 10, start, end, userService.roleOf(authentication.getName())).orderGroups());

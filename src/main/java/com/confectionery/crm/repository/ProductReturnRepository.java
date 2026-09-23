@@ -1,0 +1,31 @@
+package com.confectionery.crm.repository;
+
+import com.confectionery.crm.domain.ProductReturn;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+
+public interface ProductReturnRepository extends JpaRepository<ProductReturn, Long> {
+
+    List<ProductReturn> findByReturnDateBetweenOrderByCreatedAtDesc(LocalDate from, LocalDate to);
+
+    List<ProductReturn> findAllByOrderByCreatedAtDesc();
+
+    List<ProductReturn> findByClientIdOrderByCreatedAtDesc(Long clientId);
+
+    /** Возвраты клиента, ещё не закреплённые ни за одним заказом — выбор в карточке заказа. */
+    List<ProductReturn> findByClientIdAndOrderIsNullOrderByCreatedAtDesc(Long clientId);
+
+    List<ProductReturn> findByOrderIdOrderByCreatedAtDesc(Long orderId);
+
+    /** Сумма возвратов за период по дате возврата — вычитается из продаж на дашборде. */
+    @Query("SELECT COALESCE(SUM(i.price * i.quantity), 0) FROM ProductReturn r JOIN r.items i " +
+            "WHERE r.returnDate BETWEEN :from AND :to")
+    BigDecimal sumBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    boolean existsByItems_Product_Id(Long productId);
+}

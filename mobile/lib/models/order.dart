@@ -124,6 +124,11 @@ class OrderSummary {
   final bool debtPaid;
   final bool fromWhatsapp;
 
+  /// Сумма закреплённых возвратов (см. ProductReturn) и заказ за их вычетом.
+  final double returnTotal;
+  final double netTotal;
+  final int returnsCount;
+
   bool get hasUnpaidDebt => debtDueDate != null && !debtPaid;
 
   OrderSummary({
@@ -140,6 +145,9 @@ class OrderSummary {
     this.debtDueDate,
     this.debtPaid = false,
     this.fromWhatsapp = false,
+    this.returnTotal = 0,
+    required this.netTotal,
+    this.returnsCount = 0,
   });
 
   factory OrderSummary.fromJson(Map<String, dynamic> json) => OrderSummary(
@@ -162,6 +170,9 @@ class OrderSummary {
         : null,
     debtPaid: json['debtPaid'] as bool? ?? false,
     fromWhatsapp: json['fromWhatsapp'] as bool? ?? false,
+    returnTotal: (json['returnTotal'] as num?)?.toDouble() ?? 0,
+    netTotal: (json['netTotal'] as num? ?? json['totalPrice'] as num).toDouble(),
+    returnsCount: json['returnsCount'] as int? ?? 0,
   );
 }
 
@@ -183,6 +194,9 @@ class Order {
   final bool fromWhatsapp;
   final List<OrderItem> items;
   final List<ProductionTask> productionTasks;
+  final double returnTotal;
+  final double netTotal;
+  final int returnsCount;
 
   bool get hasUnpaidDebt => debtDueDate != null && !debtPaid;
 
@@ -204,6 +218,9 @@ class Order {
     this.fromWhatsapp = false,
     required this.items,
     required this.productionTasks,
+    this.returnTotal = 0,
+    required this.netTotal,
+    this.returnsCount = 0,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) => Order(
@@ -234,6 +251,9 @@ class Order {
     productionTasks: (json['productionTasks'] as List)
         .map((e) => ProductionTask.fromJson(e as Map<String, dynamic>))
         .toList(),
+    returnTotal: (json['returnTotal'] as num?)?.toDouble() ?? 0,
+    netTotal: (json['netTotal'] as num? ?? json['totalPrice'] as num).toDouble(),
+    returnsCount: json['returnsCount'] as int? ?? 0,
   );
 
   /// Копия с другим списком позиций — см. ApiClient._withAbsoluteOrderImages.
@@ -255,5 +275,8 @@ class Order {
     fromWhatsapp: fromWhatsapp,
     items: items,
     productionTasks: productionTasks,
+    returnTotal: returnTotal,
+    netTotal: netTotal,
+    returnsCount: returnsCount,
   );
 }

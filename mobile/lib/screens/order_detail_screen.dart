@@ -9,10 +9,12 @@ import '../services/invoice_pdf.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/order_returns_sheets.dart';
 import '../widgets/product_avatar.dart';
 import '../widgets/receipt_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/success_feedback.dart';
+import 'returns_screen.dart' show returnColor;
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -562,6 +564,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
+                        if (o.returnsCount > 0) ...[
+                          ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.assignment_return, color: returnColor),
+                            title: Text('Возврат (${o.returnsCount})'),
+                            trailing: Text('−${formatMoney(o.returnTotal)}', style: const TextStyle(color: returnColor)),
+                            onTap: () => showOrderReturnsCalculation(context,
+                                orderId: o.id, clientName: o.clientName, orderTotal: o.totalPrice),
+                          ),
+                          ListTile(
+                            title: const Text('Итого с возвратом', style: TextStyle(fontWeight: FontWeight.bold)),
+                            trailing: Text(formatMoney(o.netTotal), style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
                       ],
                     ),
                   ),

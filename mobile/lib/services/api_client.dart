@@ -15,6 +15,7 @@ import '../models/ingredient.dart';
 import '../models/notification.dart';
 import '../models/order.dart';
 import '../models/product.dart';
+import '../models/product_return.dart';
 import '../models/production_request.dart';
 import '../models/purchase.dart';
 import '../models/user.dart';
@@ -912,6 +913,82 @@ class ApiClient {
     final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
     return _withAbsolutePurchaseImage(Purchase.fromJson(_decode(res)));
+  }
+
+  // ---- Возвраты испорченного товара ----
+  Future<List<ProductReturn>> _getReturns(Map<String, String>? query) async {
+    final res = await http.get(await _uri('/returns', query), headers: await _authHeaders());
+    return (_decode(res) as List).map((e) => ProductReturn.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<List<ProductReturn>> getReturns({DateTime? from, DateTime? to}) => _getReturns(_rangeQuery(from, to));
+
+  /// Возвраты, закреплённые за заказом — для расчёта "Заказ − Возврат = Итого".
+  Future<List<ProductReturn>> getOrderReturns(int orderId) => _getReturns({'orderId': '$orderId'});
+
+  /// Ещё не закреплённые ни за одним заказом возвраты клиента — выбор в карточке заказа.
+  Future<List<ProductReturn>> getUnattachedReturns(int clientId) =>
+      _getReturns({'clientId': '$clientId', 'unattached': 'true'});
+
+  static String _returnBody(int clientId, List<(int, double, double?)> items, DateTime? returnDate, String? reason) =>
+      jsonEncode({
+        'clientId': clientId,
+        'items': items.map((e) => {'productId': e.$1, 'quantity': e.$2, 'price': e.$3}).toList(),
+        'returnDate': returnDate == null ? null : _isoDate(returnDate),
+        'reason': reason,
+      });
+
+  /// [items]: (productId, quantity, price) — price null означает "цена клиента" (решает сервер).
+  Future<ProductReturn> createReturn({
+    required int clientId,
+    required List<(int, double, double?)> items,
+    DateTime? returnDate,
+    String? reason,
+  }) async {
+    final res = await http.post(
+      await _uri('/returns'),
+      headers: await _authHeaders(),
+      body: _returnBody(clientId, items, returnDate, reason),
+    );
+    return ProductReturn.fromJson(_decode(res));
+  }
+
+  /// Правка возврата — сервер распроводит документ в 1С, перезаписывает и проводит заново.
+  Future<ProductReturn> updateReturn(
+    int id, {
+    required int clientId,
+    required List<(int, double, double?)> items,
+    DateTime? returnDate,
+    String? reason,
+  }) async {
+    final res = await http.put(
+      await _uri('/returns/$id'),
+      headers: await _authHeaders(),
+      body: _returnBody(clientId, items, returnDate, reason),
+    );
+    return ProductReturn.fromJson(_decode(res));
+  }
+
+  /// Удаление — сервер сначала распроводит документ в 1С и помечает его на удаление.
+  Future<void> deleteReturn(int id) async {
+    final res = await http.delete(await _uri('/returns/$id'), headers: await _authHeaders());
+    _decode(res);
+  }
+
+  Future<ProductReturn> attachReturn(int returnId, int orderId) async {
+    final res = await http.put(await _uri('/returns/$returnId/order/$orderId'), headers: await _authHeaders());
+    return ProductReturn.fromJson(_decode(res));
+  }
+
+  Future<ProductReturn> detachReturn(int returnId) async {
+    final res = await http.delete(await _uri('/returns/$returnId/order'), headers: await _authHeaders());
+    return ProductReturn.fromJson(_decode(res));
+  }
+
+  /// Повторная выгрузка возврата в 1С — если автоматическая при создании не прошла.
+  Future<ProductReturn> syncReturnOneC(int id) async {
+    final res = await http.post(await _uri('/returns/$id/sync-1c'), headers: await _authHeaders());
+    return ProductReturn.fromJson(_decode(res));
   }
 
   // ---- Orders ----
