@@ -218,63 +218,70 @@ void showReturnDetails(BuildContext context, ProductReturn r, {VoidCallback? onC
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     builder: (context) => SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('Возврат №${r.id} · ${r.clientName}', style: Theme.of(context).textTheme.titleMedium),
-                ),
-                ReturnStatusChip(r),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              [
-                formatDate(r.returnDate),
-                if (r.oneCDocumentNumber != null) '1С №${r.oneCDocumentNumber}',
-                if (r.reason != null) r.reason!,
-              ].join(' · '),
-              style: const TextStyle(color: Colors.grey),
-            ),
-            if (r.oneCSyncError != null) Text(r.oneCSyncError!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 12),
-            ReturnsReceipt(returns: [r], showTotal: true),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if (canDelete) ...[
+        // Шапка и кнопки на виду, прокручивается только чек (длинный возврат не влезал в экран).
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
                   Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      label: const Text('Удалить'),
+                    child: Text('Возврат №${r.id} · ${r.clientName}', style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  ReturnStatusChip(r),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                [
+                  formatDate(r.returnDate),
+                  if (r.oneCDocumentNumber != null) '1С №${r.oneCDocumentNumber}',
+                  if (r.reason != null) r.reason!,
+                ].join(' · '),
+                style: const TextStyle(color: Colors.grey),
+              ),
+              if (r.oneCSyncError != null) Text(r.oneCSyncError!, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 12),
+              Flexible(
+                child: SingleChildScrollView(child: ReturnsReceipt(returns: [r], showTotal: true)),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (canDelete) ...[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Удалить'),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          if (await _deleteReturn(outerContext, r)) onChanged?.call();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Изменить'),
                       onPressed: () async {
                         Navigator.pop(context);
-                        if (await _deleteReturn(outerContext, r)) onChanged?.call();
+                        if (await openReturnForm(outerContext, initial: r) != null) onChanged?.call();
                       },
                     ),
                   ),
-                  const SizedBox(width: 12),
                 ],
-                Expanded(
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: const Text('Изменить'),
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      if (await openReturnForm(outerContext, initial: r) != null) onChanged?.call();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     ),

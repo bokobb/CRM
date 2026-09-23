@@ -20,6 +20,7 @@ Future<void> showOrderReturnsCalculation(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     builder: (context) =>
         _CalculationSheet(orderId: orderId, clientId: clientId, clientName: clientName, orderTotal: orderTotal),
   );
@@ -66,47 +67,59 @@ class _CalculationSheetState extends State<_CalculationSheet> {
             }
             final returns = snapshot.data!;
             final returnTotal = returns.fold<double>(0, (s, r) => s + r.totalSum);
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Заказ #${widget.orderId} · ${widget.clientName}', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                _row('Сумма заказа', formatMoney(widget.orderTotal)),
-                if (returns.isEmpty) ...[
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('Возвратов по заказу нет', style: TextStyle(color: Colors.grey)),
+            // Шапка и итог с кнопками всегда на виду, прокручивается только чек — иначе при
+            // длинном возврате низ окна уезжал за экран и до кнопок было не добраться.
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Заказ #${widget.orderId} · ${widget.clientName}',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  _createButton(),
-                ] else ...[
-                  _row('Возврат (${returns.length})', '−${formatMoney(returnTotal)}', color: returnColor),
-                  const SizedBox(height: 8),
-                  ReturnsReceipt(
-                    returns: returns,
-                    onTap: (r) => showReturnDetails(context, r, onChanged: _reload),
+                  const SizedBox(height: 12),
+                  _row('Сумма заказа', formatMoney(widget.orderTotal)),
+                  if (returns.isEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('Возвратов по заказу нет', style: TextStyle(color: Colors.grey)),
+                    ),
+                    _createButton(),
+                  ] else ...[
+                    _row('Возврат (${returns.length})', '−${formatMoney(returnTotal)}', color: returnColor),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: ReturnsReceipt(
+                          returns: returns,
+                          onTap: (r) => showReturnDetails(context, r, onChanged: _reload),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const Divider(height: 24),
+                  _row('Итого', formatMoney(widget.orderTotal - returnTotal), bold: true),
+                  if (returns.isNotEmpty) ...[const SizedBox(height: 8), _createButton()],
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.link, size: 18),
+                      label: const Text('Закрепить созданный ранее возврат'),
+                      onPressed: () async {
+                        await showAttachReturnSheet(
+                          context,
+                          orderId: widget.orderId,
+                          clientId: widget.clientId,
+                          clientName: widget.clientName,
+                        );
+                        _reload();
+                      },
+                    ),
                   ),
                 ],
-                const Divider(height: 24),
-                _row('Итого', formatMoney(widget.orderTotal - returnTotal), bold: true),
-                if (returns.isNotEmpty) ...[const SizedBox(height: 8), _createButton()],
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.link, size: 18),
-                    label: const Text('Закрепить созданный ранее возврат'),
-                    onPressed: () async {
-                      await showAttachReturnSheet(
-                        context,
-                        orderId: widget.orderId,
-                        clientId: widget.clientId,
-                        clientName: widget.clientName,
-                      );
-                      _reload();
-                    },
-                  ),
-                ),
-              ],
+              ),
             );
           },
         ),
