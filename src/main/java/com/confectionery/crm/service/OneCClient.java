@@ -875,6 +875,73 @@ class OneCClient {
             "СчетУчетаНДСПоРеализации_Key", "НДСВидОперацииРеализации_Key",
             "СтавкаАкциза_Key", "СчетУчетаАкцизаПоРеализации_Key", "АкцизВидОперацииРеализации_Key");
 
+    /**
+     * Шапки ВСЕХ документов "Возврат товаров от покупателя" (и проведённых, и черновиков, и
+     * помеченных на удаление) — источник для OneCReturnImportService, тот же формат, что у
+     * {@link #fetchSaleHeaders()}.
+     */
+    List<SaleHeader> fetchCustomerReturnHeaders() {
+        List<SaleHeader> headers = new ArrayList<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Document_ВозвратТоваровОтПокупателя")
+                            .queryParam("$format", "json")
+                            .queryParam("$select", "Ref_Key,Number,Date,Комментарий,Контрагент_Key,Posted,DeletionMark")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                headers.add(new SaleHeader(
+                        item.path("Ref_Key").asText(""),
+                        item.path("Number").asText(""),
+                        item.path("Date").asText(""),
+                        item.path("Комментарий").asText(""),
+                        item.path("Контрагент_Key").asText(""),
+                        item.path("Posted").asBoolean(false),
+                        item.path("DeletionMark").asBoolean(false)
+                ));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return headers;
+    }
+
+    /** Строки "Товары" ВСЕХ документов "Возврат товаров от покупателя" — parentRef = Ref_Key документа. */
+    List<SaleLine> fetchCustomerReturnLines() {
+        List<SaleLine> lines = new ArrayList<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Document_ВозвратТоваровОтПокупателя_Товары")
+                            .queryParam("$format", "json")
+                            .queryParam("$select", "Ref_Key,Номенклатура_Key,Количество,Цена")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                lines.add(new SaleLine(
+                        item.path("Ref_Key").asText(""),
+                        item.path("Номенклатура_Key").asText(""),
+                        item.path("Количество").decimalValue(),
+                        item.path("Цена").decimalValue()
+                ));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return lines;
+    }
+
     /** Создаёт документ "Возврат товаров от покупателя" непроведённым — проводится следом через {@link #postDocument}. */
     CreatedDocument createCustomerReturn(Map<String, Object> body) {
         JsonNode response = restClient.post()

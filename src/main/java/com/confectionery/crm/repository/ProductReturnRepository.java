@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface ProductReturnRepository extends JpaRepository<ProductReturn, Long> {
 
@@ -28,4 +29,7 @@ public interface ProductReturnRepository extends JpaRepository<ProductReturn, Lo
     BigDecimal sumBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
     boolean existsByItems_Product_Id(Long productId);
+
+    /** Документ 1С уже есть в CRM (создан CRM или импортирован) — дедупликация в OneCReturnImportService. */
+    Optional<ProductReturn> findByOneCDocumentKey(String oneCDocumentKey);
 }
