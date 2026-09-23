@@ -57,10 +57,14 @@ public class ProductReturnService {
     }
 
     @Transactional
-    public ProductReturn create(Long clientId, List<ItemInput> items, LocalDate returnDate, String reason, String createdBy) {
+    public ProductReturn create(Long clientId, List<ItemInput> items, LocalDate returnDate, String reason,
+                                Long orderId, String createdBy) {
         ProductReturn productReturn = new ProductReturn();
         productReturn.setCreatedBy(createdBy);
         fill(productReturn, clientId, items, returnDate, reason);
+        if (orderId != null) {
+            productReturn.setOrder(findOrderOfSameClient(orderId, productReturn));
+        }
         productReturn = productReturnRepository.save(productReturn);
         oneCReturnSyncService.trySync(productReturn);
         return productReturn;
@@ -128,14 +132,18 @@ public class ProductReturnService {
     @Transactional
     public ProductReturn attach(Long returnId, Long orderId) {
         ProductReturn productReturn = findById(returnId);
+        productReturn.setOrder(findOrderOfSameClient(orderId, productReturn));
+        return productReturnRepository.save(productReturn);
+    }
+
+    private Order findOrderOfSameClient(Long orderId, ProductReturn productReturn) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Заказ не найден: " + orderId));
         if (!order.getClient().getId().equals(productReturn.getClient().getId())) {
             throw new IllegalArgumentException("Возврат другого клиента — закрепить можно только за заказом «"
                     + productReturn.getClient().getName() + "»");
         }
-        productReturn.setOrder(order);
-        return productReturnRepository.save(productReturn);
+        return order;
     }
 
     @Transactional

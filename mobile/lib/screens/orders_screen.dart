@@ -161,32 +161,41 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         title: '#${o.id} · ${o.clientName}',
                         subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}'
                             '${o.returnsCount > 0 ? ' · возврат −${formatMoney(o.returnTotal)}' : ''}',
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        // Статус сверху, иконка возврата — в правом нижнем углу карточки: сразу
+                        // открывает форму возврата по этому заказу (клиент уже выбран).
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            // Закрепить возврат за заказом; оранжевая — возврат уже закреплён.
-                            IconButton(
-                              icon: Icon(
-                                o.returnsCount > 0 ? Icons.assignment_return : Icons.assignment_return_outlined,
-                                color: o.returnsCount > 0 ? returnColor : Colors.grey,
-                              ),
-                              tooltip: 'Возвраты по заказу',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: () async {
-                                await showAttachReturnSheet(context,
-                                    orderId: o.id, clientId: o.clientId, clientName: o.clientName);
-                                _refresh();
-                              },
-                            ),
                             StatusBadge(status: o.status, label: o.statusLabel),
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () async {
+                                final saved = await openReturnForm(context,
+                                    clientId: o.clientId, clientName: o.clientName, orderId: o.id);
+                                if (saved != null) _refresh();
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Icon(
+                                  o.returnsCount > 0 ? Icons.assignment_return : Icons.assignment_return_outlined,
+                                  size: 22,
+                                  color: o.returnsCount > 0 ? returnColor : Colors.grey,
+                                  semanticLabel: 'Оформить возврат',
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                         onTap: () async {
                           await Navigator.of(context).pushNamed('/orders/detail', arguments: o.id);
                           _refresh();
                         },
-                        onLongPress: () => showOrderReturnsCalculation(context,
-                            orderId: o.id, clientName: o.clientName, orderTotal: o.totalPrice),
+                        onLongPress: () async {
+                          await showOrderReturnsCalculation(context,
+                              orderId: o.id, clientId: o.clientId, clientName: o.clientName, orderTotal: o.totalPrice);
+                          _refresh();
+                        },
                       );
                     },
                   );

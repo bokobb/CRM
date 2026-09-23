@@ -54,7 +54,7 @@ public class ProductReturnApiController {
     @PostMapping
     public ProductReturnDto create(@Valid @RequestBody ProductReturnRequest req, Authentication authentication) {
         return ProductReturnDto.from(productReturnService.create(
-                req.clientId(), toItems(req), req.returnDate(), req.reason(), authentication.getName()));
+                req.clientId(), toItems(req), req.returnDate(), req.reason(), req.orderId(), authentication.getName()));
     }
 
     private static List<ProductReturnService.ItemInput> toItems(ProductReturnRequest req) {

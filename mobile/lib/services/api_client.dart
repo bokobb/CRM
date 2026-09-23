@@ -930,25 +930,33 @@ class ApiClient {
   Future<List<ProductReturn>> getUnattachedReturns(int clientId) =>
       _getReturns({'clientId': '$clientId', 'unattached': 'true'});
 
-  static String _returnBody(int clientId, List<(int, double, double?)> items, DateTime? returnDate, String? reason) =>
-      jsonEncode({
-        'clientId': clientId,
-        'items': items.map((e) => {'productId': e.$1, 'quantity': e.$2, 'price': e.$3}).toList(),
-        'returnDate': returnDate == null ? null : _isoDate(returnDate),
-        'reason': reason,
-      });
+  static String _returnBody(
+    int clientId,
+    List<(int, double, double?)> items,
+    DateTime? returnDate,
+    String? reason, [
+    int? orderId,
+  ]) => jsonEncode({
+    'clientId': clientId,
+    'items': items.map((e) => {'productId': e.$1, 'quantity': e.$2, 'price': e.$3}).toList(),
+    'returnDate': returnDate == null ? null : _isoDate(returnDate),
+    'reason': reason,
+    'orderId': orderId,
+  });
 
   /// [items]: (productId, quantity, price) — price null означает "цена клиента" (решает сервер).
+  /// [orderId] — создание с карточки заказа: возврат сразу закрепляется за ним.
   Future<ProductReturn> createReturn({
     required int clientId,
     required List<(int, double, double?)> items,
     DateTime? returnDate,
     String? reason,
+    int? orderId,
   }) async {
     final res = await http.post(
       await _uri('/returns'),
       headers: await _authHeaders(),
-      body: _returnBody(clientId, items, returnDate, reason),
+      body: _returnBody(clientId, items, returnDate, reason, orderId),
     );
     return ProductReturn.fromJson(_decode(res));
   }

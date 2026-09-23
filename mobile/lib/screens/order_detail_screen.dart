@@ -570,8 +570,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             leading: const Icon(Icons.assignment_return, color: returnColor),
                             title: Text('Возврат (${o.returnsCount})'),
                             trailing: Text('−${formatMoney(o.returnTotal)}', style: const TextStyle(color: returnColor)),
-                            onTap: () => showOrderReturnsCalculation(context,
-                                orderId: o.id, clientName: o.clientName, orderTotal: o.totalPrice),
+                            onTap: () async {
+                              await showOrderReturnsCalculation(context,
+                                  orderId: o.id, clientId: o.clientId, clientName: o.clientName, orderTotal: o.totalPrice);
+                              _refresh();
+                            },
                           ),
                           ListTile(
                             title: const Text('Итого с возвратом', style: TextStyle(fontWeight: FontWeight.bold)),

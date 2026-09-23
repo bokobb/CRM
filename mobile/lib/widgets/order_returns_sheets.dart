@@ -7,26 +7,35 @@ import 'error_view.dart';
 import 'format.dart';
 
 /// Расчёт по заказу с учётом закреплённых возвратов: "Заказ − Возврат = Итого" — открывается
-/// долгим нажатием на карточку заказа (см. orders_screen.dart).
+/// долгим нажатием на карточку заказа (см. orders_screen.dart). Отсюда же открывается любой
+/// возврат (изменить/удалить) и закрепляется созданный ранее в разделе "Возвраты".
 Future<void> showOrderReturnsCalculation(
   BuildContext context, {
   required int orderId,
+  required int clientId,
   required String clientName,
   required double orderTotal,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => _CalculationSheet(orderId: orderId, clientName: clientName, orderTotal: orderTotal),
+    builder: (context) =>
+        _CalculationSheet(orderId: orderId, clientId: clientId, clientName: clientName, orderTotal: orderTotal),
   );
 }
 
 class _CalculationSheet extends StatefulWidget {
   final int orderId;
+  final int clientId;
   final String clientName;
   final double orderTotal;
 
-  const _CalculationSheet({required this.orderId, required this.clientName, required this.orderTotal});
+  const _CalculationSheet({
+    required this.orderId,
+    required this.clientId,
+    required this.clientName,
+    required this.orderTotal,
+  });
 
   @override
   State<_CalculationSheet> createState() => _CalculationSheetState();
@@ -34,6 +43,8 @@ class _CalculationSheet extends StatefulWidget {
 
 class _CalculationSheetState extends State<_CalculationSheet> {
   late Future<List<ProductReturn>> _future = ApiClient().getOrderReturns(widget.orderId);
+
+  void _reload() => setState(() => _future = ApiClient().getOrderReturns(widget.orderId));
 
   @override
   Widget build(BuildContext context) {
@@ -49,10 +60,7 @@ class _CalculationSheetState extends State<_CalculationSheet> {
             if (snapshot.hasError) {
               return SizedBox(
                 height: 140,
-                child: ErrorView(
-                  error: snapshot.error.toString(),
-                  onRetry: () => setState(() => _future = ApiClient().getOrderReturns(widget.orderId)),
-                ),
+                child: ErrorView(error: snapshot.error.toString(), onRetry: _reload),
               );
             }
             final returns = snapshot.data!;
@@ -72,19 +80,43 @@ class _CalculationSheetState extends State<_CalculationSheet> {
                 else ...[
                   _row('Возврат (${returns.length})', '−${formatMoney(returnTotal)}', color: returnColor),
                   for (final r in returns)
-                    for (final i in r.items)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 12, top: 2),
-                        child: Text(
-                          '• ${i.productName} ${formatQty(i.quantity)} × ${formatMoney(i.price)}'
-                          '  (№${r.id}, ${formatDate(r.returnDate)})',
-                          style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                    InkWell(
+                      onTap: () => showReturnDetails(context, r, onChanged: _reload),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 12, top: 2, bottom: 2),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final i in r.items)
+                              Text(
+                                '• ${i.productName} ${formatQty(i.quantity)} × ${formatMoney(i.price)}'
+                                '  (№${r.id}, ${formatDate(r.returnDate)})',
+                                style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                              ),
+                          ],
                         ),
                       ),
+                    ),
                 ],
                 const Divider(height: 24),
                 _row('Итого', formatMoney(widget.orderTotal - returnTotal), bold: true),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.link, size: 18),
+                    label: const Text('Закрепить созданный ранее возврат'),
+                    onPressed: () async {
+                      await showAttachReturnSheet(
+                        context,
+                        orderId: widget.orderId,
+                        clientId: widget.clientId,
+                        clientName: widget.clientName,
+                      );
+                      _reload();
+                    },
+                  ),
+                ),
               ],
             );
           },

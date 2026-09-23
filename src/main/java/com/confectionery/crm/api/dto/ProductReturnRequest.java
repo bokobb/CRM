@@ -12,7 +12,9 @@ public record ProductReturnRequest(
         @NotNull Long clientId,
         @NotEmpty @Valid List<Item> items,
         LocalDate returnDate,
-        String reason
+        String reason,
+        /** Создание с карточки заказа — возврат сразу закрепляется за этим заказом. */
+        Long orderId
 ) {
     /** price — необязательно, по умолчанию цена клиента. */
     public record Item(@NotNull Long productId, @NotNull BigDecimal quantity, BigDecimal price) {
