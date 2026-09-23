@@ -291,6 +291,14 @@ class _DottedLeader extends StatelessWidget {
   }
 }
 
+/// Пунктирный разделитель чека — для экранов, которым нужен стиль чека без всей [ReceiptCard].
+class ReceiptDashedLine extends StatelessWidget {
+  const ReceiptDashedLine({super.key});
+
+  @override
+  Widget build(BuildContext context) => const _DashedLine();
+}
+
 class _DashedLine extends StatelessWidget {
   const _DashedLine();
 

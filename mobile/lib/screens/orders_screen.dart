@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/order.dart';
 import '../services/api_client.dart';
-import 'returns_screen.dart';
 import '../widgets/app_choice_chip.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
@@ -161,32 +160,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         title: '#${o.id} · ${o.clientName}',
                         subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}'
                             '${o.returnsCount > 0 ? ' · возврат −${formatMoney(o.returnTotal)}' : ''}',
-                        // Статус сверху, иконка возврата — в правом нижнем углу карточки: сразу
-                        // открывает форму возврата по этому заказу (клиент уже выбран).
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            StatusBadge(status: o.status, label: o.statusLabel),
-                            InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: () async {
-                                final saved = await openReturnForm(context,
-                                    clientId: o.clientId, clientName: o.clientName, orderId: o.id);
-                                if (saved != null) _refresh();
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.all(2),
-                                child: Icon(
-                                  o.returnsCount > 0 ? Icons.assignment_return : Icons.assignment_return_outlined,
-                                  size: 22,
-                                  color: o.returnsCount > 0 ? returnColor : Colors.grey,
-                                  semanticLabel: 'Оформить возврат',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        trailing: StatusBadge(status: o.status, label: o.statusLabel),
                         onTap: () async {
                           await Navigator.of(context).pushNamed('/orders/detail', arguments: o.id);
                           _refresh();

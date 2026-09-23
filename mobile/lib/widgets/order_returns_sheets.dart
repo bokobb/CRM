@@ -5,6 +5,7 @@ import '../screens/returns_screen.dart';
 import '../services/api_client.dart';
 import 'error_view.dart';
 import 'format.dart';
+import 'receipt_card.dart';
 
 /// Расчёт по заказу с учётом закреплённых возвратов: "Заказ − Возврат = Итого" — открывается
 /// долгим нажатием на карточку заказа (см. orders_screen.dart). Отсюда же открывается любой
@@ -72,35 +73,20 @@ class _CalculationSheetState extends State<_CalculationSheet> {
                 Text('Заказ #${widget.orderId} · ${widget.clientName}', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 _row('Сумма заказа', formatMoney(widget.orderTotal)),
-                if (returns.isEmpty)
+                if (returns.isEmpty) ...[
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
                     child: Text('Возвратов по заказу нет', style: TextStyle(color: Colors.grey)),
-                  )
-                else ...[
+                  ),
+                  _createButton(),
+                ] else ...[
                   _row('Возврат (${returns.length})', '−${formatMoney(returnTotal)}', color: returnColor),
-                  for (final r in returns)
-                    InkWell(
-                      onTap: () => showReturnDetails(context, r, onChanged: _reload),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 12, top: 2, bottom: 2),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (final i in r.items)
-                              Text(
-                                '• ${i.productName} ${formatQty(i.quantity)} × ${formatMoney(i.price)}'
-                                '  (№${r.id}, ${formatDate(r.returnDate)})',
-                                style: const TextStyle(color: Colors.grey, fontSize: 12.5),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  const SizedBox(height: 8),
+                  _receipt(returns),
                 ],
                 const Divider(height: 24),
                 _row('Итого', formatMoney(widget.orderTotal - returnTotal), bold: true),
-                const SizedBox(height: 4),
+                if (returns.isNotEmpty) ...[const SizedBox(height: 8), _createButton()],
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
@@ -121,6 +107,84 @@ class _CalculationSheetState extends State<_CalculationSheet> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  /// Новый возврат по этому заказу — клиент уже выбран, возврат сразу закрепляется за заказом.
+  Widget _createButton() {
+    return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: returnColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+      icon: const Icon(Icons.assignment_return_outlined, size: 20),
+      label: const Text('Создать возврат', style: TextStyle(fontWeight: FontWeight.w700)),
+      onPressed: () async {
+        final saved = await openReturnForm(
+          context,
+          clientId: widget.clientId,
+          clientName: widget.clientName,
+          orderId: widget.orderId,
+        );
+        if (saved != null && mounted) _reload();
+      },
+    );
+  }
+
+  static const _mono = TextStyle(fontFamily: 'monospace', fontSize: 13, color: Color(0xFF2B1F1A));
+  static const _monoMuted = TextStyle(fontFamily: 'monospace', fontSize: 11.5, color: Color(0xFFB8A88F));
+
+  /// Позиции всех закреплённых возвратов в виде кассового чека: наименование · кол-во · сумма.
+  /// Нажатие на строку открывает её возврат (изменить/удалить).
+  Widget _receipt(List<ProductReturn> returns) {
+    Widget line(Widget name, Widget qty, Widget sum) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: name),
+        SizedBox(
+          width: 56,
+          child: Align(alignment: Alignment.centerRight, child: qty),
+        ),
+        SizedBox(
+          width: 96,
+          child: Align(alignment: Alignment.centerRight, child: sum),
+        ),
+      ],
+    );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE3D9C8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          line(
+            const Text('НАИМЕНОВАНИЕ', style: _monoMuted),
+            const Text('КОЛ-ВО', style: _monoMuted),
+            const Text('СУММА', style: _monoMuted),
+          ),
+          const SizedBox(height: 6),
+          const ReceiptDashedLine(),
+          const SizedBox(height: 4),
+          for (final r in returns)
+            for (final i in r.items)
+              InkWell(
+                onTap: () => showReturnDetails(context, r, onChanged: _reload),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: line(
+                    Text(i.productName, style: _mono),
+                    Text(formatQty(i.quantity), style: _mono),
+                    Text(formatMoney(i.sum), style: _mono.copyWith(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+        ],
       ),
     );
   }
