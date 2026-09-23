@@ -58,7 +58,7 @@ public class ProductionRequestController {
         model.addAttribute("activePage", "production-requests");
         LocalDate filterDate = all ? null : (date != null ? date : LocalDate.now());
         List<ProductionRequestSummaryDto> requests = requestService.findAll().stream()
-                .map(ProductionRequestSummaryDto::from)
+                .map(r -> ProductionRequestSummaryDto.from(r, requestService.massSummary(r)))
                 .filter(r -> status == null || status.equals(r.status()))
                 .filter(r -> filterDate == null || filterDate.equals(r.documentDate()))
                 .toList();

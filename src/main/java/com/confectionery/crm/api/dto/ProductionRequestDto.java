@@ -60,7 +60,9 @@ public record ProductionRequestDto(
          */
         static Line from(ProductionRequestLine l, ProductionRequestService.MassSummary massSummary) {
             boolean weighted = massSummary != null && l.getProduct().getNetWeightGrams() != null;
-            boolean insufficient = l.isInsufficient() && !(weighted && !massSummary.isInsufficient());
+            // Фасовки из одного замеса сверяются только по общей массе — построчная разница
+            // между ними ничего не значит (итог по массе — в massSummary: "≈ 8,5 шт. эталона").
+            boolean insufficient = l.isInsufficient() && !weighted;
             return new Line(l.getId(), l.getProduct().getId(), l.getProduct().getName(), l.getProduct().getUnit(),
                     l.getBatches(), l.getPlannedQuantity(), l.getReceivedBy(), l.getReceivedAt(), l.getReceivedQuantity(),
                     insufficient);

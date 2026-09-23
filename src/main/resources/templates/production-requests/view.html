@@ -65,7 +65,7 @@
                 <tr><th>Товар</th><th>Замесов</th><th>≈ Ожидается</th><th>Факт</th><th></th></tr>
                 <tr th:each="l : ${request.lines}"
                     th:with="weighted=${massSummary != null and l.product.netWeightGrams != null},
-                             effInsufficient=${l.insufficient and !(weighted and !massSummary.insufficient)}">
+                             effInsufficient=${l.insufficient and !weighted}">
                     <td th:text="${l.product.name}"></td>
                     <td th:text="${l.batches}"></td>
                     <td th:text="${l.plannedQuantity != null ? (l.plannedQuantity + ' ' + (l.product.unit ?: 'шт')) : '—'}"></td>

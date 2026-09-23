@@ -28,7 +28,8 @@ public class ProductionRequestApiController {
 
     @GetMapping
     public List<ProductionRequestSummaryDto> list() {
-        return requestService.findAll().stream().map(ProductionRequestSummaryDto::from).toList();
+        return requestService.findAll().stream()
+                .map(r -> ProductionRequestSummaryDto.from(r, requestService.massSummary(r))).toList();
     }
 
     @GetMapping("/{id}")

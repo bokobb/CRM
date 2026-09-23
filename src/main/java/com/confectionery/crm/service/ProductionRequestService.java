@@ -192,14 +192,14 @@ public class ProductionRequestService {
     }
 
     /**
-     * Нормы по общей массе хватает (см. {@link #massSummary}) — значит, построчную "недостачу"
-     * по взвешенным товарам показывать не надо. Статический и без обращения к базе, поэтому
-     * годится для списков заявок (см. {@link com.confectionery.crm.api.dto.ProductionRequestSummaryDto}):
-     * там нужен только сам факт "хватает/не хватает", а не товар-эталон для пересчёта в штуки.
+     * То же, что {@link #massSummary}, но без обращения к базе: эталон для пересчёта в штуки —
+     * самый крупный по весу товар среди строк заявки (без явного эталона группы). Для мест, где
+     * сервиса под рукой нет (см. ProductionRequestSummaryDto.from(ProductionRequest)).
      */
-    public static boolean massNormFulfilled(ProductionRequest request) {
+    public static MassSummary massSummaryWithoutLookup(ProductionRequest request) {
         MassTotals totals = massTotals(request);
-        return totals != null && totals.actualGrams().compareTo(totals.plannedGrams()) >= 0;
+        return totals == null ? null : new MassSummary(totals.plannedGrams(), totals.actualGrams(),
+                totals.allWeightedReceived(), totals.fallbackReferenceName(), totals.fallbackReferenceWeight());
     }
 
     /** @return null, если весом отмечено меньше двух позиций — сверка по массе неприменима. */
