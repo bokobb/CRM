@@ -55,8 +55,8 @@ public class OrderService {
     private static final List<OrderStatus> FINAL_STATUSES = List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED);
 
     /**
-     * Заказы, созданные в диапазоне дат [from, to] включительно — для фильтра по дате в
-     * приложении. Незавершённые заказы (см. FINAL_STATUSES) возвращаются всегда, даже если их
+     * Заказы за диапазон дат [from, to] включительно — по дате отгрузки, а у ещё не отгруженных
+     * по дате создания — для фильтра по дате в приложении. Незавершённые заказы (см. FINAL_STATUSES) возвращаются всегда, даже если их
      * дата создания вне диапазона — см. комментарий к OrderRepository.findForDateRange.
      */
     public List<Order> findByDateRange(LocalDate from, LocalDate to) {

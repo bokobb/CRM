@@ -149,8 +149,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       // Незавершённые заказы сервер отдаёт всегда, даже вне выбранного диапазона
                       // дат (см. OrderService.findByDateRange) — подсвечиваем такие отдельно,
                       // чтобы было видно, что это "хвост" из прошлых дней, а не заказ за период.
-                      final isOutOfRange = o.createdAt.isBefore(_range.start) ||
-                          o.createdAt.isAfter(_range.end.add(const Duration(days: 1)));
+                      // Отгруженный заказ относится ко дню отгрузки (как продажа на дашборде и
+                      // реализация в 1С), неотгруженный — ко дню создания.
+                      final day = o.shippedAt ?? o.createdAt;
+                      final isOutOfRange = day.isBefore(_range.start) ||
+                          day.isAfter(_range.end.add(const Duration(days: 1)));
                       final tile = AppListTile(
                         leadingIcon: isOutOfRange
                             ? Icons.history_outlined
@@ -159,7 +162,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             ? const Color(0xFFC99A2E)
                             : (o.fromWhatsapp ? const Color(0xFF25D366) : null),
                         title: '#${o.id} · ${o.clientName}',
-                        subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}'
+                        subtitle: '${o.shippedAt != null ? 'отгружен ${formatDate(o.shippedAt!)}' : formatDate(o.createdAt)}'
+                            ' · ${formatMoney(o.totalPrice)}'
                             '${o.returnsCount > 0 ? ' · возврат −${formatMoney(o.returnTotal)}' : ''}',
                         trailing: StatusBadge(status: o.status, label: o.statusLabel),
                         onTap: () async {

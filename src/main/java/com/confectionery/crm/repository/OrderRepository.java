@@ -32,12 +32,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Список заказов для фильтра по дате в приложении. Незавершённые заказы (статус не из
      * finalStatuses) показываются ВСЕГДА, независимо от диапазона дат — иначе заказ, собранный
      * или отгруженный несколько дней назад, но ещё не закрытый, пропадает из вида при дефолтном
-     * фильтре "сегодня" (см. OrderService). Активные заказы идут первыми (в начале списка),
-     * затем по дате создания.
+     * фильтре "сегодня" (см. OrderService). Отгруженный заказ относится ко дню ОТГРУЗКИ, а не
+     * создания — тот же день, в который его сумма идёт в продажи на дашборде (sumSalesBetween) и
+     * датируется реализация в 1С. Активные заказы идут первыми, затем по этой дате.
      */
-    @Query("SELECT o FROM Order o WHERE (o.createdAt BETWEEN :start AND :end OR o.status NOT IN :finalStatuses) " +
+    @Query("SELECT o FROM Order o WHERE (COALESCE(o.shippedAt, o.createdAt) BETWEEN :start AND :end " +
+            "OR o.status NOT IN :finalStatuses) " +
             "AND (:status IS NULL OR o.status = :status) " +
-            "ORDER BY CASE WHEN o.status NOT IN :finalStatuses THEN 0 ELSE 1 END, o.createdAt DESC")
+            "ORDER BY CASE WHEN o.status NOT IN :finalStatuses THEN 0 ELSE 1 END, COALESCE(o.shippedAt, o.createdAt) DESC")
     List<Order> findForDateRange(@Param("status") OrderStatus status,
                                   @Param("start") LocalDateTime start,
                                   @Param("end") LocalDateTime end,
