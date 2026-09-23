@@ -159,37 +159,79 @@ public class OneCProductionSyncService {
     }
 
     /**
-     * Вызывается при удалении заявки (см. ProductionRequestService.delete) — если по ней уже
-     * создавались документы в 1С, помечает их там на удаление (DeletionMark, не физическое
-     * удаление — окончательно убрать сможет только сама 1С, со всеми её проверками на
-     * зависимые движения). Best-effort: недоступность 1С не блокирует удаление заявки в CRM.
+     * Отмена заявки (см. ProductionRequestService.cancel): распроводит оба документа — они
+     * остаются в 1С черновиками, движения по складу снимаются. Best-effort: неудача в 1С не
+     * блокирует отмену в CRM, причина — в oneCSyncError и уведомлением админу.
      */
-    public void tryMarkForDeletion(ProductionRequest request) {
+    public void tryUnpostAll(ProductionRequest request) {
         if (!oneCClient.isConfigured()) {
             return;
         }
-        unpostAndMark(request, "Document_ТребованиеНакладная", request.getOneCRequisitionKey(), "требование-накладную");
-        unpostAndMark(request, "Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey(), "отчёт производства");
+        List<String> errors = new ArrayList<>();
+        for (Doc doc : docsOf(request)) {
+            try {
+                unpostIfPosted(doc);
+            } catch (Exception e) {
+                errors.add(doc.what() + ": " + e.getMessage());
+            }
+        }
+        if (errors.isEmpty()) {
+            request.setOneCSyncError(null);
+        } else {
+            String message = "не удалось распровести в 1С — " + String.join("; ", errors);
+            log.warn("Заявка №{} — {}", request.getId(), message);
+            request.setOneCSyncError(message.length() > 500 ? message.substring(0, 500) : message);
+            notificationService.notifyRole(Role.ADMIN, "Заявка №" + request.getId() + " — " + message, null);
+        }
+        requestRepository.save(request);
     }
 
     /**
-     * Сначала распроводим, потом помечаем на удаление: проведённый документ продолжает держать
-     * движения по складу, и пометка удаления их не снимает — а отмена заявки как раз и должна
-     * откатить всё, что заявка сделала. Отчёт производства к этому моменту может быть проведён
-     * автоматически ({@link #postReport}), поэтому шаг обязателен.
+     * Удаление отменённой заявки (см. ProductionRequestService.delete): распровести (если вдруг
+     * проведены) и пометить оба документа на удаление. Бросает исключение, если 1С не ответила —
+     * тогда заявка в CRM не удаляется, чтобы не остались документы без заявки.
      */
-    private void unpostAndMark(ProductionRequest request, String entitySet, String ref, String what) {
-        if (ref == null) {
+    public void deleteOrThrow(ProductionRequest request) {
+        List<Doc> docs = docsOf(request);
+        if (docs.isEmpty()) {
             return;
         }
-        try {
-            if (Boolean.TRUE.equals(oneCClient.fetchPosted(entitySet, ref))) {
-                oneCClient.unpostDocument(entitySet, ref);
-                log.info("Заявка №{} — {} распроведена в 1С перед пометкой на удаление", request.getId(), what);
+        if (!oneCClient.isConfigured()) {
+            throw new IllegalStateException("Заявка выгружена в 1С, а подключение к 1С не настроено — удалить нельзя");
+        }
+        for (Doc doc : docs) {
+            try {
+                unpostIfPosted(doc);
+                oneCClient.markForDeletion(doc.entitySet(), doc.ref(), true);
+            } catch (Exception e) {
+                throw new IllegalStateException("Не удалось пометить на удаление " + doc.what() + " в 1С: " + e.getMessage(), e);
             }
-            oneCClient.markForDeletion(entitySet, ref, true);
-        } catch (Exception e) {
-            log.warn("Не удалось пометить {} на удаление в 1С (заявка №{}): {}", what, request.getId(), e.getMessage());
+        }
+        log.info("Заявка №{} удалена — документы в 1С помечены на удаление", request.getId());
+    }
+
+    private record Doc(String entitySet, String ref, String what) {
+    }
+
+    /** Требование-накладная первой — она ссылается на отчёт производства (ДокументОснование). */
+    private static List<Doc> docsOf(ProductionRequest request) {
+        List<Doc> docs = new ArrayList<>();
+        if (request.getOneCRequisitionKey() != null) {
+            docs.add(new Doc("Document_ТребованиеНакладная", request.getOneCRequisitionKey(), "требование-накладная"));
+        }
+        if (request.getOneCReportKey() != null) {
+            docs.add(new Doc("Document_ОтчетПроизводстваЗаСмену", request.getOneCReportKey(), "отчёт производства"));
+        }
+        return docs;
+    }
+
+    private void unpostIfPosted(Doc doc) {
+        if (!oneCClient.fetchPosted(doc.entitySet(), doc.ref())) {
+            return;
+        }
+        oneCClient.unpostDocument(doc.entitySet(), doc.ref());
+        if (oneCClient.fetchPosted(doc.entitySet(), doc.ref())) {
+            throw new IllegalStateException("1С не отменила проведение");
         }
     }
 

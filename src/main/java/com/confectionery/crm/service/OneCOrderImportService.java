@@ -142,6 +142,11 @@ public class OneCOrderImportService {
             if (header.comment() != null && header.comment().startsWith(CRM_MARKER)) {
                 continue;
             }
+            // Помеченные на удаление — в т.ч. документы заказов, удалённых в CRM (см.
+            // OrderService.delete): иначе удалённый заказ вернулся бы следующим прогоном.
+            if (header.deletionMark()) {
+                continue;
+            }
             Order existing = orderRepository.findByOneCDocumentKey(header.ref()).orElse(null);
             if (existing != null) {
                 // Заводили Заказом "Новый", т.к. документ ещё не был проведён (см. ниже) —

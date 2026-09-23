@@ -430,24 +430,17 @@ public class ProductionRequestService {
     }
 
     /**
-     * Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой (раньше отмена работала только для
-     * статуса «Новая», а откат склада/удаление документов в 1С были отдельной кнопкой «Удалить
-     * заявку» — теперь вся эта функциональность объединена здесь по просьбе пользователя, кнопка
-     * «Удалить заявку» убрана из UI). Откатывает всё, что заявка успела сделать со складом
-     * (возвращает списанное сырьё, вычитает оприходованную продукцию обратно), и если по ней уже
-     * создавались документы в 1С (см. OneCProductionSyncService) — помечает их там на удаление
-     * (best-effort, не блокирует отмену в CRM, если 1С недоступна). В отличие от прежнего
-     * "Удалить" заявка НЕ стирается из БД — остаётся записью в статусе CANCELLED, видна в
-     * истории/отчётах.
+     * Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой (в т.ч. завершённой — завершение
+     * снимается тут же). Откатывает всё, что заявка успела сделать со складом (возвращает
+     * списанное сырьё, вычитает оприходованную продукцию обратно), а документы в 1С (см.
+     * OneCProductionSyncService) распроводит — они остаются там черновиками. Заявка остаётся
+     * записью в статусе CANCELLED; удалить её вместе с документами 1С — {@link #delete}.
      */
     @Transactional
     public ProductionRequest cancel(Long requestId, String by) {
         ProductionRequest request = findById(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Заявка уже отменена");
-        }
-        if (request.isRequisitionCompleted()) {
-            throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
         }
 
         boolean materialsWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
@@ -468,13 +461,28 @@ public class ProductionRequestService {
         }
 
         request.setStatus(ProductionRequestStatus.CANCELLED);
-        oneCProductionSyncService.tryMarkForDeletion(request);
+        request.setRequisitionCompleted(false);
+        oneCProductionSyncService.tryUnpostAll(request);
 
         String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» отменена (" + by + ")";
         notificationService.notifyRole(Role.ADMIN, message, null);
         notificationService.notifyRole(Role.ACCOUNTANT, message, null);
         notificationService.notifyRole(Role.WAREHOUSE_RAW, message, null);
         return request;
+    }
+
+    /**
+     * Удаление отменённой заявки: документы в 1С помечаются на удаление (сначала — там же; если
+     * 1С не ответила, заявка в CRM остаётся), затем заявка стирается из CRM вместе с позициями.
+     */
+    @Transactional
+    public void delete(Long requestId) {
+        ProductionRequest request = findById(requestId);
+        if (request.getStatus() != ProductionRequestStatus.CANCELLED) {
+            throw new IllegalStateException("Удалить можно только отменённую заявку — сначала отмените её");
+        }
+        oneCProductionSyncService.deleteOrThrow(request);
+        requestRepository.delete(request);
     }
 
     /**

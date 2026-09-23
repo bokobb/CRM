@@ -69,15 +69,21 @@ public class ProductionRequestApiController {
 
     /**
      * Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой — см. ProductionRequestService.cancel:
-     * откатывает складские остатки (если были списаны/оприходованы) и помечает документы в 1С
-     * на удаление, если они уже создавались. Раньше это было отдельным DELETE-эндпоинтом
-     * (ADMIN-only, физически удалял запись) — теперь объединено с отменой; только ADMIN,
-     * т.к. может затрагивать реальные остатки склада.
+     * откатывает складские остатки (если были списаны/оприходованы) и распроводит документы в
+     * 1С (остаются черновиками). Удаление с пометкой документов 1С — отдельно, DELETE ниже.
+     * Только ADMIN, т.к. затрагивает реальные остатки склада.
      */
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasRole('ADMIN')")
     public ProductionRequestDto cancel(@PathVariable Long id, Authentication authentication) {
         return toDto(requestService.cancel(id, authentication.getName()));
+    }
+
+    /** Удаление отменённой заявки — документы в 1С помечаются на удаление (см. ProductionRequestService.delete). */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void delete(@PathVariable Long id) {
+        requestService.delete(id);
     }
 
     /** Замена сырья в позиции — например, нужного не хватило на складе (см. ProductionRequestService.substituteItem). */

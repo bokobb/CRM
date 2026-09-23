@@ -9,6 +9,7 @@ import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/status_badge.dart';
+import '../widgets/swipe_cancel_delete.dart';
 import 'production_request_detail_screen.dart';
 import 'production_request_form_screen.dart';
 
@@ -46,6 +47,9 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
   /// По просьбе пользователя — только на телефоне и только для WAREHOUSE_RAW: карточка
   /// завершённой заявки (требование-накладная уже проведена в 1С) становится серой, чтобы
   /// отличаться от остальных в списке. Веб не трогаем — не входило в запрос.
+  /// Отмена и удаление заявки (свайп влево) — только админ: откатывают реальные остатки склада.
+  bool get _isAdmin => ApiClient.currentSession?.role == 'ADMIN';
+
   bool get _isWarehouseRaw => ApiClient.currentSession?.role == 'WAREHOUSE_RAW';
 
   @override
@@ -143,7 +147,7 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                     itemCount: requests.length,
                     itemBuilder: (context, index) {
                       final r = requests[index];
-                      return AppListTile(
+                      final tile = AppListTile(
                         leadingIcon: Icons.science_outlined,
                         leadingColor: const Color(0xFFD9A73F),
                         backgroundColor: (_isWarehouseRaw && r.requisitionCompleted) ? Colors.grey.shade300 : null,
@@ -158,6 +162,17 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                             : null,
                         trailing: StatusBadge(status: r.status, label: r.statusLabel, insufficient: r.hasShortfall),
                         onTap: () => _openDetail(r.id),
+                      );
+                      return SwipeCancelDelete(
+                        itemKey: r.id,
+                        cancelled: r.status == 'CANCELLED',
+                        canCancel: _isAdmin,
+                        canDelete: _isAdmin,
+                        subject: 'заявку №${r.id}',
+                        onCancel: () => _api.cancelProductionRequest(r.id),
+                        onDelete: () => _api.deleteProductionRequest(r.id),
+                        onDone: _refresh,
+                        child: tile,
                       );
                     },
                   );

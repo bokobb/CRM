@@ -108,10 +108,20 @@ public class OrderApiController {
         return OrderDto.from(orderService.reopenForEditing(id));
     }
 
+    /** Отмена: документ в 1С распроводится (черновик); отгруженный заказ — только админ/бухгалтер. */
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")
-    public OrderDto cancel(@PathVariable Long id) {
-        return OrderDto.from(orderService.cancel(id));
+    public OrderDto cancel(@PathVariable Long id, Authentication authentication) {
+        boolean privileged = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_ACCOUNTANT"));
+        return OrderDto.from(orderService.cancel(id, privileged));
+    }
+
+    /** Удаление отменённого заказа: документ в 1С помечается на удаление. */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
+    public void delete(@PathVariable Long id) {
+        orderService.delete(id);
     }
 
     @PutMapping("/{id}/items")

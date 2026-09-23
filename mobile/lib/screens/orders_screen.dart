@@ -10,6 +10,7 @@ import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/order_returns_sheets.dart';
 import '../widgets/status_badge.dart';
+import '../widgets/swipe_cancel_delete.dart';
 
 /// Аргументы навигации на экран заказов с предустановленным фильтром — используется,
 /// например, при переходе с плиток дашборда ("Новых заказов" / "Готовы к отгрузке").
@@ -150,7 +151,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       // чтобы было видно, что это "хвост" из прошлых дней, а не заказ за период.
                       final isOutOfRange = o.createdAt.isBefore(_range.start) ||
                           o.createdAt.isAfter(_range.end.add(const Duration(days: 1)));
-                      return AppListTile(
+                      final tile = AppListTile(
                         leadingIcon: isOutOfRange
                             ? Icons.history_outlined
                             : (o.fromWhatsapp ? Icons.chat_bubble_rounded : Icons.receipt_long_outlined),
@@ -170,6 +171,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
                               orderId: o.id, clientId: o.clientId, clientName: o.clientName, orderTotal: o.totalPrice);
                           _refresh();
                         },
+                      );
+                      final role = ApiClient.currentSession?.role;
+                      final privileged = role == 'ADMIN' || role == 'ACCOUNTANT';
+                      final shipped = o.status == 'DELIVERED' || o.status == 'COMPLETED';
+                      return SwipeCancelDelete(
+                        itemKey: o.id,
+                        cancelled: o.status == 'CANCELLED',
+                        // Отгруженный заказ отменяет только админ/бухгалтер — товар уже ушёл.
+                        canCancel: shipped ? privileged : role != null,
+                        canDelete: privileged,
+                        subject: 'заказ №${o.id}',
+                        onCancel: () => _api.cancelOrder(o.id),
+                        onDelete: () => _api.deleteOrder(o.id),
+                        onDone: _refresh,
+                        child: tile,
                       );
                     },
                   );

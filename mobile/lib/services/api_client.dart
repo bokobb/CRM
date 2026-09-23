@@ -760,6 +760,15 @@ class ApiClient {
 
   /// "Отменить" (после "Завершить") — распроводит требование-накладную в 1С и снова разрешает
   /// править состав сырья (см. ProductionRequestService.cancelCompletion на бэкенде).
+  /// Удаление отменённой заявки — документы в 1С помечаются на удаление.
+  Future<void> deleteProductionRequest(int id) async {
+    final res = await http.delete(
+      await _uri('/production-requests/$id'),
+      headers: await _authHeaders(),
+    );
+    _decode(res);
+  }
+
   Future<ProductionRequest> cancelProductionRequestCompletion(int id) async {
     final res = await http.post(
       await _uri('/production-requests/$id/cancel-completion'),
@@ -1082,6 +1091,15 @@ class ApiClient {
       headers: await _authHeaders(),
     );
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
+  }
+
+  /// Удаление отменённого заказа — документ в 1С помечается на удаление.
+  Future<void> deleteOrder(int id) async {
+    final res = await http.delete(
+      await _uri('/orders/$id'),
+      headers: await _authHeaders(),
+    );
+    _decode(res);
   }
 
   Future<Order> shipOrder(int id, String vehicleNumber) async {

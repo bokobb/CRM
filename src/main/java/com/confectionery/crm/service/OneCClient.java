@@ -247,7 +247,7 @@ class OneCClient {
             JsonNode response = restClient.get()
                     .uri(b -> b.path("/Document_РеализацияТоваровУслуг")
                             .queryParam("$format", "json")
-                            .queryParam("$select", "Ref_Key,Number,Date,Комментарий,Контрагент_Key,Posted")
+                            .queryParam("$select", "Ref_Key,Number,Date,Комментарий,Контрагент_Key,Posted,DeletionMark")
                             .queryParam("$top", PAGE_SIZE)
                             .queryParam("$skip", currentSkip)
                             .build())
@@ -261,7 +261,8 @@ class OneCClient {
                         item.path("Date").asText(""),
                         item.path("Комментарий").asText(""),
                         item.path("Контрагент_Key").asText(""),
-                        item.path("Posted").asBoolean(false)
+                        item.path("Posted").asBoolean(false),
+                        item.path("DeletionMark").asBoolean(false)
                 ));
             }
             if (values.size() < PAGE_SIZE) break;
@@ -994,7 +995,8 @@ class OneCClient {
      * стороной). {@code posted} — см. {@link OneCOrderImportService}: непроведённые документы
      * заводятся Заказом в статусе "Новый", проведённые — сразу "Завершён".
      */
-    record SaleHeader(String ref, String number, String date, String comment, String counterpartyKey, boolean posted) {
+    record SaleHeader(String ref, String number, String date, String comment, String counterpartyKey, boolean posted,
+                      boolean deletionMark) {
     }
 
     record SaleLine(String parentRef, String nomenclatureKey, BigDecimal quantity, BigDecimal price) {

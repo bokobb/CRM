@@ -3,6 +3,7 @@ package com.confectionery.crm.service;
 import com.confectionery.crm.api.dto.OrderItemUpdateRequest;
 import com.confectionery.crm.domain.*;
 import com.confectionery.crm.repository.ClientRepository;
+import com.confectionery.crm.repository.NotificationRepository;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductRepository;
 import com.confectionery.crm.web.dto.OrderForm;
@@ -36,6 +37,7 @@ public class OrderService {
     private final InvoicePdfService invoicePdfService;
     private final WhatsAppGatewayClient whatsAppGatewayClient;
     private final OneCOrderSyncService oneCOrderSyncService;
+    private final NotificationRepository notificationRepository;
 
     public List<Order> findAll() {
         return orderRepository.findAllByOrderByCreatedAtDesc();
@@ -209,12 +211,36 @@ public class OrderService {
         return order;
     }
 
-    /** Если заказ уже был выгружен в 1С — соответствующий документ помечается там на удаление (см. OneCOrderSyncService.trySyncCancel). */
+    /** Отмена ещё не отгруженного заказа — см. {@link #cancel(Long, boolean)}. */
     @Transactional
     public Order cancel(Long orderId) {
+        return cancel(orderId, false);
+    }
+
+    /**
+     * Отмена заказа: всё, что он сделал, откатывается — документ "Реализация" в 1С распроводится
+     * и остаётся черновиком (см. OneCOrderSyncService.trySyncCancel), списанный при отгрузке
+     * товар возвращается на остаток. Удалить отменённый заказ целиком — {@link #delete}.
+     * Отгруженный/завершённый заказ отменяется только при {@code allowShipped} (админ/бухгалтер).
+     */
+    @Transactional
+    public Order cancel(Long orderId, boolean allowShipped) {
         Order order = findById(orderId);
-        if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED) {
-            throw new IllegalStateException("Отгруженный заказ нельзя отменить");
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("Заказ уже отменён");
+        }
+        boolean shipped = order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED;
+        if (shipped && !allowShipped) {
+            throw new IllegalStateException("Отгруженный заказ может отменить только админ или бухгалтер");
+        }
+        // Остаток списывался только отгрузкой через CRM (см. ship — там же заполняется гос.
+        // номер); заказы, импортированные из 1С уже проведёнными, остаток в CRM не трогали.
+        if (shipped && order.getVehicleNumber() != null) {
+            for (OrderItem item : order.getItems()) {
+                Product product = item.getProduct();
+                product.setQuantityInStock(product.getQuantityInStock().add(item.getQuantity()));
+                productRepository.save(product);
+            }
         }
         order.setStatus(OrderStatus.CANCELLED);
         notificationService.notify(recipientOf(order), "Заказ #" + order.getId() + " отменён", order);
@@ -223,6 +249,26 @@ public class OrderService {
         notificationService.notifyRole(Role.ADMIN, cancelMessage, order);
         oneCOrderSyncService.trySyncCancel(order);
         return order;
+    }
+
+    /**
+     * Удаление отменённого заказа: документ в 1С помечается на удаление (сначала — там же, и
+     * если 1С не ответила, заказ в CRM остаётся), закреплённые возвраты открепляются (возврат —
+     * отдельный документ, живёт дальше), уведомления по заказу удаляются вместе с ним.
+     */
+    @Transactional
+    public void delete(Long orderId) {
+        Order order = findById(orderId);
+        if (order.getStatus() != OrderStatus.CANCELLED) {
+            throw new IllegalStateException("Удалить можно только отменённый заказ — сначала отмените его");
+        }
+        oneCOrderSyncService.deleteOrThrow(order);
+        for (ProductReturn productReturn : order.getReturns()) {
+            productReturn.setOrder(null);
+        }
+        order.getReturns().clear();
+        notificationRepository.deleteAll(notificationRepository.findByOrderId(order.getId()));
+        orderRepository.delete(order);
     }
 
     /** Отгрузка складом ГП: фиксирует гос. номер ТС и переводит заказ в статус "отгружен". */

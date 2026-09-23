@@ -59,13 +59,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     BigDecimal sumSalesForClientBetween(@Param("clientId") Long clientId,
                                          @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    /** Неоплаченные долги (для раздела "Долги") — сначала ближайший срок оплаты. */
+    /** Неоплаченные долги (для раздела "Долги") — сначала ближайший срок оплаты; отменённые заказы не в счёт. */
     @Query("SELECT o FROM Order o WHERE o.debtDueDate IS NOT NULL AND (o.debtPaid IS NULL OR o.debtPaid = false) " +
+            "AND o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED " +
             "ORDER BY o.debtDueDate ASC")
     List<Order> findUnpaidDebts();
 
     /** Долги, у которых срок оплаты уже прошёл — для фоновой проверки (ScheduledJobs). */
     @Query("SELECT o FROM Order o WHERE o.debtDueDate IS NOT NULL AND o.debtDueDate < :today " +
-            "AND (o.debtPaid IS NULL OR o.debtPaid = false)")
+            "AND (o.debtPaid IS NULL OR o.debtPaid = false) " +
+            "AND o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED")
     List<Order> findOverdueDebts(@Param("today") LocalDate today);
 }

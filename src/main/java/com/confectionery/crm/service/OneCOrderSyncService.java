@@ -33,9 +33,9 @@ import java.util.Map;
  * поэтому в этом случае синхронизация останавливается с понятной ошибкой и правки в проведённый
  * документ бухгалтер вносит в 1С вручную.
  *
- * <p>При отмене заказа (см. OrderService.cancel) {@link #trySyncCancel} ставит в документе флаг
- * "Пометка удаления" — не проводит и не изменяет его иначе, фактическое удаление в 1С (со всеми
- * её проверками на зависимые движения) бухгалтер выполняет сам.
+ * <p>При отмене заказа (см. OrderService.cancel) {@link #trySyncCancel} распроводит документ —
+ * он остаётся черновиком; при удалении отменённого заказа {@link #deleteOrThrow} ставит флаг
+ * "Пометка удаления" — фактическое удаление в 1С бухгалтер выполняет сам.
  *
  * <p>Дата документа ({@code Date}) — пока заказ не отгружен, дата его создания в CRM (черновик
  * ещё может переезжать датой вместе с правками состава); как только нажата кнопка "Отгружен"
@@ -58,6 +58,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class OneCOrderSyncService {
 
+    private static final String SALE = "Document_РеализацияТоваровУслуг";
     private static final DateTimeFormatter ONEC_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final OneCClient oneCClient;
@@ -100,9 +101,10 @@ public class OneCOrderSyncService {
     }
 
     /**
-     * Вызывается при отмене заказа (см. OrderService.cancel) — ставит в уже выгруженном
-     * документе "Реализация" флаг "Пометка удаления", не трогая сам документ иначе (проведён
-     * он или нет). Ничего не делает, если заказ в 1С никогда не выгружался.
+     * Вызывается при отмене заказа (см. OrderService.cancel) — распроводит документ
+     * "Реализация", если он проведён: документ остаётся в 1С черновиком, движения по складу
+     * снимаются. Пометка на удаление — только при удалении заказа ({@link #deleteOrThrow}).
+     * Best-effort: неудача в 1С не блокирует отмену в CRM, причина — в oneCSyncError и админу.
      */
     @Transactional
     public void trySyncCancel(Order order) {
@@ -110,17 +112,49 @@ public class OneCOrderSyncService {
             return;
         }
         try {
-            oneCClient.markForDeletion("Document_РеализацияТоваровУслуг", order.getOneCDocumentKey(), true);
+            unpostIfPosted(order.getOneCDocumentKey());
             order.setOneCSyncError(null);
             orderRepository.save(order);
-            log.info("Заказ №{} отменён — документ №{} в 1С помечен на удаление",
+            log.info("Заказ №{} отменён — документ №{} в 1С распроведён (черновик)",
                     order.getId(), order.getOneCDocumentNumber());
         } catch (Exception e) {
-            log.warn("Не удалось пометить документ №{} на удаление в 1С (заказ №{}): {}",
-                    order.getOneCDocumentNumber(), order.getId(), e.getMessage());
-            order.setOneCSyncError(e.getMessage());
+            String message = "не удалось распровести документ №" + order.getOneCDocumentNumber() + " в 1С: " + e.getMessage();
+            log.warn("Заказ №{} — {}", order.getId(), message);
+            order.setOneCSyncError(message);
             orderRepository.save(order);
-            notifyAdmin(order, e.getMessage());
+            notifyAdmin(order, message);
+        }
+    }
+
+    /**
+     * Удаление заказа (см. OrderService.delete): распровести (если вдруг проведён) и пометить
+     * документ на удаление. Бросает исключение, если 1С не ответила — тогда заказ в CRM не
+     * удаляется, чтобы не остался проведённый документ без заказа.
+     */
+    public void deleteOrThrow(Order order) {
+        if (order.getOneCDocumentKey() == null) {
+            return;
+        }
+        if (!oneCClient.isConfigured()) {
+            throw new IllegalStateException("Заказ выгружен в 1С, а подключение к 1С не настроено — удалить нельзя");
+        }
+        try {
+            unpostIfPosted(order.getOneCDocumentKey());
+            oneCClient.markForDeletion(SALE, order.getOneCDocumentKey(), true);
+            log.info("Заказ №{} удалён — документ №{} в 1С помечен на удаление", order.getId(), order.getOneCDocumentNumber());
+        } catch (Exception e) {
+            throw new IllegalStateException("Не удалось пометить документ №" + order.getOneCDocumentNumber()
+                    + " на удаление в 1С: " + e.getMessage(), e);
+        }
+    }
+
+    private void unpostIfPosted(String ref) {
+        if (!oneCClient.fetchPosted(SALE, ref)) {
+            return;
+        }
+        oneCClient.unpostDocument(SALE, ref);
+        if (oneCClient.fetchPosted(SALE, ref)) {
+            throw new IllegalStateException("1С не отменила проведение — отмените его в 1С вручную");
         }
     }
 
