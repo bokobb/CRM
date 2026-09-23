@@ -4,9 +4,11 @@ import com.confectionery.crm.domain.Client;
 import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderItem;
 import com.confectionery.crm.domain.Product;
+import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.service.ClientPriceService;
 import com.confectionery.crm.service.ClientService;
 import com.confectionery.crm.service.OrderService;
+import com.confectionery.crm.service.ProductReturnService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.servlet.http.Cookie;
@@ -27,13 +29,16 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Публичная витрина для клиентов — без логина, клиент идентифицируется по номеру телефона
@@ -90,6 +95,7 @@ public class ShopController {
     private final ProductService productService;
     private final ClientPriceService clientPriceService;
     private final OrderService orderService;
+    private final ProductReturnService productReturnService;
 
     @GetMapping
     public String phoneForm(HttpSession session, HttpServletRequest request) {
@@ -329,18 +335,35 @@ public class ShopController {
         }
     }
 
-    /** История заказов клиента — все каналы (сама витрина, WhatsApp, ручной ввод), не только /shop. */
+    private static final DateTimeFormatter WEEK_FORMAT = DateTimeFormatter.ofPattern("dd.MM");
+
+    /**
+     * История заказов клиента — все каналы (сама витрина, WhatsApp, ручной ввод), не только /shop.
+     * Показывается по календарным неделям (пн–вс) по дате заказа: {@code week} — сколько недель
+     * назад, 0 — текущая. У каждого заказа — закреплённые за ним возвраты (кнопка «Показать возврат»).
+     */
     @GetMapping("/orders")
-    public String orders(HttpSession session, Model model) {
+    public String orders(@RequestParam(defaultValue = "0") int week, HttpSession session, Model model) {
         Client client = currentClient(session);
         if (client == null) {
             return "redirect:/shop";
         }
+        int weeksAgo = Math.max(week, 0);
+        LocalDate from = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(weeksAgo);
+        LocalDate to = from.plusDays(6);
         List<OrderHistoryRow> rows = orderService.findByClient(client.getId()).stream()
-                .map(o -> new OrderHistoryRow(o, itemsSummary(o), MONEY_FORMAT.format(o.getTotalPrice()) + " ₸"))
+                .filter(o -> {
+                    LocalDate d = o.getCreatedAt().toLocalDate();
+                    return !d.isBefore(from) && !d.isAfter(to);
+                })
+                .map(this::historyRow)
                 .toList();
         model.addAttribute("clientName", client.getName());
         model.addAttribute("rows", rows);
+        model.addAttribute("week", weeksAgo);
+        model.addAttribute("weekLabel", weeksAgo == 0 ? "Эта неделя" : weeksAgo == 1 ? "Прошлая неделя"
+                : WEEK_FORMAT.format(from) + " – " + WEEK_FORMAT.format(to));
+        model.addAttribute("weekRange", WEEK_FORMAT.format(from) + " – " + WEEK_FORMAT.format(to));
         model.addAttribute("cartCount", cart(session).size());
         return "shop/orders";
     }
@@ -375,10 +398,30 @@ public class ShopController {
         return "redirect:/shop/catalog";
     }
 
-    private String itemsSummary(Order order) {
-        return order.getItems().stream()
-                .map(i -> i.getProduct().getName() + " × " + QTY_FORMAT.format(i.getQuantity()))
-                .collect(Collectors.joining(", "));
+    private OrderHistoryRow historyRow(Order o) {
+        List<ItemLine> items = o.getItems().stream()
+                .map(i -> itemLine(i.getProduct(), i.getQuantity(), i.getPrice()))
+                .toList();
+        List<ProductReturn> orderReturns = productReturnService.findByOrder(o.getId());
+        List<ReturnRow> returns = orderReturns.stream()
+                .map(r -> new ReturnRow(
+                        r.getReturnDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
+                        r.getOneCDocumentNumber(),
+                        r.getReason(),
+                        r.getItems().stream().map(i -> itemLine(i.getProduct(), i.getQuantity(), i.getPrice())).toList(),
+                        MONEY_FORMAT.format(r.getTotalSum()) + " ₸"))
+                .toList();
+        BigDecimal returnTotal = orderReturns.stream()
+                .map(ProductReturn::getTotalSum).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new OrderHistoryRow(o, items, MONEY_FORMAT.format(o.getTotalPrice()) + " ₸", returns,
+                returns.isEmpty() ? null : "−" + MONEY_FORMAT.format(returnTotal) + " ₸");
+    }
+
+    private ItemLine itemLine(Product product, BigDecimal quantity, BigDecimal price) {
+        String unit = product.getUnit() == null || product.getUnit().isBlank() ? "шт" : product.getUnit();
+        BigDecimal sum = price == null ? null : price.multiply(quantity);
+        return new ItemLine(product.getName(), QTY_FORMAT.format(quantity) + " " + unit,
+                sum == null ? "" : MONEY_FORMAT.format(sum) + " ₸");
     }
 
     @GetMapping("/confirmation/{orderId}")
@@ -493,7 +536,15 @@ public class ShopController {
     public record ProductRow(Product product, String priceLabel) {
     }
 
-    public record OrderHistoryRow(Order order, String itemsSummary, String totalLabel) {
+    public record OrderHistoryRow(Order order, List<ItemLine> items, String totalLabel,
+                                  List<ReturnRow> returns, String returnTotalLabel) {
+    }
+
+    public record ItemLine(String name, String qtyLabel, String sumLabel) {
+    }
+
+    public record ReturnRow(String dateLabel, String documentNumber, String reason, List<ItemLine> items,
+                            String totalLabel) {
     }
 
     private record CartSummary(List<CartRow> rows, String headerLabel, boolean canOrder, String bottomButtonLabel) {

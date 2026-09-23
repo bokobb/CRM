@@ -495,7 +495,73 @@ a.stat-card:hover { border-color: var(--accent); }
 .shop-order-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
 .shop-order-date { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
 .shop-order-total { font-weight: 700; font-size: 15px; white-space: nowrap; }
-.shop-order-items { color: var(--muted); font-size: 13px; line-height: 1.4; margin-bottom: 12px; }
+.shop-order-total-box { text-align: right; }
+.shop-order-return-total { color: #c0392b; font-weight: 600; font-size: 12.5px; white-space: nowrap; margin-top: 2px; }
+/* Позиции заказа/возврата — каждая своей строкой: название | количество | сумма. */
+.shop-order-items { list-style: none; margin: 0 0 12px; padding: 0; font-size: 13px; }
+.shop-order-items li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.shop-order-items li:last-child { border-bottom: none; }
+.shop-order-items .qty { color: var(--muted); white-space: nowrap; text-align: right; }
+.shop-order-items .sum { white-space: nowrap; text-align: right; min-width: 70px; }
+.shop-order-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.shop-returns-toggle { border-color: #e3b1a9; color: #c0392b; }
+.shop-order-card.returns-open .shop-returns-toggle { background: #c0392b; border-color: #c0392b; color: #fff; }
+
+/* Список возвратов: раскрывается по кнопке «Показать возврат» — растёт по высоте и
+   «увеличивается» из-под кнопки (grid 0fr -> 1fr + scale). */
+.shop-returns {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: scale(0.92);
+  transform-origin: top center;
+  transition: grid-template-rows .35s ease, opacity .3s ease, transform .35s cubic-bezier(.34,1.56,.64,1), margin-top .35s ease;
+}
+.shop-returns-inner { overflow: hidden; min-height: 0; }
+.shop-order-card.returns-open .shop-returns { grid-template-rows: 1fr; opacity: 1; transform: scale(1); margin-top: 12px; }
+.shop-return {
+  background: #fdf1ef;
+  border: 1px solid #f1d2cc;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.shop-return:last-child { margin-bottom: 0; }
+.shop-return-head { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.shop-return-head b { color: #c0392b; white-space: nowrap; }
+.shop-return-reason { color: var(--muted); font-size: 12.5px; margin-bottom: 4px; }
+.shop-return .shop-order-items { margin-bottom: 0; }
+
+/* Недельный фильтр истории заказов. */
+.shop-week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 6px;
+  margin-bottom: 12px;
+}
+.shop-week-label { text-align: center; font-weight: 600; font-size: 14px; }
+.shop-week-label small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+.shop-week-arrow {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  font-size: 24px;
+  text-decoration: none;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+.shop-week-arrow.disabled { opacity: .35; }
 
 .shop-add-btn {
   display: block;
