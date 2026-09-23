@@ -90,6 +90,16 @@ public class ProductionRequestService {
         return created;
     }
 
+    /** Название заявки по группам её товаров; несколько групп (после правки) — через запятую. */
+    private String titleFor(List<Line> lines) {
+        Set<String> groups = new LinkedHashSet<>();
+        for (Line line : lines) {
+            Product product = productService.findById(line.productId());
+            groups.add((product.getGroup() == null || product.getGroup().isBlank()) ? NO_GROUP : product.getGroup());
+        }
+        return String.join(", ", groups);
+    }
+
     public List<Recipe> recipesWithProducts() {
         return recipeRepository.findAll();
     }
@@ -297,8 +307,8 @@ public class ProductionRequestService {
 
     /**
      * Редактирование позиций (товар/замесов) — позиции и просуммированное сырьё пересчитываются
-     * заново с нуля (как при создании), название заявки не меняется (группа определяется один
-     * раз при создании, см. {@link #createGrouped}). Доступно и после сборки ({@link
+     * заново с нуля (как при создании), название заявки тоже пересчитывается по группам новых
+     * товаров (см. {@link #titleFor}). Доступно и после сборки ({@link
      * ProductionRequestStatus#COLLECTED}) — по просьбе пользователя (склад может ошибиться в
      * замесах уже после того, как нажал «Собрано»); сырьё к этому моменту уже физически списано
      * со склада в {@link #collect}, поэтому разница между старым и новым составом сырья здесь
@@ -340,6 +350,9 @@ public class ProductionRequestService {
         request.getLines().clear();
         request.getItems().clear();
         populate(request, lines);
+        // Название = группа товара, как при создании (см. createGrouped) — иначе после замены
+        // товара на товар другой группы заявка так и называлась бы по старой группе.
+        request.setTitle(titleFor(lines));
 
         if (stockAlreadyWrittenOff) {
             Map<Long, BigDecimal> newRequirements = new LinkedHashMap<>();

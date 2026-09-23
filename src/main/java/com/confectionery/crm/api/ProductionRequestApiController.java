@@ -56,7 +56,7 @@ public class ProductionRequestApiController {
                 .map(this::toDto).toList();
     }
 
-    /** Редактирование ещё не собранной заявки — только позиции и дата документа, название заявки не меняется. */
+    /** Редактирование заявки — позиции и дата документа; название пересчитывается по группам товаров. */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public ProductionRequestDto update(@PathVariable Long id, @Valid @RequestBody ProductionRequestCreateRequest req,
