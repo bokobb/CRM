@@ -24,6 +24,10 @@ class ProductionRequestSummary {
   /// WAREHOUSE_RAW, см. production_requests_screen.dart.
   final bool requisitionCompleted;
 
+  /// Состав менялся после выдачи работникам, а разницу ещё не выдали/не вернули — подсказка
+  /// в списке, само окно с разницей — по долгому нажатию (production_composition_sheet.dart).
+  final bool compositionDiffPending;
+
   ProductionRequestSummary({
     required this.id,
     required this.title,
@@ -37,6 +41,7 @@ class ProductionRequestSummary {
     this.hasShortfall = false,
     this.shortfallText,
     this.requisitionCompleted = false,
+    this.compositionDiffPending = false,
   });
 
   factory ProductionRequestSummary.fromJson(Map<String, dynamic> json) => ProductionRequestSummary(
@@ -52,6 +57,7 @@ class ProductionRequestSummary {
         hasShortfall: json['hasShortfall'] as bool? ?? false,
         shortfallText: json['shortfallText'] as String?,
         requisitionCompleted: json['requisitionCompleted'] as bool? ?? false,
+        compositionDiffPending: json['compositionDiffPending'] as bool? ?? false,
       );
 }
 
@@ -323,4 +329,105 @@ class DailyProductionReport {
             .map((e) => DailyProductionReportItem.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
+}
+
+/// Выдано работникам против текущего состава заявки — см. ProductionCompositionDiffDto.
+class ProductionCompositionDiff {
+  final int requestId;
+  final String title;
+  final String statusLabel;
+
+  /// null — сырьё ещё не выдавали, разницы нет.
+  final DateTime? issuedAt;
+  final String? issuedBy;
+  final List<CompositionDiffRow> rows;
+  final List<CompositionRevision> history;
+
+  ProductionCompositionDiff({
+    required this.requestId,
+    required this.title,
+    required this.statusLabel,
+    this.issuedAt,
+    this.issuedBy,
+    required this.rows,
+    required this.history,
+  });
+
+  bool get hasDiff => rows.any((r) => r.diff != 0);
+
+  factory ProductionCompositionDiff.fromJson(Map<String, dynamic> json) => ProductionCompositionDiff(
+        requestId: json['requestId'] as int,
+        title: json['title'] as String,
+        statusLabel: json['statusLabel'] as String,
+        issuedAt: json['issuedAt'] == null ? null : DateTime.parse(json['issuedAt'] as String),
+        issuedBy: json['issuedBy'] as String?,
+        rows: (json['rows'] as List).map((e) => CompositionDiffRow.fromJson(e)).toList(),
+        history: (json['history'] as List).map((e) => CompositionRevision.fromJson(e)).toList(),
+      );
+}
+
+class CompositionDiffRow {
+  final String ingredientName;
+  final String? unit;
+  final double issued;
+  final double current;
+
+  /// current − issued: плюс — не хватает, довыдать; минус — лишнее, вернуть.
+  final double diff;
+
+  CompositionDiffRow({
+    required this.ingredientName,
+    this.unit,
+    required this.issued,
+    required this.current,
+    required this.diff,
+  });
+
+  factory CompositionDiffRow.fromJson(Map<String, dynamic> json) => CompositionDiffRow(
+        ingredientName: json['ingredientName'] as String,
+        unit: json['unit'] as String?,
+        issued: (json['issued'] as num).toDouble(),
+        current: (json['current'] as num).toDouble(),
+        diff: (json['diff'] as num).toDouble(),
+      );
+}
+
+class CompositionRevision {
+  final DateTime createdAt;
+  final String createdBy;
+  final String? note;
+
+  /// Этот состав выдан на руки (сборка или «Рассчитались») — от последнего такого считается разница.
+  final bool issued;
+  final List<CompositionRevisionItem> items;
+
+  CompositionRevision({
+    required this.createdAt,
+    required this.createdBy,
+    this.note,
+    required this.issued,
+    required this.items,
+  });
+
+  factory CompositionRevision.fromJson(Map<String, dynamic> json) => CompositionRevision(
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        createdBy: json['createdBy'] as String,
+        note: json['note'] as String?,
+        issued: json['issued'] as bool,
+        items: (json['items'] as List)
+            .map((e) => CompositionRevisionItem(
+                  ingredientName: e['ingredientName'] as String,
+                  unit: e['unit'] as String?,
+                  quantity: (e['quantity'] as num).toDouble(),
+                ))
+            .toList(),
+      );
+}
+
+class CompositionRevisionItem {
+  final String ingredientName;
+  final String? unit;
+  final double quantity;
+
+  CompositionRevisionItem({required this.ingredientName, this.unit, required this.quantity});
 }

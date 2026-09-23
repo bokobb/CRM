@@ -158,6 +158,23 @@ public class ProductionRequestApiController {
         return toDto(requestService.cancelCompletion(id));
     }
 
+    /**
+     * Всплывающее окно по долгому нажатию на заявку в списке: что выдано работникам, что в
+     * заявке сейчас, разница (довыдать/вернуть) и история правок состава.
+     */
+    @GetMapping("/{id}/composition-diff")
+    public ProductionCompositionDiffDto compositionDiff(@PathVariable Long id) {
+        return ProductionCompositionDiffDto.from(requestService.compositionDiff(id));
+    }
+
+    /** «Рассчитались» — разница выдана/возвращена, текущий состав становится выданным. */
+    @PostMapping("/{id}/composition-diff/settle")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
+    public ProductionCompositionDiffDto settleComposition(@PathVariable Long id, Authentication authentication) {
+        requestService.settleComposition(id, authentication.getName());
+        return ProductionCompositionDiffDto.from(requestService.compositionDiff(id));
+    }
+
     private ProductionRequestDto toDto(ProductionRequest r) {
         return ProductionRequestDto.from(r, requestService.massSummary(r));
     }

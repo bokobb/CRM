@@ -85,6 +85,21 @@ public class ProductionRequest {
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionRequestItem> items = new ArrayList<>();
 
+    /** История состава сырья после выдачи работникам — см. {@link ProductionRequestRevision}. */
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("createdAt ASC, id ASC")
+    private List<ProductionRequestRevision> revisions = new ArrayList<>();
+
+    /**
+     * Состав изменился после выдачи и разницу ещё не выдали/не вернули — подсказка в списке
+     * заявок. Boolean, а не boolean: колонка добавляется в уже заполненную таблицу, null = нет.
+     */
+    private Boolean compositionDiffPending;
+
+    public boolean isCompositionDiffPending() {
+        return Boolean.TRUE.equals(compositionDiffPending);
+    }
+
     public void addLine(ProductionRequestLine line) {
         line.setRequest(this);
         lines.add(line);

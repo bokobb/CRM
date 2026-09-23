@@ -26,7 +26,9 @@ public record ProductionRequestSummaryDto(
         /** "Пряник — 10 шт, Торт — 5 шт" — что именно не дооприходовано; null, если хватает. */
         String shortfallText,
         /** Требование-накладная проведена в 1С кнопкой "Завершить" — см. ProductionRequest.requisitionCompleted. */
-        boolean requisitionCompleted
+        boolean requisitionCompleted,
+        /** Состав менялся после выдачи работникам, разницу ещё не выдали/не вернули. */
+        boolean compositionDiffPending
 ) {
     public static ProductionRequestSummaryDto from(ProductionRequest r) {
         BigDecimal total = r.getLines().stream().map(l -> l.getBatches()).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -43,7 +45,8 @@ public record ProductionRequestSummaryDto(
         return new ProductionRequestSummaryDto(
                 r.getId(), r.getTitle(), r.getLines().stream().map(l -> l.getProduct().getName()).toList(), total,
                 r.getStatus().name(), r.getStatus().getLabel(), r.getCreatedBy(), r.getCreatedAt(), r.getDocumentDate(),
-                !shortfallText.isEmpty(), shortfallText.isEmpty() ? null : shortfallText, r.isRequisitionCompleted()
+                !shortfallText.isEmpty(), shortfallText.isEmpty() ? null : shortfallText, r.isRequisitionCompleted(),
+                r.isCompositionDiffPending()
         );
     }
 

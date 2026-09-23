@@ -769,6 +769,23 @@ class ApiClient {
     _decode(res);
   }
 
+  Future<ProductionCompositionDiff> getProductionCompositionDiff(int id) async {
+    final res = await http.get(
+      await _uri('/production-requests/$id/composition-diff'),
+      headers: await _authHeaders(),
+    );
+    return ProductionCompositionDiff.fromJson(_decode(res));
+  }
+
+  /// «Рассчитались» — разница выдана/возвращена, текущий состав становится выданным.
+  Future<ProductionCompositionDiff> settleProductionComposition(int id) async {
+    final res = await http.post(
+      await _uri('/production-requests/$id/composition-diff/settle'),
+      headers: await _authHeaders(),
+    );
+    return ProductionCompositionDiff.fromJson(_decode(res));
+  }
+
   Future<ProductionRequest> cancelProductionRequestCompletion(int id) async {
     final res = await http.post(
       await _uri('/production-requests/$id/cancel-completion'),

@@ -8,6 +8,7 @@ import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/production_composition_sheet.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/swipe_cancel_delete.dart';
 import 'production_request_detail_screen.dart';
@@ -154,14 +155,30 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                         title: r.title,
                         subtitle: '№${r.id} · ${r.productNames.join(", ")} · ${formatQty(r.totalBatches)} замес. всего · '
                             '${r.createdBy} · ${formatDate(r.documentDate)}',
-                        subtitleExtra: r.hasShortfall
-                            ? Text(
-                                'Недостаточно: ${r.shortfallText}',
-                                style: const TextStyle(color: Color(0xFFB8433F), fontWeight: FontWeight.w600, fontSize: 12),
+                        subtitleExtra: (r.hasShortfall || r.compositionDiffPending)
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (r.hasShortfall)
+                                    Text(
+                                      'Недостаточно: ${r.shortfallText}',
+                                      style: const TextStyle(
+                                          color: Color(0xFFB8433F), fontWeight: FontWeight.w600, fontSize: 12),
+                                    ),
+                                  if (r.compositionDiffPending)
+                                    const Text(
+                                      'Состав изменён после выдачи — удерживайте, чтобы увидеть разницу',
+                                      style: TextStyle(color: Color(0xFFC77C12), fontWeight: FontWeight.w600, fontSize: 12),
+                                    ),
+                                ],
                               )
                             : null,
                         trailing: StatusBadge(status: r.status, label: r.statusLabel, insufficient: r.hasShortfall),
                         onTap: () => _openDetail(r.id),
+                        onLongPress: () async {
+                          await showProductionCompositionDiff(context, requestId: r.id);
+                          _refresh();
+                        },
                       );
                       return SwipeCancelDelete(
                         itemKey: r.id,

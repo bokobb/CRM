@@ -347,6 +347,9 @@ public class ProductionRequestService {
             }
         }
 
+        if (stockAlreadyWrittenOff) {
+            ensureIssuedBaseline(request);
+        }
         request.getLines().clear();
         request.getItems().clear();
         populate(request, lines);
@@ -375,6 +378,9 @@ public class ProductionRequestService {
                     stockService.receiveForProduction(ingredient, diff.negate(), reason, updatedBy);
                 }
             }
+            recordRevision(request, updatedBy, "Правка позиций: " + request.getLines().stream()
+                    .map(l -> l.getProduct().getName() + " — " + l.getBatches().stripTrailingZeros().toPlainString() + " замес.")
+                    .collect(Collectors.joining(", ")), false);
         }
 
         oneCProductionSyncService.trySyncRequest(request);
@@ -462,6 +468,7 @@ public class ProductionRequestService {
 
         request.setStatus(ProductionRequestStatus.CANCELLED);
         request.setRequisitionCompleted(false);
+        request.setCompositionDiffPending(false);
         oneCProductionSyncService.tryUnpostAll(request);
 
         String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» отменена (" + by + ")";
@@ -525,6 +532,10 @@ public class ProductionRequestService {
                 .filter(i -> i.getId().equals(itemId)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Позиция заявки не найдена: " + itemId));
         String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — правка состава";
+        if (stockAlreadyWrittenOff) {
+            ensureIssuedBaseline(request);
+        }
+        String revisionNote;
 
         // Без push-уведомлений — по просьбе бизнеса: во время производства состав может
         // правиться сколько угодно раз, спамить на каждую правку не нужно (см. notifyReceivedSummary
@@ -545,6 +556,7 @@ public class ProductionRequestService {
                     stockService.receiveForProduction(item.getIngredient(), diff.negate(), reason, by);
                 }
             }
+            revisionNote = item.getIngredient().getName() + ": " + fmt(oldQuantity) + " → " + fmt(newQuantity);
             item.setRequiredQuantity(newQuantity);
         } else {
             Ingredient newIngredient = ingredientRepository.findById(newIngredientId)
@@ -568,6 +580,10 @@ public class ProductionRequestService {
             }
             item.setIngredient(newIngredient);
             item.setRequiredQuantity(newQty);
+            revisionNote = "Замена: " + oldName + " " + fmt(oldQuantity) + " → " + newIngredient.getName() + " " + fmt(newQty);
+        }
+        if (stockAlreadyWrittenOff) {
+            recordRevision(request, by, revisionNote, false);
         }
 
         oneCProductionSyncService.trySyncRequest(request);
@@ -604,6 +620,9 @@ public class ProductionRequestService {
         boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
                 || request.getStatus() == ProductionRequestStatus.RECEIVED;
         String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — добавлена позиция";
+        if (stockAlreadyWrittenOff) {
+            ensureIssuedBaseline(request);
+        }
 
         ProductionRequestItem existing = request.getItems().stream()
                 .filter(i -> i.getIngredient().getId().equals(ingredientId))
@@ -621,6 +640,9 @@ public class ProductionRequestService {
             item.setIngredient(ingredient);
             item.setRequiredQuantity(quantity);
             request.addItem(item);
+        }
+        if (stockAlreadyWrittenOff) {
+            recordRevision(request, by, "Добавлено: " + ingredient.getName() + " " + fmt(quantity), false);
         }
 
         oneCProductionSyncService.trySyncRequest(request);
@@ -649,10 +671,14 @@ public class ProductionRequestService {
         boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
                 || request.getStatus() == ProductionRequestStatus.RECEIVED;
         if (stockAlreadyWrittenOff) {
+            ensureIssuedBaseline(request);
             String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — удалена позиция";
             stockService.receiveForProduction(item.getIngredient(), item.getRequiredQuantity(), reason, by);
         }
         request.getItems().remove(item);
+        if (stockAlreadyWrittenOff) {
+            recordRevision(request, by, "Удалено: " + item.getIngredient().getName() + " " + fmt(item.getRequiredQuantity()), false);
+        }
 
         oneCProductionSyncService.trySyncRequest(request);
         return request;
@@ -753,6 +779,7 @@ public class ProductionRequestService {
         request.setStatus(ProductionRequestStatus.COLLECTED);
         request.setCollectedBy(by);
         request.setCollectedAt(LocalDateTime.now());
+        recordRevision(request, by, "Собрано — выдано работникам", true);
 
         String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» собрана — ждёт оприходования";
         notificationService.notifyRole(Role.ADMIN, message, null);
@@ -861,6 +888,116 @@ public class ProductionRequestService {
                             received, received.subtract(norm), countByProduct.get(product));
                 })
                 .toList();
+    }
+
+    /**
+     * Состав сырья, выданный работникам, против текущего — для всплывающего окна по долгому
+     * нажатию на заявку в списке (см. ProductionRequestApiController.compositionDiff).
+     * {@code diff = current − issued}: плюс — не хватает, надо довыдать; минус — лишнее, вернуть.
+     * {@code baseline == null} — сырьё ещё не выдавали (заявка «Новая»), разницы нет.
+     */
+    public record CompositionDiff(ProductionRequest request, ProductionRequestRevision baseline,
+                                  List<DiffRow> rows, List<ProductionRequestRevision> history) {
+    }
+
+    public record DiffRow(String ingredientName, String unit, BigDecimal issued, BigDecimal current, BigDecimal diff) {
+    }
+
+    @Transactional(readOnly = true)
+    public CompositionDiff compositionDiff(Long requestId) {
+        ProductionRequest request = findById(requestId);
+        ProductionRequestRevision baseline = lastIssued(request);
+        List<DiffRow> rows = diffRows(baseline, request);
+        // Инициализируем ленивые коллекции внутри транзакции — DTO собирается уже снаружи.
+        request.getRevisions().forEach(r -> r.getItems().size());
+        return new CompositionDiff(request, baseline, rows, List.copyOf(request.getRevisions()));
+    }
+
+    /**
+     * «Рассчитались» — зав. склада довыдал недостающее и забрал лишнее: текущий состав
+     * становится новым «выдано», разница обнуляется. Склад не трогает — остатки уже
+     * скорректированы в момент каждой правки.
+     */
+    @Transactional
+    public ProductionRequest settleComposition(Long requestId, String by) {
+        ProductionRequest request = findById(requestId);
+        if (lastIssued(request) == null) {
+            throw new IllegalStateException("Сырьё по заявке ещё не выдавали");
+        }
+        recordRevision(request, by, "Рассчитались — разница выдана/возвращена", true);
+        return request;
+    }
+
+    private static ProductionRequestRevision lastIssued(ProductionRequest request) {
+        ProductionRequestRevision last = null;
+        for (ProductionRequestRevision r : request.getRevisions()) {
+            if (r.isIssued()) {
+                last = r;
+            }
+        }
+        return last;
+    }
+
+    private static List<DiffRow> diffRows(ProductionRequestRevision baseline, ProductionRequest request) {
+        Map<Long, DiffRow> rows = new LinkedHashMap<>();
+        if (baseline != null) {
+            for (ProductionRequestRevision.Item i : baseline.getItems()) {
+                rows.merge(i.getIngredientId(), new DiffRow(i.getIngredientName(), i.getUnit(), i.getQuantity(), BigDecimal.ZERO, null),
+                        (a, b) -> new DiffRow(a.ingredientName(), a.unit(), a.issued().add(b.issued()), a.current(), null));
+            }
+        }
+        for (ProductionRequestItem i : request.getItems()) {
+            Ingredient ing = i.getIngredient();
+            DiffRow add = new DiffRow(ing.getName(), ing.getUnit(), BigDecimal.ZERO, i.getRequiredQuantity(), null);
+            rows.merge(ing.getId(), add,
+                    (a, b) -> new DiffRow(b.ingredientName(), b.unit(), a.issued(), a.current().add(b.current()), null));
+        }
+        return rows.values().stream()
+                .map(r -> new DiffRow(r.ingredientName(), r.unit(), r.issued(), r.current(),
+                        baseline == null ? BigDecimal.ZERO : r.current().subtract(r.issued())))
+                .toList();
+    }
+
+    /**
+     * Заявки, собранные до появления истории, снимка «выдано» не имеют — перед первой правкой
+     * снимаем текущий (ещё не изменённый) состав как выданный, иначе разницу не посчитать.
+     */
+    private void ensureIssuedBaseline(ProductionRequest request) {
+        if (lastIssued(request) != null) {
+            return;
+        }
+        ProductionRequestRevision baseline = snapshot(request,
+                request.getCollectedBy() != null ? request.getCollectedBy() : request.getCreatedBy(),
+                "Собрано — выдано работникам", true);
+        if (request.getCollectedAt() != null) {
+            baseline.setCreatedAt(request.getCollectedAt());
+        }
+    }
+
+    private void recordRevision(ProductionRequest request, String by, String note, boolean issued) {
+        snapshot(request, by, note, issued);
+        ProductionRequestRevision baseline = lastIssued(request);
+        boolean pending = baseline != null
+                && diffRows(baseline, request).stream().anyMatch(r -> r.diff().signum() != 0);
+        request.setCompositionDiffPending(pending);
+    }
+
+    private static ProductionRequestRevision snapshot(ProductionRequest request, String by, String note, boolean issued) {
+        ProductionRequestRevision revision = new ProductionRequestRevision();
+        revision.setRequest(request);
+        revision.setCreatedBy(by);
+        revision.setNote(note);
+        revision.setIssued(issued);
+        for (ProductionRequestItem i : request.getItems()) {
+            revision.getItems().add(new ProductionRequestRevision.Item(i.getIngredient().getId(),
+                    i.getIngredient().getName(), i.getIngredient().getUnit(), i.getRequiredQuantity()));
+        }
+        request.getRevisions().add(revision);
+        return revision;
+    }
+
+    private static String fmt(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
     }
 
     private String safeUnit(Product product) {
