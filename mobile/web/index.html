@@ -43,6 +43,25 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!--
+    Safari на iPhone при показе клавиатуры прокручивает страницу, чтобы поле ввода было
+    над ней, и в режиме "на экране Домой" часто не возвращает прокрутку назад. Flutter
+    рисует всё сам и прокрутку страницы не ожидает: картинка остаётся на месте, а касания
+    сдвигаются — нажатие по товару в списке выбирало соседний. Держим страницу в нуле.
+  -->
+  <script>
+    (function () {
+      function pin() {
+        if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+      }
+      window.addEventListener('scroll', pin, { passive: true });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', pin);
+        window.visualViewport.addEventListener('scroll', pin);
+      }
+      document.addEventListener('focusout', function () { setTimeout(pin, 100); });
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -6,10 +6,10 @@ import '../models/order.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
 import '../services/invoice_pdf.dart';
-import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/order_returns_sheets.dart';
+import '../widgets/pick_from_list.dart';
 import '../widgets/product_avatar.dart';
 import '../widgets/receipt_card.dart';
 import '../widgets/status_badge.dart';
@@ -151,56 +151,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   /// Общий выбор товара из списка (поиск по названию) — используется и для замены товара
   /// в существующей позиции, и для выбора товара новой позиции.
   Future<Product?> _pickAnyProduct(List<Product> products, String title) {
-    return showModalBottomSheet<Product>(
+    return pickFromList<Product>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        var query = '';
-        return StatefulBuilder(
-          builder: (context, setPickerState) {
-            final filtered = query.isEmpty
-                ? products
-                : products.where((p) => p.name.toLowerCase().contains(query.toLowerCase())).toList();
-            return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height * 0.75,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: TextField(
-                        autofocus: true,
-                        decoration: InputDecoration(
-                          labelText: title,
-                          prefixIcon: const Icon(Icons.search),
-                        ),
-                        onChanged: (v) => setPickerState(() => query = v),
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, i) {
-                          final p = filtered[i];
-                          return AppListTile(
-                            leading: ProductAvatar(name: p.name, imageUrl: p.imageUrl),
-                            title: p.name,
-                            subtitle: formatMoney(p.price),
-                            onTap: () => Navigator.pop(context, p),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      title: title,
+      items: products,
+      label: (p) => p.name,
+      subtitle: (p) => formatMoney(p.price),
+      leading: (p) => ProductAvatar(name: p.name, imageUrl: p.imageUrl),
     );
   }
 
