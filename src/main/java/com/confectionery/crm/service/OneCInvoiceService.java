@@ -50,7 +50,7 @@ public class OneCInvoiceService {
                     Document doc = fromOneC(RETURN, r.getOneCDocumentKey(), "возврату №" + r.getId(), true);
                     returns.add(doc != null ? doc : returnFromCrm(r));
                 });
-        return new Invoice(sale, returns);
+        return new Invoice(sale, returns, order.getClient().getName().trim());
     }
 
     private Document fromOneC(String entitySet, String ref, String what, boolean isReturn) {
@@ -132,8 +132,11 @@ public class OneCInvoiceService {
         return trimmed.matches("\\d+") ? String.valueOf(Long.parseLong(trimmed)) : trimmed;
     }
 
-    /** Реализация по заказу и закреплённые за ним возвраты. */
-    public record Invoice(Document sale, List<Document> returns) {
+    /**
+     * Реализация по заказу и закреплённые за ним возвраты. clientName — имя клиента в CRM, оно
+     * подписывается в "Получил" у продажи и в "Отпустил" у возврата.
+     */
+    public record Invoice(Document sale, List<Document> returns, String clientName) {
 
         /** К оплате: сумма продажи минус все возвраты. */
         public BigDecimal payable() {
