@@ -292,13 +292,14 @@ public class OrderService {
         String message = "Заказ " + order.getClient().getName() + " " + order.getVehicleNumber() + " отгружен";
         notificationService.notifyRole(Role.ACCOUNTANT, message, order);
         notificationService.notifyRole(Role.ADMIN, message, order);
-        sendInvoiceToClient(order);
         // Документ в 1С уже существует непроведённым черновиком (создан при оформлении заказа —
         // с датой создания заказа), но дата документа должна быть датой ФАКТИЧЕСКОЙ отгрузки —
         // shippedAt выше уже проставлен, поэтому trySyncOrder здесь перезапишет дату на неё
         // и следом проведёт документ — товар списывается со склада в 1С именно проведением
         // (см. OneCOrderSyncService.postIfShipped). Отгрузку в CRM неудача в 1С не блокирует.
         oneCOrderSyncService.trySyncOrder(order);
+        // накладная строится из документа 1С — поэтому уже после синхронизации, с датой отгрузки
+        sendInvoiceToClient(order);
         return order;
     }
 
@@ -314,11 +315,22 @@ public class OrderService {
         }
         try {
             byte[] pdf = invoicePdfService.generate(order);
-            String caption = "Накладная № " + order.getId() + ". Гос. номер ТС: " + order.getVehicleNumber();
-            whatsAppGatewayClient.sendDocument(phone, pdf, "nakladnaya_" + order.getId() + ".pdf", caption);
+            String caption = "Накладная № " + invoiceNumber(order) + ". Гос. номер ТС: " + order.getVehicleNumber();
+            whatsAppGatewayClient.sendDocument(phone, pdf, invoiceFileName(order), caption);
         } catch (Exception e) {
             log.warn("Не удалось отправить накладную по заказу №{} клиенту в WhatsApp: {}", order.getId(), e.getMessage());
         }
+    }
+
+    /** Номер накладной — номер "Реализации" в 1С, как на самой накладной; до выгрузки в 1С — номер заказа. */
+    public static String invoiceNumber(Order order) {
+        return order.getOneCDocumentNumber() != null
+                ? OneCInvoiceService.printNumber(order.getOneCDocumentNumber())
+                : String.valueOf(order.getId());
+    }
+
+    public static String invoiceFileName(Order order) {
+        return "nakladnaya_" + invoiceNumber(order) + ".pdf";
     }
 
     /**

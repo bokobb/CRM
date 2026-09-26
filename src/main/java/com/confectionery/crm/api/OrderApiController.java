@@ -8,7 +8,7 @@ import com.confectionery.crm.api.dto.OrderSummaryDto;
 import com.confectionery.crm.api.dto.ShipRequest;
 import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderStatus;
-import com.confectionery.crm.service.OneCInvoiceService;
+import com.confectionery.crm.service.InvoicePdfService;
 import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.validation.Valid;
@@ -29,7 +29,7 @@ import java.util.List;
 public class OrderApiController {
 
     private final OrderService orderService;
-    private final OneCInvoiceService oneCInvoiceService;
+    private final InvoicePdfService invoicePdfService;
 
     /** from/to не заданы — все даты (как раньше); мобильное приложение по умолчанию передаёт сегодняшний день. */
     @GetMapping
@@ -55,28 +55,19 @@ public class OrderApiController {
     }
 
     /**
-     * Накладная, приложенная вручную к документу заказа в 1С (см. OneCInvoiceService) — 404,
-     * если её там ещё нет (заказ не выгружен, 1С недоступна или файл ещё не приложили);
-     * мобильное приложение в этом случае показывает свою локально сгенерированную накладную.
+     * Накладная по заказу в PDF — по макету печатной формы 1С, с данными из документов 1С и
+     * закреплёнными за заказом возвратами (см. InvoicePdfService). Мобильное приложение делится
+     * этим файлом по кнопке "Поделиться".
      */
     @GetMapping("/{id}/invoice")
     public ResponseEntity<byte[]> invoice(@PathVariable Long id) {
         Order order = orderService.findById(id);
-        OneCInvoiceService.InvoiceFile file = oneCInvoiceService.findInvoiceFile(order);
-        if (file == null) {
-            return ResponseEntity.notFound().build();
-        }
-        MediaType mediaType = switch (file.extension().toLowerCase()) {
-            case "pdf" -> MediaType.APPLICATION_PDF;
-            case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;
-            case "png" -> MediaType.IMAGE_PNG;
-            default -> MediaType.APPLICATION_OCTET_STREAM;
-        };
-        String filename = file.name() + "." + file.extension();
+        byte[] pdf = invoicePdfService.generate(order);
         return ResponseEntity.ok()
-                .contentType(mediaType)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .body(file.data());
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + OrderService.invoiceFileName(order) + "\"")
+                .body(pdf);
     }
 
     @PostMapping

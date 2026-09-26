@@ -7,8 +7,10 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Base64;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -998,41 +1000,71 @@ class OneCClient {
     }
 
     /**
-     * Файл, прикреплённый вручную к документу "Реализация" в самой 1С (обычно — накладная,
-     * которую распечатали/подписали и приложили к документу) — берём самый свежий, если их
-     * несколько. Null, если к документу ещё ничего не приложено (см. OneCInvoiceService).
+     * Документ "Реализация"/"Возврат товаров от покупателя" в том виде, в каком его печатает сама
+     * 1С (см. OneCInvoiceService) — шапка с наименованиями и строки "Товары" с кодами номенклатуры.
+     * Оба документа устроены одинаково, поэтому метод общий; entitySet — имя документа в OData.
      */
-    AttachedFile fetchAttachedFile(String documentRef) {
-        JsonNode response = restClient.get()
-                .uri(b -> b.path("/Catalog_РеализацияТоваровУслугПрисоединенныеФайлы")
+    PrintableDocument fetchPrintableDocument(String entitySet, String ref) {
+        JsonNode header = restClient.get()
+                .uri(b -> b.path("/" + entitySet)
                         .queryParam("$format", "json")
-                        .queryParam("$filter", "ВладелецФайла_Key eq guid'" + documentRef + "'")
-                        .queryParam("$select", "Description,Расширение,ДатаСоздания,ФайлХранилище_Base64Data")
+                        .queryParam("$filter", "Ref_Key eq guid'" + ref + "'")
+                        .queryParam("$expand", "Организация,Контрагент,ДоговорКонтрагента,Склад")
+                        .queryParam("$select", "Number,Date,Организация/Description,Контрагент/Description,"
+                                + "ДоговорКонтрагента/Description,Склад/Description")
                         .build())
                 .retrieve()
-                .body(JsonNode.class);
-        JsonNode values = response.path("value");
-        if (values.isEmpty()) return null;
-
-        JsonNode latest = values.get(0);
-        for (JsonNode file : values) {
-            if (file.path("ДатаСоздания").asText("").compareTo(latest.path("ДатаСоздания").asText("")) > 0) {
-                latest = file;
-            }
+                .body(JsonNode.class)
+                .path("value");
+        if (header.isEmpty()) {
+            throw new IllegalStateException("Документ " + entitySet + " " + ref + " не найден в 1С");
         }
-        String base64 = latest.path("ФайлХранилище_Base64Data").asText("");
-        if (base64.isBlank()) return null;
-        return new AttachedFile(
-                Base64.getDecoder().decode(base64),
-                latest.path("Расширение").asText("pdf"),
-                latest.path("Description").asText("Накладная")
-        );
+        JsonNode doc = header.get(0);
+
+        JsonNode rows = restClient.get()
+                .uri(b -> b.path("/" + entitySet + "_Товары")
+                        .queryParam("$format", "json")
+                        .queryParam("$filter", "Ref_Key eq guid'" + ref + "'")
+                        .queryParam("$expand", "Номенклатура,ЕдиницаИзмерения")
+                        .queryParam("$select", "LineNumber,Количество,Цена,Сумма,Номенклатура/Code,"
+                                + "Номенклатура/Description,ЕдиницаИзмерения/Description")
+                        .build())
+                .retrieve()
+                .body(JsonNode.class)
+                .path("value");
+        List<PrintableLine> lines = new ArrayList<>();
+        for (JsonNode row : rows) {
+            lines.add(new PrintableLine(
+                    row.path("LineNumber").asInt(),
+                    row.path("Номенклатура").path("Code").asText("").trim(),
+                    row.path("Номенклатура").path("Description").asText("").trim(),
+                    row.path("Количество").decimalValue(),
+                    row.path("ЕдиницаИзмерения").path("Description").asText("").trim(),
+                    row.path("Цена").decimalValue(),
+                    row.path("Сумма").decimalValue()));
+        }
+        // OData отдаёт строки табличной части не обязательно по порядку
+        lines.sort(Comparator.comparingInt(PrintableLine::lineNumber));
+
+        return new PrintableDocument(
+                doc.path("Number").asText(""),
+                LocalDateTime.parse(doc.path("Date").asText()).toLocalDate(),
+                doc.path("Организация").path("Description").asText("").trim(),
+                doc.path("Контрагент").path("Description").asText("").trim(),
+                doc.path("ДоговорКонтрагента").path("Description").asText("").trim(),
+                doc.path("Склад").path("Description").asText("").trim(),
+                lines);
     }
 
     record Contragent(String ref, String description, String contractKey) {
     }
 
-    record AttachedFile(byte[] data, String extension, String name) {
+    record PrintableDocument(String number, LocalDate date, String organization, String contragent,
+                             String contract, String warehouse, List<PrintableLine> lines) {
+    }
+
+    record PrintableLine(int lineNumber, String code, String name, BigDecimal quantity, String unit,
+                         BigDecimal price, BigDecimal sum) {
     }
 
     /** Строка регистра цен номенклатуры: period — ISO-строка даты/времени 1С, как пришла из OData. */
