@@ -24,10 +24,11 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Накладная клиенту в PDF — повторяет печатные формы 1С "Расходная накладная" и "Возврат от
- * покупателя": все координаты, размеры шрифтов и толщины линий сняты с PDF, распечатанных
- * из 1С пользователем 26.09 (Downloads/Накладное Продажа.pdf, Возврат НАкладное.pdf). Шрифт в
- * 1С — Arial, здесь метрически совместимый с ним Liberation Sans. Данные — из документов 1С
+ * Накладная клиенту в PDF — повторяет печатную форму 1С "Расходная накладная": все координаты,
+ * размеры шрифтов и толщины линий сняты с PDF, распечатанного из 1С пользователем 26.09
+ * (Downloads/Накладное Продажа.pdf). Возврат печатается по тому же макету (решение пользователя —
+ * вместо собственной формы 1С "Возврат от покупателя" с отдельными столбцами кол-ва и ед. изм.).
+ * Шрифт в 1С — Arial, здесь метрически совместимый с ним Liberation Sans. Данные — из документов 1С
  * (см. OneCInvoiceService). Если за заказом закреплены возвраты — они идут в тот же файл
  * следом за продажей, а в конце итог "продажа − возвраты = к оплате".
  * Генерируется на backend (см. OrderService.ship — уходит клиенту в WhatsApp при отгрузке,
@@ -47,7 +48,7 @@ public class InvoicePdfService {
     private static final float LINE_GRAY = 0.2f;
     private static final float DOCUMENT_GAP = 36;
 
-    /** Расходная накладная — геометрия образца на A4. */
+    /** Геометрия образца "Расходной накладной" на A4 — по ней же печатается и возврат. */
     private static final Layout SALE = new Layout(
             new float[]{36.48f, 66.72f, 123.00f, 273.60f, 318.96f, 333.96f, 392.40f, 477.24f},
             new String[]{"№ п/п", "Код", "Товар", "Количество", null, "Цена", "Сумма"},
@@ -57,17 +58,6 @@ public class InvoicePdfService {
             10.2f, 7.68f, 7.48f, 1.8f, 2.76f, 2.0f, false, qtyFormat("#,##0.000"),
             12.68f, 8.52f, 363.48f, 1.62f,
             19.56f, 7.68f, 38.28f, true, 11.28f, 8.52f, 38.64f);
-
-    /** Возврат от покупателя — геометрия образца (там Letter, на A4 помещается как есть). */
-    private static final Layout RETURN = new Layout(
-            new float[]{42.00f, 73.44f, 154.20f, 343.20f, 390.48f, 421.92f, 469.20f, 559.20f},
-            new String[]{"№", "Код", "Товар", "Кол-во", "Ед.", "Цена", "Сумма"},
-            14.04f, 45.48f, 6.27f, 547.92f, 1.5f,
-            9.84f, 44.28f, 125.16f, ":", 20.01f, 19.92f, 10.71f,
-            1.5f, 0.75f, 12.82f, 9.84f, 9.33f,
-            10.8f, 8.04f, 7.41f, 1.92f, 1.92f, 1.7f, true, qtyFormat("#,##0.###"),
-            16.89f, 9.84f, 435.72f, 1.7f,
-            18.36f, 8.04f, 43.92f, false, 12.6f, 9.84f, 44.40f);
 
     private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00", new DecimalFormatSymbols(Locale.US));
 
@@ -92,13 +82,13 @@ public class InvoicePdfService {
             OneCInvoiceService.Document sale = invoice.sale();
             drawDocument(canvas, SALE, "Расходная накладная № " + sale.number() + " от " + formatDate(sale.date()),
                     headerRows(sale, "Поставщик", "Покупатель"), sale.lines());
-            drawSaleSignatures(canvas, invoice.warehouseManager(), invoice.clientName());
+            drawSignatures(canvas, invoice.warehouseManager(), invoice.clientName());
 
             for (OneCInvoiceService.Document ret : invoice.returns()) {
                 canvas.y -= DOCUMENT_GAP;
-                drawDocument(canvas, RETURN, "Возврат от покупателя № " + ret.number() + " от " + formatDate(ret.date()),
+                drawDocument(canvas, SALE, "Возврат от покупателя № " + ret.number() + " от " + formatDate(ret.date()),
                         headerRows(ret, "Поставщик", "Покупатель"), ret.lines());
-                drawReturnSignatures(canvas, invoice.clientName(), invoice.warehouseManager());
+                drawSignatures(canvas, invoice.clientName(), invoice.warehouseManager());
             }
             if (!invoice.returns().isEmpty()) {
                 drawPayable(canvas, invoice);
@@ -243,7 +233,7 @@ public class InvoicePdfService {
         }
     }
 
-    private void drawSaleSignatures(Canvas c, String releasedBy, String receivedBy) throws IOException {
+    private void drawSignatures(Canvas c, String releasedBy, String receivedBy) throws IOException {
         float gap = 29.76f;
         if (c.y - gap < PAGE_BOTTOM) {
             c.newPage();
@@ -254,22 +244,6 @@ public class InvoicePdfService {
         signature(c, 81.72f, 243.48f, c.y, 2.96f, 0.64f, 7.68f, releasedBy);
         c.text(c.bold, 8.52f, 260.76f, c.y, "Получил");
         signature(c, 303.84f, 477.24f, c.y, 2.96f, 0.64f, 7.68f, receivedBy);
-    }
-
-    private void drawReturnSignatures(Canvas c, String releasedBy, String receivedBy) throws IOException {
-        float ruleGap = 10.59f;
-        float signGap = 20.01f;
-        if (c.y - ruleGap - signGap < PAGE_BOTTOM) {
-            c.newPage();
-            c.y = PAGE_TOP + ruleGap;
-        }
-        c.y -= ruleGap;
-        c.hline(42.00f, 559.20f, c.y, 1.5f, LINE_GRAY);
-        c.y -= signGap;
-        c.text(c.bold, 9.84f, 44.40f, c.y, "Отпустил");
-        signature(c, 89.16f, 295.92f, c.y, 3.37f, 0.75f, 8.04f, releasedBy);
-        c.text(c.bold, 9.84f, 314.16f, c.y, "Получил");
-        signature(c, 358.92f, 547.92f, c.y, 3.37f, 0.75f, 8.04f, receivedBy);
     }
 
     /**
@@ -285,43 +259,46 @@ public class InvoicePdfService {
         c.text(c.regular, fitted, lineStart + 4, baseline - 0.24f, text);
     }
 
-    /** Итог внизу: продажа, каждый возврат со знаком минус и "к оплате" — в стиле подвала возврата. */
+    /** Итог внизу: продажа, каждый возврат со знаком минус и "к оплате" — шрифтами и полями расходной накладной. */
     private void drawPayable(Canvas c, OneCInvoiceService.Invoice invoice) throws IOException {
-        float left = 42.00f;
-        float right = 559.20f - 1.7f;
-        float size = 9.84f;
-        float step = 16f;
-        float height = 30 + 14 + step * (invoice.returns().size() + 1) + 20 + 26;
+        float left = 36.48f;
+        float right = 477.24f;
+        float amountRight = right - 1.62f;
+        float size = 8.52f;
+        float step = 14f;
+        float height = 20 + 20 + step * (invoice.returns().size() + 1) + 14 + 20 + 12;
         c.y -= DOCUMENT_GAP;
         if (c.y - height < PAGE_BOTTOM) {
             c.newPage();
             c.y = PAGE_TOP;
         }
-        c.text(c.bold, 14.04f, 45.48f, c.y, "Итог");
-        c.y -= 6.27f;
-        c.hline(left, 547.92f, c.y, 1.5f, LINE_GRAY);
+        c.text(c.bold, 11.88f, 39.36f, c.y, "Итог");
+        c.y -= 4.36f;
+        c.hline(left, right, c.y, 1.27f, LINE_GRAY);
 
         OneCInvoiceService.Document sale = invoice.sale();
-        c.y -= 20.01f;
-        c.text(c.regular, size, 44.28f, c.y,
+        c.y -= 17.12f;
+        c.text(c.regular, size, 38.40f, c.y,
                 "Расходная накладная № " + sale.number() + " от " + formatDate(sale.date()));
-        c.rightText(c.regular, size, right, c.y, money(sale.total()));
+        c.rightText(c.regular, size, amountRight, c.y, money(sale.total()));
         for (OneCInvoiceService.Document ret : invoice.returns()) {
             c.y -= step;
-            c.text(c.regular, size, 44.28f, c.y,
+            c.text(c.regular, size, 38.40f, c.y,
                     "Возврат от покупателя № " + ret.number() + " от " + formatDate(ret.date()));
-            c.rightText(c.regular, size, right, c.y, "−" + money(ret.total()));
+            c.rightText(c.regular, size, amountRight, c.y, "−" + money(ret.total()));
         }
-        c.y -= 8;
-        c.hline(left, 559.20f, c.y, 1.5f, LINE_GRAY);
-        c.y -= 16.89f;
+        c.y -= 7;
+        c.hline(left, right, c.y, 1.27f, LINE_GRAY);
+        c.y -= 12.68f;
         BigDecimal payable = invoice.payable();
-        c.text(c.bold, size, 44.28f, c.y, "Итого к оплате:");
-        c.rightText(c.bold, size, right, c.y, money(payable));
-        c.y -= 18.36f;
-        c.text(c.regular, 8.04f, 43.92f, c.y, "Сумма к оплате " + money(payable) + " теңге");
-        c.y -= 12.6f;
-        c.text(c.bold, size, 44.40f, c.y, NumberToWordsRu.amountInWords(payable));
+        c.text(c.bold, size, 38.40f, c.y, "Итого к оплате:");
+        c.rightText(c.bold, size, amountRight, c.y, money(payable));
+        c.y -= 19.56f;
+        String count = "Сумма к оплате " + money(payable) + " теңге";
+        c.text(c.regular, 7.68f, 38.28f, c.y, count);
+        c.hline(38.28f, 38.28f + c.width(c.regular, 7.68f, count), c.y - 0.84f, 0.6f, 0f);
+        c.y -= 11.28f;
+        c.text(c.bold, size, 38.64f, c.y, NumberToWordsRu.amountInWords(payable));
     }
 
     private static String money(BigDecimal value) {
