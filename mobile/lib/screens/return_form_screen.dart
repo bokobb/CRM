@@ -159,6 +159,16 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
     final qty = await _askQuantity(product, '1');
     if (qty == null || !mounted) return;
     setState(() {
+      // Товар уже есть в списке (по обычной цене) — прибавляем количество к той строке,
+      // а не заводим повтор; сервер всё равно склеил бы их при сохранении.
+      final same = row == null
+          ? _rows.where((r) => r.product?.id == product.id && r.price == null).firstOrNull
+          : null;
+      if (same != null) {
+        final added = double.tryParse(qty.replaceAll(',', '.').replaceAll(RegExp(r'\s'), '')) ?? 0;
+        same.quantity.text = formatQty(_qtyOf(same) + added);
+        return;
+      }
       final target = row ?? _ReturnItemRow();
       target.product = product;
       target.price = null;

@@ -120,10 +120,20 @@ public class ProductReturnService {
                 throw new IllegalArgumentException("Цена не может быть отрицательной");
             }
             Product product = productService.findById(input.productId());
+            BigDecimal price = input.price() != null ? input.price() : clientPriceService.resolvePrice(client, product);
+            // один и тот же товар по той же цене — одной строкой (и в 1С, и в накладной)
+            ProductReturnItem same = productReturn.getItems().stream()
+                    .filter(i -> i.getProduct().getId().equals(product.getId()) && i.getPrice().compareTo(price) == 0)
+                    .findFirst()
+                    .orElse(null);
+            if (same != null) {
+                same.setQuantity(same.getQuantity().add(input.quantity()));
+                continue;
+            }
             ProductReturnItem item = new ProductReturnItem();
             item.setProduct(product);
             item.setQuantity(input.quantity());
-            item.setPrice(input.price() != null ? input.price() : clientPriceService.resolvePrice(client, product));
+            item.setPrice(price);
             productReturn.addItem(item);
         }
     }

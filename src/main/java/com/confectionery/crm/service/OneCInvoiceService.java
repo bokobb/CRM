@@ -12,7 +12,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Данные для накладной клиенту — берутся из самих документов 1С ("Реализация" заказа и
@@ -57,9 +59,9 @@ public class OneCInvoiceService {
         }
         try {
             OneCClient.PrintableDocument doc = oneCClient.fetchPrintableDocument(entitySet, ref);
-            List<Line> lines = doc.lines().stream()
+            List<Line> lines = merge(doc.lines().stream()
                     .map(l -> new Line(l.code(), l.name(), l.quantity(), unitOrDefault(l.unit()), l.price(), l.sum()))
-                    .toList();
+                    .toList());
             String contract = doc.contract().isBlank() ? DEFAULT_CONTRACT : doc.contract();
             // печатная форма возврата в 1С: поставщик — клиент, покупатель — мы, склада в шапке нет
             return isReturn
@@ -83,7 +85,8 @@ public class OneCInvoiceService {
         LocalDate date = order.getShippedAt() != null ? order.getShippedAt().toLocalDate() : LocalDate.now();
         String number = order.getOneCDocumentNumber() != null
                 ? printNumber(order.getOneCDocumentNumber()) : String.valueOf(order.getId());
-        return new Document(number, date, supplierName(), order.getClient().getName(), DEFAULT_CONTRACT, null, lines);
+        return new Document(number, date, supplierName(), order.getClient().getName(), DEFAULT_CONTRACT, null,
+                merge(lines));
     }
 
     private Document returnFromCrm(ProductReturn productReturn) {
@@ -97,7 +100,21 @@ public class OneCInvoiceService {
                 ? printNumber(productReturn.getOneCDocumentNumber()) : String.valueOf(productReturn.getId());
         // в возврате стороны меняются местами: поставщик — клиент, покупатель — мы (как печатает 1С)
         return new Document(number, productReturn.getReturnDate(), productReturn.getClient().getName(),
-                supplierName(), DEFAULT_CONTRACT, null, lines);
+                supplierName(), DEFAULT_CONTRACT, null, merge(lines));
+    }
+
+    /**
+     * Повторяющийся товар (тот же код/наименование и та же цена) — одной строкой с суммарным
+     * количеством, в порядке первого появления. Разные цены на один товар остаются отдельными строками.
+     */
+    static List<Line> merge(List<Line> lines) {
+        Map<String, Line> merged = new LinkedHashMap<>();
+        for (Line line : lines) {
+            String key = line.code() + "|" + line.name() + "|" + line.unit() + "|" + line.price().stripTrailingZeros().toPlainString();
+            merged.merge(key, line, (a, b) -> new Line(a.code(), a.name(), a.quantity().add(b.quantity()), a.unit(),
+                    a.price(), a.sum().add(b.sum())));
+        }
+        return new ArrayList<>(merged.values());
     }
 
     private String supplierName() {
