@@ -48,15 +48,29 @@ public class InvoicePdfService {
     private static final float LINE_GRAY = 0.2f;
     private static final float DOCUMENT_GAP = 36;
 
+    /**
+     * Образец 1С занимал лист не до конца (правый край 477.24 при левом 36.48) — по просьбе
+     * пользователя растягиваем по горизонтали на всю ширину A4 с одинаковыми полями слева и справа.
+     * Все x из образца пропускаются через {@link #sx}; шрифты и вертикаль не меняются.
+     */
+    private static final float SAMPLE_LEFT = 36.48f;
+    private static final float SAMPLE_RIGHT = 477.24f;
+    private static final float RIGHT = PDRectangle.A4.getWidth() - SAMPLE_LEFT;
+    private static final float STRETCH = (RIGHT - SAMPLE_LEFT) / (SAMPLE_RIGHT - SAMPLE_LEFT);
+
+    private static float sx(float sampleX) {
+        return SAMPLE_LEFT + (sampleX - SAMPLE_LEFT) * STRETCH;
+    }
+
     /** Геометрия образца "Расходной накладной" на A4 — по ней же печатается и возврат. */
     private static final Layout SALE = new Layout(
-            new float[]{36.48f, 66.72f, 123.00f, 273.60f, 318.96f, 333.96f, 392.40f, 477.24f},
+            new float[]{sx(36.48f), sx(66.72f), sx(123.00f), sx(273.60f), sx(318.96f), sx(333.96f), sx(392.40f), RIGHT},
             new String[]{"№ п/п", "Код", "Товар", "Количество", null, "Цена", "Сумма"},
-            11.88f, 39.36f, 4.36f, 477.24f, 1.27f,
-            8.52f, 38.40f, 155.28f, "", 17.12f, 17.28f, 9.16f,
+            11.88f, 39.36f, 4.36f, RIGHT, 1.27f,
+            8.52f, 38.40f, sx(155.28f), "", 17.12f, 17.28f, 9.16f,
             1.27f, 0.64f, 27.88f, 8.52f, 16.52f,
             10.2f, 7.68f, 7.48f, 1.8f, 2.76f, 2.0f, false, qtyFormat("#,##0.000"),
-            12.68f, 8.52f, 363.48f, 1.62f,
+            12.68f, 8.52f, sx(363.48f), 1.62f,
             19.56f, 7.68f, 38.28f, true, 11.28f, 8.52f, 38.64f);
 
     private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00", new DecimalFormatSymbols(Locale.US));
@@ -241,9 +255,9 @@ public class InvoicePdfService {
         }
         c.y -= gap;
         c.text(c.bold, 8.52f, 38.64f, c.y, "Отпустил");
-        signature(c, 81.72f, 243.48f, c.y, 2.96f, 0.64f, 7.68f, releasedBy);
-        c.text(c.bold, 8.52f, 260.76f, c.y, "Получил");
-        signature(c, 303.84f, 477.24f, c.y, 2.96f, 0.64f, 7.68f, receivedBy);
+        signature(c, 81.72f, sx(243.48f), c.y, 2.96f, 0.64f, 7.68f, releasedBy);
+        c.text(c.bold, 8.52f, sx(260.76f), c.y, "Получил");
+        signature(c, sx(260.76f) + (303.84f - 260.76f), RIGHT, c.y, 2.96f, 0.64f, 7.68f, receivedBy);
     }
 
     /**
@@ -262,7 +276,7 @@ public class InvoicePdfService {
     /** Итог внизу: продажа, каждый возврат со знаком минус и "к оплате" — шрифтами и полями расходной накладной. */
     private void drawPayable(Canvas c, OneCInvoiceService.Invoice invoice) throws IOException {
         float left = 36.48f;
-        float right = 477.24f;
+        float right = RIGHT;
         float amountRight = right - 1.62f;
         float size = 8.52f;
         float step = 14f;
