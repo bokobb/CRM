@@ -4,8 +4,12 @@ import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderItem;
 import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.domain.ProductReturnItem;
+import com.confectionery.crm.domain.Role;
+import com.confectionery.crm.domain.User;
+import com.confectionery.crm.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -37,6 +41,9 @@ public class OneCInvoiceService {
 
     private final OneCClient oneCClient;
     private final CompanyProfileService companyProfileService;
+    private final UserRepository userRepository;
+    @Value("${crm.invoice.warehouse-manager:Пайзахматов Бехруз}")
+    private String defaultWarehouseManager;
 
     public Invoice load(Order order) {
         Document sale = fromOneC(SALE, order.getOneCDocumentKey(), "заказу №" + order.getId(), false);
@@ -50,7 +57,7 @@ public class OneCInvoiceService {
                     Document doc = fromOneC(RETURN, r.getOneCDocumentKey(), "возврату №" + r.getId(), true);
                     returns.add(doc != null ? doc : returnFromCrm(r));
                 });
-        return new Invoice(sale, returns, order.getClient().getName().trim());
+        return new Invoice(sale, returns, order.getClient().getName().trim(), warehouseManager());
     }
 
     private Document fromOneC(String entitySet, String ref, String what, boolean isReturn) {
@@ -117,6 +124,18 @@ public class OneCInvoiceService {
         return new ArrayList<>(merged.values());
     }
 
+    /**
+     * Зав. складом — ФИО активного пользователя CRM с ролью "Кладовщик (склад ГП)" (самого раннего,
+     * если их несколько): переименовали в CRM — меняется и в накладной. Нет такого — из настройки.
+     */
+    private String warehouseManager() {
+        return userRepository.findFirstByRoleAndEnabledTrueOrderByIdAsc(Role.WAREHOUSE_FG)
+                .map(User::getFullName)
+                .filter(name -> !name.isBlank())
+                .map(String::trim)
+                .orElse(defaultWarehouseManager);
+    }
+
     private String supplierName() {
         String name = companyProfileService.get().getName();
         return name == null || name.isBlank() ? DEFAULT_SUPPLIER : name;
@@ -133,10 +152,10 @@ public class OneCInvoiceService {
     }
 
     /**
-     * Реализация по заказу и закреплённые за ним возвраты. clientName — имя клиента в CRM, оно
-     * подписывается в "Получил" у продажи и в "Отпустил" у возврата.
+     * Реализация по заказу и закреплённые за ним возвраты. Подписи: в продаже "Отпустил" —
+     * warehouseManager, "Получил" — clientName (имя клиента в CRM); в возврате наоборот.
      */
-    public record Invoice(Document sale, List<Document> returns, String clientName) {
+    public record Invoice(Document sale, List<Document> returns, String clientName, String warehouseManager) {
 
         /** К оплате: сумма продажи минус все возвраты. */
         public BigDecimal payable() {

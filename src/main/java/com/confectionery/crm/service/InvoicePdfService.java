@@ -7,7 +7,6 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
@@ -73,13 +72,8 @@ public class InvoicePdfService {
     private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00", new DecimalFormatSymbols(Locale.US));
 
     private final OneCInvoiceService oneCInvoiceService;
-    /** Зав. складом — "Отпустил" в продаже и "Получил" в возврате. */
-    private final String warehouseManager;
-
-    public InvoicePdfService(OneCInvoiceService oneCInvoiceService,
-                             @Value("${crm.invoice.warehouse-manager:Пайзахматов Б.}") String warehouseManager) {
+    public InvoicePdfService(OneCInvoiceService oneCInvoiceService) {
         this.oneCInvoiceService = oneCInvoiceService;
-        this.warehouseManager = warehouseManager;
     }
 
     public byte[] generate(Order order) {
@@ -98,13 +92,13 @@ public class InvoicePdfService {
             OneCInvoiceService.Document sale = invoice.sale();
             drawDocument(canvas, SALE, "Расходная накладная № " + sale.number() + " от " + formatDate(sale.date()),
                     headerRows(sale, "Поставщик", "Покупатель"), sale.lines());
-            drawSaleSignatures(canvas, warehouseManager, invoice.clientName());
+            drawSaleSignatures(canvas, invoice.warehouseManager(), invoice.clientName());
 
             for (OneCInvoiceService.Document ret : invoice.returns()) {
                 canvas.y -= DOCUMENT_GAP;
                 drawDocument(canvas, RETURN, "Возврат от покупателя № " + ret.number() + " от " + formatDate(ret.date()),
                         headerRows(ret, "Поставщик", "Покупатель"), ret.lines());
-                drawReturnSignatures(canvas, invoice.clientName(), warehouseManager);
+                drawReturnSignatures(canvas, invoice.clientName(), invoice.warehouseManager());
             }
             if (!invoice.returns().isEmpty()) {
                 drawPayable(canvas, invoice);
@@ -249,7 +243,6 @@ public class InvoicePdfService {
         }
     }
 
-    /** Подписи продажи: "подпись / расшифровка", имя — справа от косой черты. */
     private void drawSaleSignatures(Canvas c, String releasedBy, String receivedBy) throws IOException {
         float gap = 29.76f;
         if (c.y - gap < PAGE_BOTTOM) {
@@ -257,15 +250,10 @@ public class InvoicePdfService {
             c.y = PAGE_TOP + gap;
         }
         c.y -= gap;
-        float size = 8.52f;
-        c.text(c.bold, size, 38.64f, c.y, "Отпустил");
-        c.hline(81.72f, 243.48f, c.y - 2.96f, 0.64f, LINE_GRAY);
-        c.text(c.regular, 7.68f, 150.00f, c.y - 0.24f, "/");
-        c.fitRightText(c.regular, 7.68f, 155.00f, 243.48f, c.y - 0.24f, releasedBy);
-        c.text(c.bold, size, 260.76f, c.y, "Получил");
-        c.hline(303.84f, 477.24f, c.y - 2.96f, 0.64f, LINE_GRAY);
-        c.text(c.regular, 7.68f, 385.00f, c.y - 0.24f, "/");
-        c.fitRightText(c.regular, 7.68f, 390.00f, 477.24f, c.y - 0.24f, receivedBy);
+        c.text(c.bold, 8.52f, 38.64f, c.y, "Отпустил");
+        signature(c, 81.72f, 243.48f, c.y, 2.96f, 0.64f, 7.68f, releasedBy);
+        c.text(c.bold, 8.52f, 260.76f, c.y, "Получил");
+        signature(c, 303.84f, 477.24f, c.y, 2.96f, 0.64f, 7.68f, receivedBy);
     }
 
     private void drawReturnSignatures(Canvas c, String releasedBy, String receivedBy) throws IOException {
@@ -278,13 +266,23 @@ public class InvoicePdfService {
         c.y -= ruleGap;
         c.hline(42.00f, 559.20f, c.y, 1.5f, LINE_GRAY);
         c.y -= signGap;
-        float size = 9.84f;
-        c.text(c.bold, size, 44.40f, c.y, "Отпустил");
-        c.hline(89.16f, 295.92f, c.y - 3.37f, 0.75f, LINE_GRAY);
-        c.fitRightText(c.regular, 8.04f, 92.00f, 295.92f, c.y - 0.48f, releasedBy);
-        c.text(c.bold, size, 314.16f, c.y, "Получил");
-        c.hline(358.92f, 547.92f, c.y - 3.37f, 0.75f, LINE_GRAY);
-        c.fitRightText(c.regular, 8.04f, 362.00f, 547.92f, c.y - 0.48f, receivedBy);
+        c.text(c.bold, 9.84f, 44.40f, c.y, "Отпустил");
+        signature(c, 89.16f, 295.92f, c.y, 3.37f, 0.75f, 8.04f, releasedBy);
+        c.text(c.bold, 9.84f, 314.16f, c.y, "Получил");
+        signature(c, 358.92f, 547.92f, c.y, 3.37f, 0.75f, 8.04f, receivedBy);
+    }
+
+    /**
+     * Строка подписи "Имя / ______": имя в начале линии, за ним косая черта, остаток линии —
+     * место для подписи. Длинное имя уменьшается, чтобы под подпись оставалось не меньше 40% линии.
+     */
+    private void signature(Canvas c, float lineStart, float lineEnd, float baseline, float lineDrop, float lineWidth,
+                           float size, String name) throws IOException {
+        c.hline(lineStart, lineEnd, baseline - lineDrop, lineWidth, LINE_GRAY);
+        String text = (name == null || name.isBlank() ? "" : name.trim() + " ") + "/";
+        float maxWidth = (lineEnd - lineStart) * 0.6f;
+        float fitted = Math.min(size, size * maxWidth / c.width(c.regular, size, text));
+        c.text(c.regular, fitted, lineStart + 4, baseline - 0.24f, text);
     }
 
     /** Итог внизу: продажа, каждый возврат со знаком минус и "к оплате" — в стиле подвала возврата. */
@@ -404,14 +402,6 @@ public class InvoicePdfService {
 
         void rightText(PDFont font, float size, float rightEdge, float baseline, String value) throws IOException {
             text(font, size, rightEdge - width(font, size, value), baseline, value);
-        }
-
-        /** Текст по правому краю, уменьшается, если не влезает между left и rightEdge (длинное имя клиента). */
-        void fitRightText(PDFont font, float size, float left, float rightEdge, float baseline, String value)
-                throws IOException {
-            if (value == null || value.isBlank()) return;
-            float fitted = Math.min(size, size * (rightEdge - left) / width(font, size, value));
-            rightText(font, fitted, rightEdge, baseline, value);
         }
 
         void centeredText(PDFont font, float size, float left, float width, float baseline, String value)
