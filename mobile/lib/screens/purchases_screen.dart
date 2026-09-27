@@ -13,6 +13,7 @@ import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/searchable_app_bar.dart';
+import 'purchase_invoice_screen.dart';
 
 /// Закупки сырья у контрагентов — см. PurchaseService на бэкенде. Один контрагент может
 /// привезти сразу несколько разных товаров за один раз (см. Purchase.items).
@@ -81,24 +82,19 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
         .toList();
   }
 
-  void _showInvoicePhoto(BuildContext context, String imageUrl) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        child: Stack(
-          alignment: Alignment.topRight,
-          children: [
-            InteractiveViewer(child: Image.network(imageUrl)),
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              style: IconButton.styleFrom(backgroundColor: Colors.black45),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
+  /// Фото накладной поставщика — на весь экран, с масштабом и «Поделиться».
+  void _showInvoicePhoto(Purchase p) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => InvoicePhotoScreen(
+        imageUrl: p.imageUrl!,
+        title: '${p.counterpartyName} · ${formatDate(p.purchaseDate)}',
       ),
-    );
+    ));
+  }
+
+  /// Свайп карточки влево — предпросмотр приходной накладной (PDF с backend) и «Поделиться».
+  void _showInvoice(Purchase p) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => PurchaseInvoiceScreen(purchase: p)));
   }
 
   Future<void> _openForm() async {
@@ -156,7 +152,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                           .map((i) => '${i.ingredientName} × ${formatQty(i.quantity)} ${i.ingredientUnit}')
                           .join(', ');
                       final syncing = _syncingIds.contains(p.id);
-                      return AppListTile(
+                      final tile = AppListTile(
                         leadingIcon: Icons.local_shipping_outlined,
                         leadingColor: const Color(0xFFD9A73F),
                         title: p.counterpartyName,
@@ -190,7 +186,40 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                                   semanticLabel: 'В 1С №${p.oneCDocumentNumber}'),
                           ],
                         ),
-                        onTap: p.imageUrl != null ? () => _showInvoicePhoto(context, p.imageUrl!) : null,
+                        onTap: p.imageUrl != null ? () => _showInvoicePhoto(p) : null,
+                      );
+                      return Dismissible(
+                        key: ValueKey(('invoice', p.id)),
+                        direction: DismissDirection.endToStart,
+                        dismissThresholds: const {DismissDirection.endToStart: 0.35},
+                        background: Padding(
+                          // Карточка (AppListTile) сама отступает снизу на 10 — фон повторяет её форму.
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.symmetric(horizontal: 22),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD9A73F),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.receipt_long_outlined, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Накладная',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        confirmDismiss: (_) async {
+                          _showInvoice(p);
+                          return false;
+                        },
+                        child: tile,
                       );
                     },
                   );

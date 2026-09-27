@@ -4,6 +4,8 @@ import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderItem;
 import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.domain.ProductReturnItem;
+import com.confectionery.crm.domain.Purchase;
+import com.confectionery.crm.domain.PurchaseItem;
 import com.confectionery.crm.domain.Role;
 import com.confectionery.crm.domain.User;
 import com.confectionery.crm.repository.UserRepository;
@@ -13,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,6 +39,7 @@ public class OneCInvoiceService {
 
     private static final String SALE = "Document_РеализацияТоваровУслуг";
     private static final String RETURN = "Document_ВозвратТоваровОтПокупателя";
+    private static final String PURCHASE = "Document_ПоступлениеТоваровУслуг";
     private static final String DEFAULT_SUPPLIER = "Юг Сладости";
     private static final String DEFAULT_CONTRACT = "Без договора";
 
@@ -46,7 +50,7 @@ public class OneCInvoiceService {
     private String defaultWarehouseManager;
 
     public Invoice load(Order order) {
-        Document sale = fromOneC(SALE, order.getOneCDocumentKey(), "заказу №" + order.getId(), false);
+        Document sale = fromOneC(SALE, order.getOneCDocumentKey(), "заказу №" + order.getId(), false, true);
         if (sale == null) {
             sale = saleFromCrm(order);
         }
@@ -54,13 +58,27 @@ public class OneCInvoiceService {
         order.getReturns().stream()
                 .sorted(Comparator.comparing(ProductReturn::getReturnDate))
                 .forEach(r -> {
-                    Document doc = fromOneC(RETURN, r.getOneCDocumentKey(), "возврату №" + r.getId(), true);
+                    Document doc = fromOneC(RETURN, r.getOneCDocumentKey(), "возврату №" + r.getId(), true, false);
                     returns.add(doc != null ? doc : returnFromCrm(r));
                 });
         return new Invoice(sale, returns, order.getClient().getName().trim(), warehouseManager());
     }
 
-    private Document fromOneC(String entitySet, String ref, String what, boolean isReturn) {
+    /**
+     * Приходная накладная по закупке — из документа 1С "Поступление товаров и услуг" (как печатает
+     * 1С: поставщик — контрагент, покупатель — мы, склад в шапке); до выгрузки в 1С — из данных CRM.
+     */
+    public Document loadPurchase(Purchase purchase) {
+        Document doc = fromOneC(PURCHASE, purchase.getOneCDocumentKey(), "закупке №" + purchase.getId(), true, true);
+        return doc != null ? doc : purchaseFromCrm(purchase);
+    }
+
+    /**
+     * contragentIsSupplier — в шапке поставщик контрагент, а покупатель мы (возврат, поступление);
+     * withWarehouse — печатать строку "Склад" (в возврате 1С её не печатает).
+     */
+    private Document fromOneC(String entitySet, String ref, String what, boolean contragentIsSupplier,
+                              boolean withWarehouse) {
         if (!oneCClient.isConfigured() || ref == null) {
             return null;
         }
@@ -70,12 +88,12 @@ public class OneCInvoiceService {
                     .map(l -> new Line(l.code(), l.name(), l.quantity(), unitOrDefault(l.unit()), l.price(), l.sum()))
                     .toList());
             String contract = doc.contract().isBlank() ? DEFAULT_CONTRACT : doc.contract();
-            // печатная форма возврата в 1С: поставщик — клиент, покупатель — мы, склада в шапке нет
-            return isReturn
+            String warehouse = withWarehouse ? doc.warehouse() : null;
+            return contragentIsSupplier
                     ? new Document(printNumber(doc.number()), doc.date(), doc.contragent(), doc.organization(),
-                            contract, null, lines)
+                            contract, warehouse, lines)
                     : new Document(printNumber(doc.number()), doc.date(), doc.organization(), doc.contragent(),
-                            contract, doc.warehouse(), lines);
+                            contract, warehouse, lines);
         } catch (Exception e) {
             log.warn("Не удалось получить из 1С документ для накладной по {}: {}", what, e.getMessage());
             return null;
@@ -94,6 +112,25 @@ public class OneCInvoiceService {
                 ? printNumber(order.getOneCDocumentNumber()) : String.valueOf(order.getId());
         return new Document(number, date, supplierName(), order.getClient().getName(), DEFAULT_CONTRACT, null,
                 merge(lines));
+    }
+
+    private Document purchaseFromCrm(Purchase purchase) {
+        List<Line> lines = new ArrayList<>();
+        for (PurchaseItem item : purchase.getItems()) {
+            BigDecimal sum = item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO;
+            BigDecimal price = item.getQuantity().signum() == 0 ? BigDecimal.ZERO
+                    : sum.divide(item.getQuantity(), 2, RoundingMode.HALF_UP);
+            lines.add(new Line("", item.getIngredient().getName(), item.getQuantity(),
+                    unitOrDefault(item.getIngredient().getUnit()), price, sum));
+        }
+        return new Document(purchaseInvoiceNumber(purchase), purchase.getPurchaseDate(),
+                purchase.getCounterparty().getName(), supplierName(), DEFAULT_CONTRACT, null, merge(lines));
+    }
+
+    /** Номер приходной накладной — номер "Поступления" в 1С; до выгрузки в 1С — номер закупки. */
+    public static String purchaseInvoiceNumber(Purchase purchase) {
+        return purchase.getOneCDocumentNumber() != null
+                ? printNumber(purchase.getOneCDocumentNumber()) : String.valueOf(purchase.getId());
     }
 
     private Document returnFromCrm(ProductReturn productReturn) {

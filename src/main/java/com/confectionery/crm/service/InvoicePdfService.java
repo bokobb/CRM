@@ -1,6 +1,7 @@
 package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Order;
+import com.confectionery.crm.domain.Purchase;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -73,6 +74,32 @@ public class InvoicePdfService {
             12.68f, 8.52f, sx(363.48f), 1.62f,
             19.56f, 7.68f, 38.28f, true, 11.28f, 8.52f, 38.64f);
 
+    /**
+     * Приходная накладная — по печатной форме 1С "Поступление товаров и услуг" (Downloads/Print.pdf,
+     * распечатан пользователем 27.09): свои размеры шрифтов и отступы, лист тоже растянут на всю
+     * ширину A4 (x образца — через {@link #px}).
+     */
+    private static final float PURCHASE_SAMPLE_LEFT = 43.92f;
+    private static final float PURCHASE_SAMPLE_RIGHT = 528.96f;
+    private static final float PURCHASE_STRETCH =
+            (RIGHT - SAMPLE_LEFT) / (PURCHASE_SAMPLE_RIGHT - PURCHASE_SAMPLE_LEFT);
+    /** Базовая линия заголовка — на том же расстоянии от верха листа, что в образце (790.92 − 735.48). */
+    private static final float PURCHASE_TITLE_Y = PAGE_HEIGHT - 55.44f;
+
+    private static float px(float sampleX) {
+        return SAMPLE_LEFT + (sampleX - PURCHASE_SAMPLE_LEFT) * PURCHASE_STRETCH;
+    }
+
+    private static final Layout PURCHASE = new Layout(
+            new float[]{px(43.92f), px(61.68f), px(124.68f), px(282.24f), px(339.96f), px(366.24f), px(434.40f), RIGHT},
+            new String[]{"№", "Код", "Товар", "Количество", null, "Цена", "Сумма"},
+            14f, px(47.40f), 6.27f, px(513.24f), 1.5f,
+            9f, px(46.20f), px(127.08f), ":", 20.01f, 19.76f, 10.47f,
+            1.5f, 0.75f, 21.23f, 9f, 13.53f,
+            10.8f, 8f, 7.78f, 1.92f, 1.92f, 1.7f, true, qtyFormat("#,##0.###"),
+            15.92f, 9f, px(400.92f), 2.79f,
+            18.36f, 8f, px(45.84f), false, 12.6f, 9f, px(46.32f));
+
     private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00", new DecimalFormatSymbols(Locale.US));
 
     private final OneCInvoiceService oneCInvoiceService;
@@ -82,6 +109,48 @@ public class InvoicePdfService {
 
     public byte[] generate(Order order) {
         return render(oneCInvoiceService.load(order));
+    }
+
+    /** Приходная накладная по закупке (кнопка "Поделиться" при свайпе закупки в приложении). */
+    public byte[] generatePurchase(Purchase purchase) {
+        return renderPurchase(oneCInvoiceService.loadPurchase(purchase));
+    }
+
+    byte[] renderPurchase(OneCInvoiceService.Document doc) {
+        try (PDDocument document = new PDDocument()) {
+            Canvas canvas = new Canvas(document,
+                    loadFont(document, "LiberationSans-Regular.ttf"),
+                    loadFont(document, "LiberationSans-Bold.ttf"));
+            canvas.newPage();
+            canvas.y = PURCHASE_TITLE_Y;
+            drawDocument(canvas, PURCHASE, "Приходная накладная № " + doc.number() + " от " + formatDate(doc.date()),
+                    headerRows(doc, "Поставщик", "Покупатель"), doc.lines());
+            drawPurchaseSignatures(canvas);
+            canvas.close();
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            document.save(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Не удалось сгенерировать приходную накладную", e);
+        }
+    }
+
+    /** Жирная черта под суммой прописью и пустые строки подписей "Отпустил"/"Получил", как в образце. */
+    private void drawPurchaseSignatures(Canvas c) throws IOException {
+        float ruleGap = 10.59f;
+        float signGap = 20.01f;
+        if (c.y - ruleGap - signGap < PAGE_BOTTOM) {
+            c.newPage();
+            c.y = PAGE_TOP + ruleGap;
+        }
+        c.y -= ruleGap;
+        c.hline(PURCHASE.cols[0], PURCHASE.cols[7], c.y, PURCHASE.thick, LINE_GRAY);
+        c.y -= signGap;
+        c.text(c.bold, 9f, px(46.32f), c.y, "Отпустил");
+        c.hline(px(93.24f), px(282.24f), c.y - 3.38f, 0.75f, LINE_GRAY);
+        c.text(c.bold, 9f, px(300.36f), c.y, "Получил");
+        c.hline(px(350.40f), px(513.24f), c.y - 3.38f, 0.75f, LINE_GRAY);
     }
 
     byte[] render(OneCInvoiceService.Invoice invoice) {

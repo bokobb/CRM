@@ -1075,6 +1075,25 @@ class ApiClient {
     );
   }
 
+  /// Приходная накладная по закупке — PDF строит backend по макету печатной формы 1С (см.
+  /// PurchaseApiController.invoice).
+  Future<InvoiceFile> getPurchaseInvoiceFile(int purchaseId) async {
+    final res = await http.get(
+      await _uri('/purchases/$purchaseId/invoice'),
+      headers: await _authHeaders(),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException('Не удалось получить накладную (${res.statusCode})');
+    }
+    final disposition = res.headers['content-disposition'] ?? '';
+    final match = RegExp(r'filename="([^"]+)"').firstMatch(disposition);
+    return InvoiceFile(
+      bytes: res.bodyBytes,
+      filename: match?.group(1) ?? 'prihodnaya_$purchaseId.pdf',
+      mimeType: res.headers['content-type'] ?? 'application/pdf',
+    );
+  }
+
   Future<Order> createOrder(Map<String, dynamic> body) async {
     final res = await http.post(
       await _uri('/orders'),
