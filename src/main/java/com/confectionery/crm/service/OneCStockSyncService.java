@@ -66,8 +66,8 @@ public class OneCStockSyncService {
         }
         try {
             SyncResult result = sync();
-            log.info("Синхронизация с 1С: товаров обновлено {}, сырья обновлено {}, не сопоставлено {}",
-                    result.productsUpdated(), result.ingredientsUpdated(), result.unmatched().size());
+            log.info("Синхронизация с 1С: товаров обновлено {}, сырья обновлено {}, снято с продажи {}, не сопоставлено {}",
+                    result.productsUpdated(), result.ingredientsUpdated(), result.productsDeactivated(), result.unmatched().size());
             if (!result.unmatched().isEmpty()) {
                 log.warn("Не сопоставлено с каталогом CRM: {}", result.unmatched());
             }
@@ -144,7 +144,31 @@ public class OneCStockSyncService {
             if (applyIngredientQuantity(ingredient, BigDecimal.ZERO)) ingredientsUpdated++;
         }
 
-        return new SyncResult(productsUpdated, ingredientsUpdated, unmatched);
+        int productsDeactivated = deactivateDeletedInOneC(products);
+
+        return new SyncResult(productsUpdated, ingredientsUpdated, productsDeactivated, unmatched);
+    }
+
+    /**
+     * Товар, чья номенклатура в 1С помечена на удаление, продаваться не должен — снимаем его с
+     * продажи (active=false: пропадает из витрины, формы заказа, разбора WhatsApp; новые позиции
+     * с ним OrderService не примет). Сопоставление по GUID номенклатуры. Обратно НЕ включаем,
+     * если пометку в 1С сняли: active=false ставит и ручная архивация товара с историей, и
+     * отличить одно от другого нельзя — вернуть товар в продажу можно вручную в карточке.
+     */
+    private int deactivateDeletedInOneC(List<Product> products) {
+        Set<String> deletedKeys = oneCClient.fetchDeletedNomenclatureKeys();
+        int deactivated = 0;
+        for (Product product : products) {
+            if (!product.isActive() || product.getOneCNomenclatureKey() == null) continue;
+            if (!deletedKeys.contains(product.getOneCNomenclatureKey())) continue;
+            product.setActive(false);
+            productRepository.save(product);
+            log.info("Товар №{} «{}» снят с продажи — в 1С номенклатура помечена на удаление",
+                    product.getId(), product.getName());
+            deactivated++;
+        }
+        return deactivated;
     }
 
     /**
@@ -174,6 +198,6 @@ public class OneCStockSyncService {
         return null;
     }
 
-    public record SyncResult(int productsUpdated, int ingredientsUpdated, List<String> unmatched) {
+    public record SyncResult(int productsUpdated, int ingredientsUpdated, int productsDeactivated, List<String> unmatched) {
     }
 }

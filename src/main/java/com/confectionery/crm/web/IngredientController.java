@@ -58,6 +58,9 @@ public class IngredientController {
         try {
             var result = oneCStockSyncService.sync();
             String message = "Обновлено сырья: " + result.ingredientsUpdated() + ", товаров: " + result.productsUpdated();
+            if (result.productsDeactivated() > 0) {
+                message += ". Снято с продажи (помечены на удаление в 1С): " + result.productsDeactivated();
+            }
             if (!result.unmatched().isEmpty()) {
                 message += ". Не сопоставлено с каталогом: " + result.unmatched().size()
                         + " (" + String.join(", ", result.unmatched()) + ")";

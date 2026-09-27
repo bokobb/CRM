@@ -41,7 +41,7 @@ public class WhatsAppInboxController {
                 .orElseThrow(() -> new IllegalArgumentException("Сообщение не найдено: " + id));
         model.addAttribute("activePage", "whatsapp-inbox");
         model.addAttribute("message", message);
-        model.addAttribute("allProducts", productService.findAll());
+        model.addAttribute("allProducts", productService.findAllActive());
         return "whatsapp/resolve";
     }
 
@@ -59,7 +59,7 @@ public class WhatsAppInboxController {
             WhatsAppInboundMessage message = inboundRepository.findById(id).orElseThrow();
             model.addAttribute("activePage", "whatsapp-inbox");
             model.addAttribute("message", message);
-            model.addAttribute("allProducts", productService.findAll());
+            model.addAttribute("allProducts", productService.findAllActive());
             model.addAttribute("error", e.getMessage());
             return "whatsapp/resolve";
         }

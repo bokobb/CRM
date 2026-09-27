@@ -12,9 +12,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Клиент к стандартному OData-интерфейсу 1С:Fresh ({@code /odata/standard.odata/}). Методы
@@ -100,6 +102,32 @@ class OneCClient {
             skip += PAGE_SIZE;
         }
         return names;
+    }
+
+    /** Ref_Key всей номенклатуры, помеченной в 1С на удаление (см. OneCStockSyncService — снимаем такие товары с продажи). */
+    Set<String> fetchDeletedNomenclatureKeys() {
+        Set<String> keys = new HashSet<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Catalog_Номенклатура")
+                            .queryParam("$format", "json")
+                            .queryParam("$filter", "DeletionMark eq true")
+                            .queryParam("$select", "Ref_Key")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                keys.add(item.path("Ref_Key").asText(""));
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return keys;
     }
 
     /** Все строки остатков регистра бухгалтерии (все счета, все склады) — фильтрация на стороне сервиса. */

@@ -37,6 +37,9 @@ public class WarehouseStockController {
         try {
             var result = oneCStockSyncService.sync();
             String message = "Обновлено товаров: " + result.productsUpdated() + ", сырья: " + result.ingredientsUpdated();
+            if (result.productsDeactivated() > 0) {
+                message += ". Снято с продажи (помечены на удаление в 1С): " + result.productsDeactivated();
+            }
             if (!result.unmatched().isEmpty()) {
                 message += ". Не сопоставлено с каталогом: " + result.unmatched().size()
                         + " (" + String.join(", ", result.unmatched()) + ")";

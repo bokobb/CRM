@@ -88,8 +88,7 @@ public class OrderService {
             if (itemForm.getProductId() == null || itemForm.getQuantity() == null) {
                 continue;
             }
-            Product product = productRepository.findById(itemForm.getProductId())
-                    .orElseThrow(() -> new IllegalArgumentException("Товар не найден: " + itemForm.getProductId()));
+            Product product = findSellableProduct(itemForm.getProductId());
             OrderItem item = new OrderItem();
             item.setProduct(product);
             item.setQuantity(itemForm.getQuantity());
@@ -178,8 +177,7 @@ public class OrderService {
                 if (update.productId() == null || update.quantity().signum() <= 0) {
                     continue;
                 }
-                Product product = productRepository.findById(update.productId())
-                        .orElseThrow(() -> new IllegalArgumentException("Товар не найден: " + update.productId()));
+                Product product = findSellableProduct(update.productId());
                 OrderItem newItem = new OrderItem();
                 newItem.setProduct(product);
                 newItem.setQuantity(update.quantity());
@@ -196,8 +194,7 @@ public class OrderService {
                 continue;
             }
             if (update.productId() != null && !update.productId().equals(item.getProduct().getId())) {
-                Product product = productRepository.findById(update.productId())
-                        .orElseThrow(() -> new IllegalArgumentException("Товар не найден: " + update.productId()));
+                Product product = findSellableProduct(update.productId());
                 item.setProduct(product);
                 item.setPrice(clientPriceService.resolvePrice(order.getClient(), product));
             }
@@ -209,6 +206,21 @@ public class OrderService {
         order = orderRepository.save(order);
         oneCOrderSyncService.trySyncOrder(order);
         return order;
+    }
+
+    /**
+     * Товар для НОВОЙ позиции заказа — только из продаваемых: архивный (в т.ч. автоматически
+     * скрытый, потому что в 1С номенклатура помечена на удаление, см. OneCStockSyncService)
+     * продавать нельзя, даже если клиент прислал его id из закешированного списка. Уже
+     * существующие позиции с таким товаром при правке количества не трогаем.
+     */
+    private Product findSellableProduct(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Товар не найден: " + productId));
+        if (!product.isActive()) {
+            throw new IllegalStateException("Товар «" + product.getName() + "» снят с продажи");
+        }
+        return product;
     }
 
     /** Отмена ещё не отгруженного заказа — см. {@link #cancel(Long, boolean)}. */
