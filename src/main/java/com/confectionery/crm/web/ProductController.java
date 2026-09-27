@@ -176,7 +176,7 @@ public class ProductController {
         model.addAttribute("activePage", "products");
         model.addAttribute("product", product);
         model.addAttribute("recipeForm", form);
-        model.addAttribute("allIngredients", ingredientService.findAll());
+        model.addAttribute("allIngredients", ingredientService.findAllActive());
         model.addAttribute("copyableProducts", productService.findProductsWithRecipe(id));
         model.addAttribute("copyFromId", copyFrom);
         return "products/recipe";

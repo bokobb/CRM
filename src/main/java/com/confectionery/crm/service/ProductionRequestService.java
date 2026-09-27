@@ -46,6 +46,7 @@ public class ProductionRequestService {
     private final NotificationService notificationService;
     private final OneCProductionSyncService oneCProductionSyncService;
     private final IngredientRepository ingredientRepository;
+    private final IngredientService ingredientService;
     private final ProductRepository productRepository;
 
     /** Одна позиция при создании заявки: конкретный товар + сколько замесов его рецепта. */
@@ -559,8 +560,8 @@ public class ProductionRequestService {
             revisionNote = item.getIngredient().getName() + ": " + fmt(oldQuantity) + " → " + fmt(newQuantity);
             item.setRequiredQuantity(newQuantity);
         } else {
-            Ingredient newIngredient = ingredientRepository.findById(newIngredientId)
-                    .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + newIngredientId));
+            Ingredient newIngredient = ingredientService.requireActive(ingredientRepository.findById(newIngredientId)
+                    .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + newIngredientId)));
 
             Ingredient oldIngredient = item.getIngredient();
             String oldName = oldIngredient.getName();
@@ -615,8 +616,8 @@ public class ProductionRequestService {
         if (quantity == null || quantity.signum() <= 0) {
             throw new IllegalArgumentException("Количество должно быть больше нуля");
         }
-        Ingredient ingredient = ingredientRepository.findById(ingredientId)
-                .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + ingredientId));
+        Ingredient ingredient = ingredientService.requireActive(ingredientRepository.findById(ingredientId)
+                .orElseThrow(() -> new IllegalArgumentException("Сырьё не найдено: " + ingredientId)));
         boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
                 || request.getStatus() == ProductionRequestStatus.RECEIVED;
         String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — добавлена позиция";

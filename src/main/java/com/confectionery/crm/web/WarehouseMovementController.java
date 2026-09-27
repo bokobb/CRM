@@ -93,7 +93,7 @@ public class WarehouseMovementController {
         if (kind.equals(PRODUCT)) {
             model.addAttribute("products", productService.findAll());
         } else {
-            model.addAttribute("ingredients", ingredientService.findAll());
+            model.addAttribute("ingredients", ingredientService.findAllActive());
         }
         return "warehouse/movements";
     }

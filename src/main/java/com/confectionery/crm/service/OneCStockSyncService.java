@@ -66,8 +66,9 @@ public class OneCStockSyncService {
         }
         try {
             SyncResult result = sync();
-            log.info("Синхронизация с 1С: товаров обновлено {}, сырья обновлено {}, снято с продажи {}, не сопоставлено {}",
-                    result.productsUpdated(), result.ingredientsUpdated(), result.productsDeactivated(), result.unmatched().size());
+            log.info("Синхронизация с 1С: товаров обновлено {}, сырья обновлено {}, снято с продажи {}, сырья снято {}, не сопоставлено {}",
+                    result.productsUpdated(), result.ingredientsUpdated(), result.productsDeactivated(),
+                    result.ingredientsDeactivated(), result.unmatched().size());
             if (!result.unmatched().isEmpty()) {
                 log.warn("Не сопоставлено с каталогом CRM: {}", result.unmatched());
             }
@@ -144,9 +145,11 @@ public class OneCStockSyncService {
             if (applyIngredientQuantity(ingredient, BigDecimal.ZERO)) ingredientsUpdated++;
         }
 
-        int productsDeactivated = deactivateDeletedInOneC(products);
+        Set<String> deletedKeys = oneCClient.fetchDeletedNomenclatureKeys();
+        int productsDeactivated = deactivateDeletedInOneC(products, deletedKeys);
+        int ingredientsDeactivated = deactivateDeletedIngredientsInOneC(ingredients, deletedKeys);
 
-        return new SyncResult(productsUpdated, ingredientsUpdated, productsDeactivated, unmatched);
+        return new SyncResult(productsUpdated, ingredientsUpdated, productsDeactivated, ingredientsDeactivated, unmatched);
     }
 
     /**
@@ -156,8 +159,7 @@ public class OneCStockSyncService {
      * если пометку в 1С сняли: active=false ставит и ручная архивация товара с историей, и
      * отличить одно от другого нельзя — вернуть товар в продажу можно вручную в карточке.
      */
-    private int deactivateDeletedInOneC(List<Product> products) {
-        Set<String> deletedKeys = oneCClient.fetchDeletedNomenclatureKeys();
+    private int deactivateDeletedInOneC(List<Product> products, Set<String> deletedKeys) {
         int deactivated = 0;
         for (Product product : products) {
             if (!product.isActive() || product.getOneCNomenclatureKey() == null) continue;
@@ -198,6 +200,22 @@ public class OneCStockSyncService {
         return null;
     }
 
-    public record SyncResult(int productsUpdated, int ingredientsUpdated, int productsDeactivated, List<String> unmatched) {
+    /** То же, что {@link #deactivateDeletedInOneC}, для сырья (см. Ingredient#active). */
+    private int deactivateDeletedIngredientsInOneC(List<Ingredient> ingredients, Set<String> deletedKeys) {
+        int deactivated = 0;
+        for (Ingredient ingredient : ingredients) {
+            if (!ingredient.isActive() || ingredient.getOneCNomenclatureKey() == null) continue;
+            if (!deletedKeys.contains(ingredient.getOneCNomenclatureKey())) continue;
+            ingredient.setActive(false);
+            ingredientRepository.save(ingredient);
+            log.info("Сырьё №{} «{}» снято с использования — в 1С номенклатура помечена на удаление",
+                    ingredient.getId(), ingredient.getName());
+            deactivated++;
+        }
+        return deactivated;
+    }
+
+    public record SyncResult(int productsUpdated, int ingredientsUpdated, int productsDeactivated,
+                             int ingredientsDeactivated, List<String> unmatched) {
     }
 }

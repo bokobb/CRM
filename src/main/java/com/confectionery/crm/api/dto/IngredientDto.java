@@ -10,9 +10,10 @@ public record IngredientDto(
         String unit,
         BigDecimal quantityInStock,
         BigDecimal minThreshold,
-        boolean lowStock
+        boolean lowStock,
+        boolean active
 ) {
     public static IngredientDto from(Ingredient i) {
-        return new IngredientDto(i.getId(), i.getName(), i.getUnit(), i.getQuantityInStock(), i.getMinThreshold(), i.isLowStock());
+        return new IngredientDto(i.getId(), i.getName(), i.getUnit(), i.getQuantityInStock(), i.getMinThreshold(), i.isLowStock(), i.isActive());
     }
 }

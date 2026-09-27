@@ -38,7 +38,7 @@ public class PurchaseController {
         model.addAttribute("purchases", filterDate == null
                 ? purchaseService.findAll()
                 : purchaseService.findByPurchaseDateBetween(filterDate, filterDate));
-        model.addAttribute("ingredients", ingredientService.findAll());
+        model.addAttribute("ingredients", ingredientService.findAllActive());
         model.addAttribute("counterparties", counterpartyService.findAll());
         model.addAttribute("date", filterDate);
         model.addAttribute("all", all);

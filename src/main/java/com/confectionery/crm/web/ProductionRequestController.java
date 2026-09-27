@@ -116,7 +116,7 @@ public class ProductionRequestController {
         model.addAttribute("activePage", "production-requests");
         ProductionRequest request = requestService.findById(id);
         model.addAttribute("request", request);
-        model.addAttribute("ingredients", ingredientService.findAll());
+        model.addAttribute("ingredients", ingredientService.findAllActive());
         boolean canEditLines = request.getStatus() == ProductionRequestStatus.NEW
                 || (request.getStatus() == ProductionRequestStatus.COLLECTED
                         && request.getLines().stream().noneMatch(ProductionRequestLine::isReceived));

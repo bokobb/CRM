@@ -17,6 +17,22 @@ public class IngredientService {
         return ingredientRepository.findAll();
     }
 
+    /** Без архивного сырья — для выбора в новых закупках, рецептах, заявках и списаниях. */
+    public List<Ingredient> findAllActive() {
+        return ingredientRepository.findByActiveTrue();
+    }
+
+    /**
+     * Сырьё для НОВОЙ позиции (закупка, добавление/замена в заявке) — архивное (в т.ч. помеченное
+     * в 1С на удаление) использовать нельзя, даже если клиент прислал id из закешированного списка.
+     */
+    public Ingredient requireActive(Ingredient ingredient) {
+        if (!ingredient.isActive()) {
+            throw new IllegalStateException("Сырьё «" + ingredient.getName() + "» снято с использования");
+        }
+        return ingredient;
+    }
+
     public Ingredient findById(Long id) {
         return ingredientRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ингредиент не найден: " + id));

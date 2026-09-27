@@ -40,6 +40,9 @@ public class WarehouseStockController {
             if (result.productsDeactivated() > 0) {
                 message += ". Снято с продажи (помечены на удаление в 1С): " + result.productsDeactivated();
             }
+            if (result.ingredientsDeactivated() > 0) {
+                message += ". Сырья снято с использования (помечено на удаление в 1С): " + result.ingredientsDeactivated();
+            }
             if (!result.unmatched().isEmpty()) {
                 message += ". Не сопоставлено с каталогом: " + result.unmatched().size()
                         + " (" + String.join(", ", result.unmatched()) + ")";

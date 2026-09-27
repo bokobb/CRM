@@ -23,7 +23,7 @@ public class IngredientController {
     @GetMapping
     public String list(Model model) {
         model.addAttribute("activePage", "ingredients");
-        model.addAttribute("ingredients", ingredientService.findAll());
+        model.addAttribute("ingredients", ingredientService.findAllActive());
         return "ingredients/list";
     }
 
@@ -60,6 +60,9 @@ public class IngredientController {
             String message = "Обновлено сырья: " + result.ingredientsUpdated() + ", товаров: " + result.productsUpdated();
             if (result.productsDeactivated() > 0) {
                 message += ". Снято с продажи (помечены на удаление в 1С): " + result.productsDeactivated();
+            }
+            if (result.ingredientsDeactivated() > 0) {
+                message += ". Сырья снято с использования (помечено на удаление в 1С): " + result.ingredientsDeactivated();
             }
             if (!result.unmatched().isEmpty()) {
                 message += ". Не сопоставлено с каталогом: " + result.unmatched().size()

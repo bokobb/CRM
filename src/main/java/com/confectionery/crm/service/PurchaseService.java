@@ -75,7 +75,7 @@ public class PurchaseService {
             if (input.quantity() == null || input.quantity().signum() <= 0) {
                 throw new IllegalArgumentException("Количество должно быть больше нуля");
             }
-            Ingredient ingredient = ingredientService.findById(input.ingredientId());
+            Ingredient ingredient = ingredientService.requireActive(ingredientService.findById(input.ingredientId()));
             StockMovement movement = stockService.receive(ingredient, input.quantity(),
                     "Закупка у " + counterparty.getName(), createdBy);
 

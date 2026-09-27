@@ -19,7 +19,7 @@ public class IngredientApiController {
 
     @GetMapping
     public List<IngredientDto> list() {
-        return ingredientService.findAll().stream().map(IngredientDto::from).toList();
+        return ingredientService.findAllActive().stream().map(IngredientDto::from).toList();
     }
 
     @GetMapping("/low-stock")

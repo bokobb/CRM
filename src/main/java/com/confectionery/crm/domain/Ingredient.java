@@ -46,4 +46,14 @@ public class Ingredient {
      * (см. OneCProductionSyncService).
      */
     private String oneCNomenclatureKey;
+
+    /**
+     * Архивное сырьё (false) не предлагается для новых закупок, рецептов, заявок и списаний и не
+     * попадает в уведомления о низком остатке, но остаётся в БД — на него ссылаются старые
+     * закупки/заявки/движения склада. Ставится автоматически, если номенклатура в 1С помечена на
+     * удаление (см. OneCStockSyncService). DEFAULT true в columnDefinition — чтобы
+     * ddl-auto=update смог добавить NOT NULL колонку в непустую таблицу.
+     */
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean active = true;
 }
