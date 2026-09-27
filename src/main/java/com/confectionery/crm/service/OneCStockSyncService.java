@@ -146,8 +146,18 @@ public class OneCStockSyncService {
         }
 
         Set<String> deletedKeys = oneCClient.fetchDeletedNomenclatureKeys();
-        int productsDeactivated = deactivateDeletedInOneC(products, deletedKeys);
-        int ingredientsDeactivated = deactivateDeletedIngredientsInOneC(ingredients, deletedKeys);
+        // Позиции CRM без GUID номенклатуры сопоставляем по точному названию — но только если
+        // одноимённой НЕпомеченной номенклатуры в 1С нет (иначе это просто тёзка удалённой).
+        Set<String> deletedNames = new HashSet<>();
+        Set<String> liveNames = new HashSet<>();
+        nomenclatureNames.forEach((key, name) -> {
+            if (name == null || name.isBlank()) return;
+            (deletedKeys.contains(key) ? deletedNames : liveNames).add(normalizeName(name));
+        });
+        deletedNames.removeAll(liveNames);
+
+        int productsDeactivated = deactivateDeletedInOneC(products, deletedKeys, deletedNames);
+        int ingredientsDeactivated = deactivateDeletedIngredientsInOneC(ingredients, deletedKeys, deletedNames);
 
         return new SyncResult(productsUpdated, ingredientsUpdated, productsDeactivated, ingredientsDeactivated, unmatched);
     }
@@ -159,11 +169,11 @@ public class OneCStockSyncService {
      * если пометку в 1С сняли: active=false ставит и ручная архивация товара с историей, и
      * отличить одно от другого нельзя — вернуть товар в продажу можно вручную в карточке.
      */
-    private int deactivateDeletedInOneC(List<Product> products, Set<String> deletedKeys) {
+    private int deactivateDeletedInOneC(List<Product> products, Set<String> deletedKeys, Set<String> deletedNames) {
         int deactivated = 0;
         for (Product product : products) {
-            if (!product.isActive() || product.getOneCNomenclatureKey() == null) continue;
-            if (!deletedKeys.contains(product.getOneCNomenclatureKey())) continue;
+            if (!product.isActive()) continue;
+            if (!isDeletedInOneC(product.getOneCNomenclatureKey(), product.getName(), deletedKeys, deletedNames)) continue;
             product.setActive(false);
             productRepository.save(product);
             log.info("Товар №{} «{}» снят с продажи — в 1С номенклатура помечена на удаление",
@@ -201,11 +211,11 @@ public class OneCStockSyncService {
     }
 
     /** То же, что {@link #deactivateDeletedInOneC}, для сырья (см. Ingredient#active). */
-    private int deactivateDeletedIngredientsInOneC(List<Ingredient> ingredients, Set<String> deletedKeys) {
+    private int deactivateDeletedIngredientsInOneC(List<Ingredient> ingredients, Set<String> deletedKeys, Set<String> deletedNames) {
         int deactivated = 0;
         for (Ingredient ingredient : ingredients) {
-            if (!ingredient.isActive() || ingredient.getOneCNomenclatureKey() == null) continue;
-            if (!deletedKeys.contains(ingredient.getOneCNomenclatureKey())) continue;
+            if (!ingredient.isActive()) continue;
+            if (!isDeletedInOneC(ingredient.getOneCNomenclatureKey(), ingredient.getName(), deletedKeys, deletedNames)) continue;
             ingredient.setActive(false);
             ingredientRepository.save(ingredient);
             log.info("Сырьё №{} «{}» снято с использования — в 1С номенклатура помечена на удаление",
@@ -213,6 +223,16 @@ public class OneCStockSyncService {
             deactivated++;
         }
         return deactivated;
+    }
+
+    /** По GUID, если он есть; без GUID — по точному названию (см. deletedNames в {@link #sync()}). */
+    private static boolean isDeletedInOneC(String key, String name, Set<String> deletedKeys, Set<String> deletedNames) {
+        if (key != null) return deletedKeys.contains(key);
+        return name != null && deletedNames.contains(normalizeName(name));
+    }
+
+    private static String normalizeName(String name) {
+        return name.trim().replaceAll("\\s+", " ").toLowerCase();
     }
 
     public record SyncResult(int productsUpdated, int ingredientsUpdated, int productsDeactivated,
