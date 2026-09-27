@@ -105,6 +105,26 @@ public class ProductService {
         return DeleteOutcome.DELETED;
     }
 
+    /** Товары, которые видят клиенты (витрина /shop, разбор заказов из WhatsApp) — см. Product#hiddenFromClients. */
+    public List<Product> findVisibleToClients() {
+        return findAllActive().stream().filter(Product::isVisibleToClients).toList();
+    }
+
+    /**
+     * Скрыть товар от клиентов / вернуть обратно (только ADMIN). until — по какую дату включительно
+     * скрыт; null — бессрочно, пока не вернут вручную. Дата в прошлом не имеет смысла — отклоняем.
+     */
+    @Transactional
+    public Product setHiddenFromClients(Long id, boolean hidden, java.time.LocalDate until) {
+        Product product = findById(id);
+        if (hidden && until != null && until.isBefore(java.time.LocalDate.now())) {
+            throw new IllegalArgumentException("Дата «скрыт до» уже прошла");
+        }
+        product.setHiddenFromClients(hidden);
+        product.setHiddenFromClientsUntil(hidden ? until : null);
+        return productRepository.save(product);
+    }
+
     public void restore(Long id) {
         Product product = findById(id);
         product.setActive(true);

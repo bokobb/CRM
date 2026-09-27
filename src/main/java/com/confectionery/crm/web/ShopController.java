@@ -178,6 +178,10 @@ public class ShopController {
         if (client == null) {
             return "redirect:/shop";
         }
+        List<String> removed = dropHiddenFromCart(cart(session));
+        if (!removed.isEmpty()) {
+            model.addAttribute("error", "Временно недоступно и убрано из корзины: " + String.join(", ", removed));
+        }
         CartSummary summary = summarize(client, cart(session));
         model.addAttribute("clientName", client.getName());
         model.addAttribute("rows", summary.rows());
@@ -197,6 +201,10 @@ public class ShopController {
         }
         Product product = productService.findById(productId);
         Map<Long, BigDecimal> cart = cart(session);
+        if (!product.isVisibleToClients()) {
+            cart.remove(productId);
+            return respond(client, session, productId, ajax);
+        }
         BigDecimal current = cart.getOrDefault(productId, BigDecimal.ZERO);
         cart.put(productId, current.add(step(product)));
         return respond(client, session, productId, ajax);
@@ -231,6 +239,10 @@ public class ShopController {
             return redirectToShop();
         }
         Product product = productService.findById(productId);
+        if (!product.isVisibleToClients()) {
+            cart(session).remove(productId);
+            return respond(client, session, productId, ajax);
+        }
         BigDecimal step = step(product);
         cart(session).put(productId, qty.compareTo(step) < 0 ? step : qty);
         return respond(client, session, productId, ajax);
@@ -254,7 +266,7 @@ public class ShopController {
         if (client == null) {
             return "redirect:/shop";
         }
-        Map<String, List<Product>> byCategory = productService.groupByCategory(productService.findAllActive());
+        Map<String, List<Product>> byCategory = productService.groupByCategory(productService.findVisibleToClients());
         Map<String, List<ProductRow>> rowsByCategory = new LinkedHashMap<>();
         for (Map.Entry<String, List<Product>> entry : byCategory.entrySet()) {
             rowsByCategory.put(entry.getKey(), entry.getValue().stream()
@@ -279,6 +291,9 @@ public class ShopController {
             return "redirect:/shop";
         }
         Product product = productService.findById(id);
+        if (!product.isVisibleToClients()) {
+            return "redirect:/shop/products";
+        }
         BigDecimal step = step(product);
         BigDecimal quantity = cart(session).getOrDefault(id, step);
         if (quantity.compareTo(step) < 0) {
@@ -303,7 +318,9 @@ public class ShopController {
         if (currentClient(session) == null) {
             return "redirect:/shop";
         }
-        cart(session).put(id, qty);
+        if (productService.findById(id).isVisibleToClients()) {
+            cart(session).put(id, qty);
+        }
         return "redirect:/shop/products";
     }
 
@@ -395,7 +412,23 @@ public class ShopController {
         for (OrderItem item : order.getItems()) {
             cart.put(item.getProduct().getId(), item.getQuantity());
         }
+        // скрытые от клиентов товары убирает и объясняет сам экран корзины (см. orderBuilder)
         return "redirect:/shop/catalog";
+    }
+
+    /**
+     * Убрать из корзины товары, которые сейчас не видны клиентам (скрыты админом или сняты с
+     * продажи уже после того, как клиент положил их в корзину). Возвращает их названия.
+     */
+    private List<String> dropHiddenFromCart(Map<Long, BigDecimal> cart) {
+        List<String> removed = new ArrayList<>();
+        cart.keySet().removeIf(productId -> {
+            Product product = productService.findById(productId);
+            if (product.isVisibleToClients()) return false;
+            removed.add(product.getName());
+            return true;
+        });
+        return removed;
     }
 
     private OrderHistoryRow historyRow(Order o) {

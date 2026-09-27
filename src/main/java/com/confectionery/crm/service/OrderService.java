@@ -89,6 +89,9 @@ public class OrderService {
                 continue;
             }
             Product product = findSellableProduct(itemForm.getProductId());
+            if (form.isFromShop() && !product.isVisibleToClients()) {
+                throw new IllegalStateException("Товар «" + product.getName() + "» временно недоступен для заказа");
+            }
             OrderItem item = new OrderItem();
             item.setProduct(product);
             item.setQuantity(itemForm.getQuantity());

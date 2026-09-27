@@ -129,12 +129,31 @@ public class ProductController {
         if (product.getOneCDepartmentKey() != null && product.getOneCDepartmentKey().isBlank()) {
             product.setOneCDepartmentKey(null);
         }
-        Product saved = productService.save(product);
+        // Форма передаёт только редактируемые поля — новый товар сохраняем как есть, а у
+        // существующего переносим их в загруженную из БД сущность. Иначе всё, чего в форме нет
+        // (остаток, связь с 1С, архив, скрытие от клиентов), затиралось бы значениями по умолчанию.
+        Product saved = productService.save(product.getId() == null ? product : applyForm(product));
         if (imageFile != null && !imageFile.isEmpty()) {
             saved.setImageUrl(fileStorageService.storeProductImage(saved.getId(), imageFile));
             productService.save(saved);
         }
         return "redirect:/products";
+    }
+
+    private Product applyForm(Product form) {
+        Product product = productService.findById(form.getId());
+        product.setName(form.getName());
+        product.setCategory(form.getCategory());
+        product.setPrice(form.getPrice());
+        product.setGroup(form.getGroup());
+        product.setUnit(form.getUnit());
+        product.setNetWeightGrams(form.getNetWeightGrams());
+        product.setMassReferenceProduct(form.isMassReferenceProduct());
+        product.setOneCDepartmentKey(form.getOneCDepartmentKey());
+        product.setDescription(form.getDescription());
+        product.setSemiFinished(form.isSemiFinished());
+        product.setImageUrl(form.getImageUrl());
+        return product;
     }
 
     @PostMapping("/{id}/delete")
@@ -144,6 +163,29 @@ public class ProductController {
             redirectAttributes.addFlashAttribute("info",
                     "Товар нельзя удалить полностью — он уже встречался в заказах/на складе. Он архивирован: пропал из каталога для новых заказов, старые заказы не затронуты.");
         }
+        return "redirect:/products";
+    }
+
+    /** Скрыть от клиентов (витрина, WhatsApp) — until пустой: пока не вернут вручную. См. Product#hiddenFromClients. */
+    @PostMapping("/{id}/hide-from-clients")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String hideFromClients(@PathVariable Long id,
+                                  @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                                          iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+                                  java.time.LocalDate until,
+                                  RedirectAttributes redirectAttributes) {
+        try {
+            productService.setHiddenFromClients(id, true, until);
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/products";
+    }
+
+    @PostMapping("/{id}/show-to-clients")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String showToClients(@PathVariable Long id) {
+        productService.setHiddenFromClients(id, false, null);
         return "redirect:/products";
     }
 

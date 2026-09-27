@@ -96,6 +96,81 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
+  /// Выбор срока: товар пропадёт с витрины и из разбора заказов WhatsApp, сотрудники продолжат
+  /// его видеть. «До даты» — включительно, со следующего дня товар вернётся клиентам сам.
+  Future<void> _hideFromClients(Product p) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text('Скрыть «${p.name}» от клиентов'),
+              subtitle: const Text('Пропадёт с витрины и из заказов WhatsApp. Сотрудники продолжат его видеть.'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_outlined),
+              title: const Text('На 1 месяц'),
+              onTap: () => Navigator.pop(context, '1m'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_outlined),
+              title: const Text('На 2 месяца'),
+              onTap: () => Navigator.pop(context, '2m'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_calendar_outlined),
+              title: const Text('До выбранной даты…'),
+              onTap: () => Navigator.pop(context, 'date'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_off_outlined),
+              title: const Text('Пока не верну вручную'),
+              onTap: () => Navigator.pop(context, 'forever'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    DateTime? until;
+    switch (choice) {
+      case '1m':
+        until = DateTime(today.year, today.month + 1, today.day);
+      case '2m':
+        until = DateTime(today.year, today.month + 2, today.day);
+      case 'date':
+        until = await showDatePicker(
+          context: context,
+          initialDate: DateTime(today.year, today.month + 2, today.day),
+          firstDate: today,
+          lastDate: DateTime(today.year + 2),
+          helpText: 'Скрыть по какую дату',
+        );
+        if (until == null) return;
+    }
+    await _setHidden(p, hidden: true, until: until);
+  }
+
+  Future<void> _setHidden(Product p, {required bool hidden, DateTime? until}) async {
+    try {
+      await _api.setProductHiddenFromClients(p.id, hidden: hidden, until: until);
+      if (!mounted) return;
+      final message = !hidden
+          ? '«${p.name}» снова виден клиентам'
+          : until == null
+              ? '«${p.name}» скрыт от клиентов'
+              : '«${p.name}» скрыт от клиентов до ${formatDate(until)}';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isAdmin = ApiClient.currentSession?.role == 'ADMIN';
@@ -159,6 +234,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     formatMoney(p.price),
                     if (p.unit != null && p.unit!.isNotEmpty) p.unit!,
                     if (oneCDepartmentNames[p.oneCDepartmentKey] != null) oneCDepartmentNames[p.oneCDepartmentKey]!,
+                    if (!p.visibleToClients)
+                      p.hiddenFromClientsUntil != null
+                          ? 'скрыт от клиентов до ${formatDate(p.hiddenFromClientsUntil!)}'
+                          : 'скрыт от клиентов',
                   ].join(' · '),
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) async {
@@ -170,11 +249,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         _refresh();
                       } else if (value == 'delete') {
                         _delete(p);
+                      } else if (value == 'hide') {
+                        _hideFromClients(p);
+                      } else if (value == 'show') {
+                        _setHidden(p, hidden: false);
                       }
                     },
                     itemBuilder: (context) => [
                       const PopupMenuItem(value: 'recipe', child: Text('Рецептура')),
                       const PopupMenuItem(value: 'edit', child: Text('Изменить')),
+                      if (isAdmin && p.visibleToClients)
+                        const PopupMenuItem(value: 'hide', child: Text('Скрыть от клиентов')),
+                      if (isAdmin && !p.visibleToClients)
+                        const PopupMenuItem(value: 'show', child: Text('Показать клиентам')),
                       if (isAdmin) const PopupMenuItem(value: 'delete', child: Text('Удалить')),
                     ],
                   ),

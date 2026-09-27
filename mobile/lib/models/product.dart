@@ -37,6 +37,15 @@ class Product {
   /// бэкенде) — максимум один товар в группе, с заданным [netWeightGrams].
   final bool massReferenceProduct;
 
+  /// Скрыт админом от клиентов (витрина, разбор заказов из WhatsApp) — сотрудники видят и могут
+  /// продать вручную (см. Product.hiddenFromClients на бэкенде). [hiddenFromClientsUntil] — по
+  /// какую дату включительно; null — пока не вернут вручную.
+  final bool hiddenFromClients;
+  final DateTime? hiddenFromClientsUntil;
+
+  /// Видят ли товар клиенты сегодня (считает backend с учётом даты «скрыт до»).
+  final bool visibleToClients;
+
   Product({
     required this.id,
     required this.name,
@@ -51,6 +60,9 @@ class Product {
     this.oneCDepartmentKey,
     this.netWeightGrams,
     this.massReferenceProduct = false,
+    this.hiddenFromClients = false,
+    this.hiddenFromClientsUntil,
+    this.visibleToClients = true,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -67,6 +79,11 @@ class Product {
         oneCDepartmentKey: json['oneCDepartmentKey'] as String?,
         netWeightGrams: (json['netWeightGrams'] as num?)?.toDouble(),
         massReferenceProduct: json['massReferenceProduct'] as bool? ?? false,
+        hiddenFromClients: json['hiddenFromClients'] as bool? ?? false,
+        hiddenFromClientsUntil: json['hiddenFromClientsUntil'] == null
+            ? null
+            : DateTime.parse(json['hiddenFromClientsUntil'] as String),
+        visibleToClients: json['visibleToClients'] as bool? ?? true,
       );
 
   /// Копия с другим imageUrl — используется, чтобы превратить относительный путь
@@ -85,6 +102,9 @@ class Product {
         oneCDepartmentKey: oneCDepartmentKey,
         netWeightGrams: netWeightGrams,
         massReferenceProduct: massReferenceProduct,
+        hiddenFromClients: hiddenFromClients,
+        hiddenFromClientsUntil: hiddenFromClientsUntil,
+        visibleToClients: visibleToClients,
       );
 }
 

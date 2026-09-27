@@ -420,6 +420,17 @@ class ApiClient {
     return _withAbsoluteImage(Product.fromJson(_decode(res)));
   }
 
+  /// Скрыть товар от клиентов / вернуть (только ADMIN) — см. ProductApiController.setClientVisibility.
+  /// [until] — по какую дату включительно; null — пока не вернут вручную.
+  Future<Product> setProductHiddenFromClients(int id, {required bool hidden, DateTime? until}) async {
+    final res = await http.put(
+      await _uri('/products/$id/client-visibility'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'hidden': hidden, 'until': until == null ? null : _isoDate(until)}),
+    );
+    return _withAbsoluteImage(Product.fromJson(_decode(res)));
+  }
+
   Future<void> deleteProduct(int id) async {
     final res = await http.delete(
       await _uri('/products/$id'),

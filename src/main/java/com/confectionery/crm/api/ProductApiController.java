@@ -56,6 +56,13 @@ public class ProductApiController {
     }
 
     /** Только ADMIN — товар архивируется вместо удаления, если уже есть история (см. ProductService.delete). */
+    /** Скрыть товар от клиентов (витрина, WhatsApp) или вернуть — только ADMIN, см. Product#hiddenFromClients. */
+    @PutMapping("/{id}/client-visibility")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ProductDto setClientVisibility(@PathVariable Long id, @RequestBody ClientVisibilityRequest req) {
+        return ProductDto.from(productService.setHiddenFromClients(id, req.hidden(), req.until()));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public void delete(@PathVariable Long id) {

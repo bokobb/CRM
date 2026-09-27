@@ -3,6 +3,7 @@ package com.confectionery.crm.api.dto;
 import com.confectionery.crm.domain.Product;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 public record ProductDto(
         Long id,
@@ -17,11 +18,14 @@ public record ProductDto(
         boolean semiFinished,
         String oneCDepartmentKey,
         BigDecimal netWeightGrams,
-        boolean massReferenceProduct
+        boolean massReferenceProduct,
+        boolean hiddenFromClients,
+        LocalDate hiddenFromClientsUntil,
+        boolean visibleToClients
 ) {
     public static ProductDto from(Product p) {
         return new ProductDto(p.getId(), p.getName(), p.getCategory(), p.getGroup(), p.getDescription(), p.getPrice(), p.getUnit(),
                 p.getQuantityInStock(), p.getImageUrl(), p.isSemiFinished(), p.getOneCDepartmentKey(), p.getNetWeightGrams(),
-                p.isMassReferenceProduct());
+                p.isMassReferenceProduct(), p.isHiddenFromClients(), p.getHiddenFromClientsUntil(), p.isVisibleToClients());
     }
 }

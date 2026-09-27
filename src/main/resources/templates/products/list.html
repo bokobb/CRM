@@ -19,6 +19,7 @@
         </div>
 
         <div class="alert warn" th:if="${info}" th:text="${info}"></div>
+        <div class="alert error" th:if="${error}" th:text="${error}"></div>
 
         <input type="text" id="crm-product-search" class="product-search"
                placeholder="Поиск товара по названию…" oninput="crmFilterProducts()"
@@ -39,6 +40,8 @@
                         <div class="product-card-name">
                             <span th:text="${p.name}"></span>
                             <span class="badge PENDING" th:if="${!p.active}">Архивный</span>
+                            <span class="badge PENDING" th:if="${p.active and !p.visibleToClients}"
+                                  th:text="${p.hiddenFromClientsUntil != null} ? 'Скрыт от клиентов до ' + ${#temporals.format(p.hiddenFromClientsUntil, 'dd.MM.yyyy')} : 'Скрыт от клиентов'"></span>
                         </div>
                         <div class="product-card-price" th:text="${p.price} + ' ₸'"></div>
                         <div class="product-card-department"
@@ -53,6 +56,17 @@
                         <form th:unless="${p.active}" sec:authorize="hasRole('ADMIN')"
                               th:action="@{/products/{id}/restore(id=${p.id})}" method="post">
                             <button class="btn small" type="submit">Восстановить</button>
+                        </form>
+                        <form th:if="${p.active and p.visibleToClients}" sec:authorize="hasRole('ADMIN')"
+                              th:action="@{/products/{id}/hide-from-clients(id=${p.id})}" method="post"
+                              title="Товар пропадёт с витрины и из разбора заказов WhatsApp; сотрудники продолжат его видеть">
+                            <input type="date" name="until" title="По какую дату скрыть (пусто — пока не вернёте вручную)"
+                                   style="width:auto">
+                            <button class="btn small" type="submit">Скрыть от клиентов</button>
+                        </form>
+                        <form th:if="${p.active and !p.visibleToClients}" sec:authorize="hasRole('ADMIN')"
+                              th:action="@{/products/{id}/show-to-clients(id=${p.id})}" method="post">
+                            <button class="btn small" type="submit">Показать клиентам</button>
                         </form>
                     </div>
                 </div>

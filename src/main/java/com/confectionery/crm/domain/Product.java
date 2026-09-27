@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "products")
@@ -100,6 +101,25 @@ public class Product {
      */
     @Column(nullable = false)
     private boolean active = true;
+
+    /**
+     * Скрыт от клиентов (решение ADMIN, например "крекер 2 месяца не производим") — в отличие от
+     * архива ({@link #active}) товар остаётся в CRM для сотрудников: его видно в каталоге, его можно
+     * продать вручную. Не виден только клиентам: витрина /shop и автоматический разбор заказов из
+     * WhatsApp. {@link #hiddenFromClientsUntil} — необязательная дата, ПО которую включительно
+     * товар скрыт; со следующего дня снова виден сам, без отдельной задачи по расписанию.
+     */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean hiddenFromClients = false;
+
+    private LocalDate hiddenFromClientsUntil;
+
+    /** Виден ли товар клиентам сегодня (см. {@link #hiddenFromClients}). */
+    public boolean isVisibleToClients() {
+        if (!active) return false;
+        if (!hiddenFromClients) return true;
+        return hiddenFromClientsUntil != null && LocalDate.now().isAfter(hiddenFromClientsUntil);
+    }
 
     /**
      * Полуфабрикат (например, "Пряник" — испечён в день 1 без упаковки, сам идёт сырьём в
