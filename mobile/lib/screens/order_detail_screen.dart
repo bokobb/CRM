@@ -102,22 +102,37 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   /// Накладную строит backend — по макету печатной формы 1С, с данными из документов 1С и
   /// закреплёнными за заказом возвратами. Локальный PDF — только если сервер недоступен.
-  Future<void> _share(Order o) async {
+  Future<InvoiceFile> _invoice(Order o) async {
     InvoiceFile? remote;
     try {
       remote = await _api.getInvoiceFile(o.id);
     } catch (_) {
       remote = null;
     }
-    if (remote != null) {
-      await Share.shareXFiles(
-        [XFile.fromData(remote.bytes, mimeType: remote.mimeType, name: remote.filename)],
-        fileNameOverrides: [remote.filename],
-      );
-      return;
-    }
-    final bytes = await buildInvoicePdf(o);
-    await Printing.sharePdf(bytes: bytes, filename: _invoiceFileName(o));
+    return remote ??
+        InvoiceFile(
+          bytes: await buildInvoicePdf(o),
+          filename: _invoiceFileName(o),
+          mimeType: 'application/pdf',
+        );
+  }
+
+  Future<void> _share(Order o) async {
+    final invoice = await _invoice(o);
+    await Share.shareXFiles(
+      [XFile.fromData(invoice.bytes, mimeType: invoice.mimeType, name: invoice.filename)],
+      fileNameOverrides: [invoice.filename],
+    );
+  }
+
+  /// Системный диалог печати: принтер выбирается там же (Wi-Fi-принтер через службу печати
+  /// Android — Mopria или Canon Print Service).
+  Future<void> _print(Order o) async {
+    final invoice = await _invoice(o);
+    await Printing.layoutPdf(
+      name: invoice.filename.replaceAll(RegExp(r'\.pdf$'), ''),
+      onLayout: (_) async => invoice.bytes,
+    );
   }
 
   /// Как на backend (OrderService.invoiceFileName): Заказ[_Возврат]_Покупатель_дата.pdf.
@@ -321,9 +336,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             future: _future,
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const SizedBox.shrink();
-              return IconButton(
-                icon: const Icon(Icons.share_outlined),
-                onPressed: () => _share(snapshot.data!),
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.print_outlined),
+                    tooltip: 'Печать',
+                    onPressed: () => _print(snapshot.data!),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.share_outlined),
+                    tooltip: 'Поделиться',
+                    onPressed: () => _share(snapshot.data!),
+                  ),
+                ],
               );
             },
           ),
