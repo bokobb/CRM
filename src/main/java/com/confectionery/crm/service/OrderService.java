@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -344,8 +345,25 @@ public class OrderService {
                 : String.valueOf(order.getId());
     }
 
+    /**
+     * Имя файла накладной для пересылки: "Заказ[_Возврат]_Покупатель_дата.pdf". "Возврат" — если
+     * к заказу закреплены возвраты (они печатаются в той же накладной); дата — отгрузки, а до неё
+     * — создания заказа.
+     */
     public static String invoiceFileName(Order order) {
-        return "nakladnaya_" + invoiceNumber(order) + ".pdf";
+        StringBuilder name = new StringBuilder("Заказ");
+        if (!order.getReturns().isEmpty()) {
+            name.append("_Возврат");
+        }
+        String client = order.getClient() != null ? order.getClient().getName() : null;
+        if (client != null && !client.isBlank()) {
+            name.append('_').append(client.replaceAll("[\\\\/:*?\"<>|\\s]+", " ").trim());
+        }
+        LocalDateTime date = order.getShippedAt() != null ? order.getShippedAt() : order.getCreatedAt();
+        if (date != null) {
+            name.append('_').append(date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")));
+        }
+        return name + ".pdf";
     }
 
     /**

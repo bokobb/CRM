@@ -117,7 +117,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       return;
     }
     final bytes = await buildInvoicePdf(o);
-    await Printing.sharePdf(bytes: bytes, filename: 'nakladnaya_${o.id}.pdf');
+    await Printing.sharePdf(bytes: bytes, filename: _invoiceFileName(o));
+  }
+
+  /// Как на backend (OrderService.invoiceFileName): Заказ[_Возврат]_Покупатель_дата.pdf.
+  static String _invoiceFileName(Order o) {
+    final d = (o.shippedAt ?? o.createdAt).toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    final client = o.clientName.replaceAll(RegExp(r'[\\/:*?"<>|\s]+'), ' ').trim();
+    final parts = [
+      'Заказ',
+      if (o.returnsCount > 0) 'Возврат',
+      if (client.isNotEmpty) client,
+      '${two(d.day)}.${two(d.month)}.${d.year}',
+    ];
+    return '${parts.join('_')}.pdf';
   }
 
   Future<void> _cancelDialog(

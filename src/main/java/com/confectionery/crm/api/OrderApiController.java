@@ -13,6 +13,7 @@ import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -65,8 +67,9 @@ public class OrderApiController {
         byte[] pdf = invoicePdfService.generate(order);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + OrderService.invoiceFileName(order) + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(OrderService.invoiceFileName(order), StandardCharsets.UTF_8)
+                        .build().toString())
                 .body(pdf);
     }
 

@@ -1065,6 +1065,15 @@ class ApiClient {
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
+  /// Имя файла из Content-Disposition: filename*=UTF-8''… (кириллица) или filename="…".
+  static String? _dispositionFilename(String? disposition) {
+    if (disposition == null) return null;
+    final encoded = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false)
+        .firstMatch(disposition);
+    if (encoded != null) return Uri.decodeComponent(encoded.group(1)!.trim());
+    return RegExp(r'filename="([^"]+)"').firstMatch(disposition)?.group(1);
+  }
+
   /// Накладная, приложенная к документу заказа прямо в 1С — null, если её там ещё нет
   /// (заказ не выгружен, 1С недоступна или файл не приложили); тогда экран заказа сам
   /// строит свою локальную PDF-накладную вместо этого.
@@ -1077,11 +1086,10 @@ class ApiClient {
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw ApiException('Не удалось получить накладную (${res.statusCode})');
     }
-    final disposition = res.headers['content-disposition'] ?? '';
-    final match = RegExp(r'filename="([^"]+)"').firstMatch(disposition);
     return InvoiceFile(
       bytes: res.bodyBytes,
-      filename: match?.group(1) ?? 'nakladnaya_$orderId.pdf',
+      filename: _dispositionFilename(res.headers['content-disposition']) ??
+          'Заказ_$orderId.pdf',
       mimeType: res.headers['content-type'] ?? 'application/octet-stream',
     );
   }
