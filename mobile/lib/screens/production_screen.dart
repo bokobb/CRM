@@ -1,22 +1,18 @@
 import 'package:flutter/material.dart';
 
-import '../models/production_request.dart';
+import '../models/tech_card.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
-import 'production_request_detail_screen.dart';
+import '../widgets/product_avatar.dart';
+import '../widgets/searchable_app_bar.dart';
+import 'tech_card_screen.dart';
 
-/// Доска "Производство": те же заявки на сырьё, что и на странице "Заявки на сырьё"
-/// (production_requests_screen.dart), но сгруппированные по стадии в три секции — Ожидает/
-/// В работе/Готово (= статусы NEW/COLLECTED/RECEIVED). Карточка ведёт на тот же экран заявки,
-/// где и происходят реальные действия (сборка по чек-листу, оприходование по строкам) — здесь
-/// только обзорная витрина.
-///
-/// Поиск по товару фильтрует все три секции. Фильтр по дате — ТОЛЬКО "Готово": часть товаров
-/// готовят не каждый день, и заявка на такой товар может провисеть в "Ожидает"/"В работе"
-/// несколько дней — фильтровать там по дате создания значило бы прятать ещё не закрытую
-/// работу только потому, что она началась не сегодня. Для архива ("Готово") дата осмысленна.
+/// «Производство» — техкарты товаров: все товары с рецептурой, сгруппированные по группе товара
+/// (Product.group). Карточка ведёт на полную техкарту (рецептура, расчёт партии, себестоимость,
+/// этапы и ККТ, органолептика). Раньше здесь была доска заявок на сырьё по статусам
+/// Ожидает/В работе/Готово — она дублировала экран «Заявки на сырьё» и убрана.
 class ProductionScreen extends StatefulWidget {
   const ProductionScreen({super.key});
 
@@ -24,82 +20,41 @@ class ProductionScreen extends StatefulWidget {
   State<ProductionScreen> createState() => _ProductionScreenState();
 }
 
-DateTime _todayStart() {
-  final now = DateTime.now();
-  return DateTime(now.year, now.month, now.day);
-}
-
 class _ProductionScreenState extends State<ProductionScreen> {
   final _api = ApiClient();
-  late Future<List<ProductionRequestSummary>> _future;
+  late Future<List<TechCardSummary>> _future;
   String _query = '';
-
-  /// По умолчанию "Готово" отфильтровано на сегодня (null — снят фильтр, "за всё время").
-  DateTime? _doneFrom = _todayStart();
-  DateTime? _doneTo = _todayStart();
 
   @override
   void initState() {
     super.initState();
-    _future = _api.getProductionRequests();
+    _future = _api.getTechCards();
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getProductionRequests());
+    setState(() => _future = _api.getTechCards());
     await _future;
   }
 
-  Future<void> _openDetail(int id) async {
+  Future<void> _open(TechCardSummary c) async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ProductionRequestDetailScreen(requestId: id)),
+      MaterialPageRoute(builder: (_) => TechCardScreen(productId: c.productId, title: c.name)),
     );
     _refresh();
-  }
-
-  bool _matchesQuery(ProductionRequestSummary r) {
-    if (_query.isEmpty) return true;
-    final q = _query.toLowerCase();
-    return r.productNames.any((n) => n.toLowerCase().contains(q)) || r.title.toLowerCase().contains(q);
-  }
-
-  bool _matchesDoneDate(ProductionRequestSummary r) {
-    if (_doneFrom == null && _doneTo == null) return true;
-    final created = DateTime(r.createdAt.year, r.createdAt.month, r.createdAt.day);
-    if (_doneFrom != null && created.isBefore(_doneFrom!)) return false;
-    if (_doneTo != null && created.isAfter(_doneTo!)) return false;
-    return true;
-  }
-
-  String _doneLabel() {
-    if (_doneFrom == null) return 'За всё время';
-    final today = _todayStart();
-    if (_doneFrom == today && _doneTo == today) return 'Сегодня';
-    return 'Период';
-  }
-
-  Future<void> _pickDoneRange() async {
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-      initialDateRange: _doneFrom != null && _doneTo != null ? DateTimeRange(start: _doneFrom!, end: _doneTo!) : null,
-    );
-    if (range != null) {
-      setState(() {
-        _doneFrom = range.start;
-        _doneTo = range.end;
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Производство')),
+      appBar: SearchableAppBar(
+        title: 'Производство',
+        hintText: 'Название товара...',
+        onQueryChanged: (v) => setState(() => _query = v.toLowerCase()),
+      ),
       drawer: const AppDrawer(currentRoute: '/production'),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: FutureBuilder<List<ProductionRequestSummary>>(
+        child: FutureBuilder<List<TechCardSummary>>(
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -108,53 +63,49 @@ class _ProductionScreenState extends State<ProductionScreen> {
             if (snapshot.hasError) {
               return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
             }
-            final requests = snapshot.data!.where(_matchesQuery).toList();
-            final pending = requests.where((r) => r.status == 'NEW').toList();
-            final inProgress = requests.where((r) => r.status == 'COLLECTED').toList();
-            final done = requests.where((r) => r.status == 'RECEIVED').where(_matchesDoneDate).toList();
+            final cards = snapshot.data!
+                .where((c) => _query.isEmpty ||
+                    c.name.toLowerCase().contains(_query) ||
+                    (c.group ?? '').toLowerCase().contains(_query))
+                .toList();
+            if (cards.isEmpty) {
+              return ListView(children: [
+                Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Center(
+                    child: Text(
+                      _query.isEmpty ? 'Нет товаров с рецептурой' : 'Ничего не найдено',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ]);
+            }
+
+            final groups = <String, List<TechCardSummary>>{};
+            for (final c in cards) {
+              groups.putIfAbsent(c.group ?? 'Без группы', () => []).add(c);
+            }
+            final groupNames = groups.keys.toList()
+              ..sort((a, b) {
+                if (a == 'Без группы') return 1;
+                if (b == 'Без группы') return -1;
+                return a.toLowerCase().compareTo(b.toLowerCase());
+              });
 
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
               children: [
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Поиск по товару…',
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
+                for (final g in groupNames) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                    child: Text(
+                      '$g (${groups[g]!.length})',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Colors.grey.shade700),
+                    ),
                   ),
-                  onChanged: (v) => setState(() => _query = v),
-                ),
-                const SizedBox(height: 16),
-                _RequestSection(title: 'Ожидает', requests: pending, onTap: _openDetail),
-                const SizedBox(height: 20),
-                _RequestSection(title: 'В работе', requests: inProgress, onTap: _openDetail),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text('Готово (${done.length})', style: Theme.of(context).textTheme.titleMedium),
-                    ),
-                    TextButton.icon(
-                      onPressed: _pickDoneRange,
-                      icon: const Icon(Icons.calendar_today, size: 16),
-                      label: Text(_doneLabel()),
-                    ),
-                    if (_doneFrom != null)
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        tooltip: 'Показать за всё время',
-                        onPressed: () => setState(() {
-                          _doneFrom = null;
-                          _doneTo = null;
-                        }),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (done.isEmpty)
-                  const Text('Пусто', style: TextStyle(color: Colors.grey))
-                else
-                  _RequestList(requests: done, onTap: _openDetail),
+                  for (final c in groups[g]!) _TechCardTile(card: c, onTap: () => _open(c)),
+                ],
               ],
             );
           },
@@ -164,64 +115,78 @@ class _ProductionScreenState extends State<ProductionScreen> {
   }
 }
 
-class _RequestSection extends StatelessWidget {
-  final String title;
-  final List<ProductionRequestSummary> requests;
-  final ValueChanged<int> onTap;
+class _TechCardTile extends StatelessWidget {
+  final TechCardSummary card;
+  final VoidCallback onTap;
 
-  const _RequestSection({required this.title, required this.requests, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('$title (${requests.length})', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (requests.isEmpty)
-          const Text('Пусто', style: TextStyle(color: Colors.grey))
-        else
-          _RequestList(requests: requests, onTap: onTap),
-      ],
-    );
-  }
-}
-
-class _RequestList extends StatelessWidget {
-  final List<ProductionRequestSummary> requests;
-  final ValueChanged<int> onTap;
-
-  const _RequestList({required this.requests, required this.onTap});
+  const _TechCardTile({required this.card, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final unit = card.unit ?? 'шт';
     return Card(
-      child: Column(
-        children: [
-          for (final r in requests)
-            InkWell(
-              onTap: () => onTap(r.id),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 8),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              ProductAvatar(name: card.name, imageUrl: card.imageUrl, radius: 26),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(r.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text(card.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                     const SizedBox(height: 2),
                     Text(
-                      '${r.productNames.join(", ")} · ${formatQty(r.totalBatches)} замес.',
+                      [
+                        if (card.semiFinished) 'полуфабрикат',
+                        'выход ${formatQty(card.yieldQuantity)} $unit/замес',
+                        '${card.ingredientCount} вид. сырья',
+                      ].join(' · '),
                       style: const TextStyle(color: Colors.grey, fontSize: 12.5),
                     ),
-                    Text(
-                      '${r.createdBy} · ${formatDate(r.documentDate)}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: card.stageCount == 0
+                          ? [const _Tag(text: 'техпроцесс не заполнен', muted: true)]
+                          : [
+                              _Tag(text: '${card.stageCount} этап.'),
+                              if (card.ccpCount > 0) _Tag(text: '${card.ccpCount} ККТ', ccp: true),
+                            ],
                     ),
                   ],
                 ),
               ),
-            ),
-        ],
+              const Icon(Icons.chevron_right, color: Colors.grey),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  final String text;
+  final bool ccp;
+  final bool muted;
+
+  const _Tag({required this.text, this.ccp = false, this.muted = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = ccp ? Colors.amber.shade100 : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final fg = ccp ? Colors.brown.shade800 : (muted ? Colors.grey.shade600 : Colors.grey.shade800);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      child: Text(text, style: TextStyle(fontSize: 11.5, color: fg, fontWeight: FontWeight.w500)),
     );
   }
 }

@@ -18,6 +18,7 @@ import '../models/product.dart';
 import '../models/product_return.dart';
 import '../models/production_request.dart';
 import '../models/purchase.dart';
+import '../models/tech_card.dart';
 import '../models/user.dart';
 import '../models/whatsapp_inbox.dart';
 import '../models/whatsapp_session.dart';
@@ -454,6 +455,37 @@ class ApiClient {
       body: jsonEncode(body),
     );
     return Recipe.fromJson(_decode(res));
+  }
+
+  // ---- Tech cards (экран «Производство») ----
+
+  /// Относительный путь фото товара в JSON → абсолютный URL (как _withAbsoluteImage).
+  Future<Map<String, dynamic>> _absoluteImageField(Map<String, dynamic> json) async {
+    final url = json['imageUrl'] as String?;
+    if (url == null || url.isEmpty || url.startsWith('http')) return json;
+    return {...json, 'imageUrl': '${await _origin()}$url'};
+  }
+
+  Future<List<TechCardSummary>> getTechCards() async {
+    final res = await http.get(await _uri('/tech-cards'), headers: await _authHeaders());
+    final list = _decode(res) as List;
+    return [
+      for (final e in list) TechCardSummary.fromJson(await _absoluteImageField(e as Map<String, dynamic>)),
+    ];
+  }
+
+  Future<TechCard> getTechCard(int productId) async {
+    final res = await http.get(await _uri('/tech-cards/$productId'), headers: await _authHeaders());
+    return TechCard.fromJson(await _absoluteImageField(_decode(res) as Map<String, dynamic>));
+  }
+
+  Future<TechCard> saveTechCard(int productId, Map<String, dynamic> body) async {
+    final res = await http.put(
+      await _uri('/tech-cards/$productId'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
+    return TechCard.fromJson(await _absoluteImageField(_decode(res) as Map<String, dynamic>));
   }
 
   // ---- Ingredients ----
