@@ -5,16 +5,20 @@ import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/product_avatar.dart';
+import '../widgets/tech_card_style.dart';
 import 'tech_card_edit_screen.dart';
 
 /// Техкарта товара: паспорт, расчёт партии под план выпуска (сырьё и себестоимость по последним
 /// закупочным ценам), рецептура, техпроцесс с ККТ, органолептика. Рецептура редактируется на
 /// экране «Рецептура», остальное — здесь же через карандаш (только ADMIN).
+///
+/// Оформление по образцу-артефакту «Техкарты выпечки»: сверху таблетки-вкладки товаров (те же,
+/// что видны в списке), под ними один лист с секциями через тонкие линии.
 class TechCardScreen extends StatefulWidget {
-  final int productId;
-  final String title;
+  final List<TechCardSummary> cards;
+  final int initialProductId;
 
-  const TechCardScreen({super.key, required this.productId, required this.title});
+  const TechCardScreen({super.key, required this.cards, required this.initialProductId});
 
   @override
   State<TechCardScreen> createState() => _TechCardScreenState();
@@ -22,13 +26,16 @@ class TechCardScreen extends StatefulWidget {
 
 class _TechCardScreenState extends State<TechCardScreen> {
   final _api = ApiClient();
-  late Future<TechCard> _future;
   final _plan = TextEditingController();
+  final _selectedTabKey = GlobalKey();
+  late int _productId = widget.initialProductId;
+  late Future<TechCard> _future;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollTabIntoView());
   }
 
   @override
@@ -37,14 +44,29 @@ class _TechCardScreenState extends State<TechCardScreen> {
     super.dispose();
   }
 
-  Future<TechCard> _load() async {
-    final card = await _api.getTechCard(widget.productId);
-    if (_plan.text.isEmpty) _plan.text = formatQty(card.yieldQuantity);
+  void _scrollTabIntoView() {
+    final ctx = _selectedTabKey.currentContext;
+    if (ctx != null) Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 250));
+  }
+
+  /// resetPlan — при переключении товара план выпуска сбрасывается на один замес нового товара.
+  Future<TechCard> _load({bool resetPlan = true}) async {
+    final card = await _api.getTechCard(_productId);
+    if (resetPlan || _plan.text.isEmpty) _plan.text = formatQty(card.yieldQuantity);
     return card;
   }
 
+  void _select(int productId) {
+    if (productId == _productId) return;
+    setState(() {
+      _productId = productId;
+      _future = _load();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollTabIntoView());
+  }
+
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() => _future = _load(resetPlan: false));
     await _future;
   }
 
@@ -55,36 +77,63 @@ class _TechCardScreenState extends State<TechCardScreen> {
     if (saved == true) _refresh();
   }
 
-  double _parse(String s) => double.tryParse(s.replaceAll(' ', '').replaceAll(',', '.')) ?? 0;
+  double _parse(String s) => double.tryParse(s.replaceAll(RegExp(r'\s'), '').replaceAll(',', '.')) ?? 0;
 
   @override
   Widget build(BuildContext context) {
     final isAdmin = ApiClient.currentSession?.role == 'ADMIN';
-    return FutureBuilder<TechCard>(
-      future: _future,
-      builder: (context, snapshot) {
-        final card = snapshot.data;
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(widget.title),
-            actions: [
-              if (isAdmin && card != null)
-                IconButton(icon: const Icon(Icons.edit), tooltip: 'Изменить техкарту', onPressed: () => _edit(card)),
-            ],
-          ),
-          body: () {
-            if (snapshot.connectionState == ConnectionState.waiting && card == null) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
-            }
-            return RefreshIndicator(onRefresh: _refresh, child: _body(card!, isAdmin));
-          }(),
-        );
-      },
+    return Theme(
+      data: TK.theme(Theme.of(context)),
+      child: FutureBuilder<TechCard>(
+        future: _future,
+        builder: (context, snapshot) {
+          final card = snapshot.connectionState == ConnectionState.done ? snapshot.data : null;
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Техкарта'),
+              actions: [
+                if (isAdmin && card != null)
+                  IconButton(icon: const Icon(Icons.edit_outlined), tooltip: 'Изменить техкарту', onPressed: () => _edit(card)),
+              ],
+            ),
+            body: Column(
+              children: [
+                if (widget.cards.length > 1) _tabs(),
+                Expanded(
+                  child: () {
+                    if (snapshot.hasError) return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+                    if (card == null) return const Center(child: CircularProgressIndicator());
+                    return RefreshIndicator(onRefresh: _refresh, child: _body(card, isAdmin));
+                  }(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
+
+  Widget _tabs() => SizedBox(
+        height: 50,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Row(
+            children: [
+              for (final c in widget.cards) ...[
+                TKPill(
+                  key: c.productId == _productId ? _selectedTabKey : null,
+                  text: c.name,
+                  selected: c.productId == _productId,
+                  onTap: () => _select(c.productId),
+                ),
+                const SizedBox(width: 6),
+              ],
+            ],
+          ),
+        ),
+      );
 
   Widget _body(TechCard c, bool isAdmin) {
     final unit = c.unit ?? 'шт';
@@ -103,130 +152,193 @@ class _TechCardScreenState extends State<TechCardScreen> {
     final costPerUnit = plan > 0 ? cost / plan : 0.0;
     final markup = costPerUnit > 0 ? (c.salePrice - costPerUnit) / costPerUnit * 100 : null;
 
-    String? outputKg;
-    final u = unit.toLowerCase();
-    if (u == 'кг') {
-      outputKg = '${formatQty(_round(plan, 2))} кг';
+    double? outputKg;
+    if (unit.toLowerCase() == 'кг') {
+      outputKg = plan;
     } else if (c.netWeightGrams != null && c.netWeightGrams! > 0) {
-      outputKg = '${formatQty(_round(plan * c.netWeightGrams! / 1000, 2))} кг';
+      outputKg = plan * c.netWeightGrams! / 1000;
     }
+    final perKg = outputKg != null && outputKg > 0 ? cost / outputKg : null;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
       children: [
-        _Section(children: [
-          Row(
+        Container(
+          decoration: BoxDecoration(
+            color: TK.paper,
+            border: Border.all(color: TK.line),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ProductAvatar(name: c.name, imageUrl: c.imageUrl, radius: 32),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              // ---- Паспорт ----
+              _Sec(first: true, children: [
+                Row(
                   children: [
-                    const _Label('Технологическая карта'),
-                    const SizedBox(height: 2),
-                    Text(c.name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                    if (c.group != null) Text(c.group!, style: const TextStyle(color: Colors.grey)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TKLabel('Технологическая карта · ${c.group ?? 'без группы'}'),
+                          const SizedBox(height: 6),
+                          Text(c.name, style: TK.h1),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ProductAvatar(name: c.name, imageUrl: c.imageUrl, radius: 28),
                   ],
                 ),
-              ),
+                const SizedBox(height: 4),
+                _FieldGrid(fields: [
+                  ('Выход по рецептуре', '${formatQty(c.yieldQuantity)} $unit'),
+                  ('Масса 1 шт, г', c.netWeightGrams == null ? null : formatQty(c.netWeightGrams!)),
+                  ('Срок годности', c.shelfLife),
+                  ('Условия хранения', c.storageConditions),
+                  ('Упаковка', c.packaging),
+                ]),
+              ]),
+
+              // ---- Расчёт партии ----
+              _Sec(children: [
+                const _SecHead(title: 'Расчёт партии и себестоимость', note: 'Цены сырья — по последней закупке, ₸ за единицу'),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: TK.soft, borderRadius: BorderRadius.circular(8)),
+                  child: Wrap(
+                    spacing: 20,
+                    runSpacing: 10,
+                    crossAxisAlignment: WrapCrossAlignment.end,
+                    children: [
+                      SizedBox(
+                        width: 150,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TKLabel('План выпуска, $unit'),
+                            const SizedBox(height: 4),
+                            TextField(
+                              controller: _plan,
+                              style: TK.num.copyWith(fontSize: 15),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(fillColor: TK.paper),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          'Коэффициент пересчёта ×${formatQty(_round(factor, 2))} · ${formatQty(_round(factor, 2))} замес.',
+                          style: TK.note,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _StatGrid(stats: [
+                  _Stat(
+                    'Выход партии',
+                    outputKg != null ? '${formatQty(_round(outputKg, 1))} кг' : '${formatQty(plan)} $unit',
+                    c.netWeightGrams != null && unit.toLowerCase() != 'кг'
+                        ? '${formatQty(plan)} $unit × ${formatQty(c.netWeightGrams!)} г'
+                        : 'по плану выпуска',
+                  ),
+                  _Stat(
+                    'Сырьё на партию',
+                    '${formatQty(_round(cost, 0))} ₸',
+                    unpriced > 0 ? 'без цены: $unpriced поз. — сумма занижена' : 'без труда и энергии',
+                    warn: unpriced > 0,
+                  ),
+                  _Stat(
+                    'Себестоимость 1 $unit',
+                    '${formatQty(_round(costPerUnit, 1))} ₸',
+                    perKg != null ? '${formatQty(_round(perKg, 0))} ₸ за 1 кг' : 'только сырьё',
+                  ),
+                  _Stat(
+                    'Цена продажи 1 $unit',
+                    '${formatQty(c.salePrice)} ₸',
+                    markup == null ? 'из карточки товара' : 'наценка ${formatQty(_round(markup, 0))} %',
+                    highlight: true,
+                    warn: markup != null && markup < 0,
+                  ),
+                ]),
+              ]),
+
+              // ---- Рецептура ----
+              _Sec(children: [
+                _SecHead(title: 'Рецептура', note: 'На партию — под план выпуска; на замес — на ${formatQty(c.yieldQuantity)} $unit. Таблица листается вбок'),
+                if (c.items.isEmpty)
+                  const Text('Рецептура пуста — заполните её на экране «Рецептура»', style: TK.note)
+                else
+                  _RecipeTable(items: c.items, factor: factor, totalCost: cost),
+              ]),
+
+              // ---- Техпроцесс ----
+              _Sec(children: [
+                const _SecHead(
+                  title: 'Технологический процесс',
+                  noteWidget: Text.rich(
+                    TextSpan(children: [
+                      WidgetSpan(alignment: PlaceholderAlignment.middle, child: TKCcp()),
+                      TextSpan(text: '  — критическая контрольная точка, фиксируется в журнале'),
+                    ]),
+                    style: TK.note,
+                  ),
+                ),
+                if (c.stages.isEmpty)
+                  Row(
+                    children: [
+                      const Expanded(child: Text('Этапы ещё не заполнены', style: TK.note)),
+                      if (isAdmin)
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: TK.ink,
+                            side: const BorderSide(color: TK.line),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          ),
+                          onPressed: () => _edit(c),
+                          child: const Text('+ Добавить этап'),
+                        ),
+                    ],
+                  ),
+                for (var n = 0; n < c.stages.length; n++)
+                  _StageRow(number: n + 1, stage: c.stages[n], last: n == c.stages.length - 1),
+              ]),
+
+              // ---- Качество ----
+              _Sec(children: [
+                const Text('Органолептические показатели', style: TK.h2),
+                const SizedBox(height: 12),
+                _Dl(rows: [
+                  ('Внешний вид', c.qualityLook),
+                  ('Цвет', c.qualityColor),
+                  ('Мякиш / излом', c.qualityCrumb),
+                  ('Вкус и запах', c.qualityTaste),
+                ]),
+                if (c.netWeightGrams != null) ...[
+                  const SizedBox(height: 20),
+                  const Text('Требования к выпуску', style: TK.h2),
+                  const SizedBox(height: 12),
+                  _Dl(rows: [
+                    (
+                      'Отклонение массы',
+                      '± 3 % от ${formatQty(c.netWeightGrams!)} г '
+                          '(${formatQty(_round(c.netWeightGrams! * 0.97, 1))}–${formatQty(_round(c.netWeightGrams! * 1.03, 1))} г)'
+                    ),
+                  ]),
+                ],
+              ]),
+
+              _Sec(children: [
+                Text('Составил: __________   Утвердил: __________   Дата: ${formatDate(DateTime.now())}', style: TK.note),
+              ]),
             ],
           ),
-          const SizedBox(height: 14),
-          _Fields(pairs: [
-            ('Выход по рецептуре', '${formatQty(c.yieldQuantity)} $unit на замес'),
-            if (c.netWeightGrams != null) ('Масса 1 шт', '${formatQty(c.netWeightGrams!)} г'),
-            ('Срок годности', c.shelfLife),
-            ('Условия хранения', c.storageConditions),
-            ('Упаковка', c.packaging),
-          ]),
-        ]),
-        _Section(
-          title: 'Расчёт партии и себестоимость',
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                SizedBox(
-                  width: 150,
-                  child: TextField(
-                    controller: _plan,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(labelText: 'План выпуска, $unit', isDense: true),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '= ${formatQty(_round(factor, 2))} замес.',
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _Stats(stats: [
-              _Stat('Выход партии', outputKg ?? '${formatQty(plan)} $unit',
-                  outputKg != null ? '${formatQty(plan)} $unit' : null),
-              _Stat('Сырьё на партию', formatMoney(_round(cost, 0)),
-                  unpriced > 0 ? 'без $unpriced поз. без цены' : 'без труда и энергии',
-                  warn: unpriced > 0),
-              _Stat('Себестоимость 1 $unit', formatMoney(_round(costPerUnit, 1)), null),
-              _Stat('Цена продажи', formatMoney(c.salePrice),
-                  markup == null ? null : 'наценка ${formatQty(_round(markup, 0))} %',
-                  highlight: true, warn: markup != null && markup < 0),
-            ]),
-            const SizedBox(height: 6),
-            const Text('Цены сырья — по последней закупке', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          ],
         ),
-        _Section(
-          title: 'Рецептура',
-          subtitle: 'на замес (${formatQty(c.yieldQuantity)} $unit) → на партию',
-          children: [
-            if (c.items.isEmpty) const Text('Рецептура пуста', style: TextStyle(color: Colors.grey)),
-            for (final i in c.items) _IngredientRow(item: i, factor: factor, totalCost: cost),
-          ],
-        ),
-        _Section(
-          title: 'Технологический процесс',
-          trailing: const _CcpBadge(),
-          children: [
-            if (c.stages.isEmpty)
-              Row(
-                children: [
-                  const Expanded(child: Text('Этапы ещё не заполнены', style: TextStyle(color: Colors.grey))),
-                  if (isAdmin) TextButton(onPressed: () => _edit(c), child: const Text('Заполнить')),
-                ],
-              ),
-            for (var n = 0; n < c.stages.length; n++) _StageRow(number: n + 1, stage: c.stages[n], last: n == c.stages.length - 1),
-            if (c.stages.any((s) => s.ccp))
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text('ККТ — критическая контрольная точка, фиксируется в журнале',
-                    style: TextStyle(color: Colors.grey, fontSize: 12)),
-              ),
-          ],
-        ),
-        _Section(title: 'Органолептические показатели', children: [
-          _Fields(pairs: [
-            ('Внешний вид', c.qualityLook),
-            ('Цвет', c.qualityColor),
-            ('Мякиш / излом', c.qualityCrumb),
-            ('Вкус и запах', c.qualityTaste),
-          ]),
-        ]),
-        if (c.netWeightGrams != null)
-          _Section(title: 'Требования к выпуску', children: [
-            _Fields(pairs: [
-              (
-                'Отклонение массы',
-                '± 3 % от ${formatQty(c.netWeightGrams!)} г '
-                    '(${formatQty(_round(c.netWeightGrams! * 0.97, 1))}–${formatQty(_round(c.netWeightGrams! * 1.03, 1))} г)'
-              ),
-            ]),
-          ]),
       ],
     );
   }
@@ -237,211 +349,232 @@ double _round(double v, int digits) {
   return (v * m).roundToDouble() / m;
 }
 
-class _Label extends StatelessWidget {
-  final String text;
+/// Секция листа: отступ 20 и линия сверху (кроме первой) — `.sec` в образце.
+class _Sec extends StatelessWidget {
+  final bool first;
+  final List<Widget> children;
 
-  const _Label(this.text);
+  const _Sec({this.first = false, required this.children});
 
   @override
-  Widget build(BuildContext context) => Text(
-        text.toUpperCase(),
-        style: TextStyle(fontSize: 11, letterSpacing: 0.8, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(border: first ? null : const Border(top: BorderSide(color: TK.line))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
       );
 }
 
-class _Section extends StatelessWidget {
-  final String? title;
-  final String? subtitle;
-  final Widget? trailing;
-  final List<Widget> children;
+class _SecHead extends StatelessWidget {
+  final String title;
+  final String? note;
+  final Widget? noteWidget;
 
-  const _Section({this.title, this.subtitle, this.trailing, required this.children});
+  const _SecHead({required this.title, this.note, this.noteWidget});
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (title != null) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(title!, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                  ),
-                  ?trailing,
-                ],
-              ),
-              if (subtitle != null) Text(subtitle!, style: const TextStyle(color: Colors.grey, fontSize: 12.5)),
-              const SizedBox(height: 12),
-            ],
-            ...children,
+            Text(title, style: TK.h2),
+            if (note != null) ...[const SizedBox(height: 4), Text(note!, style: TK.note)],
+            if (noteWidget != null) ...[const SizedBox(height: 6), noteWidget!],
           ],
         ),
-      ),
-    );
-  }
+      );
 }
 
-/// Пары «подпись — значение»; пустые значения показываются прочерком.
-class _Fields extends StatelessWidget {
-  final List<(String, String?)> pairs;
+/// Сетка полей паспорта: подпись капсом + значение на светлой подложке (`.fields` в образце).
+class _FieldGrid extends StatelessWidget {
+  final List<(String, String?)> fields;
 
-  const _Fields({required this.pairs});
+  const _FieldGrid({required this.fields});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final (label, value) in pairs)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(width: 130, child: Text(label, style: const TextStyle(color: Colors.grey))),
-                Expanded(child: Text(value ?? '—')),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+        final cols = constraints.maxWidth > 480 ? 3 : 2;
+        final w = (constraints.maxWidth - 14 * (cols - 1)) / cols;
+        return Wrap(
+          spacing: 14,
+          runSpacing: 12,
+          children: [
+            for (final (label, value) in fields)
+              SizedBox(
+                width: label == 'Условия хранения' || label == 'Упаковка' ? constraints.maxWidth : w,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
+                    TKLabel(label),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                      decoration: BoxDecoration(color: TK.soft, borderRadius: BorderRadius.circular(6)),
+                      child: Text(value ?? '—', style: TK.text.copyWith(color: value == null ? TK.muted : TK.ink)),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      });
 }
 
 class _Stat {
   final String label;
   final String value;
-  final String? hint;
+  final String hint;
   final bool highlight;
   final bool warn;
 
   _Stat(this.label, this.value, this.hint, {this.highlight = false, this.warn = false});
 }
 
-class _Stats extends StatelessWidget {
+/// Плитки показателей с линиями толщиной 1 px между ними (`.stats` в образце).
+class _StatGrid extends StatelessWidget {
   final List<_Stat> stats;
 
-  const _Stats({required this.stats});
+  const _StatGrid({required this.stats});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(builder: (context, constraints) {
-      final width = (constraints.maxWidth - 8) / 2;
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final s in stats)
-            Container(
-              width: width,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _Label(s.label),
-                  const SizedBox(height: 2),
-                  Text(
-                    s.value,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                      color: s.highlight ? scheme.primary : null,
-                    ),
-                  ),
-                  if (s.hint != null)
-                    Text(s.hint!,
-                        style: TextStyle(fontSize: 12, color: s.warn ? Colors.red.shade700 : Colors.grey)),
-                ],
-              ),
-            ),
-        ],
-      );
-    });
-  }
-}
-
-class _IngredientRow extends StatelessWidget {
-  final TechCardItem item;
-  final double factor;
-  final double totalCost;
-
-  const _IngredientRow({required this.item, required this.factor, required this.totalCost});
-
-  @override
-  Widget build(BuildContext context) {
-    final perBatch = item.quantity * factor;
-    final sum = item.unitPrice == null ? null : perBatch * item.unitPrice!;
-    final share = sum != null && totalCost > 0 ? sum / totalCost * 100 : null;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(height: 2),
-                Text(
-                  '${formatQty(_round(item.quantity, 3))} → ${formatQty(_round(perBatch, 3))} ${item.unit}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12.5, fontFeatures: [FontFeature.tabularFigures()]),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+    Widget tile(_Stat s) => Container(
+          color: TK.paper,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              TKLabel(s.label),
+              const SizedBox(height: 4),
               Text(
-                sum == null ? 'нет цены' : formatMoney(_round(sum, 0)),
-                style: TextStyle(
+                s.value,
+                style: TK.num.copyWith(
+                  fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: sum == null ? Colors.orange.shade800 : null,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: s.highlight ? TK.accent : TK.ink,
                 ),
               ),
-              if (item.unitPrice != null)
-                Text(
-                  '${formatMoney(item.unitPrice!)}/${item.unit}'
-                  '${share != null ? ' · ${formatQty(_round(share, 1))} %' : ''}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
+              const SizedBox(height: 2),
+              Text(s.hint, style: TK.note.copyWith(color: s.warn ? TK.bad : TK.muted)),
             ],
           ),
-        ],
+        );
+
+    final rows = <Widget>[];
+    for (var i = 0; i < stats.length; i += 2) {
+      rows.add(IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: tile(stats[i])),
+            const SizedBox(width: 1),
+            Expanded(child: i + 1 < stats.length ? tile(stats[i + 1]) : Container(color: TK.paper)),
+          ],
+        ),
+      ));
+      if (i + 2 < stats.length) rows.add(const SizedBox(height: 1));
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        color: TK.line,
+        foregroundDecoration: BoxDecoration(
+          border: Border.all(color: TK.line),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(children: rows),
       ),
     );
   }
 }
 
-class _CcpBadge extends StatelessWidget {
-  const _CcpBadge();
+/// Таблица рецептуры с итогом (`table` в образце); на узком экране прокручивается по горизонтали.
+class _RecipeTable extends StatelessWidget {
+  final List<TechCardItem> items;
+  final double factor;
+  final double totalCost;
+
+  const _RecipeTable({required this.items, required this.factor, required this.totalCost});
+
+  static const _head = TextStyle(fontFamily: TK.body, fontSize: 11, fontWeight: FontWeight.w600, color: TK.muted, letterSpacing: 0.6);
+
+  Widget _cell(String text, {bool right = false, TextStyle? style, Color? bg}) => Container(
+        color: bg,
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+        alignment: right ? Alignment.centerRight : Alignment.centerLeft,
+        child: Text(text, style: style ?? (right ? TK.num : TK.text), textAlign: right ? TextAlign.right : TextAlign.left),
+      );
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.amber.shade100,
-          border: Border.all(color: Colors.amber.shade600),
-          borderRadius: BorderRadius.circular(999),
+  Widget build(BuildContext context) {
+    const border = BorderSide(color: TK.line);
+    final missing = TK.num.copyWith(color: TK.bad, fontFamily: TK.body, fontSize: 12.5);
+    final bold = TK.num.copyWith(fontWeight: FontWeight.w600);
+
+    final rows = <TableRow>[
+      TableRow(
+        decoration: const BoxDecoration(color: TK.soft, border: Border(bottom: border)),
+        children: [
+          _cell('СЫРЬЁ', style: _head),
+          _cell('НА ПАРТИЮ', right: true, style: _head),
+          _cell('СУММА, ₸', right: true, style: _head),
+          _cell('ДОЛЯ, %', right: true, style: _head),
+          _cell('НА ЗАМЕС', right: true, style: _head),
+          _cell('ЦЕНА, ₸/ЕД', right: true, style: _head),
+        ],
+      ),
+    ];
+    for (final i in items) {
+      final perBatch = i.quantity * factor;
+      final sum = i.unitPrice == null ? null : perBatch * i.unitPrice!;
+      rows.add(TableRow(
+        decoration: const BoxDecoration(border: Border(bottom: border)),
+        children: [
+          _cell(i.name),
+          _cell('${formatQty(_round(perBatch, 3))} ${i.unit}', right: true),
+          sum == null ? _cell('нет цены', right: true, style: missing) : _cell(formatQty(_round(sum, 0)), right: true),
+          _cell(sum == null || totalCost <= 0 ? '—' : formatQty(_round(sum / totalCost * 100, 1)), right: true),
+          _cell('${formatQty(_round(i.quantity, 3))} ${i.unit}', right: true),
+          _cell(i.unitPrice == null ? '—' : formatQty(i.unitPrice!), right: true),
+        ],
+      ));
+    }
+    rows.add(TableRow(
+      decoration: const BoxDecoration(color: TK.soft),
+      children: [
+        _cell('Итого', style: TK.text.copyWith(fontWeight: FontWeight.w600)),
+        _cell(''),
+        _cell(formatQty(_round(totalCost, 0)), right: true, style: bold),
+        _cell(totalCost > 0 ? '100' : '—', right: true, style: bold),
+        _cell(''),
+        _cell(''),
+      ],
+    ));
+
+    return Container(
+      decoration: BoxDecoration(border: Border.all(color: TK.line), borderRadius: BorderRadius.circular(8)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 560),
+            child: Table(
+              defaultColumnWidth: const IntrinsicColumnWidth(),
+              columnWidths: const {0: FixedColumnWidth(128)},
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: rows,
+            ),
+          ),
         ),
-        child: Text('ККТ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.brown.shade800)),
-      );
+      ),
+    );
+  }
 }
 
+/// Этап техпроцесса: номер в кружке (жёлтый у ККТ), название, описание, таблетки t° и времени.
 class _StageRow extends StatelessWidget {
   final int number;
   final TechCardStage stage;
@@ -452,77 +585,96 @@ class _StageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        border: last ? null : Border(bottom: BorderSide(color: Colors.grey.shade200)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(border: last ? null : const Border(bottom: BorderSide(color: TK.line))),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: stage.ccp ? Colors.amber.shade600 : Colors.grey.shade200,
-            child: Text('$number',
-                style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: stage.ccp ? Colors.brown.shade900 : Colors.grey.shade700)),
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: stage.ccp ? TK.yolk : TK.soft, shape: BoxShape.circle),
+            child: Text(
+              '$number',
+              style: TK.num.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: stage.ccp ? const Color(0xFF3A2800) : TK.muted,
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Text(stage.title, style: TK.text.copyWith(fontWeight: FontWeight.w600, fontSize: 15)),
+                if (stage.description != null) ...[
+                  const SizedBox(height: 3),
+                  Text(stage.description!, style: TK.text.copyWith(color: TK.muted, height: 1.4)),
+                ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
-                    Expanded(child: Text(stage.title, style: const TextStyle(fontWeight: FontWeight.w600))),
-                    if (stage.ccp) const _CcpBadge(),
+                    _ParamChip(label: 't°', value: stage.temperature ?? '—'),
+                    _ParamChip(label: 'время', value: stage.duration ?? '—'),
                   ],
                 ),
-                if (stage.description != null) ...[
-                  const SizedBox(height: 2),
-                  Text(stage.description!, style: TextStyle(color: Colors.grey.shade700, fontSize: 13.5)),
-                ],
-                if (stage.temperature != null || stage.duration != null) ...[
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      if (stage.temperature != null) _Chip(icon: Icons.thermostat, text: stage.temperature!),
-                      if (stage.duration != null) _Chip(icon: Icons.schedule, text: stage.duration!),
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
+          if (stage.ccp) ...[const SizedBox(width: 8), const TKCcp()],
         ],
       ),
     );
   }
 }
 
-class _Chip extends StatelessWidget {
-  final IconData icon;
-  final String text;
+class _ParamChip extends StatelessWidget {
+  final String label;
+  final String value;
 
-  const _Chip({required this.icon, required this.text});
+  const _ParamChip({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(999),
-        ),
+        padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+        decoration: BoxDecoration(color: TK.soft, borderRadius: BorderRadius.circular(999)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: Colors.grey.shade700),
-            const SizedBox(width: 4),
-            Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade800)),
+            Text(label, style: TK.note),
+            const SizedBox(width: 6),
+            Text(value, style: TK.num.copyWith(fontSize: 12)),
           ],
         ),
+      );
+}
+
+/// Список «термин — описание» (`dl.q` в образце).
+class _Dl extends StatelessWidget {
+  final List<(String, String?)> rows;
+
+  const _Dl({required this.rows});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (final (term, desc) in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 120, child: Text(term, style: TK.text.copyWith(color: TK.muted))),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(desc ?? '—', style: TK.text)),
+                ],
+              ),
+            ),
+        ],
       );
 }
