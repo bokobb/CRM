@@ -160,6 +160,12 @@ public class ProductionRequestService {
                 .orElseThrow(() -> new IllegalArgumentException("Заявка не найдена: " + id));
     }
 
+    /** Для изменений заявки — с блокировкой строки до конца транзакции (см. findByIdForUpdate). */
+    private ProductionRequest findForUpdate(Long id) {
+        return requestRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new IllegalArgumentException("Заявка не найдена: " + id));
+    }
+
     /**
      * Сверка нормы по ОБЩЕЙ МАССЕ вместо штук — для товаров вроде Чак-чака, где несколько
      * фасовок (Б/мини/резанный/резанный мини) режутся из одного замеса: если рабочие перепутали
@@ -323,7 +329,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest update(Long requestId, List<Line> lines, String updatedBy, LocalDate documentDate) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED
                 || request.getStatus() == ProductionRequestStatus.RECEIVED) {
             throw new IllegalStateException("Редактировать позиции можно только до полного оприходования заявки");
@@ -445,7 +451,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest cancel(Long requestId, String by) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Заявка уже отменена");
         }
@@ -485,7 +491,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public void delete(Long requestId) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() != ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Удалить можно только отменённую заявку — сначала отмените её");
         }
@@ -520,7 +526,7 @@ public class ProductionRequestService {
     @Transactional
     public ProductionRequest substituteItem(Long requestId, Long itemId, Long newIngredientId,
                                              BigDecimal newQuantity, String by) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Нельзя менять состав отменённой заявки");
         }
@@ -606,7 +612,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest addItem(Long requestId, Long ingredientId, BigDecimal quantity, String by) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Нельзя менять состав отменённой заявки");
         }
@@ -659,7 +665,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest removeItem(Long requestId, Long itemId, String by) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Нельзя менять состав отменённой заявки");
         }
@@ -700,7 +706,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest completeRequisition(Long requestId) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() != ProductionRequestStatus.RECEIVED) {
             throw new IllegalStateException("Завершить можно только полностью оприходованную заявку");
         }
@@ -716,7 +722,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest cancelCompletion(Long requestId) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (!request.isRequisitionCompleted()) {
             throw new IllegalStateException("Заявка ещё не завершена");
         }
@@ -765,7 +771,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest collect(Long requestId, Set<Long> confirmedItemIds, String by) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() != ProductionRequestStatus.NEW) {
             throw new IllegalStateException("Заявку можно собрать только в статусе «Новая»");
         }
@@ -800,7 +806,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest receiveLine(Long requestId, Long lineId, BigDecimal receivedQuantity, String by) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() != ProductionRequestStatus.COLLECTED) {
             throw new IllegalStateException("Оприходовать можно только собранную заявку");
         }
@@ -844,7 +850,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest resyncOneC(Long requestId) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         oneCProductionSyncService.syncOrThrow(request);
         return request;
     }
@@ -921,7 +927,7 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest settleComposition(Long requestId, String by) {
-        ProductionRequest request = findById(requestId);
+        ProductionRequest request = findForUpdate(requestId);
         if (lastIssued(request) == null) {
             throw new IllegalStateException("Сырьё по заявке ещё не выдавали");
         }
