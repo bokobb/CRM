@@ -24,6 +24,7 @@ import 'screens/prices_screen.dart';
 import 'screens/product_form_screen.dart';
 import 'screens/product_stock_screen.dart';
 import 'screens/products_screen.dart';
+import 'screens/reports_screen.dart';
 import 'screens/production_report_screen.dart';
 import 'screens/production_request_detail_screen.dart';
 import 'screens/production_request_form_screen.dart';
@@ -240,6 +241,11 @@ class CrmApp extends StatelessWidget {
           case '/production-requests/new':
             return MaterialPageRoute(
               builder: (_) => const ProductionRequestFormScreen(),
+              settings: settings,
+            );
+          case '/reports':
+            return MaterialPageRoute(
+              builder: (_) => const ReportsScreen(),
               settings: settings,
             );
           case '/production-requests/report':

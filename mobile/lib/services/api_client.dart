@@ -17,6 +17,7 @@ import '../models/order.dart';
 import '../models/product.dart';
 import '../models/product_return.dart';
 import '../models/employee.dart';
+import '../models/report.dart';
 import '../models/production_cost.dart';
 import '../models/production_request.dart';
 import '../models/purchase.dart';
@@ -506,6 +507,18 @@ class ApiClient {
   }
 
   /// id == null — новый сотрудник. dailyRate backend сохраняет только для ADMIN/ACCOUNTANT.
+  /// Меню «Отчёты»: какие отчёты доступны роли (см. ReportApiController).
+  Future<List<ReportInfo>> getReports() async {
+    final res = await http.get(await _uri('/reports'), headers: await _authHeaders());
+    return [for (final r in _decode(res) as List) ReportInfo.fromJson(r as Map<String, dynamic>)];
+  }
+
+  Future<Report> getReport(String key, DateTime from, DateTime to) async {
+    final res = await http.get(await _uri('/reports/$key', {'from': _isoDate(from), 'to': _isoDate(to)}),
+        headers: await _authHeaders());
+    return Report.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
   /// Загружает сотрудников из справочника 1С (новые добавляет, существующих обновляет, ставки не трогает).
   Future<({int total, int active, int created, int updated, int matchedByName})> importEmployeesFromOneC() async {
     final res = await http.post(await _uri('/employees/import-1c'), headers: await _authHeaders());

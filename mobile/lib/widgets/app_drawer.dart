@@ -16,7 +16,7 @@ const _production = ('/production', 'Производство', Icons.factory_ou
 const _techCards = ('/tech-cards', 'Техкарта', Icons.assignment_outlined);
 const _employees = ('/employees', 'Сотрудники', Icons.badge_outlined);
 const _productionRequests = ('/production-requests', 'Заявки на сырьё', Icons.science_outlined);
-const _productionReport = ('/production-requests/report', 'Отчёт', Icons.summarize_outlined);
+const _reports = ('/reports', 'Отчёты', Icons.summarize_outlined);
 const _purchases = ('/purchases', 'Покупки', Icons.local_shipping_outlined);
 const _debts = ('/debts', 'Долги', Icons.hourglass_bottom_outlined);
 const _returns = ('/returns', 'Возвраты', Icons.assignment_return_outlined);
@@ -50,7 +50,7 @@ class AppDrawer extends StatelessWidget {
           _warehouse,
           _ingredientWarehouse,
           _clients,
-          _productionReport,
+          _reports,
           _production,
           _techCards,
           _employees,
@@ -61,7 +61,7 @@ class AppDrawer extends StatelessWidget {
       case 'SALES':
         return [_dashboard, _orders, _returns, _clients, _products, _recipes, _whatsappInbox, _notifications];
       case 'WAREHOUSE_FG':
-        return [_orders, _returns, _productionRequests, _warehouse, _ingredientWarehouse, _productionReport, _notifications];
+        return [_orders, _returns, _productionRequests, _warehouse, _ingredientWarehouse, _reports, _notifications];
       case 'WAREHOUSE_RAW':
         // Дашборд по производству (не по заказам — см. DashboardScreen), заявки (сборка по
         // чек-листу), покупки (приход от поставщиков) и склад сырья (остатки/поступления/
@@ -69,7 +69,7 @@ class AppDrawer extends StatelessWidget {
         return [_dashboard, _productionRequests, _purchases, _ingredientWarehouse, _notifications];
       case 'TECHNOLOGIST':
         // Бригады, техкарты, сотрудники; ставок и зарплаты не видит (backend отдаёт null).
-        return [_production, _techCards, _employees];
+        return [_production, _techCards, _employees, _reports];
       default:
         return [_dashboard];
     }

@@ -63,6 +63,29 @@ public class ProductionCostService {
         return new ProductionCostDto(date, selected.totals(), selected.requests(), history, selected.unpricedIngredients());
     }
 
+    /** Сумма итогов дней за период (с зарплатой и накладными) — для отчёта «Сводка». */
+    @Transactional(readOnly = true)
+    public ProductionCostDto.Totals periodTotals(LocalDate from, LocalDate to) {
+        Map<Long, Recipe> recipes = recipes();
+        Map<LocalDate, List<ProductionRequest>> byDate = requestRepository
+                .findByDocumentDateBetweenAndStatusNot(from, to, ProductionRequestStatus.CANCELLED)
+                .stream().collect(Collectors.groupingBy(ProductionRequest::getDocumentDate));
+        BigDecimal norm = BigDecimal.ZERO, issued = BigDecimal.ZERO, labor = BigDecimal.ZERO, fg = BigDecimal.ZERO,
+                sale = BigDecimal.ZERO, semi = BigDecimal.ZERO, overhead = BigDecimal.ZERO, fund = BigDecimal.ZERO;
+        for (var e : byDate.entrySet()) {
+            ProductionCostDto.Totals t = computeDay(e.getKey(), e.getValue(), recipes, true).totals();
+            norm = norm.add(t.normCost());
+            issued = issued.add(t.issuedCost());
+            labor = labor.add(t.laborCost());
+            fg = fg.add(t.finishedCost());
+            sale = sale.add(t.finishedSaleValue());
+            semi = semi.add(t.semiFinishedCost());
+            overhead = overhead.add(t.overheadCost());
+            fund = fund.add(t.overheadFund());
+        }
+        return new ProductionCostDto.Totals(norm, issued, labor, fg, sale, semi, overhead, fund);
+    }
+
     @Transactional(readOnly = true)
     public ProductionCostDto.RequestDetail request(Long requestId, boolean showLabor) {
         ProductionRequest req = requestRepository.findById(requestId)
