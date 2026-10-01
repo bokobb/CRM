@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -38,6 +39,16 @@ public class Employee {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    /** Ref_Key элемента справочника «Сотрудники» в 1С — null у заведённых только в CRM (см. OneCEmployeeImportService). */
+    @Column(unique = true)
+    private String oneCKey;
+
+    /** ИИН физлица из 1С. */
+    private String iin;
+
+    /** Дата приёма на работу из 1С. */
+    private LocalDate hiredAt;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

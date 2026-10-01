@@ -2,12 +2,14 @@ package com.confectionery.crm.api;
 
 import com.confectionery.crm.domain.Employee;
 import com.confectionery.crm.service.EmployeeService;
+import com.confectionery.crm.service.OneCEmployeeImportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /** Меню «Сотрудники». Технолог ведёт список, но ставку за смену видят и задают только ADMIN/ACCOUNTANT. */
@@ -18,11 +20,13 @@ import java.util.List;
 public class EmployeeApiController {
 
     private final EmployeeService employeeService;
+    private final OneCEmployeeImportService oneCEmployeeImportService;
 
-    public record EmployeeDto(Long id, String fullName, String position, String phone, BigDecimal dailyRate, boolean active) {
+    public record EmployeeDto(Long id, String fullName, String position, String phone, BigDecimal dailyRate, boolean active,
+                              String iin, LocalDate hiredAt, boolean fromOneC) {
         static EmployeeDto from(Employee e, boolean showRate) {
             return new EmployeeDto(e.getId(), e.getFullName(), e.getPosition(), e.getPhone(),
-                    showRate ? e.getDailyRate() : null, e.isActive());
+                    showRate ? e.getDailyRate() : null, e.isActive(), e.getIin(), e.getHiredAt(), e.getOneCKey() != null);
         }
     }
 
@@ -33,6 +37,12 @@ public class EmployeeApiController {
     public List<EmployeeDto> list(Authentication auth) {
         boolean showRate = ProductionCostApiController.canSeeLabor(auth);
         return employeeService.findAll().stream().map(e -> EmployeeDto.from(e, showRate)).toList();
+    }
+
+    /** Кнопка «Загрузить из 1С»: добавляет/обновляет сотрудников по справочнику 1С (ставки не трогает). */
+    @PostMapping("/import-1c")
+    public OneCEmployeeImportService.ImportResult importFromOneC() {
+        return oneCEmployeeImportService.importAll();
     }
 
     @PostMapping

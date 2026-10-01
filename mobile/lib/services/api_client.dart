@@ -506,6 +506,19 @@ class ApiClient {
   }
 
   /// id == null — новый сотрудник. dailyRate backend сохраняет только для ADMIN/ACCOUNTANT.
+  /// Загружает сотрудников из справочника 1С (новые добавляет, существующих обновляет, ставки не трогает).
+  Future<({int total, int active, int created, int updated, int matchedByName})> importEmployeesFromOneC() async {
+    final res = await http.post(await _uri('/employees/import-1c'), headers: await _authHeaders());
+    final json = _decode(res) as Map<String, dynamic>;
+    return (
+      total: json['total'] as int,
+      active: json['active'] as int,
+      created: json['created'] as int,
+      updated: json['updated'] as int,
+      matchedByName: json['matchedByName'] as int,
+    );
+  }
+
   Future<Employee> saveEmployee(int? id, Map<String, dynamic> body) async {
     final res = id == null
         ? await http.post(await _uri('/employees'), headers: await _authHeaders(), body: jsonEncode(body))

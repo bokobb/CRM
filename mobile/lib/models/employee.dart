@@ -7,6 +7,9 @@ class Employee {
   final String? phone;
   final double? dailyRate;
   final bool active;
+  final String? iin;
+  final DateTime? hiredAt;
+  final bool fromOneC;
 
   Employee({
     required this.id,
@@ -15,6 +18,9 @@ class Employee {
     this.phone,
     this.dailyRate,
     required this.active,
+    this.iin,
+    this.hiredAt,
+    this.fromOneC = false,
   });
 
   factory Employee.fromJson(Map<String, dynamic> json) => Employee(
@@ -24,5 +30,8 @@ class Employee {
         phone: json['phone'] as String?,
         dailyRate: (json['dailyRate'] as num?)?.toDouble(),
         active: json['active'] as bool? ?? true,
+        iin: json['iin'] as String?,
+        hiredAt: json['hiredAt'] == null ? null : DateTime.parse(json['hiredAt'] as String),
+        fromOneC: json['fromOneC'] as bool? ?? false,
       );
 }

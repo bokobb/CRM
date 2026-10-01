@@ -79,6 +79,40 @@ class OneCClient {
         return key.isBlank() ? null : key;
     }
 
+    /**
+     * Все строки сущности OData ({@code entity} — например "Catalog_Сотрудники") со всеми полями,
+     * постранично. null — такой сущности в этой конфигурации нет или она не опубликована в OData
+     * (1cFresh тогда отвечает не 404, а 301 на /availability/ — см. {@link #postDocument}).
+     * Для справочников, чья структура в Бухгалтерии для Казахстана отличается от редакции к
+     * редакции (см. OneCEmployeeImportService).
+     */
+    List<JsonNode> fetchAllOrNull(String entity) {
+        List<JsonNode> rows = new ArrayList<>();
+        int skip = 0;
+        try {
+            while (true) {
+                final int currentSkip = skip;
+                JsonNode response = restClient.get()
+                        .uri(b -> b.path("/" + entity)
+                                .queryParam("$format", "json")
+                                .queryParam("$top", PAGE_SIZE)
+                                .queryParam("$skip", currentSkip)
+                                .build())
+                        .retrieve()
+                        .body(JsonNode.class);
+                if (response == null || !response.has("value")) return null;
+                JsonNode values = response.path("value");
+                values.forEach(rows::add);
+                if (values.size() < PAGE_SIZE) break;
+                skip += PAGE_SIZE;
+            }
+        } catch (RuntimeException e) {
+            log.info("1С: сущность {} недоступна через OData: {}", entity, e.getMessage());
+            return null;
+        }
+        return rows;
+    }
+
     /** Справочник номенклатуры целиком: Ref_Key -> Description. */
     Map<String, String> fetchNomenclatureNames() {
         Map<String, String> names = new HashMap<>();

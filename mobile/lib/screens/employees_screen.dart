@@ -22,6 +22,7 @@ bool get _canSeeRates => const {'ADMIN', 'ACCOUNTANT'}.contains(ApiClient.curren
 class _EmployeesScreenState extends State<EmployeesScreen> {
   final _api = ApiClient();
   late Future<List<Employee>> _future;
+  bool _importing = false;
 
   @override
   void initState() {
@@ -44,10 +45,38 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
     if (saved == true) _refresh();
   }
 
+  Future<void> _importFromOneC() async {
+    setState(() => _importing = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final r = await _api.importEmployeesFromOneC();
+      messenger.showSnackBar(SnackBar(
+        content: Text('Из 1С: ${r.total} сотрудников (работают ${r.active}). '
+            'Добавлено ${r.created}, обновлено ${r.updated + r.matchedByName}'),
+      ));
+      await _refresh();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Не удалось загрузить из 1С: $e')));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Сотрудники')),
+      appBar: AppBar(
+        title: const Text('Сотрудники'),
+        actions: [
+          IconButton(
+            tooltip: 'Загрузить из 1С',
+            onPressed: _importing ? null : _importFromOneC,
+            icon: _importing
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.cloud_download_outlined),
+          ),
+        ],
+      ),
       drawer: const AppDrawer(currentRoute: '/employees'),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _edit(null),
@@ -71,7 +100,8 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
                 Padding(
                   padding: EdgeInsets.all(32),
                   child: Center(
-                    child: Text('Сотрудников пока нет — добавьте кнопкой «+»', style: TextStyle(color: Colors.grey)),
+                    child: Text('Сотрудников пока нет — загрузите из 1С (значок облака) или добавьте кнопкой «+»',
+                        textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
                   ),
                 ),
               ]);
@@ -83,6 +113,7 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
                 final e = list[i];
                 final parts = [
                   if (e.position != null) e.position!,
+                  if (e.phone != null) e.phone!,
                   if (_canSeeRates) e.dailyRate == null ? 'ставка не задана' : '${formatMoney(e.dailyRate!)} за смену',
                   if (!e.active) 'уволен',
                 ];
@@ -192,6 +223,17 @@ class _EmployeeFormState extends State<_EmployeeForm> {
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'Телефон (необязательно)', border: OutlineInputBorder()),
             ),
+            if (widget.employee?.iin != null || widget.employee?.hiredAt != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                [
+                  if (widget.employee!.iin != null) 'ИИН ${widget.employee!.iin}',
+                  if (widget.employee!.hiredAt != null) 'принят ${formatDate(widget.employee!.hiredAt!)}',
+                  if (widget.employee!.fromOneC) 'из 1С',
+                ].join(' · '),
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
             if (_canSeeRates) ...[
               const SizedBox(height: 10),
               TextField(
