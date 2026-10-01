@@ -2,6 +2,7 @@ package com.confectionery.crm.service;
 
 import com.confectionery.crm.api.dto.ProductionCostDto;
 import com.confectionery.crm.domain.Employee;
+import com.confectionery.crm.domain.EmployeeCostGroup;
 import com.confectionery.crm.domain.Ingredient;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.ProductionBrigadeMember;
@@ -25,7 +26,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** Себестоимость производства по дням — заявки на сырьё × техкарты + бригады (см. {@link ProductionCostDto}). */
+/**
+ * Себестоимость производства по дням — заявки на сырьё × техкарты + бригады + накладные цеха
+ * (см. {@link ProductionCostDto}). Накладные цеха — дневной фонд окладов группы «Цех»
+ * ({@link SalaryFundService}), делится между заявками дня пропорционально зарплате бригады
+ * (у кого бригада не назначена ни у одной заявки дня — пропорционально выданному сырью).
+ */
 @Service
 @RequiredArgsConstructor
 public class ProductionCostService {
@@ -36,6 +42,7 @@ public class ProductionCostService {
     private final ProductionRequestRepository requestRepository;
     private final RecipeRepository recipeRepository;
     private final IngredientPriceService ingredientPriceService;
+    private final SalaryFundService salaryFundService;
 
     /** @param showLabor false — роль не видит зарплату: labor* = null, себестоимость только по сырью. */
     @Transactional(readOnly = true)
@@ -63,7 +70,15 @@ public class ProductionCostService {
         Map<Long, Recipe> recipes = recipes();
         IngredientPriceService.Calculator calc = ingredientPriceService.calculator(req.getDocumentDate());
         Set<String> unpriced = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        RequestCalc rc = computeRequest(req, recipes, calc, unpriced, showLabor);
+        BigDecimal overhead = BigDecimal.ZERO;
+        if (showLabor && req.getStatus() != ProductionRequestStatus.CANCELLED) {
+            List<ProductionRequest> dayRequests = requestRepository.findByDocumentDateBetweenAndStatusNot(
+                    req.getDocumentDate(), req.getDocumentDate(), ProductionRequestStatus.CANCELLED);
+            overhead = overheadByRequest(req.getDocumentDate(), dayRequests, calc,
+                    salaryFundService.dailyFund(EmployeeCostGroup.PRODUCTION, req.getDocumentDate()))
+                    .getOrDefault(req.getId(), BigDecimal.ZERO);
+        }
+        RequestCalc rc = computeRequest(req, recipes, calc, unpriced, showLabor, overhead);
 
         // Сырьё: норма (Σ рецептура × замесы по всем строкам) и выдано (позиции заявки) — по виду сырья.
         Map<Long, Ingredient> byId = new LinkedHashMap<>();
@@ -108,7 +123,39 @@ public class ProductionCostService {
     }
 
     private record RequestCalc(ProductionCostDto.Request dto, BigDecimal norm, BigDecimal issued, BigDecimal labor,
-                               BigDecimal fgCost, BigDecimal fgSale, BigDecimal semiCost) {
+                               BigDecimal overhead, BigDecimal fgCost, BigDecimal fgSale, BigDecimal semiCost) {
+    }
+
+    /** Зарплата бригады заявки за её день: ставка за смену или оклад ÷ рабочие дни (см. SalaryFundService.dailyRate). */
+    private static BigDecimal brigadeLabor(ProductionRequest req) {
+        return sum(req.getBrigade().stream()
+                .map(m -> nz(SalaryFundService.dailyRate(m.getEmployee(), req.getDocumentDate()))).toList());
+    }
+
+    /** Дневной фонд цеха по заявкам дня — пропорционально зарплате бригад, без бригад — выданному сырью, иначе поровну. */
+    private Map<Long, BigDecimal> overheadByRequest(LocalDate date, List<ProductionRequest> requests,
+                                                    IngredientPriceService.Calculator calc, BigDecimal fund) {
+        Map<Long, BigDecimal> result = new HashMap<>();
+        if (requests.isEmpty() || fund == null || fund.signum() == 0) return result;
+        Map<Long, BigDecimal> weights = new HashMap<>();
+        for (ProductionRequest r : requests) weights.put(r.getId(), brigadeLabor(r));
+        if (sum(List.copyOf(weights.values())).signum() == 0) {
+            Set<String> ignored = new HashSet<>();
+            for (ProductionRequest r : requests) {
+                BigDecimal issued = BigDecimal.ZERO;
+                for (ProductionRequestItem it : r.getItems()) {
+                    issued = issued.add(cost(calc, it.getIngredient(), it.getRequiredQuantity(), ignored));
+                }
+                weights.put(r.getId(), issued);
+            }
+        }
+        BigDecimal total = sum(List.copyOf(weights.values()));
+        for (ProductionRequest r : requests) {
+            BigDecimal share = total.signum() > 0 ? weights.get(r.getId()).divide(total, 10, RoundingMode.HALF_UP)
+                    : BigDecimal.ONE.divide(BigDecimal.valueOf(requests.size()), 10, RoundingMode.HALF_UP);
+            result.put(r.getId(), fund.multiply(share));
+        }
+        return result;
     }
 
     private ProductionCostDto computeDay(LocalDate date, List<ProductionRequest> requests, Map<Long, Recipe> recipes, boolean showLabor) {
@@ -122,26 +169,31 @@ public class ProductionCostService {
                         .flatMap(rc -> rc.getItems().stream()).map(RecipeItem::getIngredient)
         ).toList());
 
-        BigDecimal norm = BigDecimal.ZERO, issued = BigDecimal.ZERO, labor = BigDecimal.ZERO, fgCost = BigDecimal.ZERO,
-                fgSale = BigDecimal.ZERO, semiCost = BigDecimal.ZERO;
+        BigDecimal norm = BigDecimal.ZERO, issued = BigDecimal.ZERO, labor = BigDecimal.ZERO, overhead = BigDecimal.ZERO,
+                fgCost = BigDecimal.ZERO, fgSale = BigDecimal.ZERO, semiCost = BigDecimal.ZERO;
+        BigDecimal fund = showLabor ? salaryFundService.dailyFund(EmployeeCostGroup.PRODUCTION, date) : BigDecimal.ZERO;
+        Map<Long, BigDecimal> overheads = overheadByRequest(date, requests, calc, fund);
         List<ProductionCostDto.Request> out = new ArrayList<>();
         for (ProductionRequest req : requests.stream().sorted(Comparator.comparing(ProductionRequest::getId)).toList()) {
-            RequestCalc rc = computeRequest(req, recipes, calc, unpriced, showLabor);
+            RequestCalc rc = computeRequest(req, recipes, calc, unpriced, showLabor,
+                    overheads.getOrDefault(req.getId(), BigDecimal.ZERO));
             norm = norm.add(rc.norm);
             issued = issued.add(rc.issued);
             labor = labor.add(rc.labor);
+            overhead = overhead.add(rc.overhead);
             fgCost = fgCost.add(rc.fgCost);
             fgSale = fgSale.add(rc.fgSale);
             semiCost = semiCost.add(rc.semiCost);
             out.add(rc.dto);
         }
         return new ProductionCostDto(date, new ProductionCostDto.Totals(money(norm), money(issued),
-                showLabor ? money(labor) : null, money(fgCost), money(fgSale), money(semiCost)),
+                showLabor ? money(labor) : null, money(fgCost), money(fgSale), money(semiCost),
+                showLabor ? money(overhead) : null, showLabor ? money(fund) : null),
                 out, List.of(), List.copyOf(unpriced));
     }
 
     private RequestCalc computeRequest(ProductionRequest req, Map<Long, Recipe> recipes, IngredientPriceService.Calculator calc,
-                                       Set<String> unpriced, boolean showLabor) {
+                                       Set<String> unpriced, boolean showLabor, BigDecimal reqOverhead) {
         List<ProductionRequestLine> lines = req.getLines();
         List<BigDecimal> lineNorms = lines.stream().map(l -> {
             Recipe rc = recipes.get(l.getProduct().getId());
@@ -159,9 +211,7 @@ public class ProductionCostService {
         }
         List<ProductionBrigadeMember> brigade = req.getBrigade().stream()
                 .sorted(Comparator.comparing(m -> m.getEmployee().getFullName(), String.CASE_INSENSITIVE_ORDER)).toList();
-        BigDecimal reqLabor = showLabor
-                ? sum(brigade.stream().map(m -> nz(m.getEmployee().getDailyRate())).toList())
-                : BigDecimal.ZERO;
+        BigDecimal reqLabor = showLabor ? brigadeLabor(req) : BigDecimal.ZERO;
         BigDecimal plannedTotal = sum(lines.stream().map(l -> nz(l.getPlannedQuantity())).toList());
 
         BigDecimal fgCost = BigDecimal.ZERO, fgSale = BigDecimal.ZERO, semiCost = BigDecimal.ZERO;
@@ -175,13 +225,14 @@ public class ProductionCostService {
                     : BigDecimal.ONE.divide(BigDecimal.valueOf(lines.size()), 10, RoundingMode.HALF_UP);
             BigDecimal raw = reqIssued.multiply(share);
             BigDecimal lineLabor = reqLabor.multiply(share);
-            BigDecimal lineCost = raw.add(lineLabor);
+            BigDecimal lineOverhead = reqOverhead.multiply(share);
+            BigDecimal lineCost = raw.add(lineLabor).add(lineOverhead);
             boolean received = l.isReceived();
             BigDecimal planned = nz(l.getPlannedQuantity());
             BigDecimal qty = received ? l.getReceivedQuantity() : planned;
             BigDecimal unitCost = qty.signum() > 0 ? lineCost.divide(qty, 2, RoundingMode.HALF_UP) : null;
             BigDecimal planUnitCost = planned.signum() > 0
-                    ? lineNorms.get(i).add(lineLabor).divide(planned, 2, RoundingMode.HALF_UP) : null;
+                    ? lineNorms.get(i).add(lineLabor).add(lineOverhead).divide(planned, 2, RoundingMode.HALF_UP) : null;
             BigDecimal salePrice = p.isSemiFinished() ? null : p.getPrice();
             if (p.isSemiFinished()) {
                 semiCost = semiCost.add(lineCost);
@@ -191,16 +242,18 @@ public class ProductionCostService {
             }
             outLines.add(new ProductionCostDto.Line(p.getId(), p.getName(), p.getUnit(), p.isSemiFinished(),
                     l.getBatches(), planned, qty, received, money(lineNorms.get(i)), money(raw),
-                    showLabor ? money(lineLabor) : null, money(lineCost), unitCost, planUnitCost, salePrice));
+                    showLabor ? money(lineLabor) : null, money(lineCost), unitCost, planUnitCost, salePrice,
+                    showLabor ? money(lineOverhead) : null));
         }
         List<ProductionCostDto.Member> members = brigade.stream().map(m -> {
             Employee e = m.getEmployee();
-            return new ProductionCostDto.Member(e.getId(), e.getFullName(), showLabor ? e.getDailyRate() : null);
+            return new ProductionCostDto.Member(e.getId(), e.getFullName(),
+                    showLabor ? SalaryFundService.dailyRate(e, req.getDocumentDate()) : null);
         }).toList();
         ProductionCostDto.Request dto = new ProductionCostDto.Request(req.getId(), req.getTitle(), req.getStatus().name(),
                 req.getStatus().getLabel(), money(reqNorm), money(reqIssued), showLabor ? money(reqLabor) : null,
-                members, outLines);
-        return new RequestCalc(dto, reqNorm, reqIssued, reqLabor, fgCost, fgSale, semiCost);
+                members, outLines, showLabor ? money(reqOverhead) : null);
+        return new RequestCalc(dto, reqNorm, reqIssued, reqLabor, reqOverhead, fgCost, fgSale, semiCost);
     }
 
     private static BigDecimal cost(IngredientPriceService.Calculator calc, Ingredient ingredient, BigDecimal qty, Set<String> unpriced) {

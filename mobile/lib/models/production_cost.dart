@@ -14,6 +14,10 @@ class ProductionCost {
   /// Зарплата бригад; null — роль не видит зарплату (технолог).
   final double? laborCost;
 
+  /// Накладные цеха (оклады группы «Цех»), разнесённые по заявкам дня, и дневной фонд; null — роль не видит.
+  final double? overheadCost;
+  final double? overheadFund;
+
   /// Только готовая продукция (без полуфабрикатов — они войдут в товар в день упаковки).
   final double finishedCost;
   final double finishedSaleValue;
@@ -27,6 +31,8 @@ class ProductionCost {
     required this.normCost,
     required this.issuedCost,
     this.laborCost,
+    this.overheadCost,
+    this.overheadFund,
     required this.finishedCost,
     required this.finishedSaleValue,
     required this.semiFinishedCost,
@@ -42,6 +48,8 @@ class ProductionCost {
       normCost: _d(t['normCost']),
       issuedCost: _d(t['issuedCost']),
       laborCost: _dn(t['laborCost']),
+      overheadCost: _dn(t['overheadCost']),
+      overheadFund: _dn(t['overheadFund']),
       finishedCost: _d(t['finishedCost']),
       finishedSaleValue: _d(t['finishedSaleValue']),
       semiFinishedCost: _d(t['semiFinishedCost']),
@@ -60,6 +68,7 @@ class ProductionCostRequest {
   final double normCost;
   final double issuedCost;
   final double? laborCost;
+  final double? overheadCost;
   final List<BrigadeMember> brigade;
   final List<ProductionCostLine> lines;
 
@@ -71,6 +80,7 @@ class ProductionCostRequest {
     required this.normCost,
     required this.issuedCost,
     this.laborCost,
+    this.overheadCost,
     required this.brigade,
     required this.lines,
   });
@@ -83,6 +93,7 @@ class ProductionCostRequest {
         normCost: _d(json['normCost']),
         issuedCost: _d(json['issuedCost']),
         laborCost: _dn(json['laborCost']),
+        overheadCost: _dn(json['overheadCost']),
         brigade: [for (final m in json['brigade'] as List? ?? []) BrigadeMember.fromJson(m as Map<String, dynamic>)],
         lines: [for (final l in json['lines'] as List) ProductionCostLine.fromJson(l as Map<String, dynamic>)],
       );
@@ -108,7 +119,10 @@ class ProductionCostLine {
   /// Доля зарплаты бригады; null — роль не видит зарплату.
   final double? laborCost;
 
-  /// Сырьё (факт) + зарплата.
+  /// Доля накладных цеха; null — роль не видит.
+  final double? overheadCost;
+
+  /// Сырьё (факт) + зарплата + накладные цеха.
   final double cost;
   final double? unitCost;
 
@@ -128,6 +142,7 @@ class ProductionCostLine {
     required this.normCost,
     required this.rawCost,
     this.laborCost,
+    this.overheadCost,
     required this.cost,
     this.unitCost,
     this.planUnitCost,
@@ -146,6 +161,7 @@ class ProductionCostLine {
         normCost: _d(json['normCost']),
         rawCost: _d(json['rawCost']),
         laborCost: _dn(json['laborCost']),
+        overheadCost: _dn(json['overheadCost']),
         cost: _d(json['cost']),
         unitCost: _dn(json['unitCost']),
         planUnitCost: _dn(json['planUnitCost']),

@@ -10,8 +10,10 @@ import java.util.List;
  * (состав после правок), разнесённое по товарам заявки пропорционально норме. Зарплата —
  * ставки бригады заявки за смену, разносится так же.
  * Цены — {@link com.confectionery.crm.service.IngredientPriceService} на дату дня.
- * Поля labor* = null, если роли не положено видеть зарплату (технолог) — тогда и
- * себестоимость единицы без зарплаты.
+ * Накладные цеха (overhead*) — дневной фонд окладов группы «Цех» (слесарь, технологи, склад
+ * сырья, повар), разнесённый по заявкам дня пропорционально зарплате бригад, см. ProductionCostService.
+ * Поля labor* и overhead* = null, если роли не положено видеть зарплату (технолог) — тогда и
+ * себестоимость единицы без зарплаты и накладных.
  */
 public record ProductionCostDto(
         LocalDate date,
@@ -26,12 +28,13 @@ public record ProductionCostDto(
      * finishedCost включает зарплату, если она видна.
      */
     public record Totals(BigDecimal normCost, BigDecimal issuedCost, BigDecimal laborCost, BigDecimal finishedCost,
-                         BigDecimal finishedSaleValue, BigDecimal semiFinishedCost) {
+                         BigDecimal finishedSaleValue, BigDecimal semiFinishedCost,
+                         BigDecimal overheadCost, BigDecimal overheadFund) {
     }
 
     public record Request(Long id, String title, String status, String statusLabel,
                           BigDecimal normCost, BigDecimal issuedCost, BigDecimal laborCost,
-                          List<Member> brigade, List<Line> lines) {
+                          List<Member> brigade, List<Line> lines, BigDecimal overheadCost) {
     }
 
     public record Member(Long employeeId, String fullName, BigDecimal dailyRate) {
@@ -39,12 +42,13 @@ public record ProductionCostDto(
 
     /**
      * quantity — оприходовано, а пока не оприходовано — план (received=false).
-     * cost — сырьё (факт) + зарплата; unitCost — на quantity; planUnitCost — норма сырья + зарплата на план.
+     * cost — сырьё (факт) + зарплата + накладные цеха; unitCost — на quantity; planUnitCost — норма сырья +
+     * зарплата + накладные на план.
      */
     public record Line(Long productId, String name, String unit, boolean semiFinished, BigDecimal batches,
                        BigDecimal plannedQuantity, BigDecimal quantity, boolean received,
                        BigDecimal normCost, BigDecimal rawCost, BigDecimal laborCost, BigDecimal cost,
-                       BigDecimal unitCost, BigDecimal planUnitCost, BigDecimal salePrice) {
+                       BigDecimal unitCost, BigDecimal planUnitCost, BigDecimal salePrice, BigDecimal overheadCost) {
     }
 
     public record Day(LocalDate date, BigDecimal finishedCost, BigDecimal finishedSaleValue,

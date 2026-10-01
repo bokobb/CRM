@@ -124,6 +124,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   style: const TextStyle(color: Colors.white, fontSize: 13),
                                 ),
                               ],
+                              if (d.salesSalary != null && d.adminSalary != null) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Оклады вне себестоимости: продажи −${formatMoney(d.salesSalary!)} · '
+                                  'администрация −${formatMoney(d.adminSalary!)}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                ),
+                              ],
                             ],
                           ),
                         ),

@@ -15,6 +15,11 @@ public record DashboardDto(
         BigDecimal returnsTotal,
         List<IngredientDto> lowStock,
         List<OrderNotificationGroupDto> orderNotifications,
-        List<NotificationDto> generalNotifications
+        List<NotificationDto> generalNotifications,
+        /** Оклады не в себестоимости за период (рабочие дни) — только ADMIN/ACCOUNTANT, иначе null. */
+        SalaryCosts salaryCosts
 ) {
+    /** sales — водители, грузчики, склад готовой продукции; admin — бухгалтерия, директор, оператор 1С, охрана. */
+    public record SalaryCosts(BigDecimal sales, BigDecimal admin) {
+    }
 }

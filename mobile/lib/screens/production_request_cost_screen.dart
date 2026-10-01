@@ -191,6 +191,11 @@ class _Header extends StatelessWidget {
                             'Зарплата за смену: ${_money(r.laborCost!)}',
                             style: TK.num.copyWith(fontSize: 12.5, fontWeight: FontWeight.w600),
                           ),
+                        if (r.overheadCost != null && r.overheadCost! > 0)
+                          Text(
+                            'Накладные цеха: ${_money(r.overheadCost!)}',
+                            style: TK.num.copyWith(fontSize: 12.5, color: TK.muted),
+                          ),
                       ],
                     ),
             ),
@@ -447,7 +452,8 @@ class _UnitCosts extends StatelessWidget {
         _SecTitle(
           'Себестоимость за единицу',
           note: withLabor
-              ? 'Сырьё + зарплата бригады. План — норма техкарты на плановый выпуск, факт — выданное сырьё на оприходованное.'
+              ? 'Сырьё + зарплата бригады + накладные цеха (оклады слесаря, технологов, склада сырья, повара — '
+                  'по заявкам дня пропорционально зарплате бригад). План — норма техкарты на плановый выпуск, факт — выданное сырьё на оприходованное.'
               : 'Только сырьё. План — норма техкарты на плановый выпуск, факт — выданное сырьё на оприходованное.',
         ),
         for (final l in data.request.lines) _UnitCostCard(line: l),
@@ -522,6 +528,7 @@ class _UnitCostCard extends StatelessWidget {
           Text(
             'Всего ${_money(l.cost)}: сырьё ${_money(l.rawCost)}'
             '${l.laborCost != null ? ' + зарплата ${_money(l.laborCost!)}' : ''}'
+            '${l.overheadCost != null && l.overheadCost! > 0 ? ' + накладные ${_money(l.overheadCost!)}' : ''}'
             ' · выпуск ${formatQty(l.quantity)} $unit',
             style: TK.num.copyWith(fontSize: 11.5, color: TK.muted),
           ),

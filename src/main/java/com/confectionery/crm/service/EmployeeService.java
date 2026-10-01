@@ -1,6 +1,7 @@
 package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Employee;
+import com.confectionery.crm.domain.EmployeeCostGroup;
 import com.confectionery.crm.repository.EmployeeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,12 +24,15 @@ public class EmployeeService {
 
     @Transactional
     public Employee save(Long id, String fullName, String position, String phone, BigDecimal dailyRate,
-                         boolean active, boolean canSetRate) {
+                         boolean active, boolean canSetRate, BigDecimal monthlySalary, EmployeeCostGroup costGroup) {
         if (fullName == null || fullName.isBlank()) {
             throw new IllegalArgumentException("Укажите ФИО сотрудника");
         }
         if (dailyRate != null && dailyRate.signum() < 0) {
             throw new IllegalArgumentException("Ставка не может быть отрицательной");
+        }
+        if (monthlySalary != null && monthlySalary.signum() < 0) {
+            throw new IllegalArgumentException("Оклад не может быть отрицательным");
         }
         Employee e = id == null ? new Employee()
                 : employeeRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Сотрудник не найден"));
@@ -38,6 +42,8 @@ public class EmployeeService {
         e.setActive(active);
         if (canSetRate) {
             e.setDailyRate(dailyRate);
+            e.setMonthlySalary(monthlySalary);
+            e.setCostGroup(costGroup);
         }
         return employeeRepository.save(e);
     }

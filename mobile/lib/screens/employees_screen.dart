@@ -10,6 +10,8 @@ import '../widgets/format.dart';
 /// «Сотрудники» — работники цеха (без входа в приложение). Технолог распределяет их по бригадам
 /// на экране «Производство». Ставку за смену видят и задают только админ и бухгалтер.
 /// Не удаляются — «Уволен» снимает с распределения, история бригад остаётся.
+/// Список разбит по группам затрат: бригада (ставка за смену в заявку), цех (оклады — накладные в
+/// себестоимость), продажи и администрация (не в себестоимость, видны на дашборде).
 class EmployeesScreen extends StatefulWidget {
   const EmployeesScreen({super.key});
 
@@ -18,6 +20,13 @@ class EmployeesScreen extends StatefulWidget {
 }
 
 bool get _canSeeRates => const {'ADMIN', 'ACCOUNTANT'}.contains(ApiClient.currentSession?.role);
+
+const _groups = {
+  'BRIGADE': ('Бригада', 'ставка за смену — в себестоимость заявки'),
+  'PRODUCTION': ('Цех', 'оклады — накладные в себестоимость'),
+  'SALES': ('Продажи', 'не в себестоимость'),
+  'ADMIN': ('Администрация', 'не в себестоимость'),
+};
 
 class _EmployeesScreenState extends State<EmployeesScreen> {
   final _api = ApiClient();
@@ -106,29 +115,74 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
                 ),
               ]);
             }
-            return ListView.builder(
+            final sections = <(String, String?, List<Employee>)>[
+              for (final g in _groups.entries)
+                (g.value.$1, g.value.$2, list.where((e) => e.active && e.costGroup == g.key).toList()),
+              ('Уволенные', null, list.where((e) => !e.active).toList()),
+            ].where((s) => s.$3.isNotEmpty).toList();
+            return ListView(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 88),
-              itemCount: list.length,
-              itemBuilder: (context, i) {
-                final e = list[i];
-                final parts = [
-                  if (e.position != null) e.position!,
-                  if (e.phone != null) e.phone!,
-                  if (_canSeeRates) e.dailyRate == null ? 'ставка не задана' : '${formatMoney(e.dailyRate!)} за смену',
-                  if (!e.active) 'уволен',
-                ];
-                return AppListTile(
-                  leadingIcon: e.active ? Icons.person_outline : Icons.person_off_outlined,
-                  leadingColor: e.active ? null : Colors.grey,
-                  title: e.fullName,
-                  subtitle: parts.isEmpty ? null : parts.join(' · '),
-                  trailing: const Icon(Icons.edit_outlined, color: Colors.grey),
-                  onTap: () => _edit(e),
-                );
-              },
+              children: [
+                for (final s in sections) ...[
+                  _SectionHeader(title: s.$1, note: s.$2, employees: s.$3),
+                  for (final e in s.$3) _tile(e),
+                ],
+              ],
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+extension on _EmployeesScreenState {
+  Widget _tile(Employee e) {
+    final parts = [
+      if (e.position != null) e.position!,
+      if (e.phone != null) e.phone!,
+      if (_canSeeRates && e.monthlySalary != null) '${formatMoney(e.monthlySalary!)} в мес.',
+      if (_canSeeRates && e.costGroup == 'BRIGADE')
+        e.effectiveDailyRate == null ? 'ставка не задана' : '${formatMoney(e.effectiveDailyRate!)} за смену',
+    ];
+    return AppListTile(
+      leadingIcon: e.active ? Icons.person_outline : Icons.person_off_outlined,
+      leadingColor: e.active ? null : Colors.grey,
+      title: e.fullName,
+      subtitle: parts.isEmpty ? null : parts.join(' · '),
+      trailing: const Icon(Icons.edit_outlined, color: Colors.grey),
+      onTap: () => _edit(e),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String? note;
+  final List<Employee> employees;
+
+  const _SectionHeader({required this.title, this.note, required this.employees});
+
+  @override
+  Widget build(BuildContext context) {
+    final fund = employees.fold<double>(0, (s, e) => s + (e.monthlySalary ?? 0));
+    final right = [
+      '${employees.length} чел.',
+      if (_canSeeRates && fund > 0) '${formatMoney(fund)} в мес.',
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
+              Text(right, style: const TextStyle(color: Colors.grey, fontSize: 12.5)),
+            ],
+          ),
+          if (note != null) Text(note!, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        ],
       ),
     );
   }
@@ -150,6 +204,10 @@ class _EmployeeFormState extends State<_EmployeeForm> {
   late final _phone = TextEditingController(text: widget.employee?.phone ?? '');
   late final _rate = TextEditingController(
       text: widget.employee?.dailyRate == null ? '' : formatQty(widget.employee!.dailyRate!).replaceAll(' ', ''));
+  late final _salary = TextEditingController(
+      text: widget.employee?.monthlySalary == null ? '' : formatQty(widget.employee!.monthlySalary!).replaceAll(' ', ''));
+  /// null — по должности.
+  late String? _costGroup = widget.employee == null || widget.employee!.costGroupAuto ? null : widget.employee!.costGroup;
   late bool _active = widget.employee?.active ?? true;
   bool _saving = false;
   String? _error;
@@ -160,6 +218,7 @@ class _EmployeeFormState extends State<_EmployeeForm> {
     _position.dispose();
     _phone.dispose();
     _rate.dispose();
+    _salary.dispose();
     super.dispose();
   }
 
@@ -174,6 +233,12 @@ class _EmployeeFormState extends State<_EmployeeForm> {
       setState(() => _error = 'Ставка — число, например 8000');
       return;
     }
+    final salaryText = _salary.text.replaceAll(' ', '').replaceAll(',', '.');
+    final salary = salaryText.isEmpty ? null : double.tryParse(salaryText);
+    if (salaryText.isNotEmpty && salary == null) {
+      setState(() => _error = 'Оклад — число, например 250000');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -184,6 +249,8 @@ class _EmployeeFormState extends State<_EmployeeForm> {
         'position': _position.text.trim(),
         'phone': _phone.text.trim(),
         'dailyRate': rate,
+        'monthlySalary': salary,
+        'costGroup': _costGroup,
         'active': _active,
       });
       if (mounted) Navigator.of(context).pop(true);
@@ -237,13 +304,37 @@ class _EmployeeFormState extends State<_EmployeeForm> {
             ],
             if (_canSeeRates) ...[
               const SizedBox(height: 10),
+              DropdownButtonFormField<String?>(
+                initialValue: _costGroup,
+                decoration: const InputDecoration(labelText: 'Группа затрат', border: OutlineInputBorder()),
+                items: [
+                  DropdownMenuItem(
+                    value: null,
+                    child: Text('По должности${widget.employee != null && widget.employee!.costGroupAuto ? ' (${widget.employee!.costGroupLabel})' : ''}'),
+                  ),
+                  for (final g in _groups.entries) DropdownMenuItem(value: g.key, child: Text(g.value.$1)),
+                ],
+                onChanged: (v) => setState(() => _costGroup = v),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _salary,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Оклад в месяц',
+                  suffixText: '₸',
+                  helperText: 'Из 1С. Цех — делится на рабочие дни и идёт в себестоимость',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
               TextField(
                 controller: _rate,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
-                  labelText: 'Ставка за смену',
+                  labelText: 'Ставка за смену (необязательно)',
                   suffixText: '₸',
-                  helperText: 'Идёт в себестоимость заявки, где сотрудник был в бригаде',
+                  helperText: 'Пусто — оклад ÷ рабочие дни месяца. Идёт в заявку, где он в бригаде',
                   border: OutlineInputBorder(),
                 ),
               ),

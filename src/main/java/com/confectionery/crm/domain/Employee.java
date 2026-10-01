@@ -33,12 +33,20 @@ public class Employee {
 
     private String phone;
 
-    /** ₸ за смену (день); null — ставку ещё не задали, в себестоимость идёт 0. */
+    /** ₸ за смену (день); null — берётся месячный оклад ÷ рабочие дни месяца (см. SalaryFundService). */
     @Column(precision = 12, scale = 2)
     private BigDecimal dailyRate;
 
     @Column(nullable = false)
     private boolean active = true;
+
+    /** Оклад в месяц, ₸ (из 1С, «Оклад по дням»). */
+    @Column(precision = 12, scale = 2)
+    private BigDecimal monthlySalary;
+
+    /** Группа затрат; null — по должности ({@link EmployeeCostGroup#byPosition}). */
+    @Enumerated(EnumType.STRING)
+    private EmployeeCostGroup costGroup;
 
     /** Ref_Key элемента справочника «Сотрудники» в 1С — null у заведённых только в CRM (см. OneCEmployeeImportService). */
     @Column(unique = true)
@@ -55,4 +63,8 @@ public class Employee {
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    public EmployeeCostGroup effectiveCostGroup() {
+        return costGroup != null ? costGroup : EmployeeCostGroup.byPosition(position);
+    }
 }

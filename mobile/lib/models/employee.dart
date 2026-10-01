@@ -12,6 +12,15 @@ class Employee {
   final DateTime? birthDate;
   final bool fromOneC;
 
+  /// Оклад в месяц и ставка за смену с учётом оклада; null — роль не видит.
+  final double? monthlySalary;
+  final double? effectiveDailyRate;
+
+  /// Группа затрат: BRIGADE / PRODUCTION / SALES / ADMIN; [costGroupAuto] — определена по должности.
+  final String costGroup;
+  final String costGroupLabel;
+  final bool costGroupAuto;
+
   Employee({
     required this.id,
     required this.fullName,
@@ -23,6 +32,11 @@ class Employee {
     this.hiredAt,
     this.birthDate,
     this.fromOneC = false,
+    this.monthlySalary,
+    this.effectiveDailyRate,
+    this.costGroup = 'BRIGADE',
+    this.costGroupLabel = 'Бригада',
+    this.costGroupAuto = true,
   });
 
   factory Employee.fromJson(Map<String, dynamic> json) => Employee(
@@ -36,5 +50,10 @@ class Employee {
         hiredAt: json['hiredAt'] == null ? null : DateTime.parse(json['hiredAt'] as String),
         birthDate: json['birthDate'] == null ? null : DateTime.parse(json['birthDate'] as String),
         fromOneC: json['fromOneC'] as bool? ?? false,
+        monthlySalary: (json['monthlySalary'] as num?)?.toDouble(),
+        effectiveDailyRate: (json['effectiveDailyRate'] as num?)?.toDouble(),
+        costGroup: json['costGroup'] as String? ?? 'BRIGADE',
+        costGroupLabel: json['costGroupLabel'] as String? ?? 'Бригада',
+        costGroupAuto: json['costGroupAuto'] as bool? ?? true,
       );
 }

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,8 +19,9 @@ import java.util.Map;
 
 /**
  * Импорт сотрудников из 1С (кнопка «Загрузить из 1С» в меню «Сотрудники»). 1С — источник истины
- * для ФИО, должности, телефона, ИИН, даты приёма и признака «уволен»; ставку за смену CRM ведёт
- * сама и импорт её не трогает (в 1С оклад месячный, не за смену).
+ * для ФИО, должности, телефона, ИИН, даты приёма, признака «уволен» и месячного оклада (регистр
+ * «Плановые начисления», последняя запись по каждому виду расчёта); ставку за смену и группу
+ * затрат CRM ведёт сама и импорт их не трогает.
  *
  * <p>Структура кадровых справочников в Бухгалтерии для Казахстана разная от редакции к редакции,
  * поэтому сущности ищутся по списку кандидатов, а поля — по нескольким именам; чего нет, то
@@ -42,6 +44,7 @@ public class OneCEmployeeImportService {
     private static final List<String> EMPLOYEE_ENTITIES = List.of("Catalog_СотрудникиОрганизаций", "Catalog_Сотрудники");
     private static final List<String> PERSON_ENTITIES = List.of("Catalog_ФизическиеЛица");
     private static final List<String> POSITION_ENTITIES = List.of("Catalog_ДолжностиОрганизаций", "Catalog_Должности");
+    private static final String SALARY_ENTITY = "InformationRegister_ПлановыеНачисленияРаботниковОрганизаций";
     private static final List<String> HISTORY_ENTITIES = List.of(
             "InformationRegister_РаботникиОрганизаций", "InformationRegister_КадроваяИсторияСотрудников");
 
@@ -62,6 +65,7 @@ public class OneCEmployeeImportService {
         Map<String, String> positionNames = new HashMap<>();
         byRef(fetchFirst(POSITION_ENTITIES)).forEach((k, v) -> positionNames.put(k, text(v, "Description")));
         Map<String, History> history = buildHistory(fetchFirst(HISTORY_ENTITIES));
+        Map<String, BigDecimal> salaries = buildSalaries(oneCClient.fetchAllOrNull(SALARY_ENTITY));
 
         // Группируем элементы «Сотрудники» по физлицу: действующий важнее уволенного.
         Map<String, Candidate> byPerson = new LinkedHashMap<>();
@@ -99,7 +103,7 @@ public class OneCEmployeeImportService {
                     || (h != null && h.dismissed);
 
             Candidate c = new Candidate(personKey != null ? personKey : ref, name.trim().replaceAll("\\s+", " "), position, phone, iin,
-                    hired, born, !dismissed);
+                    hired, born, salaries.get(ref), !dismissed);
             byPerson.merge(c.key, c, (a, b) -> b.active && !a.active ? b : a);
         }
 
@@ -129,6 +133,7 @@ public class OneCEmployeeImportService {
             if (c.iin != null) emp.setIin(c.iin);
             if (c.hired != null) emp.setHiredAt(c.hired);
             if (c.born != null) emp.setBirthDate(c.born);
+            if (c.salary != null) emp.setMonthlySalary(c.salary);
             emp.setActive(c.active);
             employeeRepository.save(emp);
         }
@@ -142,7 +147,7 @@ public class OneCEmployeeImportService {
     }
 
     private record Candidate(String key, String name, String position, String phone, String iin, LocalDate hired,
-                             LocalDate born, boolean active) {
+                             LocalDate born, BigDecimal salary, boolean active) {
     }
 
     private static final class History {
@@ -177,6 +182,33 @@ public class OneCEmployeeImportService {
                 if (pos != null) h.positionKey = pos;
             }
         }
+        return result;
+    }
+
+    /** Сотрудник → оклад в месяц: по каждому виду расчёта последняя (по Period) запись, активные суммируются. */
+    private static Map<String, BigDecimal> buildSalaries(List<JsonNode> rows) {
+        Map<String, JsonNode> last = new HashMap<>();
+        if (rows != null) {
+            for (JsonNode row : rows) {
+                List<JsonNode> records = new ArrayList<>();
+                if (row.has("RecordSet")) row.path("RecordSet").forEach(records::add);
+                else records.add(row);
+                for (JsonNode r : records) {
+                    String employeeKey = text(r, "Сотрудник_Key");
+                    String period = text(r, "Period");
+                    if (employeeKey == null || period == null) continue;
+                    String key = employeeKey + "|" + text(r, "ВидРасчета_Key");
+                    JsonNode prev = last.get(key);
+                    if (prev == null || text(prev, "Period").compareTo(period) <= 0) last.put(key, r);
+                }
+            }
+        }
+        Map<String, BigDecimal> result = new HashMap<>();
+        last.forEach((key, r) -> {
+            if (r.has("Active") && !r.path("Active").asBoolean(true)) return;
+            BigDecimal size = r.path("Размер").isNumber() ? r.path("Размер").decimalValue() : BigDecimal.ZERO;
+            if (size.signum() > 0) result.merge(key.substring(0, key.indexOf('|')), size, BigDecimal::add);
+        });
         return result;
     }
 

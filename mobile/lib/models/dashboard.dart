@@ -15,6 +15,11 @@ class Dashboard {
   final List<OrderNotificationGroup> orderNotifications;
   final List<AppNotification> generalNotifications;
 
+  /// Оклады не в себестоимости за период: продажи (водители, грузчики, склад ГП) и администрация.
+  /// null — роль не видит зарплату.
+  final double? salesSalary;
+  final double? adminSalary;
+
   Dashboard({
     required this.from,
     required this.to,
@@ -26,6 +31,8 @@ class Dashboard {
     required this.lowStock,
     required this.orderNotifications,
     required this.generalNotifications,
+    this.salesSalary,
+    this.adminSalary,
   });
 
   factory Dashboard.fromJson(Map<String, dynamic> json) => Dashboard(
@@ -45,6 +52,8 @@ class Dashboard {
     generalNotifications: (json['generalNotifications'] as List)
         .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
         .toList(),
+    salesSalary: ((json['salaryCosts'] as Map<String, dynamic>?)?['sales'] as num?)?.toDouble(),
+    adminSalary: ((json['salaryCosts'] as Map<String, dynamic>?)?['admin'] as num?)?.toDouble(),
   );
 }
 

@@ -172,7 +172,7 @@ class _DayView extends StatelessWidget {
           )
         else ...[
           _Stats(stats: [
-            ('Себестоимость', _money(d.finishedCost), d.laborCost == null ? 'сырьё, готовая продукция' : 'сырьё + зарплата', false),
+            ('Себестоимость', _money(d.finishedCost), d.laborCost == null ? 'сырьё, готовая продукция' : 'сырьё + зарплата + накладные', false),
             ('По цене продажи', _money(d.finishedSaleValue), margin == null ? '—' : 'наценка $margin', false),
             ('Сырьё выдано', _money(d.issuedCost), 'норма ${_money(d.normCost)}', false),
             (
@@ -183,6 +183,8 @@ class _DayView extends StatelessWidget {
             ),
             if (d.laborCost != null)
               ('Зарплата', _money(d.laborCost!), '${d.requests.fold<int>(0, (n, r) => n + r.brigade.length)} чел. в бригадах', false),
+            if (d.overheadCost != null && d.overheadCost! > 0)
+              ('Накладные цеха', _money(d.overheadCost!), 'оклады цеха за день', false),
             if (d.semiFinishedCost > 0)
               ('Полуфабрикаты', _money(d.semiFinishedCost), 'войдут в товар при упаковке', false),
           ]),

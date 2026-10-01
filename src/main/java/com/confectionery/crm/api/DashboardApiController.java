@@ -4,12 +4,14 @@ import com.confectionery.crm.api.dto.DashboardDto;
 import com.confectionery.crm.api.dto.IngredientDto;
 import com.confectionery.crm.api.dto.ProductionDashboardDto;
 import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
+import com.confectionery.crm.domain.EmployeeCostGroup;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductReturnRepository;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.NotificationService;
 import com.confectionery.crm.service.ProductionRequestService;
+import com.confectionery.crm.service.SalaryFundService;
 import com.confectionery.crm.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -33,6 +35,7 @@ public class DashboardApiController {
     private final NotificationService notificationService;
     private final UserService userService;
     private final ProductionRequestService productionRequestService;
+    private final SalaryFundService salaryFundService;
 
     /** from/to не заданы — по умолчанию сегодня (в отличие от заказов/уведомлений, где "не задан" = все даты). */
     @GetMapping
@@ -47,6 +50,11 @@ public class DashboardApiController {
         var grouped = notificationService.grouped(8, 8, start, end, userService.roleOf(authentication.getName()));
         BigDecimal grossSales = orderRepository.sumSalesBetween(start, end);
         BigDecimal returns = productReturnRepository.sumForSalesBetween(start, end);
+        DashboardDto.SalaryCosts salaryCosts = null;
+        if (ProductionCostApiController.canSeeLabor(authentication)) {
+            var funds = salaryFundService.periodFunds(rangeFrom, rangeTo);
+            salaryCosts = new DashboardDto.SalaryCosts(funds.get(EmployeeCostGroup.SALES), funds.get(EmployeeCostGroup.ADMIN));
+        }
         return new DashboardDto(
                 rangeFrom, rangeTo,
                 orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.NEW, start, end),
@@ -56,7 +64,8 @@ public class DashboardApiController {
                 returns,
                 ingredientService.findLowStock().stream().map(IngredientDto::from).toList(),
                 grouped.orderGroups(),
-                grouped.general()
+                grouped.general(),
+                salaryCosts
         );
     }
 
