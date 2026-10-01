@@ -10,10 +10,15 @@ import com.confectionery.crm.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import tools.jackson.databind.JsonNode;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -94,7 +99,7 @@ public class OneCOrderSyncService {
             sync(order);
         } catch (Exception e) {
             log.warn("Не удалось выгрузить заказ №{} в 1С: {}", order.getId(), e.getMessage());
-            order.setOneCSyncError(e.getMessage());
+            order.setOneCSyncError(truncate(e.getMessage()));
             orderRepository.save(order);
             notifyAdmin(order, e.getMessage());
         }
@@ -158,7 +163,137 @@ public class OneCOrderSyncService {
         }
     }
 
+    /**
+     * Повтор для отгруженных импортированных заказов, которые не удалось провести в 1С (например,
+     * документ в этот момент был открыт у бухгалтера и 1С отказала) — каждые 10 минут в рабочее
+     * время, за последние 3 дня, без повторных уведомлений админу. Если бухгалтер уже провёл
+     * документ сам и состав совпадает — ошибка просто снимается.
+     */
+    @Scheduled(cron = "${crm.onec.order-retry-cron:0 */10 7-20 * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
+    @Transactional
+    public void retryFailedImported() {
+        if (!oneCClient.isConfigured()) return;
+        for (Order order : orderRepository.findImportedWithSyncError(LocalDateTime.now().minusDays(3))) {
+            try {
+                syncImported(order);
+            } catch (Exception e) {
+                order.setOneCSyncError(truncate(e.getMessage()));
+                orderRepository.save(order);
+            }
+        }
+    }
+
+    /**
+     * Документ создан бухгалтером в 1С (Order.importedFromOneC): шапку не трогаем (дата,
+     * комментарий, тип цен — его), строки «Товары» перезаписываем только если состав в CRM
+     * отличается от документа, а при отгрузке — проводим. Раньше такой документ перезаписывался
+     * целиком, как созданный CRM, и 1cFresh отвечала «405 Not Allowed» — «Отгрузил» не проводил
+     * документ.
+     */
+    private void syncImported(Order order) {
+        String ref = order.getOneCDocumentKey();
+        JsonNode doc = oneCClient.fetchDocument(SALE, ref);
+        boolean posted = doc.path("Posted").asBoolean(false);
+        Map<String, JsonNode> docLines = new LinkedHashMap<>();
+        for (JsonNode line : doc.path("Товары")) {
+            docLines.putIfAbsent(line.path("Номенклатура_Key").asText(""), line);
+        }
+        boolean same = sameComposition(order, doc.path("Товары"));
+        if (posted) {
+            if (same) {
+                order.setOneCSyncError(null);
+                orderRepository.save(order);
+                return;
+            }
+            String message = "Документ №" + order.getOneCDocumentNumber()
+                    + " уже проведён в 1С — новый состав внесите туда вручную";
+            order.setOneCSyncError(message);
+            orderRepository.save(order);
+            return;
+        }
+        if (!same) {
+            List<Map<String, Object>> lines = new ArrayList<>();
+            List<String> unresolved = new ArrayList<>();
+            int lineNumber = 1;
+            for (OrderItem item : order.getItems()) {
+                Product product = item.getProduct();
+                JsonNode existing = product.getOneCNomenclatureKey() == null ? null : docLines.get(product.getOneCNomenclatureKey());
+                Map<String, Object> line;
+                if (existing != null) {
+                    // Строка уже есть в документе — берём её же счета учёта/аналитику.
+                    line = new LinkedHashMap<>();
+                    for (var it = existing.properties().iterator(); it.hasNext(); ) {
+                        var f = it.next();
+                        if (f.getKey().contains("@") || f.getKey().equals("Ref_Key")) continue;
+                        line.put(f.getKey(), jsonValue(f.getValue()));
+                    }
+                } else {
+                    Map<String, Object> template = resolveLineTemplate(product);
+                    if (template == null) {
+                        unresolved.add(product.getName());
+                        continue;
+                    }
+                    line = new LinkedHashMap<>(template);
+                    line.put("Номенклатура_Key", product.getOneCNomenclatureKey());
+                }
+                line.put("LineNumber", String.valueOf(lineNumber++));
+                line.put("Количество", item.getQuantity());
+                line.put("Цена", item.getPrice());
+                line.put("Сумма", item.getPrice().multiply(item.getQuantity()));
+                lines.add(line);
+            }
+            if (!unresolved.isEmpty()) {
+                throw new IllegalStateException("Не найдено в 1С по названию: " + String.join(", ", unresolved));
+            }
+            oneCClient.updateDocument(SALE, ref, Map.of("Товары", lines));
+            log.info("Заказ №{} (из 1С) — обновлены строки документа №{}", order.getId(), order.getOneCDocumentNumber());
+        }
+        order.setOneCSyncError(null);
+        orderRepository.save(order);
+        if (order.getShippedAt() != null) {
+            oneCClient.postDocument(SALE, ref);
+            log.info("Заказ №{} (из 1С) — документ №{} проведён в 1С", order.getId(), order.getOneCDocumentNumber());
+        }
+    }
+
+    /** Состав заказа совпадает с «Товарами» документа: номенклатура, количество и цена (порядок не важен). */
+    private static boolean sameComposition(Order order, JsonNode docLines) {
+        Map<String, BigDecimal[]> doc = new LinkedHashMap<>();
+        for (JsonNode l : docLines) {
+            doc.merge(l.path("Номенклатура_Key").asText("") + "|" + dec(l.path("Цена")).stripTrailingZeros().toPlainString(),
+                    new BigDecimal[]{dec(l.path("Количество"))}, (a, b) -> new BigDecimal[]{a[0].add(b[0])});
+        }
+        Map<String, BigDecimal[]> crm = new LinkedHashMap<>();
+        for (OrderItem i : order.getItems()) {
+            String key = i.getProduct().getOneCNomenclatureKey();
+            if (key == null) return false;
+            crm.merge(key + "|" + i.getPrice().stripTrailingZeros().toPlainString(),
+                    new BigDecimal[]{i.getQuantity()}, (a, b) -> new BigDecimal[]{a[0].add(b[0])});
+        }
+        if (!doc.keySet().equals(crm.keySet())) return false;
+        return doc.entrySet().stream().allMatch(e -> e.getValue()[0].compareTo(crm.get(e.getKey())[0]) == 0);
+    }
+
+    private static BigDecimal dec(JsonNode v) {
+        return v.isNumber() ? v.decimalValue() : BigDecimal.ZERO;
+    }
+
+    private static Object jsonValue(JsonNode v) {
+        if (v.isNumber()) return v.decimalValue();
+        if (v.isBoolean()) return v.asBoolean();
+        if (v.isNull()) return null;
+        return v.asText();
+    }
+
+    private static String truncate(String s) {
+        return s == null || s.length() <= 480 ? s : s.substring(0, 480) + "…";
+    }
+
     private void sync(Order order) {
+        if (order.isImportedFromOneC() && order.getOneCDocumentKey() != null) {
+            syncImported(order);
+            return;
+        }
         Client client = order.getClient();
         if (client.getOneCContragentKey() == null || client.getOneCContractKey() == null) {
             String message = "Клиент «" + client.getName() + "» не привязан к 1С — свяжите его в карточке клиента";

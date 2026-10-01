@@ -693,6 +693,16 @@ class OneCClient {
         return response.path("Posted").asBoolean(false);
     }
 
+    /** Документ целиком (шапка + табличные части) по ссылке — например, чтобы сравнить состав. */
+    JsonNode fetchDocument(String entitySet, String ref) {
+        return restClient.get()
+                .uri(b -> b.path("/" + entitySet + "(guid'" + ref + "')")
+                        .queryParam("$format", "json")
+                        .build())
+                .retrieve()
+                .body(JsonNode.class);
+    }
+
     /** Перезаписывает НЕпроведённый документ (шапку и "Товары" целиком) — см. OneCOrderSyncService.trySyncOrder. */
     void updateDraftSale(String ref, Map<String, Object> body) {
         restClient.patch()

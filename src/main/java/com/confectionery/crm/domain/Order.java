@@ -66,6 +66,14 @@ public class Order {
     @Column(length = 500)
     private String oneCSyncError;
 
+    /**
+     * Заказ заведён импортом из документа, созданного бухгалтером прямо в 1С (OneCOrderImportService).
+     * Такой документ CRM не перезаписывает целиком (шапка — бухгалтера), а только проводит, и
+     * правит строки «Товары», если состав изменили в CRM (см. OneCOrderSyncService.syncImported).
+     */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean importedFromOneC;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 

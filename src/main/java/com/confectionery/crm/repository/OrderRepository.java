@@ -19,6 +19,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     /** Уже импортирован ли этот документ 1С как заказ — дедупликация в OneCOrderImportService. */
     Optional<Order> findByOneCDocumentKey(String oneCDocumentKey);
 
+    /** Отгруженные импортированные из 1С заказы с ошибкой выгрузки — для автоповтора (OneCOrderSyncService). */
+    @Query("""
+            select o from Order o where o.importedFromOneC = true and o.oneCSyncError is not null
+              and o.oneCDocumentKey is not null and o.shippedAt is not null and o.shippedAt >= :since""")
+    List<Order> findImportedWithSyncError(@Param("since") LocalDateTime since);
+
     List<Order> findAllByOrderByCreatedAtDesc();
 
     List<Order> findByClientIdOrderByCreatedAtDesc(Long clientId);

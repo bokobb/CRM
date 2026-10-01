@@ -228,6 +228,7 @@ public class OneCOrderImportService {
             order.setNotes("Импортировано из 1С, документ №" + header.number());
             order.setOneCDocumentKey(header.ref());
             order.setOneCDocumentNumber(header.number());
+            order.setImportedFromOneC(true);
             items.forEach(order::addItem);
             orderRepository.save(order);
             imported++;
