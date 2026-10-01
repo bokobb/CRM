@@ -40,6 +40,15 @@ public class PurchaseApiController {
         return PurchaseDto.from(purchaseService.create(req.counterpartyId(), items, req.purchaseDate(), authentication.getName()));
     }
 
+    /** Правка закупки — см. PurchaseService.update. */
+    @PutMapping("/{id}")
+    public PurchaseDto update(@PathVariable Long id, @Valid @RequestBody PurchaseRequest req, Authentication authentication) {
+        List<PurchaseService.ItemInput> items = req.items().stream()
+                .map(i -> new PurchaseService.ItemInput(i.ingredientId(), i.quantity(), i.totalPrice()))
+                .toList();
+        return PurchaseDto.from(purchaseService.update(id, req.counterpartyId(), items, req.purchaseDate(), authentication.getName()));
+    }
+
     /** Фото накладной поставщика — прикладывается отдельным запросом после создания закупки. */
     @PostMapping("/{id}/image")
     public PurchaseDto uploadImage(@PathVariable Long id, @RequestParam("file") MultipartFile file) {

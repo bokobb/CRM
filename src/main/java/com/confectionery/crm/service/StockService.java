@@ -71,6 +71,19 @@ public class StockService {
         return logMovement(ingredient, null, StockMovementType.RECEIPT, quantity, reason, by);
     }
 
+    /**
+     * Откат прихода сырья при правке закупки (PurchaseService.update): остаток уменьшается на
+     * приход, движение удаляется. Без проверки «хватает ли на складе» — приход мог уже уйти в
+     * производство, остаток всё равно сверяется с 1С (OneCStockSyncService).
+     */
+    @Transactional
+    public void revertReceipt(StockMovement movement) {
+        Ingredient ingredient = movement.getIngredient();
+        ingredient.setQuantityInStock(ingredient.getQuantityInStock().subtract(movement.getQuantity()));
+        ingredientRepository.save(ingredient);
+        stockMovementRepository.delete(movement);
+    }
+
     @Transactional
     public StockMovement writeOff(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
         requirePositive(quantity, "списания");

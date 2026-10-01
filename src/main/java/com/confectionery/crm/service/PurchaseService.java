@@ -58,16 +58,52 @@ public class PurchaseService {
 
     @Transactional
     public Purchase create(Long counterpartyId, List<ItemInput> items, LocalDate purchaseDate, String createdBy) {
-        if (items == null || items.isEmpty()) {
-            throw new IllegalArgumentException("Добавьте хотя бы один товар");
-        }
+        validate(items);
         Counterparty counterparty = counterpartyService.findById(counterpartyId);
 
         Purchase purchase = new Purchase();
         purchase.setCounterparty(counterparty);
         purchase.setPurchaseDate(purchaseDate == null ? LocalDate.now() : purchaseDate);
         purchase.setCreatedBy(createdBy);
+        addItems(purchase, items, createdBy);
 
+        purchase = purchaseRepository.save(purchase);
+        oneCPurchaseSyncService.trySyncPurchase(purchase);
+        return purchase;
+    }
+
+    /**
+     * Правка закупки (свайп карточки вправо): поставщик, дата, позиции. Старый приход сырья
+     * откатывается, новый проводится заново; документ «Поступление» в 1С распроводится,
+     * перезаписывается и проводится снова (OneCPurchaseSyncService.sync). Неудача в 1С правку
+     * в CRM не отменяет — причина в oneCSyncError, повтор — кнопкой «Отправить в 1С».
+     */
+    @Transactional
+    public Purchase update(Long id, Long counterpartyId, List<ItemInput> items, LocalDate purchaseDate, String by) {
+        validate(items);
+        Purchase purchase = findById(id);
+        List<StockMovement> oldMovements = purchase.getItems().stream()
+                .map(PurchaseItem::getStockMovement).filter(java.util.Objects::nonNull).toList();
+        purchase.getItems().clear();
+        purchaseRepository.saveAndFlush(purchase);
+        oldMovements.forEach(stockService::revertReceipt);
+
+        purchase.setCounterparty(counterpartyService.findById(counterpartyId));
+        if (purchaseDate != null) purchase.setPurchaseDate(purchaseDate);
+        addItems(purchase, items, by);
+        purchase = purchaseRepository.save(purchase);
+        oneCPurchaseSyncService.trySyncPurchase(purchase);
+        return purchase;
+    }
+
+    private static void validate(List<ItemInput> items) {
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("Добавьте хотя бы один товар");
+        }
+    }
+
+    private void addItems(Purchase purchase, List<ItemInput> items, String createdBy) {
+        Counterparty counterparty = purchase.getCounterparty();
         for (ItemInput input : items) {
             if (input.ingredientId() == null) {
                 throw new IllegalArgumentException("Выберите товар в каждой позиции");
@@ -86,10 +122,6 @@ public class PurchaseService {
             item.setStockMovement(movement);
             purchase.addItem(item);
         }
-
-        purchase = purchaseRepository.save(purchase);
-        oneCPurchaseSyncService.trySyncPurchase(purchase);
-        return purchase;
     }
 
     /** Фото накладной поставщика, снятое на телефон при оформлении закупки — одно на всю закупку. */

@@ -113,10 +113,10 @@ public class OneCPurchaseSyncService {
     }
 
     private void sync(Purchase purchase) {
-        // Документ уже создан прошлой попыткой (не удалось только проведение) — повторно его не
-        // создаём, иначе в учёте появится дубль; остаётся довести до конца проведение.
+        // Документ уже есть (прошлая попытка или правка закупки) — второй не создаём, иначе
+        // дубль в учёте: распроводим, перезаписываем шапку и «Товары» по CRM и проводим снова.
         if (purchase.getOneCDocumentKey() != null) {
-            post(purchase);
+            updateExisting(purchase);
             return;
         }
 
@@ -136,6 +136,49 @@ public class OneCPurchaseSyncService {
             throw new IllegalStateException("В 1С нет ни одного документа \"Поступление товаров и услуг\" — не с чего скопировать шаблон");
         }
 
+        Map<String, Object> body = new LinkedHashMap<>(headerTemplate);
+        body.put("Posted", false);
+        // Не берём из шаблона (см. OneCClient.findAnyGoodsReceiptTemplate) — "любой" документ
+        // в базе может быть другого вида операции (обнаружено на закупке №13: шаблоном
+        // случайно оказался документ "ОсновныеСредства", из-за чего товары не попадали в
+        // табличную часть и документ уходил не в тот раздел 1С).
+        body.put("ВидОперации", "Товары");
+        body.put("Организация_Key", organizationKey);
+        body.put("Склад_Key", materialsWarehouseKey);
+        body.putAll(ownFields(purchase, lineTemplate));
+
+        OneCClient.CreatedDocument created = oneCClient.createGoodsReceiptDocument(body);
+        purchase.setOneCDocumentKey(created.ref());
+        purchase.setOneCDocumentNumber(created.number());
+        purchase.setOneCSyncError(null);
+        purchaseRepository.save(purchase);
+        log.info("Закупка №{} выгружена в 1С документом №{}", purchase.getId(), created.number());
+        post(purchase);
+    }
+
+    private static final String RECEIPT = "Document_ПоступлениеТоваровУслуг";
+
+    private void updateExisting(Purchase purchase) {
+        String ref = purchase.getOneCDocumentKey();
+        Counterparty counterparty = purchase.getCounterparty();
+        if (counterparty.getOneCContragentKey() == null) {
+            throw new IllegalStateException("Контрагент «" + counterparty.getName() + "» не привязан к 1С");
+        }
+        Map<String, Object> lineTemplate = oneCClient.findAnyGoodsReceiptLineTemplate();
+        if (lineTemplate == null) {
+            throw new IllegalStateException("В 1С нет ни одного документа \"Поступление товаров и услуг\" — не с чего скопировать шаблон");
+        }
+        if (oneCClient.fetchPosted(RECEIPT, ref)) {
+            oneCClient.unpostDocument(RECEIPT, ref);
+        }
+        oneCClient.updateDocument(RECEIPT, ref, ownFields(purchase, lineTemplate));
+        log.info("Закупка №{} — документ №{} в 1С обновлён", purchase.getId(), purchase.getOneCDocumentNumber());
+        post(purchase);
+    }
+
+    /** Поля документа, которые определяет сама закупка: дата, поставщик, комментарий, «Товары». */
+    private Map<String, Object> ownFields(Purchase purchase, Map<String, Object> lineTemplate) {
+        Counterparty counterparty = purchase.getCounterparty();
         List<Map<String, Object>> lines = new ArrayList<>();
         List<String> unresolved = new ArrayList<>();
         int lineNumber = 1;
@@ -162,28 +205,16 @@ public class OneCPurchaseSyncService {
             throw new IllegalStateException("Не найдено в 1С по названию: " + String.join(", ", unresolved));
         }
 
-        Map<String, Object> body = new LinkedHashMap<>(headerTemplate);
+        Map<String, Object> body = new LinkedHashMap<>();
         body.put("Date", ONEC_DATE.format(LocalDateTime.of(purchase.getPurchaseDate(), PURCHASE_TIME)));
-        body.put("Posted", false);
-        // Не берём из шаблона (см. OneCClient.findAnyGoodsReceiptTemplate) — "любой" документ
-        // в базе может быть другого вида операции (обнаружено на закупке №13: шаблоном
-        // случайно оказался документ "ОсновныеСредства", из-за чего товары не попадали в
-        // табличную часть и документ уходил не в тот раздел 1С).
-        body.put("ВидОперации", "Товары");
-        body.put("Организация_Key", organizationKey);
         body.put("Контрагент_Key", counterparty.getOneCContragentKey());
         body.put("ДоговорКонтрагента_Key", counterparty.getOneCContractKey());
-        body.put("Склад_Key", materialsWarehouseKey);
-        body.put("Комментарий", "Закупка CRM №" + purchase.getId());
+        // У закупки, импортированной из документа бухгалтера, его комментарий не трогаем.
+        if (!OneCPurchaseImportService.IMPORTED_BY.equals(purchase.getCreatedBy())) {
+            body.put("Комментарий", "Закупка CRM №" + purchase.getId());
+        }
         body.put("Товары", lines);
-
-        OneCClient.CreatedDocument created = oneCClient.createGoodsReceiptDocument(body);
-        purchase.setOneCDocumentKey(created.ref());
-        purchase.setOneCDocumentNumber(created.number());
-        purchase.setOneCSyncError(null);
-        purchaseRepository.save(purchase);
-        log.info("Закупка №{} выгружена в 1С документом №{}", purchase.getId(), created.number());
-        post(purchase);
+        return body;
     }
 
     private void post(Purchase purchase) {

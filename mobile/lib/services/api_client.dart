@@ -1020,6 +1020,26 @@ class ApiClient {
     return Purchase.fromJson(_decode(res));
   }
 
+  /// Правка закупки (свайп карточки вправо) — склад и документ в 1С пересчитываются на сервере
+  /// (см. PurchaseService.update).
+  Future<Purchase> updatePurchase(
+    int id, {
+    required int counterpartyId,
+    required List<(int, double, double?)> items,
+    DateTime? purchaseDate,
+  }) async {
+    final res = await http.put(
+      await _uri('/purchases/$id'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'counterpartyId': counterpartyId,
+        'items': items.map((e) => {'ingredientId': e.$1, 'quantity': e.$2, 'totalPrice': e.$3}).toList(),
+        'purchaseDate': purchaseDate?.toIso8601String().split('T').first,
+      }),
+    );
+    return Purchase.fromJson(_decode(res));
+  }
+
   /// Повторная ручная синхронизация закупки с 1С — на случай, если автоматическая (сразу
   /// при создании) не сработала (см. PurchaseService.resyncOneC на бэкенде).
   Future<Purchase> syncPurchaseOneC(int id) async {

@@ -52,7 +52,7 @@ public class OneCPurchaseImportService {
 
     private static final DateTimeFormatter ONEC_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final String CRM_MARKER = "Закупка CRM №";
-    private static final String IMPORTED_BY = "1С (импорт)";
+    static final String IMPORTED_BY = "1С (импорт)";
 
     private final OneCClient oneCClient;
     private final PurchaseRepository purchaseRepository;

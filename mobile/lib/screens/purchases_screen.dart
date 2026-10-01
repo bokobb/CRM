@@ -92,6 +92,16 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     ));
   }
 
+  /// Свайп карточки вправо — правка закупки (та же форма, заполненная).
+  Future<void> _edit(Purchase p) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _PurchaseForm(purchase: p),
+    );
+    if (saved == true) _refresh();
+  }
+
   /// Свайп карточки влево — предпросмотр приходной накладной (PDF с backend) и «Поделиться».
   void _showInvoice(Purchase p) {
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => PurchaseInvoiceScreen(purchase: p)));
@@ -190,9 +200,34 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                       );
                       return Dismissible(
                         key: ValueKey(('invoice', p.id)),
-                        direction: DismissDirection.endToStart,
-                        dismissThresholds: const {DismissDirection.endToStart: 0.35},
+                        direction: DismissDirection.horizontal,
+                        dismissThresholds: const {
+                          DismissDirection.endToStart: 0.35,
+                          DismissDirection.startToEnd: 0.35,
+                        },
                         background: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.symmetric(horizontal: 22),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4C7A9E),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.edit_outlined, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Изменить',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        secondaryBackground: Padding(
                           // Карточка (AppListTile) сама отступает снизу на 10 — фон повторяет её форму.
                           padding: const EdgeInsets.only(bottom: 10),
                           child: Container(
@@ -215,8 +250,12 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                             ),
                           ),
                         ),
-                        confirmDismiss: (_) async {
-                          _showInvoice(p);
+                        confirmDismiss: (direction) async {
+                          if (direction == DismissDirection.startToEnd) {
+                            _edit(p);
+                          } else {
+                            _showInvoice(p);
+                          }
                           return false;
                         },
                         child: tile,
@@ -241,7 +280,10 @@ class _PurchaseItemRow {
 }
 
 class _PurchaseForm extends StatefulWidget {
-  const _PurchaseForm();
+  /// null — новая закупка, иначе правка этой.
+  final Purchase? purchase;
+
+  const _PurchaseForm({this.purchase});
 
   @override
   State<_PurchaseForm> createState() => _PurchaseFormState();
@@ -267,7 +309,22 @@ class _PurchaseFormState extends State<_PurchaseForm> {
 
   Future<(List<Ingredient>, List<Counterparty>)> _load() async {
     final results = await Future.wait([_api.getIngredients(), _api.getCounterparties()]);
-    return (results[0] as List<Ingredient>, results[1] as List<Counterparty>);
+    final ingredients = results[0] as List<Ingredient>;
+    final counterparties = results[1] as List<Counterparty>;
+    final p = widget.purchase;
+    if (p != null && _items.length == 1 && _items.first.ingredient == null) {
+      String num(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+      _counterparty = counterparties.where((c) => c.id == p.counterpartyId).firstOrNull;
+      _date = p.purchaseDate;
+      _items
+        ..clear()
+        ..addAll(p.items.map((i) => _PurchaseItemRow()
+          ..ingredient = ingredients.where((x) => x.id == i.ingredientId).firstOrNull
+          ..quantity.text = num(i.quantity)
+          ..totalPrice.text = i.totalPrice == null ? '' : num(i.totalPrice!)));
+      if (_items.isEmpty) _items.add(_PurchaseItemRow());
+    }
+    return (ingredients, counterparties);
   }
 
   void _addItemRow() => setState(() => _items.add(_PurchaseItemRow()));
@@ -336,11 +393,10 @@ class _PurchaseFormState extends State<_PurchaseForm> {
                 r.totalPrice.text.trim().isEmpty ? null : double.tryParse(r.totalPrice.text.replaceAll(',', '.')),
               ))
           .toList();
-      final purchase = await _api.createPurchase(
-        counterpartyId: _counterparty!.id,
-        items: items,
-        purchaseDate: _date,
-      );
+      final purchase = widget.purchase == null
+          ? await _api.createPurchase(counterpartyId: _counterparty!.id, items: items, purchaseDate: _date)
+          : await _api.updatePurchase(widget.purchase!.id,
+              counterpartyId: _counterparty!.id, items: items, purchaseDate: _date);
       if (_pickedImageBytes != null) {
         await _api.uploadPurchaseImage(
           purchase.id,
@@ -393,7 +449,13 @@ class _PurchaseFormState extends State<_PurchaseForm> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Новая закупка', style: Theme.of(context).textTheme.titleMedium),
+                  Text(widget.purchase == null ? 'Новая закупка' : 'Закупка №${widget.purchase!.id} — изменить',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  if (widget.purchase != null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Text('Склад сырья и документ в 1С пересчитаются', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    ),
                   const SizedBox(height: 16),
                   if (_error != null)
                     Padding(
