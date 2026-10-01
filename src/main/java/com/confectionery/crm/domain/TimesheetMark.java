@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * Отметка табеля за день (меню «Отчёты» → «Табель сотрудников»), поставленная вручную
  * бухгалтером/технологом. Нет отметки — табель берёт день из бригад заявок на сырьё (был в
  * бригаде — пришёл), воскресенье — выходной, иначе пусто (см. TimesheetService).
- * status — строка (P/A/O), не enum: см. CHECK-constraint на enum-колонках.
+ * status — строка (P/H/A/O; H — полсмены, 0,5 дня), не enum: см. CHECK-constraint на enum-колонках.
  */
 @Entity
 @Table(name = "timesheet_marks", uniqueConstraints = @UniqueConstraint(columnNames = {"employee_id", "work_date"}))
@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class TimesheetMark {
 
-    public static final String PRESENT = "P", ABSENT = "A", DAY_OFF = "O";
+    public static final String PRESENT = "P", HALF = "H", ABSENT = "A", DAY_OFF = "O";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

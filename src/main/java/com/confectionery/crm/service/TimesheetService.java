@@ -30,13 +30,14 @@ import java.util.*;
  * иначе пусто. При сохранении табеля пустые прошедшие дни становятся «не пришёл» — бухгалтер
  * сначала проставляет, что нужно, потом сохраняет. Начислено = Σ ставок за отработанные дни
  * (ставка за смену или оклад ÷ рабочие дни месяца, см. SalaryFundService.dailyRate) — в том
- * числе за воскресенье, если в него работали.
+ * числе за воскресенье, если в него работали; полсмены (0,5) — половина ставки.
  */
 @Service
 @RequiredArgsConstructor
 public class TimesheetService {
 
     private static final Locale RU = Locale.forLanguageTag("ru");
+    private static final BigDecimal HALF_DAY = new BigDecimal("0.5");
 
     private final EntityManager em;
     private final EmployeeRepository employeeRepository;
@@ -45,9 +46,10 @@ public class TimesheetService {
     public record Day(LocalDate date, int day, String weekday, boolean sunday, boolean future) {
     }
 
-    /** cells/auto — по дням месяца; status: P — пришёл, A — не пришёл, O — выходной, null — пусто. */
+    /** cells/auto — по дням месяца; status: P — пришёл, H — полсмены, A — не пришёл, O — выходной, null — пусто.
+     *  worked — отработано дней (полсмены = 0,5). */
     public record Line(Long employeeId, String name, String position, String group, List<String> cells,
-                      List<Boolean> auto, int worked, int absent, BigDecimal rate, BigDecimal pay) {
+                      List<Boolean> auto, BigDecimal worked, int absent, BigDecimal rate, BigDecimal pay) {
     }
 
     public record Sheet(String month, String title, List<Day> days, List<Line> rows, BigDecimal totalPay) {
@@ -90,7 +92,8 @@ public class TimesheetService {
             Set<LocalDate> inBrigade = brigade.getOrDefault(e.getId(), Set.of());
             List<String> cells = new ArrayList<>();
             List<Boolean> auto = new ArrayList<>();
-            int worked = 0, absent = 0;
+            BigDecimal worked = BigDecimal.ZERO;
+            int absent = 0;
             BigDecimal pay = BigDecimal.ZERO;
             for (Day day : days) {
                 String s = own.get(day.date());
@@ -100,10 +103,12 @@ public class TimesheetService {
                 }
                 cells.add(s);
                 auto.add(isAuto && s != null);
-                if (TimesheetMark.PRESENT.equals(s)) {
-                    worked++;
+                BigDecimal share = TimesheetMark.PRESENT.equals(s) ? BigDecimal.ONE
+                        : TimesheetMark.HALF.equals(s) ? HALF_DAY : null;
+                if (share != null) {
+                    worked = worked.add(share);
                     BigDecimal r = SalaryFundService.dailyRate(e, day.date());
-                    if (r != null) pay = pay.add(r);
+                    if (r != null) pay = pay.add(r.multiply(share));
                 } else if (TimesheetMark.ABSENT.equals(s)) {
                     absent++;
                 }
@@ -132,7 +137,7 @@ public class TimesheetService {
         for (CellInput c : cells) {
             if (c.employeeId() == null || c.date() == null || c.date().isBefore(from) || c.date().isAfter(to)) continue;
             String status = c.status();
-            if (status != null && !Set.of(TimesheetMark.PRESENT, TimesheetMark.ABSENT, TimesheetMark.DAY_OFF).contains(status)) {
+            if (status != null && !Set.of(TimesheetMark.PRESENT, TimesheetMark.HALF, TimesheetMark.ABSENT, TimesheetMark.DAY_OFF).contains(status)) {
                 throw new IllegalArgumentException("Неизвестная отметка: " + status);
             }
             if (status == null && c.date().isBefore(today)) status = TimesheetMark.ABSENT;
@@ -157,7 +162,7 @@ public class TimesheetService {
         }
     }
 
-    /** Табель в Excel: ✓ / ✗ / В по дням, воскресенья серым, итоги справа. */
+    /** Табель в Excel: ✓ / 0,5 / ✗ / В по дням, воскресенья серым, итоги справа. */
     @Transactional(readOnly = true)
     public byte[] xlsx(YearMonth ym, boolean showMoney) {
         Sheet sheet = month(ym, showMoney);
@@ -232,14 +237,15 @@ public class TimesheetService {
                     boolean sun = sheet.days().get(i).sunday();
                     String v = s == null ? "" : switch (s) {
                         case TimesheetMark.PRESENT -> "✓";
+                        case TimesheetMark.HALF -> "0,5";
                         case TimesheetMark.ABSENT -> "✗";
                         default -> "В";
                     };
-                    CellStyle st = TimesheetMark.PRESENT.equals(s) ? present
+                    CellStyle st = TimesheetMark.PRESENT.equals(s) || TimesheetMark.HALF.equals(s) ? present
                             : TimesheetMark.ABSENT.equals(s) ? absentStyle : sun ? sunday : mark;
                     cell(x, firstDay + i, v, st);
                 }
-                numCell(x, firstDay + dayCount, row.worked(), num);
+                numCell(x, firstDay + dayCount, row.worked().doubleValue(), num);
                 numCell(x, firstDay + dayCount + 1, row.absent(), num);
                 if (showMoney) {
                     numCell(x, firstDay + dayCount + 2, row.rate() == null ? 0 : row.rate().doubleValue(), money);
@@ -252,7 +258,7 @@ public class TimesheetService {
                 numCell(x, firstDay + dayCount + 3, sheet.totalPay().doubleValue(), moneyBold);
             }
             Row legend = ws.createRow(rowIdx + 3);
-            legend.createCell(1).setCellValue("✓ — пришёл, ✗ — не пришёл, В — выходной");
+            legend.createCell(1).setCellValue("✓ — пришёл, 0,5 — полсмены, ✗ — не пришёл, В — выходной");
 
             ws.setColumnWidth(0, 4 * 256);
             ws.setColumnWidth(1, 34 * 256);

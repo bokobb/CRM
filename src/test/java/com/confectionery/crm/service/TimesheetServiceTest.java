@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Табель: воскресенье — выходной, при сохранении пустые прошедшие дни → «не пришёл», Excel строится. */
+/** Табель: воскресенье — выходной, полсмены = 0,5, при сохранении пустые прошедшие дни → «не пришёл», Excel строится. */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:timesheet;DB_CLOSE_DELAY=-1",
         "crm.onec.base-url=",
@@ -42,11 +42,13 @@ class TimesheetServiceTest {
         assertThat(row.cells().get(sunday.getDayOfMonth() - 1)).isEqualTo(TimesheetMark.DAY_OFF);
         assertThat(row.cells().get(0)).isNull();
 
-        // Отметили 1-е «пришёл» и воскресенье «пришёл» (перекличка в выходной), остальное пусто.
+        // Отметили 1-е «пришёл», 2-е «полсмены» и воскресенье «пришёл» (перекличка в выходной), остальное пусто.
+        LocalDate half = ym.atDay(2).equals(sunday) ? ym.atDay(3) : ym.atDay(2);
         List<TimesheetService.CellInput> cells = new ArrayList<>();
         for (int d = 1; d <= ym.lengthOfMonth(); d++) {
             LocalDate date = ym.atDay(d);
             String s = d == 1 || date.equals(sunday) ? TimesheetMark.PRESENT
+                    : date.equals(half) ? TimesheetMark.HALF
                     : date.getDayOfWeek() == DayOfWeek.SUNDAY ? TimesheetMark.DAY_OFF : null;
             cells.add(new TimesheetService.CellInput(e.getId(), date, s));
         }
@@ -55,9 +57,9 @@ class TimesheetServiceTest {
         row = row(ym, e.getId());
         int sundays = (int) ym.atDay(1).datesUntil(ym.atEndOfMonth().plusDays(1))
                 .filter(d -> d.getDayOfWeek() == DayOfWeek.SUNDAY).count();
-        assertThat(row.worked()).isEqualTo(2);
-        assertThat(row.absent()).isEqualTo(ym.lengthOfMonth() - sundays - 1);
-        assertThat(row.pay()).isEqualByComparingTo(new BigDecimal("20000.00")); // 260000 / 26 × 2
+        assertThat(row.worked()).isEqualByComparingTo("2.5");
+        assertThat(row.absent()).isEqualTo(ym.lengthOfMonth() - sundays - 2);
+        assertThat(row.pay()).isEqualByComparingTo(new BigDecimal("25000.00")); // 260000 / 26 × 2,5
 
         assertThat(timesheetService.xlsx(ym, true)).isNotEmpty();
     }

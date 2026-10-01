@@ -5,7 +5,7 @@ import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 
-/// Табель сотрудников за месяц. Ячейка дня: ✓ пришёл, ✗ не пришёл, В выходной, пусто.
+/// Табель сотрудников за месяц. Ячейка дня: ✓ пришёл, 0,5 полсмены, ✗ не пришёл, В выходной, пусто.
 /// Сами собой ставятся ✓ — по бригадам заявок на сырьё, и В — по воскресеньям. Нажатие на
 /// ячейку меняет отметку по кругу (перекличка, в т. ч. в воскресенье). «Сохранить» — пустые
 /// прошедшие дни становятся ✗. Excel — кнопка в шапке.
@@ -28,7 +28,7 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
   /// Изменения до сохранения: "employeeId|день" → статус (null — пусто).
   final Map<String, String?> _changes = {};
 
-  static const _cycle = [null, 'P', 'A', 'O'];
+  static const _cycle = [null, 'P', 'H', 'A', 'O'];
   static const _nameWidth = 150.0;
   static const _cellWidth = 34.0;
   static const _rowHeight = 40.0;
@@ -216,7 +216,7 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
             const Padding(
               padding: EdgeInsets.fromLTRB(12, 0, 12, 6),
               child: Text(
-                '✓ пришёл · ✗ не пришёл · В выходной. Нажмите на ячейку, чтобы поменять. '
+                '✓ пришёл · 0,5 полсмены · ✗ не пришёл · В выходной. Нажмите на ячейку, чтобы поменять. '
                 'Бледная ✓ — из бригады заявки. При сохранении пустые дни до вчера станут ✗.',
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
@@ -261,6 +261,7 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
       final changed = _changes.containsKey('${row['employeeId']}|$i');
       final (text, color) = switch (s) {
         'P' => ('✓', auto ? const Color(0x992F7D4F) : const Color(0xFF2F7D4F)),
+        'H' => ('0,5', const Color(0xFFB7791F)),
         'A' => ('✗', const Color(0xFFB23A2E)),
         'O' => ('В', Colors.grey),
         _ => ('', Colors.grey),
@@ -278,13 +279,21 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
               bottom: BorderSide(color: Colors.grey.shade200),
             ),
           ),
-          child: Text(text, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
+          child: Text(text, style: TextStyle(fontSize: s == 'H' ? 12 : 16, fontWeight: FontWeight.w700, color: color)),
         ),
       );
     }
 
-    int worked(Map<String, dynamic> row) =>
-        [for (var i = 0; i < days.length; i++) _status(row, i)].where((s) => s == 'P').length;
+    String worked(Map<String, dynamic> row) {
+      var halves = 0;
+      for (var i = 0; i < days.length; i++) {
+        final s = _status(row, i);
+        if (s == 'P') halves += 2;
+        if (s == 'H') halves += 1;
+      }
+      return halves.isEven ? '${halves ~/ 2}' : '${halves ~/ 2},5';
+    }
+
     int absent(Map<String, dynamic> row) =>
         [for (var i = 0; i < days.length; i++) _status(row, i)].where((s) => s == 'A').length;
 
@@ -344,7 +353,7 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
         for (final row in rows)
           Row(children: [
             for (var i = 0; i < days.length; i++) cell(row, i),
-            total('${worked(row)}', bold: true),
+            total(worked(row), bold: true),
             total('${absent(row)}'),
             if (showMoney)
               total(_changes.isEmpty && row['pay'] != null ? formatMoney((row['pay'] as num).toDouble()) : '—', width: 104),
