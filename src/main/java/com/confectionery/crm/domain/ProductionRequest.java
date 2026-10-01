@@ -85,6 +85,10 @@ public class ProductionRequest {
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionRequestItem> items = new ArrayList<>();
 
+    /** Бригада — кто работал на заявке в её день (экран «Производство», ProductionBrigadeService). */
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductionBrigadeMember> brigade = new ArrayList<>();
+
     /** История состава сырья после выдачи работникам — см. {@link ProductionRequestRevision}. */
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("createdAt ASC, id ASC")

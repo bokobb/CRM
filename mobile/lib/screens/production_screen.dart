@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 import '../models/production_cost.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/brigade_sheet.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/tech_card_style.dart';
+import 'production_request_cost_screen.dart';
 
 /// «Производство» — себестоимость за день: заявки на сырьё с этой датой документа × техкарты.
 /// Норма — рецептура техкарты × замесы; факт — сырьё, реально выданное по заявке, разнесённое по
@@ -128,7 +130,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
                   if (snapshot.hasError) {
                     return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
                   }
-                  return _DayView(data: snapshot.data!, selected: _date, onSelectDay: _setDate);
+                  return _DayView(data: snapshot.data!, selected: _date, onSelectDay: _setDate, onChanged: _refresh);
                 },
               ),
             ],
@@ -143,8 +145,9 @@ class _DayView extends StatelessWidget {
   final ProductionCost data;
   final DateTime selected;
   final ValueChanged<DateTime> onSelectDay;
+  final Future<void> Function() onChanged;
 
-  const _DayView({required this.data, required this.selected, required this.onSelectDay});
+  const _DayView({required this.data, required this.selected, required this.onSelectDay, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +172,7 @@ class _DayView extends StatelessWidget {
           )
         else ...[
           _Stats(stats: [
-            ('Себестоимость', _money(d.finishedCost), 'готовая продукция', false),
+            ('Себестоимость', _money(d.finishedCost), d.laborCost == null ? 'сырьё, готовая продукция' : 'сырьё + зарплата', false),
             ('По цене продажи', _money(d.finishedSaleValue), margin == null ? '—' : 'наценка $margin', false),
             ('Сырьё выдано', _money(d.issuedCost), 'норма ${_money(d.normCost)}', false),
             (
@@ -178,6 +181,8 @@ class _DayView extends StatelessWidget {
               deviation.abs() < 1 ? 'точно по норме' : '${devPct > 0 ? '+' : ''}${devPct.toStringAsFixed(1)} % к норме',
               deviation >= 1,
             ),
+            if (d.laborCost != null)
+              ('Зарплата', _money(d.laborCost!), '${d.requests.fold<int>(0, (n, r) => n + r.brigade.length)} чел. в бригадах', false),
             if (d.semiFinishedCost > 0)
               ('Полуфабрикаты', _money(d.semiFinishedCost), 'войдут в товар при упаковке', false),
           ]),
@@ -196,7 +201,7 @@ class _DayView extends StatelessWidget {
           const SizedBox(height: 18),
           TKLabel('Заявки · ${d.requests.length}'),
           const SizedBox(height: 8),
-          for (final r in d.requests) _RequestCard(request: r),
+          for (final r in d.requests) _RequestCard(request: r, date: d.date, onChanged: onChanged),
         ],
       ],
     );
@@ -329,8 +334,21 @@ class _Stats extends StatelessWidget {
 
 class _RequestCard extends StatelessWidget {
   final ProductionCostRequest request;
+  final DateTime date;
+  final Future<void> Function() onChanged;
 
-  const _RequestCard({required this.request});
+  const _RequestCard({required this.request, required this.date, required this.onChanged});
+
+  Future<void> _editBrigade(BuildContext context) async {
+    final result = await showBrigadeSheet(
+      context,
+      requestId: request.id,
+      requestTitle: request.title,
+      date: date,
+      current: [for (final m in request.brigade) m.employeeId],
+    );
+    if (result != null) onChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -343,7 +361,12 @@ class _RequestCard extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: TK.line)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => Navigator.of(context).pushNamed('/production-requests/detail', arguments: r.id),
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ProductionRequestCostScreen(requestId: r.id)),
+            );
+            onChanged();
+          },
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
             child: Column(
@@ -373,6 +396,8 @@ class _RequestCard extends StatelessWidget {
                   ]),
                   style: TK.num.copyWith(fontSize: 12.5),
                 ),
+                const SizedBox(height: 8),
+                _BrigadeRow(request: r, onEdit: () => _editBrigade(context)),
                 const SizedBox(height: 6),
                 for (final l in r.lines) _LineRow(line: l),
               ],
@@ -462,6 +487,60 @@ class _LineRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Бригада на карточке: имена таблетками + кнопка «Бригада» (активная — открывает выбор).
+class _BrigadeRow extends StatelessWidget {
+  final ProductionCostRequest request;
+  final VoidCallback onEdit;
+
+  const _BrigadeRow({required this.request, required this.onEdit});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = request;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Material(
+          color: r.brigade.isEmpty ? TK.yolkBg : TK.soft,
+          shape: StadiumBorder(side: BorderSide(color: r.brigade.isEmpty ? TK.yolk : TK.line)),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onEdit,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.groups_outlined, size: 16, color: r.brigade.isEmpty ? TK.yolkInk : TK.accent),
+                  const SizedBox(width: 5),
+                  Text(
+                    r.brigade.isEmpty ? 'Назначить бригаду' : 'Бригада · ${r.brigade.length}',
+                    style: TextStyle(
+                      fontFamily: TK.body,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: r.brigade.isEmpty ? TK.yolkInk : TK.accent,
+                    ),
+                  ),
+                  if (r.laborCost != null && r.laborCost! > 0) ...[
+                    const SizedBox(width: 6),
+                    Text(_money(r.laborCost!), style: TK.num.copyWith(fontSize: 11.5, color: TK.muted)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (r.brigade.isNotEmpty)
+          Text(r.brigade.map((m) => m.fullName).join(', '),
+              style: const TextStyle(fontFamily: TK.body, fontSize: 12.5, color: TK.ink)),
+      ],
     );
   }
 }

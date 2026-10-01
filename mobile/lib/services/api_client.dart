@@ -16,6 +16,7 @@ import '../models/notification.dart';
 import '../models/order.dart';
 import '../models/product.dart';
 import '../models/product_return.dart';
+import '../models/employee.dart';
 import '../models/production_cost.dart';
 import '../models/production_request.dart';
 import '../models/purchase.dart';
@@ -480,6 +481,36 @@ class ApiClient {
     final d = '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final res = await http.get(await _uri('/production/cost', {'date': d}), headers: await _authHeaders());
     return ProductionCost.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
+  /// Подробно по заявке: оприходовано, сырьё норма/выдано с ценами, себестоимость шт — экран из «Производства».
+  Future<ProductionRequestCost> getProductionRequestCost(int requestId) async {
+    final res = await http.get(await _uri('/production/requests/$requestId'), headers: await _authHeaders());
+    return ProductionRequestCost.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
+  /// Бригада заявки — полный состав; сотрудник за день может быть только в одной бригаде (иначе 409/400 с текстом).
+  Future<ProductionRequestCost> setBrigade(int requestId, List<int> employeeIds) async {
+    final res = await http.put(
+      await _uri('/production/requests/$requestId/brigade'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'employeeIds': employeeIds}),
+    );
+    return ProductionRequestCost.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
+  // ---- Сотрудники ----
+  Future<List<Employee>> getEmployees() async {
+    final res = await http.get(await _uri('/employees'), headers: await _authHeaders());
+    return [for (final e in _decode(res) as List) Employee.fromJson(e as Map<String, dynamic>)];
+  }
+
+  /// id == null — новый сотрудник. dailyRate backend сохраняет только для ADMIN/ACCOUNTANT.
+  Future<Employee> saveEmployee(int? id, Map<String, dynamic> body) async {
+    final res = id == null
+        ? await http.post(await _uri('/employees'), headers: await _authHeaders(), body: jsonEncode(body))
+        : await http.put(await _uri('/employees/$id'), headers: await _authHeaders(), body: jsonEncode(body));
+    return Employee.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
   Future<TechCard> getTechCard(int productId) async {

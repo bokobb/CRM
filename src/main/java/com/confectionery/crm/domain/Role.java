@@ -5,7 +5,9 @@ public enum Role {
     SALES("Менеджер по продажам"),
     WAREHOUSE_FG("Кладовщик (склад ГП)"),
     WAREHOUSE_RAW("Кладовщик (склад сырья)"),
-    ACCOUNTANT("Бухгалтер");
+    ACCOUNTANT("Бухгалтер"),
+    /** Распределяет бригады на экране «Производство», ведёт сотрудников и техкарты; ставок не видит. */
+    TECHNOLOGIST("Технолог");
 
     private final String label;
 

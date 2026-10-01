@@ -81,7 +81,8 @@ class _TechCardScreenState extends State<TechCardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = ApiClient.currentSession?.role == 'ADMIN';
+    // Править техкарту может админ и технолог (backend TechCardApiController.save).
+    final isAdmin = const {'ADMIN', 'TECHNOLOGIST'}.contains(ApiClient.currentSession?.role);
     return Theme(
       data: TK.theme(Theme.of(context)),
       child: FutureBuilder<TechCard>(

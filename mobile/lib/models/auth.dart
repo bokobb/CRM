@@ -4,6 +4,7 @@ const Map<String, String> roleLabels = {
   'WAREHOUSE_FG': 'Кладовщик (склад ГП)',
   'WAREHOUSE_RAW': 'Кладовщик (склад сырья)',
   'ACCOUNTANT': 'Бухгалтер',
+  'TECHNOLOGIST': 'Технолог',
 };
 
 class AuthSession {

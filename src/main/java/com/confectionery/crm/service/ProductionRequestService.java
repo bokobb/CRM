@@ -342,6 +342,11 @@ public class ProductionRequestService {
             throw new IllegalStateException("Нельзя менять позиции — по заявке уже есть оприходованная продукция");
         }
         if (documentDate != null) {
+            // Бригада привязана к дню: на другой день те же люди могут быть заняты в других
+            // бригадах — сбрасываем, технолог распределит заново.
+            if (!documentDate.equals(request.getDocumentDate())) {
+                request.getBrigade().clear();
+            }
             request.setDocumentDate(documentDate);
         }
 

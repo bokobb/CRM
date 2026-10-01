@@ -29,7 +29,7 @@ public class TechCardApiController {
     }
 
     @PutMapping("/{productId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','TECHNOLOGIST')")
     public TechCardDto save(@PathVariable Long productId, @RequestBody TechCardRequest req) {
         return techCardService.save(productId, req);
     }

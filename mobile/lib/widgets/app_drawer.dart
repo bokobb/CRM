@@ -14,6 +14,7 @@ const _warehouse = ('/warehouse', 'Склад', Icons.inventory_2_outlined);
 const _ingredientWarehouse = ('/ingredients-warehouse', 'Склад сырья', Icons.grain_outlined);
 const _production = ('/production', 'Производство', Icons.factory_outlined);
 const _techCards = ('/tech-cards', 'Техкарта', Icons.assignment_outlined);
+const _employees = ('/employees', 'Сотрудники', Icons.badge_outlined);
 const _productionRequests = ('/production-requests', 'Заявки на сырьё', Icons.science_outlined);
 const _productionReport = ('/production-requests/report', 'Отчёт', Icons.summarize_outlined);
 const _purchases = ('/purchases', 'Покупки', Icons.local_shipping_outlined);
@@ -52,6 +53,7 @@ class AppDrawer extends StatelessWidget {
           _productionReport,
           _production,
           _techCards,
+          _employees,
           _debts,
           _whatsappInbox,
           _notifications,
@@ -65,6 +67,9 @@ class AppDrawer extends StatelessWidget {
         // чек-листу), покупки (приход от поставщиков) и склад сырья (остатки/поступления/
         // списание — раньше был только пункт "Списание", теперь та же тройка, что у всех).
         return [_dashboard, _productionRequests, _purchases, _ingredientWarehouse, _notifications];
+      case 'TECHNOLOGIST':
+        // Бригады, техкарты, сотрудники; ставок и зарплаты не видит (backend отдаёт null).
+        return [_production, _techCards, _employees];
       default:
         return [_dashboard];
     }

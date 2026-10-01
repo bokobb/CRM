@@ -15,6 +15,9 @@ String homeRouteForRole(String? role) {
   switch (role) {
     case 'WAREHOUSE_FG':
       return '/orders';
+    case 'TECHNOLOGIST':
+      // Технолог распределяет бригады — его рабочий экран «Производство».
+      return '/production';
     default:
       return '/';
   }
