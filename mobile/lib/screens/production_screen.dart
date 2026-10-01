@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-import '../models/tech_card.dart';
+import '../models/production_cost.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
-import '../widgets/product_avatar.dart';
 import '../widgets/tech_card_style.dart';
-import 'tech_card_screen.dart';
 
-/// «Производство» — техкарты товаров: все товары с рецептурой, фильтр по группе товара
-/// (Product.group) таблетками. Карточка ведёт на полную техкарту (рецептура, расчёт партии,
-/// себестоимость, этапы и ККТ, органолептика). Раньше здесь была доска заявок на сырьё по статусам
-/// Ожидает/В работе/Готово — она дублировала экран «Заявки на сырьё» и убрана.
-/// Оформление — по образцу-артефакту «Техкарты выпечки», см. tech_card_style.dart.
+/// «Производство» — себестоимость за день: заявки на сырьё с этой датой документа × техкарты.
+/// Норма — рецептура техкарты × замесы; факт — сырьё, реально выданное по заявке, разнесённое по
+/// товарам пропорционально норме. Цена сырья — последняя закупка на эту дату, у полуфабриката —
+/// по его рецептуре (backend IngredientPriceService). Себестоимость единицы считается на
+/// оприходованное количество, а пока не оприходовано — на план.
+/// Сами техкарты — на экране «Техкарта» (tech_cards_screen.dart).
 class ProductionScreen extends StatefulWidget {
   const ProductionScreen({super.key});
 
@@ -21,34 +21,54 @@ class ProductionScreen extends StatefulWidget {
   State<ProductionScreen> createState() => _ProductionScreenState();
 }
 
-const _noGroup = 'Без группы';
+final _dayFormat = DateFormat('d MMMM, EEEE', 'ru');
+final _shortDay = DateFormat('d', 'ru');
+
+String _money(double v) => formatMoney(v.roundToDouble());
+
+String? _markup(double cost, double sale) => cost > 0 && sale > 0 ? '${((sale - cost) / cost * 100).round()} %' : null;
 
 class _ProductionScreenState extends State<ProductionScreen> {
   final _api = ApiClient();
-  late Future<List<TechCardSummary>> _future;
-  String _query = '';
-  String? _group;
+  late DateTime _date;
+  late Future<ProductionCost> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = _api.getTechCards();
+    final now = DateTime.now();
+    _date = DateTime(now.year, now.month, now.day);
+    _future = _api.getProductionCost(_date);
+  }
+
+  void _setDate(DateTime d) {
+    final today = DateTime.now();
+    if (d.isAfter(DateTime(today.year, today.month, today.day))) return;
+    setState(() {
+      _date = d;
+      _future = _api.getProductionCost(d);
+    });
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _api.getTechCards());
+    setState(() => _future = _api.getProductionCost(_date));
     await _future;
   }
 
-  Future<void> _open(List<TechCardSummary> visible, TechCardSummary c) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TechCardScreen(cards: visible, initialProductId: c.productId)),
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2026, 9, 1),
+      lastDate: DateTime.now(),
     );
-    _refresh();
+    if (picked != null) _setDate(picked);
   }
 
   @override
   Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final isToday = _date == DateTime(today.year, today.month, today.day);
     return Theme(
       data: TK.theme(Theme.of(context)),
       child: Scaffold(
@@ -56,75 +76,62 @@ class _ProductionScreenState extends State<ProductionScreen> {
         drawer: const AppDrawer(currentRoute: '/production'),
         body: RefreshIndicator(
           onRefresh: _refresh,
-          child: FutureBuilder<List<TechCardSummary>>(
-            future: _future,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
-              }
-              final all = snapshot.data!;
-              final groups = {for (final c in all) c.group ?? _noGroup}.toList()
-                ..sort((a, b) {
-                  if (a == _noGroup) return 1;
-                  if (b == _noGroup) return -1;
-                  return a.toLowerCase().compareTo(b.toLowerCase());
-                });
-              final cards = all
-                  .where((c) => _group == null || (c.group ?? _noGroup) == _group)
-                  .where((c) => _query.isEmpty || c.name.toLowerCase().contains(_query))
-                  .toList();
-
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+            children: [
+              const Text('Себестоимость за день', style: TK.h1),
+              const SizedBox(height: 4),
+              const Text(
+                'Заявки на сырьё за день по техкартам: норма против выданного сырья и себестоимость единицы.',
+                style: TextStyle(fontFamily: TK.body, fontSize: 13, color: TK.muted),
+              ),
+              const SizedBox(height: 12),
+              Row(
                 children: [
-                  const Text('Техкарты', style: TK.h1),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Полный цикл приготовления: рецептура, расчёт партии, себестоимость, этапы и контрольные точки.',
-                    style: TextStyle(fontFamily: TK.body, fontSize: 13, color: TK.muted),
+                  IconButton(
+                    onPressed: () => _setDate(_date.subtract(const Duration(days: 1))),
+                    icon: const Icon(Icons.chevron_left),
+                    tooltip: 'Предыдущий день',
                   ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Поиск по названию…',
-                      prefixIcon: Icon(Icons.search, color: TK.muted),
-                      fillColor: TK.paper,
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(8)),
-                        borderSide: BorderSide(color: TK.line),
+                  Expanded(
+                    child: InkWell(
+                      onTap: _pickDate,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          children: [
+                            Text(_dayFormat.format(_date), style: TK.h2, textAlign: TextAlign.center),
+                            if (isToday) ...[
+                              const SizedBox(height: 2),
+                              const TKLabel('сегодня'),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
-                    onChanged: (v) => setState(() => _query = v.toLowerCase()),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 38,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        TKPill(text: 'Все', selected: _group == null, onTap: () => setState(() => _group = null)),
-                        for (final g in groups) ...[
-                          const SizedBox(width: 6),
-                          TKPill(text: g, selected: _group == g, onTap: () => setState(() => _group = g)),
-                        ],
-                      ],
-                    ),
+                  IconButton(
+                    onPressed: isToday ? null : () => _setDate(_date.add(const Duration(days: 1))),
+                    icon: const Icon(Icons.chevron_right),
+                    tooltip: 'Следующий день',
                   ),
-                  const SizedBox(height: 16),
-                  if (cards.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Center(
-                        child: Text(all.isEmpty ? 'Нет товаров с рецептурой' : 'Ничего не найдено', style: TK.note),
-                      ),
-                    ),
-                  for (final c in cards) _TechCardTile(card: c, onTap: () => _open(cards, c)),
                 ],
-              );
-            },
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<ProductionCost>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(padding: EdgeInsets.all(48), child: Center(child: CircularProgressIndicator()));
+                  }
+                  if (snapshot.hasError) {
+                    return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+                  }
+                  return _DayView(data: snapshot.data!, selected: _date, onSelectDay: _setDate);
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -132,63 +139,242 @@ class _ProductionScreenState extends State<ProductionScreen> {
   }
 }
 
-class _TechCardTile extends StatelessWidget {
-  final TechCardSummary card;
-  final VoidCallback onTap;
+class _DayView extends StatelessWidget {
+  final ProductionCost data;
+  final DateTime selected;
+  final ValueChanged<DateTime> onSelectDay;
 
-  const _TechCardTile({required this.card, required this.onTap});
+  const _DayView({required this.data, required this.selected, required this.onSelectDay});
 
   @override
   Widget build(BuildContext context) {
-    final unit = card.unit ?? 'шт';
+    final d = data;
+    final margin = _markup(d.finishedCost, d.finishedSaleValue);
+    final deviation = d.issuedCost - d.normCost;
+    final devPct = d.normCost > 0 ? deviation / d.normCost * 100 : 0.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _History(days: d.history, selected: selected, onSelect: onSelectDay),
+        const SizedBox(height: 14),
+        if (d.requests.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: TK.paper,
+              border: Border.all(color: TK.line),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Text('В этот день заявок на сырьё нет.', style: TK.note, textAlign: TextAlign.center),
+          )
+        else ...[
+          _Stats(stats: [
+            ('Себестоимость', _money(d.finishedCost), 'готовая продукция', false),
+            ('По цене продажи', _money(d.finishedSaleValue), margin == null ? '—' : 'наценка $margin', false),
+            ('Сырьё выдано', _money(d.issuedCost), 'норма ${_money(d.normCost)}', false),
+            (
+              'Отклонение',
+              '${deviation > 0 ? '+' : ''}${_money(deviation)}',
+              deviation.abs() < 1 ? 'точно по норме' : '${devPct > 0 ? '+' : ''}${devPct.toStringAsFixed(1)} % к норме',
+              deviation >= 1,
+            ),
+            if (d.semiFinishedCost > 0)
+              ('Полуфабрикаты', _money(d.semiFinishedCost), 'войдут в товар при упаковке', false),
+          ]),
+          if (d.unpricedIngredients.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(color: TK.yolkBg, borderRadius: BorderRadius.circular(8)),
+              child: Text(
+                'Нет цены (ни одной закупки с суммой): ${d.unpricedIngredients.join(', ')}. '
+                'В себестоимость они вошли как 0 ₸.',
+                style: const TextStyle(fontFamily: TK.body, fontSize: 12.5, color: TK.yolkInk),
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          TKLabel('Заявки · ${d.requests.length}'),
+          const SizedBox(height: 8),
+          for (final r in d.requests) _RequestCard(request: r),
+        ],
+      ],
+    );
+  }
+}
+
+/// Столбики за 14 дней: себестоимость готовой продукции, тап — перейти на день.
+class _History extends StatelessWidget {
+  final List<ProductionCostDay> days;
+  final DateTime selected;
+  final ValueChanged<DateTime> onSelect;
+
+  const _History({required this.days, required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final max = days.fold<double>(0, (m, d) => d.finishedCost > m ? d.finishedCost : m);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      decoration: BoxDecoration(
+        color: TK.paper,
+        border: Border.all(color: TK.line),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: TKLabel('Себестоимость по дням')),
+              Text(max > 0 ? 'макс. ${_money(max)}' : '', style: TK.num.copyWith(fontSize: 11.5, color: TK.muted)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 92,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final d in days)
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onSelect(d.date),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                            child: Container(
+                              height: max > 0 && d.finishedCost > 0 ? 4 + 64 * d.finishedCost / max : 2,
+                              decoration: BoxDecoration(
+                                color: _same(d.date, selected)
+                                    ? TK.accent
+                                    : (d.finishedCost > 0 ? TK.accent.withValues(alpha: 0.28) : TK.line),
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _shortDay.format(d.date),
+                            style: TK.num.copyWith(
+                              fontSize: 10.5,
+                              color: _same(d.date, selected) ? TK.ink : TK.muted,
+                              fontWeight: _same(d.date, selected) ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static bool _same(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+/// Плитки показателей 2 в ряд, разделены линиями 1 px — как в техкарте.
+class _Stats extends StatelessWidget {
+  final List<(String, String, String, bool)> stats;
+
+  const _Stats({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget tile((String, String, String, bool) s) => Container(
+          color: TK.paper,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TKLabel(s.$1),
+              const SizedBox(height: 4),
+              Text(s.$2, style: TK.num.copyWith(fontSize: 17, fontWeight: FontWeight.w600, color: s.$4 ? TK.bad : TK.ink)),
+              const SizedBox(height: 2),
+              Text(s.$3, style: TK.note.copyWith(color: s.$4 ? TK.bad : TK.muted)),
+            ],
+          ),
+        );
+    final rows = <Widget>[];
+    for (var i = 0; i < stats.length; i += 2) {
+      rows.add(IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: tile(stats[i])),
+            const SizedBox(width: 1),
+            Expanded(child: i + 1 < stats.length ? tile(stats[i + 1]) : Container(color: TK.paper)),
+          ],
+        ),
+      ));
+      if (i + 2 < stats.length) rows.add(const SizedBox(height: 1));
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        color: TK.line,
+        foregroundDecoration: BoxDecoration(border: Border.all(color: TK.line), borderRadius: BorderRadius.circular(8)),
+        child: Column(children: rows),
+      ),
+    );
+  }
+}
+
+class _RequestCard extends StatelessWidget {
+  final ProductionCostRequest request;
+
+  const _RequestCard({required this.request});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = request;
+    final deviation = r.issuedCost - r.normCost;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: TK.paper,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: TK.line),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: TK.line)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: onTap,
+          onTap: () => Navigator.of(context).pushNamed('/production-requests/detail', arguments: r.id),
           child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ProductAvatar(name: card.name, imageUrl: card.imageUrl, radius: 26),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TKLabel([card.group ?? _noGroup, if (card.semiFinished) 'полуфабрикат'].join(' · ')),
-                      const SizedBox(height: 3),
-                      Text(
-                        card.name,
-                        style: const TextStyle(fontFamily: TK.display, fontSize: 14, fontWeight: FontWeight.w700, color: TK.ink, height: 1.25),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '№${r.id} · ${r.title}',
+                        style: const TextStyle(fontFamily: TK.display, fontSize: 14, fontWeight: FontWeight.w700, color: TK.ink),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${formatQty(card.yieldQuantity)} $unit/замес · ${card.ingredientCount} сырья',
-                        style: TK.num.copyWith(fontSize: 12, color: TK.muted),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: card.stageCount == 0
-                            ? [const _Tag(text: 'техпроцесс не заполнен', dashed: true)]
-                            : [
-                                _Tag(text: '${card.stageCount} этап.'),
-                                if (card.ccpCount > 0) _Tag(text: '${card.ccpCount} ККТ', ccp: true),
-                                if (card.draft) const _Tag(text: 'черновик', dashed: true),
-                              ],
-                      ),
-                    ],
-                  ),
+                    ),
+                    _StatusChip(status: r.status, label: r.statusLabel),
+                  ],
                 ),
-                const Icon(Icons.chevron_right, color: TK.muted),
+                const SizedBox(height: 6),
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: 'сырьё ${_money(r.issuedCost)}'),
+                    TextSpan(text: ' · норма ${_money(r.normCost)}', style: const TextStyle(color: TK.muted)),
+                    if (deviation.abs() >= 1)
+                      TextSpan(
+                        text: '  ${deviation > 0 ? '+' : ''}${_money(deviation)}',
+                        style: TextStyle(color: deviation > 0 ? TK.bad : TK.good, fontWeight: FontWeight.w600),
+                      ),
+                  ]),
+                  style: TK.num.copyWith(fontSize: 12.5),
+                ),
+                const SizedBox(height: 6),
+                for (final l in r.lines) _LineRow(line: l),
               ],
             ),
           ),
@@ -198,30 +384,83 @@ class _TechCardTile extends StatelessWidget {
   }
 }
 
-class _Tag extends StatelessWidget {
-  final String text;
-  final bool ccp;
-  final bool dashed;
+class _StatusChip extends StatelessWidget {
+  final String status;
+  final String label;
 
-  const _Tag({required this.text, this.ccp = false, this.dashed = false});
+  const _StatusChip({required this.status, required this.label});
 
   @override
   Widget build(BuildContext context) {
+    final done = status == 'RECEIVED';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: ccp ? TK.yolkBg : (dashed ? Colors.transparent : TK.soft),
-        border: ccp ? Border.all(color: TK.yolk) : (dashed ? Border.all(color: TK.line) : null),
+        color: done ? TK.good.withValues(alpha: 0.12) : TK.soft,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        text,
-        style: TextStyle(
-          fontFamily: TK.body,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          color: ccp ? TK.yolkInk : TK.muted,
-        ),
+        label,
+        style: TextStyle(fontFamily: TK.body, fontSize: 11.5, fontWeight: FontWeight.w600, color: done ? TK.good : TK.muted),
+      ),
+    );
+  }
+}
+
+class _LineRow extends StatelessWidget {
+  final ProductionCostLine line;
+
+  const _LineRow({required this.line});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = line;
+    final unit = l.unit ?? 'шт';
+    final markup = l.unitCost == null || l.salePrice == null ? null : _markup(l.unitCost!, l.salePrice!);
+    final loss = l.unitCost != null && l.salePrice != null && l.salePrice! > 0 && l.unitCost! > l.salePrice!;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: const BoxDecoration(border: Border(top: BorderSide(color: TK.line))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  l.name + (l.semiFinished ? ' · п/ф' : ''),
+                  style: const TextStyle(fontFamily: TK.body, fontSize: 13.5, fontWeight: FontWeight.w600, color: TK.ink),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(_money(l.cost), style: TK.num.copyWith(fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${formatQty(l.batches)} зам. → ${formatQty(l.quantity)} $unit ${l.received ? 'факт' : 'план'}',
+                  style: TK.num.copyWith(fontSize: 12, color: TK.muted),
+                ),
+              ),
+              if (l.unitCost != null)
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: '${formatMoney(l.unitCost!)}/$unit'),
+                    if (markup != null)
+                      TextSpan(
+                        text: '  $markup',
+                        style: TextStyle(color: loss ? TK.bad : TK.good, fontWeight: FontWeight.w600),
+                      ),
+                  ]),
+                  style: TK.num.copyWith(fontSize: 12),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }

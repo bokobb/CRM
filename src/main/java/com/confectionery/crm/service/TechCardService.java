@@ -4,12 +4,10 @@ import com.confectionery.crm.api.dto.TechCardDto;
 import com.confectionery.crm.api.dto.TechCardRequest;
 import com.confectionery.crm.api.dto.TechCardSummaryDto;
 import com.confectionery.crm.domain.Product;
-import com.confectionery.crm.domain.PurchaseItem;
 import com.confectionery.crm.domain.Recipe;
 import com.confectionery.crm.domain.RecipeItem;
 import com.confectionery.crm.domain.TechCard;
 import com.confectionery.crm.domain.TechCardStage;
-import com.confectionery.crm.repository.PurchaseRepository;
 import com.confectionery.crm.repository.RecipeRepository;
 import com.confectionery.crm.repository.TechCardRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -32,7 +28,7 @@ public class TechCardService {
     private final ProductService productService;
     private final RecipeRepository recipeRepository;
     private final TechCardRepository techCardRepository;
-    private final PurchaseRepository purchaseRepository;
+    private final IngredientPriceService ingredientPriceService;
 
     @Transactional(readOnly = true)
     public List<TechCardSummaryDto> list() {
@@ -59,19 +55,13 @@ public class TechCardService {
         TechCard card = techCardRepository.findByProductId(productId).orElseGet(TechCard::new);
         List<RecipeItem> recipeItems = recipe == null ? List.of() : recipe.getItems();
 
-        Map<Long, PurchaseItem> lastPurchase = new HashMap<>();
-        List<Long> ingredientIds = recipeItems.stream().map(i -> i.getIngredient().getId()).toList();
-        if (!ingredientIds.isEmpty()) {
-            for (PurchaseItem pi : purchaseRepository.findPricedItemsNewestFirst(ingredientIds)) {
-                lastPurchase.putIfAbsent(pi.getIngredient().getId(), pi);
-            }
-        }
+        Map<Long, IngredientPriceService.Price> prices = ingredientPriceService.calculator(null)
+                .prices(recipeItems.stream().map(RecipeItem::getIngredient).toList());
 
         List<TechCardDto.Item> items = recipeItems.stream().map(ri -> {
-            PurchaseItem pi = lastPurchase.get(ri.getIngredient().getId());
-            BigDecimal unitPrice = pi == null ? null : pi.getTotalPrice().divide(pi.getQuantity(), 2, RoundingMode.HALF_UP);
+            IngredientPriceService.Price price = prices.get(ri.getIngredient().getId());
             return new TechCardDto.Item(ri.getIngredient().getId(), ri.getIngredient().getName(), ri.getIngredient().getUnit(),
-                    ri.getQuantity(), unitPrice, pi == null ? null : pi.getPurchase().getPurchaseDate());
+                    ri.getQuantity(), price == null ? null : price.unitPrice(), price == null ? null : price.date());
         }).toList();
 
         List<TechCardDto.Stage> stages = card.getStages().stream()

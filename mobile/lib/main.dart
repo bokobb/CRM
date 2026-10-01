@@ -29,6 +29,7 @@ import 'screens/production_request_detail_screen.dart';
 import 'screens/production_request_form_screen.dart';
 import 'screens/production_requests_screen.dart';
 import 'screens/production_screen.dart';
+import 'screens/tech_cards_screen.dart';
 import 'screens/purchases_screen.dart';
 import 'screens/returns_screen.dart';
 import 'screens/recipe_screen.dart';
@@ -218,6 +219,11 @@ class CrmApp extends StatelessWidget {
           case '/production':
             return MaterialPageRoute(
               builder: (_) => const ProductionScreen(),
+              settings: settings,
+            );
+          case '/tech-cards':
+            return MaterialPageRoute(
+              builder: (_) => const TechCardsScreen(),
               settings: settings,
             );
           case '/production-requests':

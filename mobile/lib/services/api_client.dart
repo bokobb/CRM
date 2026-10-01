@@ -16,6 +16,7 @@ import '../models/notification.dart';
 import '../models/order.dart';
 import '../models/product.dart';
 import '../models/product_return.dart';
+import '../models/production_cost.dart';
 import '../models/production_request.dart';
 import '../models/purchase.dart';
 import '../models/tech_card.dart';
@@ -472,6 +473,13 @@ class ApiClient {
     return [
       for (final e in list) TechCardSummary.fromJson(await _absoluteImageField(e as Map<String, dynamic>)),
     ];
+  }
+
+  /// Себестоимость производства за день (+ 14 дней истории) — экран «Производство».
+  Future<ProductionCost> getProductionCost(DateTime date) async {
+    final d = '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final res = await http.get(await _uri('/production/cost', {'date': d}), headers: await _authHeaders());
+    return ProductionCost.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
   Future<TechCard> getTechCard(int productId) async {

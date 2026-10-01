@@ -1,12 +1,14 @@
 package com.confectionery.crm.repository;
 
 import com.confectionery.crm.domain.ProductionRequest;
+import com.confectionery.crm.domain.ProductionRequestStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +17,9 @@ public interface ProductionRequestRepository extends JpaRepository<ProductionReq
     List<ProductionRequest> findAllByOrderByCreatedAtDesc();
 
     boolean existsByLinesProductId(Long productId);
+
+    /** Заявки смены за период по дате документа — себестоимость на экране «Производство». */
+    List<ProductionRequest> findByDocumentDateBetweenAndStatusNot(LocalDate from, LocalDate to, ProductionRequestStatus status);
 
     /**
      * SELECT ... FOR UPDATE — для всех изменений заявки. Без блокировки параллельные запросы
