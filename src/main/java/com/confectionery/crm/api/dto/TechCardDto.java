@@ -25,7 +25,8 @@ public record TechCardDto(
         String qualityColor,
         String qualityCrumb,
         String qualityTaste,
-        List<Stage> stages
+        List<Stage> stages,
+        boolean draft
 ) {
     /** unitPrice — ₸ за единицу сырья (unit) по последней закупке; null — закупок с ценой не было. */
     public record Item(Long ingredientId, String name, String unit, BigDecimal quantity,

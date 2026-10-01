@@ -18,6 +18,9 @@ class TechCardSummary {
   final int stageCount;
   final int ccpCount;
 
+  /// Заполнена типовыми значениями, технолог ещё не проверил (снимается сохранением).
+  final bool draft;
+
   TechCardSummary({
     required this.productId,
     required this.name,
@@ -29,6 +32,7 @@ class TechCardSummary {
     required this.ingredientCount,
     required this.stageCount,
     required this.ccpCount,
+    this.draft = false,
   });
 
   factory TechCardSummary.fromJson(Map<String, dynamic> json) => TechCardSummary(
@@ -42,6 +46,7 @@ class TechCardSummary {
         ingredientCount: json['ingredientCount'] as int,
         stageCount: json['stageCount'] as int,
         ccpCount: json['ccpCount'] as int,
+        draft: json['draft'] as bool? ?? false,
       );
 }
 
@@ -120,6 +125,7 @@ class TechCard {
   final String? qualityCrumb;
   final String? qualityTaste;
   final List<TechCardStage> stages;
+  final bool draft;
 
   TechCard({
     required this.productId,
@@ -139,6 +145,7 @@ class TechCard {
     this.qualityCrumb,
     this.qualityTaste,
     required this.stages,
+    this.draft = false,
   });
 
   factory TechCard.fromJson(Map<String, dynamic> json) => TechCard(
@@ -159,5 +166,6 @@ class TechCard {
         qualityCrumb: _str(json['qualityCrumb']),
         qualityTaste: _str(json['qualityTaste']),
         stages: (json['stages'] as List).map((e) => TechCardStage.fromJson(e as Map<String, dynamic>)).toList(),
+        draft: json['draft'] as bool? ?? false,
       );
 }

@@ -46,7 +46,7 @@ public class TechCardService {
                     List<TechCardStage> stages = card == null ? List.of() : card.getStages();
                     return new TechCardSummaryDto(p.getId(), p.getName(), p.getGroup(), p.getUnit(), p.getImageUrl(),
                             p.isSemiFinished(), r.getYieldQuantity(), r.getItems().size(), stages.size(),
-                            (int) stages.stream().filter(TechCardStage::isCcp).count());
+                            (int) stages.stream().filter(TechCardStage::isCcp).count(), isDraft(card));
                 })
                 .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
                 .toList();
@@ -82,7 +82,7 @@ public class TechCardService {
                 product.getImageUrl(), product.getNetWeightGrams(), product.getPrice(),
                 recipe == null ? BigDecimal.ONE : recipe.getYieldQuantity(), items,
                 card.getShelfLife(), card.getStorageConditions(), card.getPackaging(),
-                card.getQualityLook(), card.getQualityColor(), card.getQualityCrumb(), card.getQualityTaste(), stages);
+                card.getQualityLook(), card.getQualityColor(), card.getQualityCrumb(), card.getQualityTaste(), stages, isDraft(card));
     }
 
     @Transactional
@@ -93,6 +93,7 @@ public class TechCardService {
             c.setProduct(product);
             return c;
         });
+        card.setDraft(false);
         card.setShelfLife(blankToNull(req.shelfLife()));
         card.setStorageConditions(blankToNull(req.storageConditions()));
         card.setPackaging(blankToNull(req.packaging()));
@@ -118,6 +119,10 @@ public class TechCardService {
         }
         techCardRepository.save(card);
         return get(productId);
+    }
+
+    private static boolean isDraft(TechCard card) {
+        return card != null && Boolean.TRUE.equals(card.getDraft());
     }
 
     private static String blankToNull(String s) {

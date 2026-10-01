@@ -183,6 +183,18 @@ class _TechCardScreenState extends State<TechCardScreen> {
                           TKLabel('Технологическая карта · ${c.group ?? 'без группы'}'),
                           const SizedBox(height: 6),
                           Text(c.name, style: TK.h1),
+                          if (c.draft) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(color: TK.yolkBg, borderRadius: BorderRadius.circular(6)),
+                              child: const Text(
+                                'Черновик: этапы, режимы и сроки типовые, их нужно проверить технологу. '
+                                'Пометка снимется после сохранения карты.',
+                                style: TextStyle(fontFamily: TK.body, fontSize: 12, color: TK.yolkInk),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

@@ -182,6 +182,7 @@ class _TechCardTile extends StatelessWidget {
                             : [
                                 _Tag(text: '${card.stageCount} этап.'),
                                 if (card.ccpCount > 0) _Tag(text: '${card.ccpCount} ККТ', ccp: true),
+                                if (card.draft) const _Tag(text: 'черновик', dashed: true),
                               ],
                       ),
                     ],

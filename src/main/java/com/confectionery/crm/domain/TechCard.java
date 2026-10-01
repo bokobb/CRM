@@ -49,6 +49,12 @@ public class TechCard {
     @Column(length = 1000)
     private String qualityTaste;
 
+    /**
+     * Черновик — заполнено типовыми значениями (загрузка 01.10.2026), технолог ещё не проверил.
+     * Снимается при сохранении карты из приложения. null в старых строках = не черновик.
+     */
+    private Boolean draft;
+
     @OneToMany(mappedBy = "techCard", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("position ASC")
     private List<TechCardStage> stages = new ArrayList<>();

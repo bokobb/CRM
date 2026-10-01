@@ -13,6 +13,7 @@ public record TechCardSummaryDto(
         BigDecimal yieldQuantity,
         int ingredientCount,
         int stageCount,
-        int ccpCount
+        int ccpCount,
+        boolean draft
 ) {
 }
