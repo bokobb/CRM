@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * Отметка табеля за день (меню «Отчёты» → «Табель сотрудников»), поставленная вручную
  * бухгалтером/технологом. Нет отметки — табель берёт день из бригад заявок на сырьё (был в
  * бригаде — пришёл), воскресенье — выходной, иначе пусто (см. TimesheetService).
- * status — строка (P/H/A/O; H — полсмены, 0,5 дня), не enum: см. CHECK-constraint на enum-колонках.
+ * status — строка (P/H/A/O; H — полдня (отпросился), 0,5 дня), не enum: см. CHECK-constraint на enum-колонках.
  */
 @Entity
 @Table(name = "timesheet_marks", uniqueConstraints = @UniqueConstraint(columnNames = {"employee_id", "work_date"}))

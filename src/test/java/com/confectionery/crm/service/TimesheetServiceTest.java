@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Табель: воскресенье — выходной, полсмены = 0,5, при сохранении пустые прошедшие дни → «не пришёл», Excel строится. */
+/** Табель: воскресенье — выходной, полдня = 0,5, при сохранении пустые прошедшие дни → «не пришёл», Excel строится. */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:timesheet;DB_CLOSE_DELAY=-1",
         "crm.onec.base-url=",
@@ -42,7 +42,7 @@ class TimesheetServiceTest {
         assertThat(row.cells().get(sunday.getDayOfMonth() - 1)).isEqualTo(TimesheetMark.DAY_OFF);
         assertThat(row.cells().get(0)).isNull();
 
-        // Отметили 1-е «пришёл», 2-е «полсмены» и воскресенье «пришёл» (перекличка в выходной), остальное пусто.
+        // Отметили 1-е «пришёл», 2-е «полдня» и воскресенье «пришёл» (перекличка в выходной), остальное пусто.
         LocalDate half = ym.atDay(2).equals(sunday) ? ym.atDay(3) : ym.atDay(2);
         List<TimesheetService.CellInput> cells = new ArrayList<>();
         for (int d = 1; d <= ym.lengthOfMonth(); d++) {

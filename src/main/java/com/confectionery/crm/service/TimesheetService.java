@@ -30,7 +30,7 @@ import java.util.*;
  * иначе пусто. При сохранении табеля пустые прошедшие дни становятся «не пришёл» — бухгалтер
  * сначала проставляет, что нужно, потом сохраняет. Начислено = Σ ставок за отработанные дни
  * (ставка за смену или оклад ÷ рабочие дни месяца, см. SalaryFundService.dailyRate) — в том
- * числе за воскресенье, если в него работали; полсмены (0,5) — половина ставки.
+ * числе за воскресенье, если в него работали; полдня (0,5, отпросился) — половина ставки.
  */
 @Service
 @RequiredArgsConstructor
@@ -46,8 +46,8 @@ public class TimesheetService {
     public record Day(LocalDate date, int day, String weekday, boolean sunday, boolean future) {
     }
 
-    /** cells/auto — по дням месяца; status: P — пришёл, H — полсмены, A — не пришёл, O — выходной, null — пусто.
-     *  worked — отработано дней (полсмены = 0,5). */
+    /** cells/auto — по дням месяца; status: P — пришёл, H — полдня (отпросился), A — не пришёл, O — выходной, null — пусто.
+     *  worked — отработано дней (полдня = 0,5). */
     public record Line(Long employeeId, String name, String position, String group, List<String> cells,
                       List<Boolean> auto, BigDecimal worked, int absent, BigDecimal rate, BigDecimal pay) {
     }
@@ -258,7 +258,7 @@ public class TimesheetService {
                 numCell(x, firstDay + dayCount + 3, sheet.totalPay().doubleValue(), moneyBold);
             }
             Row legend = ws.createRow(rowIdx + 3);
-            legend.createCell(1).setCellValue("✓ — пришёл, 0,5 — полсмены, ✗ — не пришёл, В — выходной");
+            legend.createCell(1).setCellValue("✓ — пришёл, 0,5 — полдня (отпросился), ✗ — не пришёл, В — выходной");
 
             ws.setColumnWidth(0, 4 * 256);
             ws.setColumnWidth(1, 34 * 256);
