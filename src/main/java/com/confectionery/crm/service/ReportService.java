@@ -53,17 +53,17 @@ public class ReportService {
 
     public enum Kind {
         SHIFT_RECEIPT("shift-receipt", "Оприход за смену",
-                "План и оприходовано по заявкам дня, остаток склада и неотгруженные заказы — хватает ли товара", "DAY", "TODAY"),
-        EMPLOYEES("employees", "Сотрудники: смены и зарплата",
-                "Сколько смен отработал каждый в бригадах, сколько пропустил, начисление за период", "PERIOD", "MONTH"),
+                "Сколько оприходовали и хватает ли товара на заказы", "DAY", "TODAY"),
+        EMPLOYEES("employees", "Табель сотрудников",
+                "Кто пришёл по дням месяца, правка и выгрузка в Excel", "PERIOD", "MONTH"),
         CLIENTS("clients", "Клиенты: продажи и возвраты",
-                "Сколько купил каждый клиент, возвраты, итог за минусом возвратов", "PERIOD", "MONTH"),
+                "Сколько купил каждый клиент и сколько вернул", "PERIOD", "MONTH"),
         PRODUCTS("products", "Товары: продажи",
-                "Продано и возвращено по каждому товару — что продаётся лучше", "PERIOD", "MONTH"),
+                "Что продаётся лучше", "PERIOD", "MONTH"),
         PURCHASES("purchases", "Закупки по поставщикам",
-                "На какую сумму закуплено сырья у каждого поставщика", "PERIOD", "MONTH"),
+                "Сколько закупили у каждого поставщика", "PERIOD", "MONTH"),
         SUMMARY("summary", "Сводка за период",
-                "Продажи, себестоимость производства, закупки и зарплата — итог периода", "PERIOD", "MONTH");
+                "Продажи минус расходы за период", "PERIOD", "MONTH");
 
         final String key, title, description, period, defaultRange;
 
@@ -133,36 +133,26 @@ public class ReportService {
         products.addAll(reserved.keySet());
 
         List<ReportDto.Row> rows = new ArrayList<>();
-        int shortCount = 0, notReceived = 0;
-        BigDecimal planTotal = BigDecimal.ZERO, receivedTotal = BigDecimal.ZERO;
+        int shortCount = 0;
+        BigDecimal receivedTotal = BigDecimal.ZERO;
         for (Product p : products) {
-            BigDecimal pl = plan.get(p);
-            BigDecimal rc = received.get(p);
             BigDecimal stock = nz(p.getQuantityInStock());
             BigDecimal res = reserved.getOrDefault(p, BigDecimal.ZERO);
             BigDecimal balance = stock.subtract(res);
             if (balance.signum() < 0) shortCount++;
-            if (pl != null && rc == null) notReceived++;
-            if (pl != null) planTotal = planTotal.add(pl);
-            if (rc != null) receivedTotal = receivedTotal.add(rc);
-            String verdict = balance.signum() < 0 ? "не хватает " + qty(balance.negate())
-                    : res.signum() == 0 ? "заказов нет" : "хватает, запас " + qty(balance);
-            rows.add(new ReportDto.Row(Arrays.asList(p.getName(), pl, rc, pl == null || rc == null ? null : rc.subtract(pl),
-                    stock, res, verdict), balance.signum() < 0 ? "bad" : res.signum() > 0 ? "good" : null));
+            if (received.containsKey(p)) receivedTotal = receivedTotal.add(received.get(p));
+            String verdict = balance.signum() < 0 ? "не хватает " + qty(balance.negate()) : res.signum() == 0 ? "—" : "хватает";
+            rows.add(new ReportDto.Row(Arrays.asList(p.getName(), plan.get(p), received.get(p), stock, res, verdict),
+                    balance.signum() < 0 ? "bad" : res.signum() > 0 ? "good" : null));
         }
-        // Нехватка — наверх.
         rows.sort(Comparator.comparing((ReportDto.Row r) -> "bad".equals(r.tone()) ? 0 : 1));
-        List<ReportDto.Card> cards = List.of(
-                new ReportDto.Card("Оприходовано", receivedTotal, QTY, "план " + qty(planTotal), null),
-                new ReportDto.Card("Не хватает", shortCount, INT, "товаров под неотгруженные заказы", shortCount > 0 ? "bad" : "good"),
-                new ReportDto.Card("Не оприходовано", notReceived, INT, "товаров из заявок дня", notReceived > 0 ? "bad" : null));
-        return new ReportDto(Kind.SHIFT_RECEIPT.key, Kind.SHIFT_RECEIPT.title, date, date, cards,
-                List.of(col("Товар", TEXT), col("План", QTY), col("Оприходовано", QTY), col("Отклонение", QTY),
-                        col("Остаток", QTY), col("В заказах", QTY), col("Итог", TEXT)),
-                rows, Arrays.asList("Итого", planTotal, receivedTotal, receivedTotal.subtract(planTotal), null, null, null),
-                List.of("План и оприходовано — по заявкам на сырьё с датой этого дня.",
-                        "Остаток — склад сейчас (заказы списываются при отгрузке); «В заказах» — неотгруженные заказы.",
-                        "Итог = остаток − в заказах: если меньше нуля, товара под заказы не хватает."));
+        return new ReportDto(Kind.SHIFT_RECEIPT.key, Kind.SHIFT_RECEIPT.title, date, date,
+                List.of(new ReportDto.Card("Оприходовано", receivedTotal, QTY, null, null),
+                        new ReportDto.Card("Не хватает", shortCount, INT, "товаров под заказы", shortCount > 0 ? "bad" : "good")),
+                List.of(col("Товар", TEXT), col("План", QTY), col("Оприходовано", QTY), col("Остаток", QTY),
+                        col("В заказах", QTY), col("Итог", TEXT)),
+                rows, null,
+                List.of("Итог: хватает ли остатка на неотгруженные заказы."));
     }
 
     // ---------------------------------------------------------------- Сотрудники
@@ -257,15 +247,14 @@ public class ReportService {
     // ---------------------------------------------------------------- Клиенты
 
     private ReportDto clients(LocalDate from, LocalDate to) {
-        Map<String, BigDecimal[]> byClient = new TreeMap<>(String.CASE_INSENSITIVE_ORDER); // [продано, возвращено, заказов]
+        Map<String, BigDecimal[]> byClient = new TreeMap<>(String.CASE_INSENSITIVE_ORDER); // [продано, возвращено]
         for (Order o : shippedOrders(from, to)) {
-            BigDecimal[] v = byClient.computeIfAbsent(o.getClient().getName(), k -> zeros(3));
+            BigDecimal[] v = byClient.computeIfAbsent(o.getClient().getName(), k -> zeros(2));
             v[0] = v[0].add(sum(o.getItems()));
-            v[2] = v[2].add(BigDecimal.ONE);
         }
         for (ProductReturn r : returns(from, to)) {
             String name = r.getClient() != null ? r.getClient().getName() : "Без клиента";
-            BigDecimal[] v = byClient.computeIfAbsent(name, k -> zeros(3));
+            BigDecimal[] v = byClient.computeIfAbsent(name, k -> zeros(2));
             v[1] = v[1].add(sumReturn(r));
         }
         BigDecimal sold = BigDecimal.ZERO, returned = BigDecimal.ZERO;
@@ -273,28 +262,29 @@ public class ReportService {
             sold = sold.add(v[0]);
             returned = returned.add(v[1]);
         }
-        BigDecimal net = sold.subtract(returned);
         List<ReportDto.Row> rows = new ArrayList<>();
         byClient.entrySet().stream()
                 .sorted(Comparator.comparing((Map.Entry<String, BigDecimal[]> e) -> e.getValue()[0].subtract(e.getValue()[1])).reversed())
                 .forEach(e -> {
                     BigDecimal[] v = e.getValue();
-                    BigDecimal n = v[0].subtract(v[1]);
-                    rows.add(new ReportDto.Row(Arrays.asList(e.getKey(), v[2].intValue(), v[0], v[1], n,
-                            net.signum() > 0 ? n.multiply(BigDecimal.valueOf(100)).divide(net, 1, RoundingMode.HALF_UP) + " %" : null),
-                            n.signum() < 0 ? "bad" : null));
+                    BigDecimal pct = percent(v[1], v[0]);
+                    rows.add(new ReportDto.Row(Arrays.asList(e.getKey(), v[0], v[1], pct == null ? null : pct + " %",
+                            v[0].subtract(v[1])), pct != null && pct.compareTo(BigDecimal.TEN) >= 0 ? "bad" : null));
                 });
-        List<ReportDto.Card> cards = List.of(
-                new ReportDto.Card("Продажа за минусом возвратов", net, MONEY, null, null),
-                new ReportDto.Card("Продано", sold, MONEY, byClient.size() + " клиентов", null),
-                new ReportDto.Card("Возвраты", returned, MONEY,
-                        sold.signum() > 0 ? returned.multiply(BigDecimal.valueOf(100)).divide(sold, 1, RoundingMode.HALF_UP) + " % от продаж" : null,
-                        returned.signum() > 0 ? "bad" : null));
-        return new ReportDto(Kind.CLIENTS.key, Kind.CLIENTS.title, from, to, cards,
-                List.of(col("Клиент", TEXT), col("Заказов", INT), col("Продано", MONEY), col("Возвраты", MONEY),
-                        col("Итого", MONEY), col("Доля", TEXT)),
-                rows, Arrays.asList("Итого", null, sold, returned, net, null),
-                List.of("Продано — отгруженные заказы по дате отгрузки; возвраты — по дате возврата."));
+        BigDecimal totalPct = percent(returned, sold);
+        return new ReportDto(Kind.CLIENTS.key, Kind.CLIENTS.title, from, to,
+                List.of(new ReportDto.Card("Итого за минусом возвратов", sold.subtract(returned), MONEY, null, null),
+                        new ReportDto.Card("Возвраты", returned, MONEY, totalPct == null ? null : totalPct + " % от продаж",
+                                returned.signum() > 0 ? "bad" : null)),
+                List.of(col("Клиент", TEXT), col("Продано", MONEY), col("Возвраты", MONEY), col("% возврата", TEXT),
+                        col("Итого", MONEY)),
+                rows, Arrays.asList("Итого", sold, returned, totalPct == null ? null : totalPct + " %", sold.subtract(returned)),
+                List.of("% возврата — какую часть купленного клиент вернул; от 10 % — красным."));
+    }
+
+    /** part ÷ whole × 100 с одним знаком; null, если whole = 0. */
+    private static BigDecimal percent(BigDecimal part, BigDecimal whole) {
+        return whole.signum() > 0 ? part.multiply(BigDecimal.valueOf(100)).divide(whole, 1, RoundingMode.HALF_UP) : null;
     }
 
     // ---------------------------------------------------------------- Товары
@@ -322,18 +312,13 @@ public class ReportService {
                 .forEach(e -> {
                     BigDecimal[] v = e.getValue();
                     for (int k = 0; k < 4; k++) t[k] = t[k].add(v[k]);
-                    rows.add(new ReportDto.Row(Arrays.asList(e.getKey().getName(), v[0], v[1], v[2], v[3],
-                            v[0].subtract(v[2]), v[1].subtract(v[3])), null));
+                    rows.add(new ReportDto.Row(Arrays.asList(e.getKey().getName(), v[0], v[2], v[1].subtract(v[3])), null));
                 });
-        List<ReportDto.Card> cards = List.of(
-                new ReportDto.Card("Продажа за минусом возвратов", t[1].subtract(t[3]), MONEY, null, null),
-                new ReportDto.Card("Продано", t[0], QTY, byProduct.size() + " товаров", null),
-                new ReportDto.Card("Возвращено", t[2], QTY, null, t[2].signum() > 0 ? "bad" : null));
-        return new ReportDto(Kind.PRODUCTS.key, Kind.PRODUCTS.title, from, to, cards,
-                List.of(col("Товар", TEXT), col("Продано", QTY), col("Сумма", MONEY), col("Возврат", QTY),
-                        col("Сумма возвр.", MONEY), col("Итого шт", QTY), col("Итого ₸", MONEY)),
-                rows, Arrays.asList("Итого", t[0], t[1], t[2], t[3], t[0].subtract(t[2]), t[1].subtract(t[3])),
-                List.of("Продано — отгруженные заказы по дате отгрузки; возвраты — по дате возврата."));
+        return new ReportDto(Kind.PRODUCTS.key, Kind.PRODUCTS.title, from, to,
+                List.of(new ReportDto.Card("Итого за минусом возвратов", t[1].subtract(t[3]), MONEY, null, null),
+                        new ReportDto.Card("Продано", t[0], QTY, "возвращено " + qty(t[2]), null)),
+                List.of(col("Товар", TEXT), col("Продано", QTY), col("Возврат", QTY), col("Итого ₸", MONEY)),
+                rows, Arrays.asList("Итого", t[0], t[2], t[1].subtract(t[3])), List.of());
     }
 
     // ---------------------------------------------------------------- Закупки
@@ -343,7 +328,6 @@ public class ReportService {
                         "select p from Purchase p where p.purchaseDate between :from and :to", Purchase.class)
                 .setParameter("from", from).setParameter("to", to).getResultList();
         Map<String, BigDecimal[]> bySupplier = new TreeMap<>(String.CASE_INSENSITIVE_ORDER); // [закупок, сумма]
-        Map<String, Set<String>> ingredients = new HashMap<>();
         BigDecimal total = BigDecimal.ZERO;
         for (Purchase p : purchases) {
             String name = p.getCounterparty() != null ? p.getCounterparty().getName() : "Без поставщика";
@@ -352,22 +336,16 @@ public class ReportService {
             for (PurchaseItem i : p.getItems()) {
                 v[1] = v[1].add(nz(i.getTotalPrice()));
                 total = total.add(nz(i.getTotalPrice()));
-                ingredients.computeIfAbsent(name, k -> new TreeSet<>()).add(i.getIngredient().getName());
             }
         }
-        BigDecimal grand = total;
         List<ReportDto.Row> rows = bySupplier.entrySet().stream()
                 .sorted(Comparator.comparing((Map.Entry<String, BigDecimal[]> e) -> e.getValue()[1]).reversed())
-                .map(e -> new ReportDto.Row(Arrays.asList(e.getKey(), e.getValue()[0].intValue(), e.getValue()[1],
-                        grand.signum() > 0 ? e.getValue()[1].multiply(BigDecimal.valueOf(100)).divide(grand, 1, RoundingMode.HALF_UP) + " %" : null,
-                        String.join(", ", ingredients.getOrDefault(e.getKey(), Set.of()))), null))
+                .map(e -> new ReportDto.Row(Arrays.asList(e.getKey(), e.getValue()[0].intValue(), e.getValue()[1]), null))
                 .toList();
         return new ReportDto(Kind.PURCHASES.key, Kind.PURCHASES.title, from, to,
-                List.of(new ReportDto.Card("Закуплено", total, MONEY, purchases.size() + " закупок", null),
-                        new ReportDto.Card("Поставщиков", bySupplier.size(), INT, null, null)),
-                List.of(col("Поставщик", TEXT), col("Закупок", INT), col("Сумма", MONEY), col("Доля", TEXT), col("Сырьё", TEXT)),
-                rows, Arrays.asList("Итого", purchases.size(), total, null, null),
-                List.of("По дате закупки."));
+                List.of(new ReportDto.Card("Закуплено", total, MONEY, purchases.size() + " закупок", null)),
+                List.of(col("Поставщик", TEXT), col("Закупок", INT), col("Сумма", MONEY)),
+                rows, Arrays.asList("Итого", purchases.size(), total), List.of());
     }
 
     // ---------------------------------------------------------------- Сводка
@@ -380,40 +358,22 @@ public class ReportService {
         BigDecimal net = sold.subtract(returned);
 
         ProductionCostDto.Totals prod = productionCostService.periodTotals(from, to);
-        BigDecimal purchases = nz(em.createQuery("""
-                        select coalesce(sum(i.totalPrice), 0) from Purchase p join p.items i
-                        where p.purchaseDate between :from and :to""", BigDecimal.class)
-                .setParameter("from", from).setParameter("to", to).getSingleResult());
         Map<EmployeeCostGroup, BigDecimal> funds = salaryFundService.periodFunds(from, to);
-        BigDecimal sales = funds.get(EmployeeCostGroup.SALES), admin = funds.get(EmployeeCostGroup.ADMIN);
+        BigDecimal salaries = funds.get(EmployeeCostGroup.SALES).add(funds.get(EmployeeCostGroup.ADMIN));
         BigDecimal producedCost = nz(prod.finishedCost());
-        BigDecimal gross = net.subtract(producedCost);
-        BigDecimal result = gross.subtract(sales).subtract(admin);
+        BigDecimal result = net.subtract(producedCost).subtract(salaries);
 
         List<ReportDto.Row> rows = List.of(
-                row("Продано (отгружено)", sold, null),
+                row("Продано", sold, null),
                 row("Возвраты", returned.negate(), returned.signum() > 0 ? "bad" : null),
-                row("Продажа за минусом возвратов", net, "good"),
-                row("Себестоимость произведённой готовой продукции", producedCost.negate(), null),
-                row("   в т. ч. сырьё (выдано)", prod.issuedCost(), "muted"),
-                row("   в т. ч. зарплата бригад", prod.laborCost(), "muted"),
-                row("   в т. ч. накладные цеха", prod.overheadCost(), "muted"),
-                row("Валовая прибыль (оценка)", gross, gross.signum() < 0 ? "bad" : "good"),
-                row("Оклады продаж (водители, грузчики, склад ГП)", sales.negate(), null),
-                row("Оклады администрации", admin.negate(), null),
-                row("Результат периода (оценка)", result, result.signum() < 0 ? "bad" : "good"),
-                row("Справочно: закупки сырья", purchases, "muted"),
-                row("Справочно: полуфабрикаты произведены", prod.semiFinishedCost(), "muted"));
+                row("Себестоимость произведённого", producedCost.negate(), null),
+                row("Оклады продаж и администрации", salaries.negate(), null),
+                row("Результат (оценка)", result, result.signum() < 0 ? "bad" : "good"));
         return new ReportDto(Kind.SUMMARY.key, Kind.SUMMARY.title, from, to,
                 List.of(new ReportDto.Card("Продажа нетто", net, MONEY, null, null),
-                        new ReportDto.Card("Валовая прибыль", gross, MONEY, "оценка", gross.signum() < 0 ? "bad" : "good"),
-                        new ReportDto.Card("Результат", result, MONEY, "после окладов продаж и администрации",
-                                result.signum() < 0 ? "bad" : "good")),
+                        new ReportDto.Card("Результат", result, MONEY, "оценка", result.signum() < 0 ? "bad" : "good")),
                 List.of(col("Статья", TEXT), col("Сумма", MONEY)), rows, null,
-                List.of("Оценка: себестоимость считается по произведённому за период (заявки × техкарты + бригады + накладные цеха), "
-                                + "а не по проданному — при больших остатках на складе результат сдвигается.",
-                        "Закупки — справочно: сырьё попадает в себестоимость, когда выдано в производство.",
-                        "Налоги, аренда, коммунальные и прочие расходы в CRM не ведутся и здесь не учтены."));
+                List.of("Оценка: себестоимость — по произведённому за период, аренда и налоги не учтены."));
     }
 
     // ---------------------------------------------------------------- общее

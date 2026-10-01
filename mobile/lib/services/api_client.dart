@@ -507,6 +507,24 @@ class ApiClient {
   }
 
   /// id == null — новый сотрудник. dailyRate backend сохраняет только для ADMIN/ACCOUNTANT.
+  /// Табель сотрудников за месяц ("2026-10"), см. TimesheetApiController.
+  Future<Map<String, dynamic>> getTimesheet(String month) async {
+    final res = await http.get(await _uri('/timesheet', {'month': month}), headers: await _authHeaders());
+    return _decode(res) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> saveTimesheet(String month, List<Map<String, dynamic>> cells) async {
+    final res = await http.put(await _uri('/timesheet', {'month': month}),
+        headers: await _authHeaders(), body: jsonEncode({'cells': cells}));
+    return _decode(res) as Map<String, dynamic>;
+  }
+
+  Future<Uint8List> getTimesheetXlsx(String month) async {
+    final res = await http.get(await _uri('/timesheet/xlsx', {'month': month}), headers: await _authHeaders());
+    if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
+    throw ApiException('Не удалось получить Excel (${res.statusCode})');
+  }
+
   /// Меню «Отчёты»: какие отчёты доступны роли (см. ReportApiController).
   Future<List<ReportInfo>> getReports() async {
     final res = await http.get(await _uri('/reports'), headers: await _authHeaders());

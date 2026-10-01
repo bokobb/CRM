@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import 'timesheet_screen.dart';
 
 /// Меню «Отчёты»: список отчётов, доступных роли (приходит с сервера), плюс прежний отчёт
 /// «Производство: план / факт» с PDF. Любой серверный отчёт открывается одним экраном
@@ -62,7 +63,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     title: r.title,
                     subtitle: r.description,
                     trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportScreen(info: r))),
+                    // Табель — своя таблица по дням с правкой, а не общий отчёт.
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => r.key == 'employees' ? const TimesheetScreen() : ReportScreen(info: r))),
                   ),
                 if (_hasProductionPdf)
                   AppListTile(
