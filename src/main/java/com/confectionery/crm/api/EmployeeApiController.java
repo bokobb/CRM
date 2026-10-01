@@ -23,10 +23,11 @@ public class EmployeeApiController {
     private final OneCEmployeeImportService oneCEmployeeImportService;
 
     public record EmployeeDto(Long id, String fullName, String position, String phone, BigDecimal dailyRate, boolean active,
-                              String iin, LocalDate hiredAt, boolean fromOneC) {
+                              String iin, LocalDate hiredAt, LocalDate birthDate, boolean fromOneC) {
         static EmployeeDto from(Employee e, boolean showRate) {
             return new EmployeeDto(e.getId(), e.getFullName(), e.getPosition(), e.getPhone(),
-                    showRate ? e.getDailyRate() : null, e.isActive(), e.getIin(), e.getHiredAt(), e.getOneCKey() != null);
+                    showRate ? e.getDailyRate() : null, e.isActive(), e.getIin(), e.getHiredAt(), e.getBirthDate(),
+                    e.getOneCKey() != null);
         }
     }
 

@@ -9,6 +9,7 @@ class Employee {
   final bool active;
   final String? iin;
   final DateTime? hiredAt;
+  final DateTime? birthDate;
   final bool fromOneC;
 
   Employee({
@@ -20,6 +21,7 @@ class Employee {
     required this.active,
     this.iin,
     this.hiredAt,
+    this.birthDate,
     this.fromOneC = false,
   });
 
@@ -32,6 +34,7 @@ class Employee {
         active: json['active'] as bool? ?? true,
         iin: json['iin'] as String?,
         hiredAt: json['hiredAt'] == null ? null : DateTime.parse(json['hiredAt'] as String),
+        birthDate: json['birthDate'] == null ? null : DateTime.parse(json['birthDate'] as String),
         fromOneC: json['fromOneC'] as bool? ?? false,
       );
 }

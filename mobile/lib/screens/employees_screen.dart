@@ -223,11 +223,12 @@ class _EmployeeFormState extends State<_EmployeeForm> {
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'Телефон (необязательно)', border: OutlineInputBorder()),
             ),
-            if (widget.employee?.iin != null || widget.employee?.hiredAt != null) ...[
+            if (widget.employee?.iin != null || widget.employee?.hiredAt != null || widget.employee?.birthDate != null) ...[
               const SizedBox(height: 10),
               Text(
                 [
                   if (widget.employee!.iin != null) 'ИИН ${widget.employee!.iin}',
+                  if (widget.employee!.birthDate != null) 'д.р. ${formatDate(widget.employee!.birthDate!)}',
                   if (widget.employee!.hiredAt != null) 'принят ${formatDate(widget.employee!.hiredAt!)}',
                   if (widget.employee!.fromOneC) 'из 1С',
                 ].join(' · '),

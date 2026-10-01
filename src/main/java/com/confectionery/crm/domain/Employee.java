@@ -50,6 +50,9 @@ public class Employee {
     /** Дата приёма на работу из 1С. */
     private LocalDate hiredAt;
 
+    /** Дата рождения из 1С. */
+    private LocalDate birthDate;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

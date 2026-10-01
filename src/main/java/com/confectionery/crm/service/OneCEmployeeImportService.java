@@ -23,7 +23,10 @@ import java.util.Map;
  *
  * <p>Структура кадровых справочников в Бухгалтерии для Казахстана разная от редакции к редакции,
  * поэтому сущности ищутся по списку кандидатов, а поля — по нескольким именам; чего нет, то
- * просто не заполняется. Один человек = одно физлицо: если в 1С у него несколько элементов
+ * просто не заполняется. В нашей базе (проверено 01.10.2026): «СотрудникиОрганизаций» (текущая
+ * должность, даты приёма/увольнения, Актуальность), «ФизическиеЛица» (ИИН =
+ * ИдентификационныйКодЛичности, дата рождения), «ДолжностиОрганизаций»; контактная информация в
+ * OData не опубликована — телефонов из 1С нет. Один человек = одно физлицо: если в 1С у него несколько элементов
  * «Сотрудники» (уволили и приняли снова), в CRM он один, ключ — физлицо.
  *
  * <p>Заведённые до импорта вручную сотрудники (без oneCKey) сопоставляются по ФИО (совпадение
@@ -36,11 +39,11 @@ public class OneCEmployeeImportService {
 
     private static final String EMPTY_GUID = "00000000-0000-0000-0000-000000000000";
 
-    private static final List<String> EMPLOYEE_ENTITIES = List.of("Catalog_Сотрудники", "Catalog_СотрудникиОрганизаций");
+    private static final List<String> EMPLOYEE_ENTITIES = List.of("Catalog_СотрудникиОрганизаций", "Catalog_Сотрудники");
     private static final List<String> PERSON_ENTITIES = List.of("Catalog_ФизическиеЛица");
-    private static final List<String> POSITION_ENTITIES = List.of("Catalog_Должности", "Catalog_ДолжностиОрганизаций");
+    private static final List<String> POSITION_ENTITIES = List.of("Catalog_ДолжностиОрганизаций", "Catalog_Должности");
     private static final List<String> HISTORY_ENTITIES = List.of(
-            "InformationRegister_КадроваяИсторияСотрудников", "InformationRegister_РаботникиОрганизаций");
+            "InformationRegister_РаботникиОрганизаций", "InformationRegister_КадроваяИсторияСотрудников");
 
     private final OneCClient oneCClient;
     private final EmployeeRepository employeeRepository;
@@ -80,7 +83,8 @@ public class OneCEmployeeImportService {
             String phone = phone(e);
             if (phone == null && person != null) phone = phone(person);
 
-            String iin = person != null ? text(person, "ИИН", "ИНН") : null;
+            String iin = person != null ? text(person, "ИдентификационныйКодЛичности", "ИИН", "ИНН") : null;
+            LocalDate born = person != null ? date(person, "ДатаРождения") : null;
             if (iin == null) iin = text(e, "ИИН");
 
             LocalDate hired = date(e, "ДатаПриемаНаРаботу", "ДатаПриема");
@@ -94,7 +98,8 @@ public class OneCEmployeeImportService {
                     || (fired != null && !fired.isAfter(LocalDate.now()))
                     || (h != null && h.dismissed);
 
-            Candidate c = new Candidate(personKey != null ? personKey : ref, name.trim(), position, phone, iin, hired, !dismissed);
+            Candidate c = new Candidate(personKey != null ? personKey : ref, name.trim().replaceAll("\\s+", " "), position, phone, iin,
+                    hired, born, !dismissed);
             byPerson.merge(c.key, c, (a, b) -> b.active && !a.active ? b : a);
         }
 
@@ -116,11 +121,14 @@ public class OneCEmployeeImportService {
             } else {
                 updated++;
             }
-            emp.setFullName(c.name);
+            // ФИО из 1С — только новым и переименованным: у сопоставленных в CRM бывает полнее/аккуратнее
+            // (в 1С есть «БИЛАЛОВ ...» капсом и без отчества).
+            if (emp.getFullName() == null || !sameName(emp.getFullName(), c.name)) emp.setFullName(c.name);
             if (c.position != null) emp.setPosition(c.position);
             if (c.phone != null) emp.setPhone(c.phone);
             if (c.iin != null) emp.setIin(c.iin);
             if (c.hired != null) emp.setHiredAt(c.hired);
+            if (c.born != null) emp.setBirthDate(c.born);
             emp.setActive(c.active);
             employeeRepository.save(emp);
         }
@@ -134,7 +142,7 @@ public class OneCEmployeeImportService {
     }
 
     private record Candidate(String key, String name, String position, String phone, String iin, LocalDate hired,
-                             boolean active) {
+                             LocalDate born, boolean active) {
     }
 
     private static final class History {
@@ -148,7 +156,13 @@ public class OneCEmployeeImportService {
     private static Map<String, History> buildHistory(List<JsonNode> rows) {
         Map<String, History> result = new HashMap<>();
         if (rows == null) return result;
-        for (JsonNode r : rows) {
+        // Регистр, подчинённый регистратору (РаботникиОрганизаций), отдаёт наборы записей: строки в RecordSet.
+        List<JsonNode> records = new ArrayList<>();
+        for (JsonNode row : rows) {
+            if (row.has("RecordSet")) row.path("RecordSet").forEach(records::add);
+            else records.add(row);
+        }
+        for (JsonNode r : records) {
             if (r.has("Active") && !r.path("Active").asBoolean(true)) continue;
             String employeeKey = text(r, "Сотрудник_Key", "Работник_Key", "ФизЛицо_Key");
             LocalDate period = date(r, "Period", "Период");
