@@ -47,6 +47,13 @@ public class OneCStockSyncService {
     private String finishedGoodsAccountCode;
     @Value("${crm.onec.materials-account-code:1310}")
     private String materialsAccountCode;
+
+    /**
+     * Ещё счета, остатки которых на складе сырья — тоже сырьё CRM. В 1С часть сырья оприходована
+     * на 1330 «Товары» (например, «Кукуруз декор», 01.10.2026) — без этого CRM его не видела.
+     */
+    @Value("${crm.onec.materials-extra-account-codes:1330}")
+    private List<String> materialsExtraAccountCodes;
     @Value("${crm.onec.finished-goods-warehouse-key:d2791a64-4f43-11f1-9670-5254007c5efd}")
     private String finishedGoodsWarehouseKey;
     @Value("${crm.onec.materials-warehouse-key:ca2e388a-4f43-11f1-9670-5254007c5efd}")
@@ -85,6 +92,12 @@ public class OneCStockSyncService {
 
         String finishedGoodsAccountKey = oneCClient.findAccountKey(finishedGoodsAccountCode);
         String materialsAccountKey = oneCClient.findAccountKey(materialsAccountCode);
+        Set<String> materialsAccountKeys = new HashSet<>();
+        materialsAccountKeys.add(materialsAccountKey);
+        for (String code : materialsExtraAccountCodes) {
+            String key = oneCClient.findAccountKey(code.trim());
+            if (key != null) materialsAccountKeys.add(key);
+        }
         if (finishedGoodsAccountKey == null || materialsAccountKey == null) {
             throw new IllegalStateException("В плане счетов 1С не найдены счета "
                     + finishedGoodsAccountCode + "/" + materialsAccountCode);
@@ -101,6 +114,7 @@ public class OneCStockSyncService {
         List<String> unmatched = new ArrayList<>();
         Set<Long> seenProductIds = new HashSet<>();
         Set<Long> seenIngredientIds = new HashSet<>();
+        Map<Ingredient, BigDecimal> ingredientTotals = new java.util.LinkedHashMap<>();
 
         for (OneCClient.AccountBalanceRow row : rows) {
             String name = nomenclatureNames.get(row.nomenclatureKey());
@@ -114,15 +128,19 @@ public class OneCStockSyncService {
                 }
                 seenProductIds.add(product.getId());
                 if (applyProductQuantity(product, row.quantity())) productsUpdated++;
-            } else if (row.accountKey().equals(materialsAccountKey) && row.warehouseKey().equals(materialsWarehouseKey)) {
+            } else if (materialsAccountKeys.contains(row.accountKey()) && row.warehouseKey().equals(materialsWarehouseKey)) {
                 Ingredient ingredient = matchIngredient(name, ingredients);
                 if (ingredient == null) {
                     unmatched.add(NOMENCLATURE_KIND_INGREDIENT + ": " + name);
                     continue;
                 }
                 seenIngredientIds.add(ingredient.getId());
-                if (applyIngredientQuantity(ingredient, row.quantity())) ingredientsUpdated++;
+                // Одно сырьё может лежать на нескольких счетах (1310 и 1330) — складываем.
+                ingredientTotals.merge(ingredient, row.quantity(), BigDecimal::add);
             }
+        }
+        for (Map.Entry<Ingredient, BigDecimal> e : ingredientTotals.entrySet()) {
+            if (applyIngredientQuantity(e.getKey(), e.getValue())) ingredientsUpdated++;
         }
 
         // Регистр остатков 1С отдаёт строку только для НЕнулевого остатка — если товар/сырьё
