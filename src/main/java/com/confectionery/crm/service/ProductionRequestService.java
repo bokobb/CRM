@@ -489,6 +489,53 @@ public class ProductionRequestService {
         return request;
     }
 
+    /**
+     * Оприходовать товар, которого не было в заявке: из того же замеса случайно вышла другая
+     * продукция (например, пекарь сделал 40 «Булочек со сгущенкой», хотя их не заказывали).
+     * Добавляется строка «сверх заявки» (0 замесов, плана нет) сразу оприходованной; сырьё и
+     * рецептура не меняются. Отчёт производства в 1С перезаписывается (если уже проведён —
+     * распроводится и проводится снова). Склад — пока заявку не завершили, админ — всегда.
+     */
+    @Transactional
+    public ProductionRequest receiveExtra(Long requestId, Long productId, BigDecimal quantity, String by, boolean admin) {
+        ProductionRequest request = findForUpdate(requestId);
+        if (request.getStatus() != ProductionRequestStatus.COLLECTED && request.getStatus() != ProductionRequestStatus.RECEIVED) {
+            throw new IllegalStateException("Оприходовать сверх заявки можно только после сборки");
+        }
+        if (request.isRequisitionCompleted() && !admin) {
+            throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
+        }
+        if (quantity == null || quantity.signum() <= 0) {
+            throw new IllegalArgumentException("Количество должно быть больше нуля");
+        }
+        Product product = productService.findById(productId);
+        if (request.getLines().stream().anyMatch(l -> l.getProduct().getId().equals(productId))) {
+            throw new IllegalStateException("«" + product.getName() + "» уже есть в заявке — оприходуйте или исправьте его строку");
+        }
+        String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — сверх заявки";
+        stockService.receiveProductForProduction(product, quantity, reason, by);
+
+        ProductionRequestLine line = new ProductionRequestLine();
+        line.setProduct(product);
+        line.setBatches(BigDecimal.ZERO);
+        line.setPlannedQuantity(BigDecimal.ZERO);
+        line.setReceivedQuantity(quantity);
+        line.setReceivedBy(by);
+        line.setReceivedAt(LocalDateTime.now());
+        request.addLine(line);
+
+        boolean allReceived = request.getLines().stream().allMatch(ProductionRequestLine::isReceived);
+        boolean becameReceived = allReceived && request.getStatus() == ProductionRequestStatus.COLLECTED;
+        if (allReceived) {
+            request.setStatus(ProductionRequestStatus.RECEIVED);
+        }
+        oneCProductionSyncService.trySyncRequest(request);
+        if (becameReceived) {
+            oneCProductionSyncService.postReport(request);
+        }
+        return request;
+    }
+
     /** Общая логика пересчёта строк/сырья заявки — используется и при создании, и при редактировании. */
     private void populate(ProductionRequest request, List<Line> lines) {
         if (lines == null || lines.isEmpty()) {
@@ -496,6 +543,15 @@ public class ProductionRequestService {
         }
         Map<Ingredient, BigDecimal> combined = new LinkedHashMap<>();
         for (Line line : lines) {
+            if (line.batches() != null && line.batches().signum() == 0 && request.getId() != null) {
+                // Строка «сверх заявки» (см. receiveExtra) при правке позиций — без рецептуры и сырья.
+                ProductionRequestLine extra = new ProductionRequestLine();
+                extra.setProduct(productService.findById(line.productId()));
+                extra.setBatches(BigDecimal.ZERO);
+                extra.setPlannedQuantity(BigDecimal.ZERO);
+                request.addLine(extra);
+                continue;
+            }
             if (line.batches() == null || line.batches().signum() <= 0) {
                 throw new IllegalArgumentException("Количество замесов должно быть больше нуля");
             }

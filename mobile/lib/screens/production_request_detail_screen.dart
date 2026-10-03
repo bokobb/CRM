@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/ingredient.dart';
+import '../models/product.dart';
 import '../models/production_request.dart';
 import '../services/api_client.dart';
 import '../widgets/error_view.dart';
@@ -175,6 +176,64 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
     if (confirmed != true) return;
     try {
       await _api.deleteProductionRequestItem(widget.requestId, item.id);
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  /// Оприходовать сверх заявки: зав. складом (ГП или сырья) — пока заявку не завершили, админ — всегда.
+  bool _canReceiveExtra(ProductionRequest r) =>
+      (r.status == 'COLLECTED' || r.status == 'RECEIVED') &&
+      (_isAdmin || ((_role == 'WAREHOUSE_FG' || _role == 'WAREHOUSE_RAW') && !r.requisitionCompleted));
+
+  /// Из того же замеса вышел товар, которого нет в заявке (ошибка пекаря) — добавляем его
+  /// строкой «сверх заявки» сразу оприходованной. Сырьё и рецептура не меняются.
+  Future<void> _receiveExtra(ProductionRequest r) async {
+    final List<Product> products;
+    try {
+      products = await _api.getProducts(includeSemiFinished: true);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      return;
+    }
+    if (!mounted) return;
+    final inRequest = r.lines.map((l) => l.productId).toSet();
+    final picked = await pickFromList<Product>(
+      context: context,
+      title: 'Оприходовать сверх заявки',
+      items: products.where((p) => !inRequest.contains(p.id)).toList(),
+      label: (p) => p.name,
+    );
+    if (picked == null || !mounted) return;
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Оприходовать «${picked.name}»'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Факт, ${picked.unit ?? 'шт'}',
+            helperText: 'Сверх заявки — сырьё и рецептура не меняются',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Оприходовать')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final qty = double.tryParse(controller.text.replaceAll(',', '.'));
+    if (qty == null || qty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите корректное количество')));
+      return;
+    }
+    try {
+      await _api.receiveExtraProduct(r.id, picked.id, qty);
       await _refresh();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
@@ -385,7 +444,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                         ],
                       ),
                     ),
-                    StatusBadge(status: r.status, label: r.statusLabel),
+                    StatusBadge(status: r.status, label: r.requisitionCompleted ? 'Завершена' : r.statusLabel),
                   ],
                 ),
                 if (r.status == 'COLLECTED' || r.status == 'RECEIVED') ...[
@@ -421,7 +480,15 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     child: Text(_error!, style: const TextStyle(color: Colors.red)),
                   ),
 
-                const Text('Позиции заявки', style: TextStyle(fontWeight: FontWeight.w600)),
+                // Долгое нажатие — скрытое «оприходовать сверх заявки» (см. _receiveExtra).
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onLongPress: _canReceiveExtra(r) ? () => _receiveExtra(r) : null,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text('Позиции заявки', style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 for (final line in r.lines) _buildLineCard(r, line),
                 if (r.massSummary != null) _buildMassSummaryCard(r.massSummary!),
@@ -747,7 +814,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                   child: Text(line.productName, style: const TextStyle(fontWeight: FontWeight.w600)),
                 ),
                 Text(
-                  '${formatQty(line.batches)} замес.'
+                  line.batches == 0 ? 'сверх заявки' : '${formatQty(line.batches)} замес.'
                   '${line.plannedQuantity != null ? " (≈${formatQty(line.plannedQuantity!)} $unit)" : ""}',
                   style: const TextStyle(color: Colors.grey, fontSize: 12.5),
                 ),

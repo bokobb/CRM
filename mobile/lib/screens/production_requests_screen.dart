@@ -173,7 +173,11 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                                 ],
                               )
                             : null,
-                        trailing: StatusBadge(status: r.status, label: r.statusLabel, insufficient: r.hasShortfall),
+                        trailing: StatusBadge(
+                          status: r.status,
+                          label: r.requisitionCompleted ? 'Завершена' : r.statusLabel,
+                          insufficient: r.hasShortfall,
+                        ),
                         onTap: () => _openDetail(r.id),
                         onLongPress: () async {
                           await showProductionCompositionDiff(context, requestId: r.id);

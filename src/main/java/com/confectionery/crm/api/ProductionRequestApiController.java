@@ -130,6 +130,15 @@ public class ProductionRequestApiController {
         return toDto(requestService.receiveLine(id, lineId, req.quantity(), authentication.getName()));
     }
 
+    /** Оприходовать товар сверх заявки — вышел из того же замеса по ошибке (см. ProductionRequestService.receiveExtra). */
+    @PostMapping("/{id}/lines/extra")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_FG','WAREHOUSE_RAW')")
+    public ProductionRequestDto receiveExtra(@PathVariable Long id, @Valid @RequestBody ProductionRequestExtraReceiveRequest req,
+                                             Authentication authentication) {
+        return toDto(requestService.receiveExtra(id, req.productId(), req.quantity(), authentication.getName(),
+                isAdmin(authentication)));
+    }
+
     /** Админ исправляет уже оприходованное количество (см. ProductionRequestService.changeReceived). */
     @PutMapping("/{id}/lines/{lineId}/received")
     @PreAuthorize("hasRole('ADMIN')")

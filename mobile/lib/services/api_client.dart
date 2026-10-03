@@ -943,6 +943,16 @@ class ApiClient {
     return ProductionRequest.fromJson(_decode(res));
   }
 
+  /// Оприходовать товар сверх заявки (вышел из того же замеса по ошибке) — рецептура не меняется.
+  Future<ProductionRequest> receiveExtraProduct(int requestId, int productId, double quantity) async {
+    final res = await _http.post(
+      await _uri('/production-requests/$requestId/lines/extra'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'productId': productId, 'quantity': quantity}),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
   /// Админ исправляет уже оприходованное количество строки (в 1С отчёт перепроводится).
   Future<ProductionRequest> changeReceivedQuantity(int requestId, int lineId, double quantity) async {
     final res = await _http.put(
