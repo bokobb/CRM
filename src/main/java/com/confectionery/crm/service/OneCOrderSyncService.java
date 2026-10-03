@@ -21,9 +21,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * При оформлении заказа в CRM создаёт в 1С соответствующий документ "Реализация товаров и
@@ -183,15 +185,42 @@ public class OneCOrderSyncService {
     @Transactional
     public void retryFailedImported() {
         if (!oneCClient.isConfigured()) return;
+        Set<Long> done = new HashSet<>();
         for (Order order : orderRepository.findImportedWithSyncError(LocalDateTime.now().minusDays(3))) {
-            try {
-                syncImported(order, false);
-            } catch (Exception e) {
-                order.setOneCSyncError(truncate(e.getMessage()));
-                orderRepository.save(order);
+            done.add(order.getId());
+            retry(order);
+        }
+        // Любой заказ, который не ушёл в 1С из-за её недоступности (1cFresh перегружена) —
+        // правка в CRM уже сделана, её нужно дотолкнуть: распровести/записать/провести.
+        for (Order order : orderRepository.findWithSyncErrorSince(LocalDateTime.now().minusDays(3))) {
+            if (done.add(order.getId()) && OneCClient.isUnavailable(order.getOneCSyncError())) {
+                retry(order);
             }
         }
     }
+
+    private void retry(Order order) {
+        boolean repost = OneCClient.isUnavailable(order.getOneCSyncError());
+        quiet.set(true);
+        try {
+            if (order.isImportedFromOneC() && order.getOneCDocumentKey() != null) {
+                syncImported(order, repost);
+            } else {
+                sync(order, repost);
+            }
+            if (order.getOneCSyncError() == null) {
+                log.info("Заказ №{} — повторная выгрузка в 1С прошла", order.getId());
+            }
+        } catch (Exception e) {
+            order.setOneCSyncError(truncate(e.getMessage()));
+            orderRepository.save(order);
+        } finally {
+            quiet.remove();
+        }
+    }
+
+    /** Во время автоповтора админу не пишем — он уже получил уведомление при первой неудаче. */
+    private final ThreadLocal<Boolean> quiet = ThreadLocal.withInitial(() -> false);
 
     /**
      * Документ создан бухгалтером в 1С (Order.importedFromOneC): шапку не трогаем (дата,
@@ -525,6 +554,7 @@ public class OneCOrderSyncService {
     }
 
     private void notifyAdmin(Order order, String reason) {
+        if (quiet.get()) return;
         notificationService.notifyRole(Role.ADMIN,
                 "Заказ №" + order.getId() + " не выгружен в 1С: " + reason, order);
     }

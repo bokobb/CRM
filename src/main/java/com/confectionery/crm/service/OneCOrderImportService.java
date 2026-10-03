@@ -73,6 +73,7 @@ public class OneCOrderImportService {
 
     private static final DateTimeFormatter ONEC_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final String CRM_MARKER = "Заказ CRM №";
+    private static final int SYNC_DAYS = 7;
 
     private final OneCClient oneCClient;
     private final OrderRepository orderRepository;
@@ -117,8 +118,13 @@ public class OneCOrderImportService {
 
     @Transactional
     public ImportResult importAll() {
-        List<OneCClient.SaleHeader> headers = oneCClient.fetchSaleHeaders();
-        List<OneCClient.SaleLine> lines = oneCClient.fetchSaleLines();
+        // Последние 7 дней: новые документы заводятся только сегодняшние (см. ниже), а более
+        // старые нужны, чтобы подтянуть правки бухгалтера в уже импортированных заказах.
+        List<OneCClient.SaleHeader> headers = oneCClient.fetchSaleHeaders(LocalDate.now().minusDays(SYNC_DAYS));
+        List<String> refs = headers.stream()
+                .filter(h -> !h.deletionMark() && (h.comment() == null || !h.comment().startsWith(CRM_MARKER)))
+                .map(OneCClient.SaleHeader::ref).toList();
+        List<OneCClient.SaleLine> lines = refs.isEmpty() ? List.of() : oneCClient.fetchSaleLines(refs);
         Map<String, List<OneCClient.SaleLine>> linesByParent = new HashMap<>();
         for (OneCClient.SaleLine line : lines) {
             linesByParent.computeIfAbsent(line.parentRef(), k -> new ArrayList<>()).add(line);
@@ -134,6 +140,7 @@ public class OneCOrderImportService {
         }
 
         int imported = 0;
+        int updated = 0;
         int completed = 0;
         int clientsCreated = 0;
         int productsCreated = 0;
@@ -158,6 +165,10 @@ public class OneCOrderImportService {
                     existing.setShippedAt(parseDate(header.date()));
                     orderRepository.save(existing);
                     completed++;
+                }
+                if (applyOneCChanges(existing, linesByParent.getOrDefault(header.ref(), List.of()),
+                        nomenclatureNames, productByName)) {
+                    updated++;
                 }
                 continue;
             }
@@ -233,7 +244,73 @@ public class OneCOrderImportService {
             orderRepository.save(order);
             imported++;
         }
+        if (updated > 0) {
+            log.info("Импорт из 1С: в {} заказ(ах) состав обновлён по 1С", updated);
+        }
         return new ImportResult(imported, completed, clientsCreated, productsCreated, unmatched);
+    }
+
+    /**
+     * Бухгалтер поменял в 1С состав документа, по которому уже заведён заказ, — заказ в CRM
+     * становится таким же (количество, цены, позиции). Только если у заказа нет ошибки выгрузки:
+     * ошибка значит, что в CRM есть правка, ещё не дошедшая до 1С, — тогда её дотолкнёт
+     * автоповтор (OneCOrderSyncService), а 1С не перетирает CRM. Если отгрузка шла через CRM
+     * (остаток уже списан), остаток склада ГП двигается на разницу.
+     */
+    private boolean applyOneCChanges(Order order, List<OneCClient.SaleLine> docLines,
+                                     Map<String, String> nomenclatureNames, Map<String, Product> productByName) {
+        if (!order.isImportedFromOneC() || order.getStatus() == OrderStatus.CANCELLED
+                || order.getOneCSyncError() != null || docLines.isEmpty()) {
+            return false;
+        }
+        Map<String, BigDecimal> inDoc = new HashMap<>();
+        for (OneCClient.SaleLine line : docLines) {
+            inDoc.merge(line.nomenclatureKey() + "|" + line.price().stripTrailingZeros().toPlainString(),
+                    line.quantity(), BigDecimal::add);
+        }
+        Map<String, BigDecimal> inCrm = new HashMap<>();
+        for (OrderItem item : order.getItems()) {
+            String key = item.getProduct().getOneCNomenclatureKey();
+            if (key == null) return false;
+            inCrm.merge(key + "|" + item.getPrice().stripTrailingZeros().toPlainString(), item.getQuantity(), BigDecimal::add);
+        }
+        if (inDoc.keySet().equals(inCrm.keySet())
+                && inDoc.entrySet().stream().allMatch(e -> e.getValue().compareTo(inCrm.get(e.getKey())) == 0)) {
+            return false;
+        }
+        List<OrderItem> newItems = new ArrayList<>();
+        for (OneCClient.SaleLine line : docLines) {
+            Product product = productRepository.findByOneCNomenclatureKey(line.nomenclatureKey()).orElse(null);
+            if (product == null) {
+                product = resolveProductByName(line.nomenclatureKey(), nomenclatureNames, productByName);
+            }
+            if (product == null) {
+                log.warn("Заказ №{}: номенклатура {} из 1С не найдена в CRM — состав не обновлён", order.getId(), line.nomenclatureKey());
+                return false;
+            }
+            OrderItem item = new OrderItem();
+            item.setProduct(product);
+            item.setQuantity(line.quantity());
+            item.setPrice(line.price());
+            newItems.add(item);
+        }
+        boolean stockWrittenOff = order.getVehicleNumber() != null
+                && (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED);
+        if (stockWrittenOff) {
+            for (OrderItem old : order.getItems()) {
+                Product p = old.getProduct();
+                p.setQuantityInStock(p.getQuantityInStock().add(old.getQuantity()));
+            }
+            for (OrderItem item : newItems) {
+                Product p = item.getProduct();
+                p.setQuantityInStock(p.getQuantityInStock().subtract(item.getQuantity()));
+            }
+        }
+        order.getItems().clear();
+        newItems.forEach(order::addItem);
+        orderRepository.save(order);
+        log.info("Заказ №{} — состав обновлён по документу №{} из 1С", order.getId(), order.getOneCDocumentNumber());
+        return true;
     }
 
     /** Товар уже был в CRM, но без привязки к 1С — ищем по точному названию номенклатуры и кэшируем GUID на будущее. */

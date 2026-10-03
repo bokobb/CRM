@@ -13,11 +13,13 @@ import com.confectionery.crm.repository.ProductionRequestRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -154,12 +156,53 @@ public class OneCProductionSyncService {
         }
     }
 
+    /** Во время автоповтора админу не пишем — он уже получил уведомление при первой неудаче. */
+    private final ThreadLocal<Boolean> quiet = ThreadLocal.withInitial(() -> false);
+
+    private void notifyAdmin(String message) {
+        if (!quiet.get()) {
+            notificationService.notifyRole(Role.ADMIN, message, null);
+        }
+    }
+
+    /**
+     * Заявки, которые не ушли в 1С из-за её недоступности (1cFresh перегружена — см.
+     * OneCClient.UnavailableException): каждые 10 минут в рабочее время дотолкнуть правку —
+     * записать документы, провести то, что должно быть проведено, у отменённой — распровести.
+     */
+    @Scheduled(cron = "${crm.onec.order-retry-cron:0 */10 7-20 * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
+    @Transactional
+    public void retryUnavailable() {
+        if (!oneCClient.isConfigured()) return;
+        for (ProductionRequest request : requestRepository.findWithSyncErrorSince(LocalDate.now().minusDays(3))) {
+            if (!OneCClient.isUnavailable(request.getOneCSyncError())) continue;
+            quiet.set(true);
+            try {
+                if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
+                    tryUnpostAll(request);
+                    continue;
+                }
+                sync(request);
+                request.setOneCSyncError(null);
+                requestRepository.save(request);
+                if (request.getStatus() == ProductionRequestStatus.RECEIVED) postReport(request);
+                if (request.isRequisitionCompleted()) postRequisition(request);
+                log.info("Заявка №{} — повторная синхронизация с 1С: {}", request.getId(),
+                        request.getOneCSyncError() == null ? "прошла" : request.getOneCSyncError());
+            } catch (Exception e) {
+                request.setOneCSyncError(e.getMessage());
+                requestRepository.save(request);
+            } finally {
+                quiet.remove();
+            }
+        }
+    }
+
     private void onSyncFailure(ProductionRequest request, Exception e) {
         log.warn("Не удалось синхронизировать заявку №{} с 1С: {}", request.getId(), e.getMessage());
         request.setOneCSyncError(e.getMessage());
         requestRepository.save(request);
-        notificationService.notifyRole(Role.ADMIN,
-                "Заявка №" + request.getId() + " «" + request.getTitle() + "» не синхронизирована с 1С: " + e.getMessage(), null);
+        notifyAdmin("Заявка №" + request.getId() + " «" + request.getTitle() + "» не синхронизирована с 1С: " + e.getMessage());
     }
 
     /**
@@ -185,7 +228,7 @@ public class OneCProductionSyncService {
             String message = "не удалось распровести в 1С — " + String.join("; ", errors);
             log.warn("Заявка №{} — {}", request.getId(), message);
             request.setOneCSyncError(message.length() > 500 ? message.substring(0, 500) : message);
-            notificationService.notifyRole(Role.ADMIN, "Заявка №" + request.getId() + " — " + message, null);
+            notifyAdmin("Заявка №" + request.getId() + " — " + message);
         }
         requestRepository.save(request);
     }
@@ -594,8 +637,7 @@ public class OneCProductionSyncService {
             log.warn("Заявка №{} — {}", request.getId(), message);
             request.setOneCSyncError(message);
             requestRepository.save(request);
-            notificationService.notifyRole(Role.ADMIN,
-                    "Заявка №" + request.getId() + " «" + request.getTitle() + "» — " + message, null);
+            notifyAdmin("Заявка №" + request.getId() + " «" + request.getTitle() + "» — " + message);
         }
     }
 
@@ -622,9 +664,8 @@ public class OneCProductionSyncService {
             log.warn("Не удалось провести требование-накладную заявки №{} в 1С: {}", request.getId(), e.getMessage());
             request.setOneCSyncError(e.getMessage());
             requestRepository.save(request);
-            notificationService.notifyRole(Role.ADMIN,
-                    "Заявка №" + request.getId() + " «" + request.getTitle()
-                            + "»: не удалось провести требование-накладную в 1С: " + e.getMessage(), null);
+            notifyAdmin("Заявка №" + request.getId() + " «" + request.getTitle()
+                            + "»: не удалось провести требование-накладную в 1С: " + e.getMessage());
         }
     }
 
@@ -647,9 +688,8 @@ public class OneCProductionSyncService {
         } catch (Exception e) {
             request.setOneCSyncError("Не удалось отменить проведение в 1С: " + e.getMessage());
             requestRepository.save(request);
-            notificationService.notifyRole(Role.ADMIN,
-                    "Заявка №" + request.getId() + " «" + request.getTitle()
-                            + "»: не удалось отменить проведение требования-накладной в 1С: " + e.getMessage(), null);
+            notifyAdmin("Заявка №" + request.getId() + " «" + request.getTitle()
+                            + "»: не удалось отменить проведение требования-накладной в 1С: " + e.getMessage());
             throw new IllegalStateException(e.getMessage(), e);
         }
         request.setOneCSyncError(null);

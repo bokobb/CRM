@@ -2,6 +2,9 @@ package com.confectionery.crm.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -51,12 +54,34 @@ class OneCClient {
                @Value("${crm.onec.username:}") String username,
                @Value("${crm.onec.password:}") String password) {
         this.configured = !baseUrl.isBlank() && !username.isBlank() && !password.isBlank();
+        // Без перехода по перенаправлениям: когда 1cFresh перегружена/на обслуживании, она
+        // отвечает 301 на свою страницу /availability, а Apache HttpClient шёл туда тем же
+        // PATCH/POST и получал «405 Not Allowed» — правка терялась под непонятной ошибкой.
         this.restClient = configured
                 ? RestClient.builder()
+                        .requestFactory(new HttpComponentsClientHttpRequestFactory(
+                                HttpClients.custom().disableRedirectHandling().build()))
                         .baseUrl(baseUrl + "/odata/standard.odata")
                         .defaultHeaders(h -> h.setBasicAuth(username, password))
+                        .defaultStatusHandler(HttpStatusCode::is3xxRedirection, (request, response) -> {
+                            throw new UnavailableException();
+                        })
                         .build()
                 : null;
+    }
+
+    /** Признак ошибки «1С недоступна» — по нему автоповтор (см. OneCOrderSyncService/OneCProductionSyncService). */
+    static final String UNAVAILABLE_MARKER = "1С временно недоступна";
+
+    static boolean isUnavailable(String error) {
+        return error != null && error.contains(UNAVAILABLE_MARKER);
+    }
+
+    /** 1cFresh перенаправила на страницу «сервис недоступен» — запрос до базы не дошёл, повторять безопасно. */
+    static class UnavailableException extends IllegalStateException {
+        UnavailableException() {
+            super(UNAVAILABLE_MARKER + " (1cFresh перегружена или на обслуживании) — CRM повторит сама");
+        }
     }
 
     boolean isConfigured() {
@@ -303,14 +328,16 @@ class OneCClient {
      * проведённые) дальше отсекаются по {@code Комментарий} и по уже заполненному {@code
      * Order.oneCDocumentKey} — здесь фильтрации по автору нет.
      */
-    List<SaleHeader> fetchSaleHeaders() {
+    List<SaleHeader> fetchSaleHeaders(LocalDate since) {
         List<SaleHeader> headers = new ArrayList<>();
+        String filter = "Date ge datetime'" + since + "T00:00:00'";
         int skip = 0;
         while (true) {
             final int currentSkip = skip;
             JsonNode response = restClient.get()
                     .uri(b -> b.path("/Document_РеализацияТоваровУслуг")
                             .queryParam("$format", "json")
+                            .queryParam("$filter", filter)
                             .queryParam("$select", "Ref_Key,Number,Date,Комментарий,Контрагент_Key,Posted,DeletionMark")
                             .queryParam("$top", PAGE_SIZE)
                             .queryParam("$skip", currentSkip)
@@ -336,26 +363,26 @@ class OneCClient {
     }
 
     /**
-     * Строки табличной части "Товары" ВСЕХ проведённых документов "Реализация товаров и услуг" —
+     * Строки табличной части "Товары" указанных документов "Реализация товаров и услуг" —
      * {@code parentRef} совпадает с {@link SaleHeader#ref()} той же строки (1С отдаёт строки
      * табличной части с Ref_Key владельца документа, см. {@link #fetchProductionReportLines()}).
      */
-    List<SaleLine> fetchSaleLines() {
+    List<SaleLine> fetchSaleLines(List<String> documentRefs) {
         List<SaleLine> lines = new ArrayList<>();
-        int skip = 0;
-        while (true) {
-            final int currentSkip = skip;
+        // Только строки нужных документов — порциями, чтобы адрес запроса не разрастался.
+        for (int from = 0; from < documentRefs.size(); from += 15) {
+            String filter = documentRefs.subList(from, Math.min(from + 15, documentRefs.size())).stream()
+                    .map(ref -> "Ref_Key eq guid'" + ref + "'")
+                    .reduce((a, b) -> a + " or " + b).orElseThrow();
             JsonNode response = restClient.get()
                     .uri(b -> b.path("/Document_РеализацияТоваровУслуг_Товары")
                             .queryParam("$format", "json")
+                            .queryParam("$filter", filter)
                             .queryParam("$select", "Ref_Key,Номенклатура_Key,Количество,Цена")
-                            .queryParam("$top", PAGE_SIZE)
-                            .queryParam("$skip", currentSkip)
                             .build())
                     .retrieve()
                     .body(JsonNode.class);
-            JsonNode values = response.path("value");
-            for (JsonNode item : values) {
+            for (JsonNode item : response.path("value")) {
                 lines.add(new SaleLine(
                         item.path("Ref_Key").asText(""),
                         item.path("Номенклатура_Key").asText(""),
@@ -363,8 +390,6 @@ class OneCClient {
                         item.path("Цена").decimalValue()
                 ));
             }
-            if (values.size() < PAGE_SIZE) break;
-            skip += PAGE_SIZE;
         }
         return lines;
     }

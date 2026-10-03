@@ -25,6 +25,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
               and o.oneCDocumentKey is not null and o.shippedAt is not null and o.shippedAt >= :since""")
     List<Order> findImportedWithSyncError(@Param("since") LocalDateTime since);
 
+    /** Не отменённые заказы с ошибкой выгрузки в 1С за последние дни — для автоповтора, когда 1С была недоступна. */
+    @Query("""
+            select o from Order o where o.oneCSyncError is not null
+              and o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED
+              and coalesce(o.shippedAt, o.createdAt) >= :since""")
+    List<Order> findWithSyncErrorSince(@Param("since") LocalDateTime since);
+
     List<Order> findAllByOrderByCreatedAtDesc();
 
     List<Order> findByClientIdOrderByCreatedAtDesc(Long clientId);
