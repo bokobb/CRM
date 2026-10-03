@@ -40,28 +40,21 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   /// Лупа у правого края «Состав заявки (сырьё)»: нажали — открывается клавиатура, поля нет;
   /// набранное подсвечивается красным прямо в названиях сырья и фильтрует список. Повторное
   /// нажатие — поиск сбрасывается.
-  Widget _searchToggle() => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_itemQuery.isNotEmpty)
-            Text(_itemQuery, style: const TextStyle(color: Color(0xFFD32F2F), fontWeight: FontWeight.w700, fontSize: 13)),
-          IconButton(
-            iconSize: 28,
-            tooltip: _itemSearchOpen ? 'Сбросить поиск' : 'Поиск в составе',
-            color: const Color(0xFF8F2438),
-            icon: Icon(_itemSearchOpen ? Icons.search_off : Icons.search),
-            onPressed: () => setState(() {
-              _itemSearchOpen = !_itemSearchOpen;
-              if (_itemSearchOpen) {
-                _itemSearchFocus.requestFocus();
-              } else {
-                _itemSearch.clear();
-                _itemQuery = '';
-                _itemSearchFocus.unfocus();
-              }
-            }),
-          ),
-        ],
+  Widget _searchToggle() => IconButton(
+        iconSize: 28,
+        tooltip: _itemSearchOpen ? 'Сбросить поиск' : 'Поиск в составе',
+        color: const Color(0xFF8F2438),
+        icon: Icon(_itemSearchOpen ? Icons.search_off : Icons.search),
+        onPressed: () => setState(() {
+          _itemSearchOpen = !_itemSearchOpen;
+          if (_itemSearchOpen) {
+            _itemSearchFocus.requestFocus();
+          } else {
+            _itemSearch.clear();
+            _itemQuery = '';
+            _itemSearchFocus.unfocus();
+          }
+        }),
       );
 
   /// Поиск в составе заявки — по названию сырья (и по прежнему, если была замена).
