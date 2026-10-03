@@ -35,21 +35,33 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   final _itemSearch = TextEditingController();
   String _itemQuery = '';
   bool _itemSearchOpen = false;
+  final _itemSearchFocus = FocusNode();
 
-  /// Лупа рядом с «Состав заявки (сырьё)» — открывает/закрывает строку поиска.
-  Widget _searchToggle() => InkWell(
-        customBorder: const CircleBorder(),
-        onTap: () => setState(() {
-          _itemSearchOpen = !_itemSearchOpen;
-          if (!_itemSearchOpen) {
-            _itemSearch.clear();
-            _itemQuery = '';
-          }
-        }),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(_itemSearchOpen ? Icons.search_off : Icons.search, size: 18, color: const Color(0xFF8F2438)),
-        ),
+  /// Лупа у правого края «Состав заявки (сырьё)»: нажали — открывается клавиатура, поля нет;
+  /// набранное подсвечивается красным прямо в названиях сырья и фильтрует список. Повторное
+  /// нажатие — поиск сбрасывается.
+  Widget _searchToggle() => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_itemQuery.isNotEmpty)
+            Text(_itemQuery, style: const TextStyle(color: Color(0xFFD32F2F), fontWeight: FontWeight.w700, fontSize: 13)),
+          IconButton(
+            iconSize: 28,
+            tooltip: _itemSearchOpen ? 'Сбросить поиск' : 'Поиск в составе',
+            color: const Color(0xFF8F2438),
+            icon: Icon(_itemSearchOpen ? Icons.search_off : Icons.search),
+            onPressed: () => setState(() {
+              _itemSearchOpen = !_itemSearchOpen;
+              if (_itemSearchOpen) {
+                _itemSearchFocus.requestFocus();
+              } else {
+                _itemSearch.clear();
+                _itemQuery = '';
+                _itemSearchFocus.unfocus();
+              }
+            }),
+          ),
+        ],
       );
 
   /// Поиск в составе заявки — по названию сырья (и по прежнему, если была замена).
@@ -510,32 +522,22 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 for (final line in r.lines) _buildLineCard(r, line),
                 if (r.massSummary != null) _buildMassSummaryCard(r.massSummary!),
                 const SizedBox(height: 8),
-                if (_itemSearchOpen) ...[
-                  TextField(
-                    controller: _itemSearch,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      hintText: 'Поиск в составе заявки',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      isDense: true,
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      suffixIcon: _itemQuery.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.close, size: 18),
-                              onPressed: () => setState(() {
-                                _itemSearch.clear();
-                                _itemQuery = '';
-                                _itemSearchOpen = false;
-                              }),
-                            ),
+                // Невидимое поле — только чтобы открылась клавиатура (см. _searchToggle).
+                if (_itemSearchOpen)
+                  SizedBox(
+                    height: 1,
+                    child: Opacity(
+                      opacity: 0,
+                      child: TextField(
+                        controller: _itemSearch,
+                        focusNode: _itemSearchFocus,
+                        autofocus: true,
+                        enableInteractiveSelection: false,
+                        decoration: const InputDecoration(border: InputBorder.none, isCollapsed: true),
+                        onChanged: (v) => setState(() => _itemQuery = v.trim().toLowerCase()),
+                      ),
                     ),
-                    onChanged: (v) => setState(() => _itemQuery = v.trim().toLowerCase()),
                   ),
-                  const SizedBox(height: 10),
-                ],
 
                 if (r.status == 'NEW' && _canCollect) ...[
                   ReceiptCard(
@@ -558,6 +560,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                         ),
                       for (int i = 0; i < r.items.length; i++)
                         if (_itemMatches(r.items[i])) ReceiptRow(
+                          highlight: _itemQuery,
                           index: i + 1,
                           name: r.items[i].originalIngredientName == null
                               ? r.items[i].ingredientName
@@ -633,6 +636,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     children: [
                       for (int i = 0; i < r.items.length; i++)
                         if (_itemMatches(r.items[i])) ReceiptRow(
+                          highlight: _itemQuery,
                           index: i + 1,
                           name: r.items[i].originalIngredientName == null
                               ? r.items[i].ingredientName

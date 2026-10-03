@@ -129,11 +129,8 @@ public class StockService {
     @Transactional
     public StockMovement writeOffForProduction(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
         requirePositive(quantity, "списания");
-        if (ingredient.getQuantityInStock().compareTo(quantity) < 0) {
-            throw new IllegalArgumentException("На складе «" + ingredient.getName() + "» меньше ("
-                    + ingredient.getQuantityInStock() + " " + ingredient.getUnit() + "), чем указано для списания ("
-                    + quantity + " " + ingredient.getUnit() + ")");
-        }
+        // Без проверки остатка: сырьё физически выдано, даже если в CRM его числится меньше
+        // (не провели закупку и т.п.) — «Собрано» не блокируется, остаток уходит в минус до сверки.
         ingredient.setQuantityInStock(ingredient.getQuantityInStock().subtract(quantity));
         ingredientRepository.save(ingredient);
         return logMovement(ingredient, null, StockMovementType.WRITE_OFF, quantity, reason, by, false);

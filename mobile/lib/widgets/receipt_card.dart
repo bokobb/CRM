@@ -46,25 +46,34 @@ class ReceiptCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            padding: EdgeInsets.fromLTRB(18, action != null ? 8 : 18, action != null ? 6 : 18, action != null ? 0 : 10),
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                Icon(icon, size: 15, color: _receiptAccent),
-                const SizedBox(width: 6),
-                Text(
-                  title.toUpperCase(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12.5,
-                    letterSpacing: 1.4,
-                    color: _receiptAccent,
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: action != null ? 44 : 0, vertical: action != null ? 10 : 0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, size: 15, color: _receiptAccent),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          title.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                            letterSpacing: 1.4,
+                            color: _receiptAccent,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (action != null) ...[
-                  const SizedBox(width: 4),
-                  action!,
-                ],
+                // Действие (лупа поиска) — у правого края карточки, заголовок остаётся по центру.
+                if (action != null) Align(alignment: Alignment.centerRight, child: action!),
               ],
             ),
           ),
@@ -112,6 +121,9 @@ class ReceiptRow extends StatelessWidget {
   /// участвует в общем onTap строки (переключение чекбокса), т.к. сам ловит нажатие первым.
   final Widget? trailingAction;
 
+  /// Поиск по составу: совпадающие буквы в названии выделяются красным.
+  final String? highlight;
+
   const ReceiptRow({
     super.key,
     required this.index,
@@ -121,7 +133,29 @@ class ReceiptRow extends StatelessWidget {
     this.onCheckboxChanged,
     this.insufficient = false,
     this.trailingAction,
+    this.highlight,
   });
+
+  /// Название с выделенными красным совпадениями поиска (без учёта регистра).
+  List<TextSpan> _nameSpans() {
+    final q = highlight?.trim().toLowerCase() ?? '';
+    if (q.isEmpty) return [TextSpan(text: name)];
+    final lower = name.toLowerCase();
+    final spans = <TextSpan>[];
+    var start = 0;
+    while (true) {
+      final i = lower.indexOf(q, start);
+      if (i < 0) break;
+      if (i > start) spans.add(TextSpan(text: name.substring(start, i)));
+      spans.add(TextSpan(
+        text: name.substring(i, i + q.length),
+        style: const TextStyle(color: Color(0xFFD32F2F), fontWeight: FontWeight.w800, backgroundColor: Color(0x22D32F2F)),
+      ));
+      start = i + q.length;
+    }
+    if (start < name.length) spans.add(TextSpan(text: name.substring(start)));
+    return spans;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,8 +193,8 @@ class ReceiptRow extends StatelessWidget {
           // против 1), чтобы типичные названия вроде "Подсолнечное масло" помещались в одну строку.
           Expanded(
             flex: 3,
-            child: Text(
-              name,
+            child: Text.rich(
+              TextSpan(children: _nameSpans()),
               softWrap: true,
               style: TextStyle(
                 fontFamily: 'monospace',
