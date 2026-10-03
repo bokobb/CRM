@@ -89,9 +89,12 @@ public class ProductionRequest {
     private boolean requisitionCompleted = false;
 
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<ProductionRequestLine> lines = new ArrayList<>();
 
+    /** В порядке добавления — т.е. как в рецептуре (а она — как спецификация в 1С), добавленное позже — в конце. */
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<ProductionRequestItem> items = new ArrayList<>();
 
     /** Бригада — кто работал на заявке в её день (экран «Производство», ProductionBrigadeService). */

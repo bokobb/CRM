@@ -238,8 +238,12 @@ class OneCClient {
                     .body(JsonNode.class);
             JsonNode values = response.path("value");
             for (JsonNode item : values) {
+                // По номеру строки — в том порядке, как сырьё стоит в спецификации 1С.
+                List<JsonNode> rows = new ArrayList<>();
+                item.path("ИсходныеКомплектующие").forEach(rows::add);
+                rows.sort(Comparator.comparingInt(r -> r.path("LineNumber").asInt(0)));
                 List<SpecLine> lines = new ArrayList<>();
-                for (JsonNode line : item.path("ИсходныеКомплектующие")) {
+                for (JsonNode line : rows) {
                     lines.add(new SpecLine(line.path("Номенклатура_Key").asText(""), line.path("Количество").decimalValue()));
                 }
                 specs.add(new Specification(

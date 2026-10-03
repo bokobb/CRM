@@ -160,9 +160,10 @@ public class OneCRecipeImportService {
     /**
      * Множитель для количества и партии рецепта — БД хранит с точностью до 3 знаков после
      * запятой, а у некоторых товаров (после разворачивания вложенной спецификации) самая
-     * мелкая позиция (например, лимонная кислота) может выражаться тысячными долями штуки.
-     * Домножаем партию и все количества на 10/100/1000, чтобы не потерять такие ингредиенты
-     * при округлении — на итоговое соотношение сырьё/продукция (и на списание) это не влияет.
+     * мелкая позиция может оказаться меньше 0,001 и округлилась бы в ноль. Только тогда
+     * домножаем партию и все количества на 10/100/1000. Раньше порог был 0,01 — и рецепт с
+     * лимонной кислотой 0,005 (Рогалик Большой) умножался на 10 без нужды: соотношение то же,
+     * но «замес» в заявке становился в 10 раз больше, чем в 1С.
      */
     private BigDecimal precisionFactor(java.util.Collection<BigDecimal> quantities) {
         BigDecimal minQty = quantities.stream()
@@ -170,7 +171,7 @@ public class OneCRecipeImportService {
                 .min(Comparator.naturalOrder())
                 .orElse(BigDecimal.ONE);
         BigDecimal factor = BigDecimal.ONE;
-        BigDecimal threshold = new BigDecimal("0.01");
+        BigDecimal threshold = new BigDecimal("0.001");
         BigDecimal cap = new BigDecimal("1000");
         while (minQty.multiply(factor).compareTo(threshold) < 0 && factor.compareTo(cap) < 0) {
             factor = factor.multiply(BigDecimal.TEN);

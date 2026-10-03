@@ -32,7 +32,9 @@ public class Recipe {
     @Column(nullable = false, precision = 12, scale = 3)
     private BigDecimal yieldQuantity = BigDecimal.ONE;
 
+    /** В порядке ввода — при импорте из 1С это порядок строк спецификации (удобно складу). */
     @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<RecipeItem> items = new ArrayList<>();
 
     public void addItem(RecipeItem item) {
