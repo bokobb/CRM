@@ -91,7 +91,10 @@ public class OneCOrderImportService {
      * пользователей (см. {@link UserActivityTracker}, {@code crm.onec.idle-skip-minutes}) —
      * запрос к 1С медленный, гонять его без надобности не стоит.
      */
+    // Транзакция здесь, а не только на importAll: вызов изнутри класса идёт мимо прокси, а
+    // сравнение состава с 1С (applyOneCChanges) читает ленивые строки заказа.
     @Scheduled(cron = "${crm.onec.document-import-cron:0 */5 7-18 * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
+    @Transactional
     public void scheduledImport() {
         if (!oneCClient.isConfigured()) {
             return;
