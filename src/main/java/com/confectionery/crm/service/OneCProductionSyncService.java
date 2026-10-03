@@ -5,6 +5,7 @@ import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.ProductionRequest;
 import com.confectionery.crm.domain.ProductionRequestItem;
 import com.confectionery.crm.domain.ProductionRequestLine;
+import com.confectionery.crm.domain.ProductionRequestStatus;
 import com.confectionery.crm.domain.Role;
 import com.confectionery.crm.repository.IngredientRepository;
 import com.confectionery.crm.repository.ProductRepository;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
@@ -80,6 +82,8 @@ public class OneCProductionSyncService {
     private static final DateTimeFormatter ONEC_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final String ZERO_GUID = "00000000-0000-0000-0000-000000000000";
     private static final String UNDEFINED_TYPE = "StandardODATA.Undefined";
+    private static final String REPORT = "Document_ОтчетПроизводстваЗаСмену";
+    private static final String REQUISITION = "Document_ТребованиеНакладная";
 
     private final OneCClient oneCClient;
     private final ProductionRequestRepository requestRepository;
@@ -369,18 +373,8 @@ public class OneCProductionSyncService {
         } else {
             reportRef = request.getOneCReportKey();
             reportNumber = request.getOneCReportNumber();
-            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ОтчетПроизводстваЗаСмену", reportRef))) {
-                // Проведённый отчёт не трогаем, но и синхронизацию из-за него не обрываем (раньше
-                // здесь была ошибка — она заодно оставляла без обновления требование-накладную
-                // ниже). Его состав с этого момента и не может измениться: позиции продукции
-                // после полного оприходования редактировать нельзя (см.
-                // ProductionRequestService.update), а правки сырья едут в требование-накладную.
-                log.info("Заявка №{} — отчёт производства №{} уже проведён в 1С, состав не меняем",
-                        request.getId(), reportNumber);
-            } else {
-                oneCClient.updateDocument("Document_ОтчетПроизводстваЗаСмену", reportRef, reportBody);
-                log.info("Заявка №{} — обновлён состав непроведённого отчёта производства №{} в 1С", request.getId(), reportNumber);
-            }
+            rewrite(request, new Doc(REPORT, reportRef, "отчёт производства №" + reportNumber),
+                    reportBody, "Продукция", productionLines);
         }
 
         List<String> substitutions = new ArrayList<>();
@@ -430,16 +424,70 @@ public class OneCProductionSyncService {
             log.info("Заявка №{} — создана непроведённая требование-накладная №{} в 1С (основание: отчёт №{})",
                     request.getId(), requisition.number(), reportNumber);
         } else {
-            if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_ТребованиеНакладная", request.getOneCRequisitionKey()))) {
-                throw new IllegalStateException("Требование-накладная №" + request.getOneCRequisitionNumber()
-                        + " уже проведена в 1С — корректировку внесите туда вручную");
-            }
-            oneCClient.updateDocument("Document_ТребованиеНакладная", request.getOneCRequisitionKey(), requisitionBody);
+            rewrite(request, new Doc(REQUISITION, request.getOneCRequisitionKey(),
+                    "требование-накладная №" + request.getOneCRequisitionNumber()), requisitionBody, "Материалы", materialLines);
             request.setOneCSyncError(null);
             requestRepository.save(request);
-            log.info("Заявка №{} — обновлён состав непроведённой требование-накладной №{} в 1С",
-                    request.getId(), request.getOneCRequisitionNumber());
         }
+    }
+
+    /**
+     * Перезаписать уже выгруженный документ новым составом. Если документ проведён и в нём уже
+     * то же самое (дата, комментарий, строки) — не трогаем. Иначе проведённый документ сначала
+     * распроводится, перезаписывается и проводится снова — но только если заявка оприходована
+     * полностью (до этого оба документа живут черновиками: отчёт проводится при последнем
+     * оприходовании, требование — «Завершить»). Если записать не удалось — проводим обратно
+     * старую версию, чтобы в 1С не остался распроведённый документ.
+     */
+    private void rewrite(ProductionRequest request, Doc doc, Map<String, Object> body,
+                         String tableName, List<Map<String, Object>> lines) {
+        JsonNode existing = oneCClient.fetchDocument(doc.entitySet(), doc.ref());
+        boolean posted = existing.path("Posted").asBoolean(false);
+        if (posted && sameDocument(existing, body, tableName, lines)) {
+            log.info("Заявка №{} — {} уже проведён(а) в 1С, состав не изменился", request.getId(), doc.what());
+            return;
+        }
+        if (posted) {
+            unpostIfPosted(doc);
+            log.info("Заявка №{} — {} распроведён(а) в 1С для правки", request.getId(), doc.what());
+        }
+        try {
+            oneCClient.updateDocument(doc.entitySet(), doc.ref(), body);
+        } catch (RuntimeException e) {
+            if (posted) {
+                try {
+                    oneCClient.postDocument(doc.entitySet(), doc.ref());
+                } catch (Exception restoreError) {
+                    log.warn("Заявка №{} — {} не удалось провести обратно: {}", request.getId(), doc.what(), restoreError.getMessage());
+                }
+            }
+            throw e;
+        }
+        log.info("Заявка №{} — обновлён состав: {}", request.getId(), doc.what());
+        if (posted && request.getStatus() == ProductionRequestStatus.RECEIVED) {
+            oneCClient.postDocument(doc.entitySet(), doc.ref());
+            log.info("Заявка №{} — {} проведён(а) в 1С заново", request.getId(), doc.what());
+        }
+    }
+
+    /** Дата, комментарий и строки (номенклатура → количество) документа совпадают с тем, что собираемся записать. */
+    private static boolean sameDocument(JsonNode doc, Map<String, Object> body, String tableName,
+                                        List<Map<String, Object>> lines) {
+        if (!doc.path("Date").asText("").equals(body.get("Date"))) return false;
+        if (!doc.path("Комментарий").asText("").equals(String.valueOf(body.get("Комментарий")))) return false;
+        Map<String, BigDecimal> inDoc = new HashMap<>();
+        for (JsonNode line : doc.path(tableName)) {
+            BigDecimal qty = line.path("Количество").isNumber() ? line.path("Количество").decimalValue() : BigDecimal.ZERO;
+            inDoc.merge(line.path("Номенклатура_Key").asText(""), qty, BigDecimal::add);
+        }
+        Map<String, BigDecimal> wanted = new HashMap<>();
+        for (Map<String, Object> line : lines) {
+            Object qty = line.get("Количество");
+            BigDecimal value = qty instanceof BigDecimal b ? b : new BigDecimal(String.valueOf(qty));
+            wanted.merge(String.valueOf(line.get("Номенклатура_Key")), value, BigDecimal::add);
+        }
+        if (!inDoc.keySet().equals(wanted.keySet())) return false;
+        return inDoc.entrySet().stream().allMatch(e -> e.getValue().compareTo(wanted.get(e.getKey())) == 0);
     }
 
     /**

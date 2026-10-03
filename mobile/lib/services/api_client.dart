@@ -26,6 +26,7 @@ import '../models/user.dart';
 import '../models/whatsapp_inbox.dart';
 import '../models/whatsapp_session.dart';
 import '../navigation.dart';
+import 'idempotent_client.dart';
 import 'push_service.dart';
 
 /// По расширению файла — backend принимает только jpeg/png/webp/gif (см. FileStorageService).
@@ -80,6 +81,9 @@ class OneCReceiptResult {
 /// Тонкий HTTP-клиент к REST API кондитерской CRM (см. com.confectionery.crm.api.*
 /// на бэкенде). Базовый URL настраивается в приложении и хранится в SharedPreferences —
 /// по умолчанию подставляется адрес, подходящий для Android-эмулятора/веба.
+/// Общий на всё приложение — помнит ключи запросов, ушедших без ответа (см. IdempotentClient).
+final _http = IdempotentClient();
+
 class ApiClient {
   static const _baseUrlKey = 'api_base_url';
   static const _tokenKey = 'auth_token';
@@ -228,7 +232,7 @@ class ApiClient {
 
   // ---- Auth ----
   Future<AuthSession> login(String username, String password) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'username': username, 'password': password}),
@@ -310,7 +314,7 @@ class ApiClient {
   }
 
   Future<Client> createClient(Map<String, dynamic> body) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/clients'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -319,7 +323,7 @@ class ApiClient {
   }
 
   Future<Client> updateClient(int id, Map<String, dynamic> body) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/clients/$id'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -328,7 +332,7 @@ class ApiClient {
   }
 
   Future<void> deleteClient(int id) async {
-    final res = await http.delete(
+    final res = await _http.delete(
       await _uri('/clients/$id'),
       headers: await _authHeaders(),
     );
@@ -349,7 +353,7 @@ class ApiClient {
     int productId,
     double price,
   ) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/clients/$clientId/prices/$productId'),
       headers: await _authHeaders(),
       body: jsonEncode({'price': price}),
@@ -358,7 +362,7 @@ class ApiClient {
   }
 
   Future<void> deleteClientPrice(int clientId, int productId) async {
-    final res = await http.delete(
+    final res = await _http.delete(
       await _uri('/clients/$clientId/prices/$productId'),
       headers: await _authHeaders(),
     );
@@ -387,7 +391,7 @@ class ApiClient {
   }
 
   Future<Product> createProduct(Map<String, dynamic> body) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/products'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -396,7 +400,7 @@ class ApiClient {
   }
 
   Future<Product> updateProduct(int id, Map<String, dynamic> body) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/products/$id'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -427,7 +431,7 @@ class ApiClient {
   /// Скрыть товар от клиентов / вернуть (только ADMIN) — см. ProductApiController.setClientVisibility.
   /// [until] — по какую дату включительно; null — пока не вернут вручную.
   Future<Product> setProductHiddenFromClients(int id, {required bool hidden, DateTime? until}) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/products/$id/client-visibility'),
       headers: await _authHeaders(),
       body: jsonEncode({'hidden': hidden, 'until': until == null ? null : _isoDate(until)}),
@@ -436,7 +440,7 @@ class ApiClient {
   }
 
   Future<void> deleteProduct(int id) async {
-    final res = await http.delete(
+    final res = await _http.delete(
       await _uri('/products/$id'),
       headers: await _authHeaders(),
     );
@@ -452,7 +456,7 @@ class ApiClient {
   }
 
   Future<Recipe> saveRecipe(int productId, Map<String, dynamic> body) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/products/$productId/recipe'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -492,7 +496,7 @@ class ApiClient {
 
   /// Бригада заявки — полный состав; сотрудник за день может быть только в одной бригаде (иначе 409/400 с текстом).
   Future<ProductionRequestCost> setBrigade(int requestId, List<int> employeeIds) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/production/requests/$requestId/brigade'),
       headers: await _authHeaders(),
       body: jsonEncode({'employeeIds': employeeIds}),
@@ -514,7 +518,7 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> saveTimesheet(String month, List<Map<String, dynamic>> cells) async {
-    final res = await http.put(await _uri('/timesheet', {'month': month}),
+    final res = await _http.put(await _uri('/timesheet', {'month': month}),
         headers: await _authHeaders(), body: jsonEncode({'cells': cells}));
     return _decode(res) as Map<String, dynamic>;
   }
@@ -539,7 +543,7 @@ class ApiClient {
 
   /// Загружает сотрудников из справочника 1С (новые добавляет, существующих обновляет, ставки не трогает).
   Future<({int total, int active, int created, int updated, int matchedByName})> importEmployeesFromOneC() async {
-    final res = await http.post(await _uri('/employees/import-1c'), headers: await _authHeaders());
+    final res = await _http.post(await _uri('/employees/import-1c'), headers: await _authHeaders());
     final json = _decode(res) as Map<String, dynamic>;
     return (
       total: json['total'] as int,
@@ -552,8 +556,8 @@ class ApiClient {
 
   Future<Employee> saveEmployee(int? id, Map<String, dynamic> body) async {
     final res = id == null
-        ? await http.post(await _uri('/employees'), headers: await _authHeaders(), body: jsonEncode(body))
-        : await http.put(await _uri('/employees/$id'), headers: await _authHeaders(), body: jsonEncode(body));
+        ? await _http.post(await _uri('/employees'), headers: await _authHeaders(), body: jsonEncode(body))
+        : await _http.put(await _uri('/employees/$id'), headers: await _authHeaders(), body: jsonEncode(body));
     return Employee.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
@@ -563,7 +567,7 @@ class ApiClient {
   }
 
   Future<TechCard> saveTechCard(int productId, Map<String, dynamic> body) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/tech-cards/$productId'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -589,7 +593,7 @@ class ApiClient {
   }
 
   Future<Ingredient> createIngredient(Map<String, dynamic> body) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/ingredients'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -598,7 +602,7 @@ class ApiClient {
   }
 
   Future<Ingredient> updateIngredient(int id, Map<String, dynamic> body) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/ingredients/$id'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -607,7 +611,7 @@ class ApiClient {
   }
 
   Future<void> deleteIngredient(int id) async {
-    final res = await http.delete(
+    final res = await _http.delete(
       await _uri('/ingredients/$id'),
       headers: await _authHeaders(),
     );
@@ -638,7 +642,7 @@ class ApiClient {
     double quantity,
     String? reason,
   ) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/stock/receipts'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -655,7 +659,7 @@ class ApiClient {
     double quantity,
     String? reason,
   ) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/stock/writeoffs'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -672,7 +676,7 @@ class ApiClient {
     double quantity,
     String? reason,
   ) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/stock/receipts'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -689,7 +693,7 @@ class ApiClient {
     double quantity,
     String? reason,
   ) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/stock/writeoffs'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -704,7 +708,7 @@ class ApiClient {
   /// Удаляет ошибочно созданное ручное поступление/списание — остаток на складе
   /// пересчитывается обратно (см. StockService.deleteMovement на бэкенде).
   Future<void> deleteStockMovement(int id) async {
-    final res = await http.delete(
+    final res = await _http.delete(
       await _uri('/stock/movements/$id'),
       headers: await _authHeaders(),
     );
@@ -714,7 +718,7 @@ class ApiClient {
   /// Ручной запуск синхронизации остатков с 1С (обычно идёт по расписанию каждые 5 минут на
   /// бэкенде) — только для ADMIN, см. OneCStockSyncService/StockMovementApiController.
   Future<({int productsUpdated, int ingredientsUpdated, List<String> unmatched})> syncOneC() async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/stock/sync-1c'),
       headers: await _authHeaders(),
     );
@@ -729,7 +733,7 @@ class ApiClient {
   /// Определяет подразделение (корпус) каждого товара по истории реальных документов в 1С —
   /// НЕ трогает рецепты. Только ADMIN, см. OneCDepartmentImportService/ProductApiController.
   Future<({int updated, int skippedNoHistory, int skippedNoOneCMatch})> importDepartmentsFromOneC() async {
-    final res = await http.post(await _uri('/products/import-departments-1c'), headers: await _authHeaders());
+    final res = await _http.post(await _uri('/products/import-departments-1c'), headers: await _authHeaders());
     final json = _decode(res) as Map<String, dynamic>;
     return (
       updated: json['updated'] as int,
@@ -743,7 +747,7 @@ class ApiClient {
   /// OneCRecipeImportService.importOne/ProductApiController. Бросает ApiException с понятной
   /// причиной, если товар не сопоставлен с 1С по названию или у него там нет спецификации.
   Future<Recipe> importRecipeForProduct(int productId) async {
-    final res = await http.post(await _uri('/products/$productId/import-recipe-1c'), headers: await _authHeaders());
+    final res = await _http.post(await _uri('/products/$productId/import-recipe-1c'), headers: await _authHeaders());
     return Recipe.fromJson(_decode(res));
   }
 
@@ -780,7 +784,7 @@ class ApiClient {
   /// (Product.group) и создаёт отдельную заявку на каждую группу, поэтому в ответ приходит список.
   /// [documentDate] — дата документа для 1С (см. ApiClient._isoDate); не задана — сегодня.
   Future<List<ProductionRequest>> createProductionRequest(List<(int, double)> items, {DateTime? documentDate}) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -794,7 +798,7 @@ class ApiClient {
   /// Редактирование ещё не собранной заявки — позиции и (опционально) дата документа, название
   /// заявки не меняется.
   Future<ProductionRequest> updateProductionRequest(int id, List<(int, double)> items, {DateTime? documentDate}) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/production-requests/$id'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -810,7 +814,7 @@ class ApiClient {
   /// удаление (см. ProductionRequestService.cancel на бэкенде). Раньше откат остатков в любом
   /// статусе был отдельным DELETE-запросом — теперь объединено с отменой. Только ADMIN.
   Future<ProductionRequest> cancelProductionRequest(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$id/cancel'),
       headers: await _authHeaders(),
     );
@@ -828,7 +832,7 @@ class ApiClient {
     int? ingredientId,
     double? quantity,
   }) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$requestId/items/$itemId/substitute'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -844,7 +848,7 @@ class ApiClient {
   /// ProductionRequestService.addItem на бэкенде). Если сырьё уже есть в заявке — сервер просто
   /// увеличит его количество, не создавая вторую строку.
   Future<ProductionRequest> addProductionRequestItem(int requestId, int ingredientId, double quantity) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$requestId/items/add'),
       headers: await _authHeaders(),
       body: jsonEncode({'ingredientId': ingredientId, 'quantity': quantity}),
@@ -854,7 +858,7 @@ class ApiClient {
 
   /// Удаление позиции сырья из заявки (см. ProductionRequestService.removeItem на бэкенде).
   Future<ProductionRequest> deleteProductionRequestItem(int requestId, int itemId) async {
-    final res = await http.delete(
+    final res = await _http.delete(
       await _uri('/production-requests/$requestId/items/$itemId'),
       headers: await _authHeaders(),
     );
@@ -865,7 +869,7 @@ class ApiClient {
   /// создании/редактировании/замене сырья/оприходовании) не сработала (см.
   /// ProductionRequestService.resyncOneC на бэкенде).
   Future<ProductionRequest> syncProductionRequestOneC(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$id/sync-1c'),
       headers: await _authHeaders(),
     );
@@ -877,7 +881,7 @@ class ApiClient {
   /// бэкенде). Отчёт производства эта кнопка не трогает — он проводится сам при полном
   /// оприходовании.
   Future<ProductionRequest> completeProductionRequestOneC(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$id/complete-1c'),
       headers: await _authHeaders(),
     );
@@ -888,7 +892,7 @@ class ApiClient {
   /// править состав сырья (см. ProductionRequestService.cancelCompletion на бэкенде).
   /// Удаление отменённой заявки — документы в 1С помечаются на удаление.
   Future<void> deleteProductionRequest(int id) async {
-    final res = await http.delete(
+    final res = await _http.delete(
       await _uri('/production-requests/$id'),
       headers: await _authHeaders(),
     );
@@ -905,7 +909,7 @@ class ApiClient {
 
   /// «Рассчитались» — разница выдана/возвращена, текущий состав становится выданным.
   Future<ProductionCompositionDiff> settleProductionComposition(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$id/composition-diff/settle'),
       headers: await _authHeaders(),
     );
@@ -913,7 +917,7 @@ class ApiClient {
   }
 
   Future<ProductionRequest> cancelProductionRequestCompletion(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$id/cancel-completion'),
       headers: await _authHeaders(),
     );
@@ -921,7 +925,7 @@ class ApiClient {
   }
 
   Future<ProductionRequest> collectProductionRequest(int id, List<int> itemIds) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$id/collect'),
       headers: await _authHeaders(),
       body: jsonEncode({'itemIds': itemIds}),
@@ -931,8 +935,18 @@ class ApiClient {
 
   /// Оприходовать ОДНУ строку заявки — у каждого товара в заявке свой фактический выход.
   Future<ProductionRequest> receiveProductionRequestLine(int requestId, int lineId, double quantity) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-requests/$requestId/lines/$lineId/receive'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'quantity': quantity}),
+    );
+    return ProductionRequest.fromJson(_decode(res));
+  }
+
+  /// Админ исправляет уже оприходованное количество строки (в 1С отчёт перепроводится).
+  Future<ProductionRequest> changeReceivedQuantity(int requestId, int lineId, double quantity) async {
+    final res = await _http.put(
+      await _uri('/production-requests/$requestId/lines/$lineId/received'),
       headers: await _authHeaders(),
       body: jsonEncode({'quantity': quantity}),
     );
@@ -962,7 +976,7 @@ class ApiClient {
   /// за день (форма "Поступления", без учёта заявок на производство — те выгружаются сами)
   /// в один документ и сразу проводит его на 06:00.
   Future<OneCReceiptResult> postDailyReceiptsOneC({DateTime? date}) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/stock/receipts/post-1c', date != null ? {'date': _isoDate(date)} : null),
       headers: await _authHeaders(),
     );
@@ -1000,7 +1014,7 @@ class ApiClient {
   /// CounterpartyService.create), поэтому результат может прийти с oneCLinked=false/oneCSyncError
   /// заполненным, если 1С недоступна — сам контрагент при этом уже создан в CRM.
   Future<Counterparty> createCounterparty(String name) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/counterparties'),
       headers: await _authHeaders(),
       body: jsonEncode({'name': name}),
@@ -1024,7 +1038,7 @@ class ApiClient {
     required List<(int, double, double?)> items,
     DateTime? purchaseDate,
   }) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/purchases'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -1046,7 +1060,7 @@ class ApiClient {
     required List<(int, double, double?)> items,
     DateTime? purchaseDate,
   }) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/purchases/$id'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -1061,7 +1075,7 @@ class ApiClient {
   /// Повторная ручная синхронизация закупки с 1С — на случай, если автоматическая (сразу
   /// при создании) не сработала (см. PurchaseService.resyncOneC на бэкенде).
   Future<Purchase> syncPurchaseOneC(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/purchases/$id/sync-1c'),
       headers: await _authHeaders(),
     );
@@ -1125,7 +1139,7 @@ class ApiClient {
     String? reason,
     int? orderId,
   }) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/returns'),
       headers: await _authHeaders(),
       body: _returnBody(clientId, items, returnDate, reason, orderId),
@@ -1141,7 +1155,7 @@ class ApiClient {
     DateTime? returnDate,
     String? reason,
   }) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/returns/$id'),
       headers: await _authHeaders(),
       body: _returnBody(clientId, items, returnDate, reason),
@@ -1151,23 +1165,23 @@ class ApiClient {
 
   /// Удаление — сервер сначала распроводит документ в 1С и помечает его на удаление.
   Future<void> deleteReturn(int id) async {
-    final res = await http.delete(await _uri('/returns/$id'), headers: await _authHeaders());
+    final res = await _http.delete(await _uri('/returns/$id'), headers: await _authHeaders());
     _decode(res);
   }
 
   Future<ProductReturn> attachReturn(int returnId, int orderId) async {
-    final res = await http.put(await _uri('/returns/$returnId/order/$orderId'), headers: await _authHeaders());
+    final res = await _http.put(await _uri('/returns/$returnId/order/$orderId'), headers: await _authHeaders());
     return ProductReturn.fromJson(_decode(res));
   }
 
   Future<ProductReturn> detachReturn(int returnId) async {
-    final res = await http.delete(await _uri('/returns/$returnId/order'), headers: await _authHeaders());
+    final res = await _http.delete(await _uri('/returns/$returnId/order'), headers: await _authHeaders());
     return ProductReturn.fromJson(_decode(res));
   }
 
   /// Повторная выгрузка возврата в 1С — если автоматическая при создании не прошла.
   Future<ProductReturn> syncReturnOneC(int id) async {
-    final res = await http.post(await _uri('/returns/$id/sync-1c'), headers: await _authHeaders());
+    final res = await _http.post(await _uri('/returns/$id/sync-1c'), headers: await _authHeaders());
     return ProductReturn.fromJson(_decode(res));
   }
 
@@ -1249,7 +1263,7 @@ class ApiClient {
   }
 
   Future<Order> createOrder(Map<String, dynamic> body) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/orders'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -1258,7 +1272,7 @@ class ApiClient {
   }
 
   Future<Order> confirmOrder(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/orders/$id/confirm'),
       headers: await _authHeaders(),
     );
@@ -1268,7 +1282,7 @@ class ApiClient {
   /// Вернуть заказ READY -> NEW ("В процессе сборки"), чтобы редактировать состав тем же
   /// чек-листом, что и при первичной сборке (см. OrderService.reopenForEditing на бэкенде).
   Future<Order> reopenOrder(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/orders/$id/reopen'),
       headers: await _authHeaders(),
     );
@@ -1276,7 +1290,7 @@ class ApiClient {
   }
 
   Future<Order> cancelOrder(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/orders/$id/cancel'),
       headers: await _authHeaders(),
     );
@@ -1285,7 +1299,7 @@ class ApiClient {
 
   /// Удаление отменённого заказа — документ в 1С помечается на удаление.
   Future<void> deleteOrder(int id) async {
-    final res = await http.delete(
+    final res = await _http.delete(
       await _uri('/orders/$id'),
       headers: await _authHeaders(),
     );
@@ -1293,7 +1307,7 @@ class ApiClient {
   }
 
   Future<Order> shipOrder(int id, String vehicleNumber) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/orders/$id/ship'),
       headers: await _authHeaders(),
       body: jsonEncode({'vehicleNumber': vehicleNumber}),
@@ -1302,7 +1316,7 @@ class ApiClient {
   }
 
   Future<Order> completeOrder(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/orders/$id/complete'),
       headers: await _authHeaders(),
     );
@@ -1318,7 +1332,7 @@ class ApiClient {
   }
 
   Future<Order> setOrderDebt(int id, DateTime dueDate) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/orders/$id/debt'),
       headers: await _authHeaders(),
       body: jsonEncode({'dueDate': _isoDate(dueDate)}),
@@ -1327,7 +1341,7 @@ class ApiClient {
   }
 
   Future<Order> markOrderDebtPaid(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/orders/$id/debt/paid'),
       headers: await _authHeaders(),
     );
@@ -1344,7 +1358,7 @@ class ApiClient {
     Map<int, int>? productIdByItemId,
     List<(int, double)>? newItems,
   }) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/orders/$id/items'),
       headers: await _authHeaders(),
       body: jsonEncode({
@@ -1381,7 +1395,7 @@ class ApiClient {
   /// [resolutions]: id позиции -> id выбранного товара, только для нераспознанных позиций.
   Future<void> resolveWhatsAppInbox(int messageId, Map<int, int> resolutions) async {
     final body = resolutions.map((itemId, productId) => MapEntry(itemId.toString(), productId));
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/whatsapp-inbox/$messageId/resolve'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -1390,7 +1404,7 @@ class ApiClient {
   }
 
   Future<void> ignoreWhatsAppInbox(int messageId) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/whatsapp-inbox/$messageId/ignore'),
       headers: await _authHeaders(),
     );
@@ -1420,7 +1434,7 @@ class ApiClient {
   }
 
   Future<void> logoutWhatsAppSession() async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/whatsapp/session/logout'),
       headers: await _authHeaders(),
     );
@@ -1442,7 +1456,7 @@ class ApiClient {
   }
 
   Future<ProductionTask> startTask(int id, {String? assignedTo}) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri(
         '/production-tasks/$id/start',
         assignedTo != null && assignedTo.isNotEmpty
@@ -1455,7 +1469,7 @@ class ApiClient {
   }
 
   Future<ProductionTask> completeTask(int id) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/production-tasks/$id/complete'),
       headers: await _authHeaders(),
     );
@@ -1501,7 +1515,7 @@ class ApiClient {
   }
 
   Future<CompanyProfile> updateCompanyProfile(CompanyProfile profile) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/company-profile'),
       headers: await _authHeaders(),
       body: jsonEncode(profile.toJson()),
@@ -1527,7 +1541,7 @@ class ApiClient {
   }
 
   Future<AppUser> createUser(Map<String, dynamic> body) async {
-    final res = await http.post(
+    final res = await _http.post(
       await _uri('/users'),
       headers: await _authHeaders(),
       body: jsonEncode(body),
@@ -1536,7 +1550,7 @@ class ApiClient {
   }
 
   Future<AppUser> updateUser(int id, Map<String, dynamic> body) async {
-    final res = await http.put(
+    final res = await _http.put(
       await _uri('/users/$id'),
       headers: await _authHeaders(),
       body: jsonEncode(body),

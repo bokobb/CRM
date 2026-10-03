@@ -10,7 +10,6 @@ import '../widgets/format.dart';
 import '../widgets/pick_from_list.dart';
 import '../widgets/product_avatar.dart';
 import '../widgets/success_feedback.dart';
-import 'product_quantity_screen.dart';
 
 class _OrderItemRow {
   Product? product;
@@ -106,9 +105,9 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
     }
   }
 
-  /// Открывает полноэкранный выбор товара с картинкой и степпером количества.
-  /// Если [row] уже содержит товар — редактирует его количество на месте (или
-  /// добавляет новую строку выбранным товаром, если [row] пустая/не задана).
+  /// Выбор товара из списка (поиск по названию) и сразу ввод количества — без отдельной
+  /// карточки товара с картинкой. Если [row] уже содержит товар — меняет его количество
+  /// (0 — убрать позицию), иначе добавляет новую строку выбранным товаром.
   Future<void> _openProductScreen(List<Product> products, {_OrderItemRow? row}) async {
     Product? product = row?.product;
     if (product == null) {
@@ -123,16 +122,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
       if (product == null || !mounted) return;
     }
     final isEditing = row?.product != null;
-    final result = await Navigator.of(context).push<double>(
-      MaterialPageRoute(
-        builder: (context) => ProductQuantityScreen(
-          product: product!,
-          unitPrice: _priceFor(product),
-          initialQuantity: row != null ? _qtyOf(row) : 1,
-          isEditing: isEditing,
-        ),
-      ),
-    );
+    final result = await _askQuantity(product, isEditing ? _qtyOf(row!) : null);
     if (result == null || !mounted) return;
     setState(() {
       if (result <= 0) {
@@ -148,6 +138,43 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
       target.quantity.text = formatQty(result);
       if (row == null) _rows.add(target);
     });
+  }
+
+  Future<double?> _askQuantity(Product product, double? current) async {
+    final controller = TextEditingController(text: current != null ? formatQty(current) : '');
+    final unit = product.unit ?? 'шт';
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(product.name),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Количество, $unit',
+            helperText: '${formatMoney(_priceFor(product))} за $unit',
+          ),
+          onSubmitted: (v) => Navigator.pop(context, v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: Text(current != null ? 'Сохранить' : 'Добавить'),
+          ),
+        ],
+      ),
+    );
+    if (value == null) return null;
+    final qty = double.tryParse(value.trim().replaceAll(',', '.'));
+    if (qty == null || qty < 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите корректное количество')));
+      }
+      return null;
+    }
+    return qty;
   }
 
   void _changeQty(_OrderItemRow row, double delta, double step) {

@@ -92,11 +92,21 @@ public class OneCOrderSyncService {
      */
     @Transactional
     public void trySyncOrder(Order order) {
+        trySyncOrder(order, false);
+    }
+
+    /**
+     * {@code repost} — правка состава в CRM (см. OrderService.updateItems): если документ уже
+     * проведён, он распроводится, перезаписывается новым составом и проводится снова — чтобы
+     * проводки в 1С не разошлись с CRM. Без флага проведённый документ не трогаем (ошибка).
+     */
+    @Transactional
+    public void trySyncOrder(Order order, boolean repost) {
         if (!oneCClient.isConfigured()) {
             return;
         }
         try {
-            sync(order);
+            sync(order, repost);
         } catch (Exception e) {
             log.warn("Не удалось выгрузить заказ №{} в 1С: {}", order.getId(), e.getMessage());
             order.setOneCSyncError(truncate(e.getMessage()));
@@ -175,7 +185,7 @@ public class OneCOrderSyncService {
         if (!oneCClient.isConfigured()) return;
         for (Order order : orderRepository.findImportedWithSyncError(LocalDateTime.now().minusDays(3))) {
             try {
-                syncImported(order);
+                syncImported(order, false);
             } catch (Exception e) {
                 order.setOneCSyncError(truncate(e.getMessage()));
                 orderRepository.save(order);
@@ -190,7 +200,7 @@ public class OneCOrderSyncService {
      * целиком, как созданный CRM, и 1cFresh отвечала «405 Not Allowed» — «Отгрузил» не проводил
      * документ.
      */
-    private void syncImported(Order order) {
+    private void syncImported(Order order, boolean repost) {
         String ref = order.getOneCDocumentKey();
         JsonNode doc = oneCClient.fetchDocument(SALE, ref);
         boolean posted = doc.path("Posted").asBoolean(false);
@@ -199,6 +209,11 @@ public class OneCOrderSyncService {
             docLines.putIfAbsent(line.path("Номенклатура_Key").asText(""), line);
         }
         boolean same = sameComposition(order, doc.path("Товары"));
+        boolean wasPosted = posted;
+        if (posted && !same && repost) {
+            unpostIfPosted(ref);
+            posted = false;
+        }
         if (posted) {
             if (same) {
                 order.setOneCSyncError(null);
@@ -243,14 +258,20 @@ public class OneCOrderSyncService {
                 lines.add(line);
             }
             if (!unresolved.isEmpty()) {
+                if (wasPosted) restorePosting(ref);
                 throw new IllegalStateException("Не найдено в 1С по названию: " + String.join(", ", unresolved));
             }
-            oneCClient.updateDocument(SALE, ref, Map.of("Товары", lines));
+            try {
+                oneCClient.updateDocument(SALE, ref, Map.of("Товары", lines));
+            } catch (RuntimeException e) {
+                if (wasPosted) restorePosting(ref);
+                throw e;
+            }
             log.info("Заказ №{} (из 1С) — обновлены строки документа №{}", order.getId(), order.getOneCDocumentNumber());
         }
         order.setOneCSyncError(null);
         orderRepository.save(order);
-        if (order.getShippedAt() != null) {
+        if (order.getShippedAt() != null || wasPosted) {
             oneCClient.postDocument(SALE, ref);
             log.info("Заказ №{} (из 1С) — документ №{} проведён в 1С", order.getId(), order.getOneCDocumentNumber());
         }
@@ -289,9 +310,18 @@ public class OneCOrderSyncService {
         return s == null || s.length() <= 480 ? s : s.substring(0, 480) + "…";
     }
 
-    private void sync(Order order) {
+    /** Документ был проведён, правку записать не удалось — проводим старую версию обратно. */
+    private void restorePosting(String ref) {
+        try {
+            oneCClient.postDocument(SALE, ref);
+        } catch (Exception e) {
+            log.warn("Документ {} не удалось провести обратно после неудачной правки: {}", ref, e.getMessage());
+        }
+    }
+
+    private void sync(Order order, boolean repost) {
         if (order.isImportedFromOneC() && order.getOneCDocumentKey() != null) {
-            syncImported(order);
+            syncImported(order, repost);
             return;
         }
         Client client = order.getClient();
@@ -372,7 +402,8 @@ public class OneCOrderSyncService {
             return;
         }
 
-        if (Boolean.TRUE.equals(oneCClient.fetchPosted("Document_РеализацияТоваровУслуг", order.getOneCDocumentKey()))) {
+        boolean wasPosted = Boolean.TRUE.equals(oneCClient.fetchPosted(SALE, order.getOneCDocumentKey()));
+        if (wasPosted && !repost) {
             String message = "Документ №" + order.getOneCDocumentNumber()
                     + " уже проведён в 1С — новый состав внесите туда вручную";
             order.setOneCSyncError(message);
@@ -380,12 +411,25 @@ public class OneCOrderSyncService {
             notifyAdmin(order, message);
             return;
         }
+        if (wasPosted) {
+            // Правка проведённого документа: сначала снять проведение, иначе 1С разойдётся с CRM.
+            unpostIfPosted(order.getOneCDocumentKey());
+            log.info("Заказ №{} — документ №{} в 1С распроведён для правки", order.getId(), order.getOneCDocumentNumber());
+        }
 
-        oneCClient.updateDraftSale(order.getOneCDocumentKey(), body);
+        try {
+            oneCClient.updateDraftSale(order.getOneCDocumentKey(), body);
+        } catch (RuntimeException e) {
+            if (wasPosted) restorePosting(order.getOneCDocumentKey());
+            throw e;
+        }
         order.setOneCSyncError(null);
         orderRepository.save(order);
-        log.info("Заказ №{} — обновлён состав непроведённого документа №{} в 1С",
-                order.getId(), order.getOneCDocumentNumber());
+        log.info("Заказ №{} — обновлён состав документа №{} в 1С", order.getId(), order.getOneCDocumentNumber());
+        if (wasPosted && order.getShippedAt() == null) {
+            postAgain(order);
+            return;
+        }
         postIfShipped(order);
     }
 
@@ -404,6 +448,11 @@ public class OneCOrderSyncService {
         if (order.getShippedAt() == null) {
             return;
         }
+        postAgain(order);
+    }
+
+    /** Провести документ; неудача — в oneCSyncError и уведомлением админу, без исключения. */
+    private void postAgain(Order order) {
         try {
             oneCClient.postDocument("Document_РеализацияТоваровУслуг", order.getOneCDocumentKey());
             order.setOneCSyncError(null);

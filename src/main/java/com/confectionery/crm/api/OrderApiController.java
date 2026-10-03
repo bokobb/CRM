@@ -120,8 +120,10 @@ public class OrderApiController {
 
     @PutMapping("/{id}/items")
     @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','ACCOUNTANT')")
-    public OrderDto updateItems(@PathVariable Long id, @Valid @RequestBody OrderItemUpdateRequest req) {
-        return OrderDto.from(orderService.updateItems(id, req.items()));
+    public OrderDto updateItems(@PathVariable Long id, @Valid @RequestBody OrderItemUpdateRequest req,
+                                Authentication authentication) {
+        boolean admin = authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        return OrderDto.from(orderService.updateItems(id, req.items(), admin));
     }
 
     @PostMapping("/{id}/ship")

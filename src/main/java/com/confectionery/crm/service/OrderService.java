@@ -16,7 +16,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Управляет жизненным циклом дистрибьюторского заказа (= накладной): цена каждой позиции
@@ -171,11 +175,26 @@ public class OrderService {
      */
     @Transactional
     public Order updateItems(Long orderId, List<OrderItemUpdateRequest.ItemUpdate> updates) {
+        return updateItems(orderId, updates, false);
+    }
+
+    /**
+     * {@code admin} — админ может менять состав и отгруженного/завершённого заказа: остаток
+     * склада ГП поправляется на разницу (если отгрузка списывала его через CRM, см. ship), а
+     * проведённая "Реализация" в 1С сначала распроводится, обновляется и проводится заново (см.
+     * OneCOrderSyncService.trySyncOrder с repost).
+     */
+    @Transactional
+    public Order updateItems(Long orderId, List<OrderItemUpdateRequest.ItemUpdate> updates, boolean admin) {
         Order order = findById(orderId);
-        if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED
-                || order.getStatus() == OrderStatus.CANCELLED) {
+        boolean shipped = order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED;
+        if (order.getStatus() == OrderStatus.CANCELLED || (shipped && !admin)) {
             throw new IllegalStateException("Состав заказа в этом статусе изменить нельзя");
         }
+        // Отгрузка через CRM уже списала товар со склада (см. ship) — правка состава после неё
+        // двигает остаток на разницу. Импортированные из 1С отгрузки остаток в CRM не трогали.
+        boolean stockWrittenOff = shipped && order.getVehicleNumber() != null;
+        Map<Product, BigDecimal> before = stockWrittenOff ? quantitiesByProduct(order) : Map.of();
         for (OrderItemUpdateRequest.ItemUpdate update : updates) {
             if (update.itemId() == null) {
                 if (update.productId() == null || update.quantity().signum() <= 0) {
@@ -207,9 +226,30 @@ public class OrderService {
         if (order.getItems().isEmpty()) {
             throw new IllegalArgumentException("В заказе должна остаться хотя бы одна позиция");
         }
+        if (stockWrittenOff) {
+            Map<Product, BigDecimal> after = quantitiesByProduct(order);
+            Set<Product> products = new LinkedHashSet<>(before.keySet());
+            products.addAll(after.keySet());
+            for (Product product : products) {
+                BigDecimal diff = after.getOrDefault(product, BigDecimal.ZERO)
+                        .subtract(before.getOrDefault(product, BigDecimal.ZERO));
+                if (diff.signum() != 0) {
+                    product.setQuantityInStock(product.getQuantityInStock().subtract(diff));
+                    productRepository.save(product);
+                }
+            }
+        }
         order = orderRepository.save(order);
-        oneCOrderSyncService.trySyncOrder(order);
+        oneCOrderSyncService.trySyncOrder(order, true);
         return order;
+    }
+
+    private static Map<Product, BigDecimal> quantitiesByProduct(Order order) {
+        Map<Product, BigDecimal> result = new LinkedHashMap<>();
+        for (OrderItem item : order.getItems()) {
+            result.merge(item.getProduct(), item.getQuantity(), BigDecimal::add);
+        }
+        return result;
     }
 
     /**

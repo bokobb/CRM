@@ -36,6 +36,9 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   bool get _canCollect => _role == 'ADMIN' || _role == 'WAREHOUSE_RAW';
   bool get _canReceive => _role == 'ADMIN' || _role == 'WAREHOUSE_FG';
   bool get _canEdit => _role == 'ADMIN' || _role == 'ACCOUNTANT';
+  // Админ правит заявку в любом статусе, кроме отменённой, — и после оприходования, и после
+  // «Завершить»: документы в 1С сервер сам распроводит, перезаписывает и проводит снова.
+  bool get _isAdmin => _role == 'ADMIN';
   // "Завершить" (провести требование-накладную) — не ACCOUNTANT, а WAREHOUSE_RAW: именно зав.
   // склада сырья видит, что после готовки осталось лишнее сырьё, корректирует состав и завершает.
   bool get _canComplete => _role == 'ADMIN' || _role == 'ACCOUNTANT' || _role == 'WAREHOUSE_RAW';
@@ -167,6 +170,44 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
       await _refresh();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  /// Админ исправляет уже оприходованное количество — склад ГП двигается на разницу, отчёт
+  /// производства в 1С сервер распроводит, перезаписывает и проводит снова.
+  Future<void> _changeReceived(ProductionRequestLine line) async {
+    final unit = line.productUnit ?? 'шт';
+    final controller = TextEditingController(text: formatQty(line.receivedQuantity!));
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Оприходовано «${line.productName}»'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'Факт, $unit'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final qty = double.tryParse(controller.text.replaceAll(',', '.'));
+    if (qty == null || qty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите корректное количество')));
+      return;
+    }
+    setState(() => _actionInProgressLine = line.id);
+    try {
+      await _api.changeReceivedQuantity(widget.requestId, line.id, qty);
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _actionInProgressLine = null);
     }
   }
 
@@ -480,7 +521,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                           // ADMIN и WAREHOUSE_RAW могут поправить состав сырья в любом статусе,
                           // кроме отменённой и завершённой заявки — во время производства может
                           // понадобиться больше исходного (см. ProductionRequestService.substituteItem).
-                          trailingAction: _canCollect && r.status != 'CANCELLED' && !r.requisitionCompleted
+                          trailingAction: _canCollect && r.status != 'CANCELLED' && (!r.requisitionCompleted || _isAdmin)
                               ? Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -507,7 +548,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     ),
                   ),
                 ],
-                if (r.status != 'CANCELLED' && !r.requisitionCompleted && _canCollect) ...[
+                if (r.status != 'CANCELLED' && (!r.requisitionCompleted || _isAdmin) && _canCollect) ...[
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
@@ -521,9 +562,10 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 // Позиции продукции правятся и после «Собрано» — пока ни одна строка не
                 // оприходована (те же условия, что на бэкенде в ProductionRequestService.update
                 // и в вебе, см. ProductionRequestController.canEditLines).
-                if (_canEdit &&
-                    (r.status == 'NEW' ||
-                        (r.status == 'COLLECTED' && !r.lines.any((l) => l.isReceived)))) ...[
+                if ((_isAdmin && r.status != 'CANCELLED') ||
+                    (_canEdit &&
+                        (r.status == 'NEW' ||
+                            (r.status == 'COLLECTED' && !r.lines.any((l) => l.isReceived))))) ...[
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -681,10 +723,23 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
             ),
             if (line.isReceived) ...[
               const SizedBox(height: 6),
-              Text(
-                'Оприходовано ${formatQty(line.receivedQuantity!)} $unit — ${line.receivedBy} · '
-                '${formatDateTime(line.receivedAt!)}',
-                style: const TextStyle(color: Color(0xFF4C8A5E), fontWeight: FontWeight.w600, fontSize: 12.5),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Оприходовано ${formatQty(line.receivedQuantity!)} $unit — ${line.receivedBy} · '
+                      '${formatDateTime(line.receivedAt!)}',
+                      style: const TextStyle(color: Color(0xFF4C8A5E), fontWeight: FontWeight.w600, fontSize: 12.5),
+                    ),
+                  ),
+                  if (_isAdmin && r.status != 'CANCELLED')
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      tooltip: 'Исправить оприходованное',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _actionInProgressLine != null ? null : () => _changeReceived(line),
+                    ),
+                ],
               ),
               if (line.insufficient)
                 Padding(

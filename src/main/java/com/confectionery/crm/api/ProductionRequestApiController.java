@@ -65,7 +65,7 @@ public class ProductionRequestApiController {
         List<ProductionRequestService.Line> lines = req.items().stream()
                 .map(i -> new ProductionRequestService.Line(i.productId(), i.batches()))
                 .toList();
-        return toDto(requestService.update(id, lines, authentication.getName(), req.documentDate()));
+        return toDto(requestService.update(id, lines, authentication.getName(), req.documentDate(), isAdmin(authentication)));
     }
 
     /**
@@ -94,7 +94,8 @@ public class ProductionRequestApiController {
                                                 @Valid @RequestBody ProductionRequestSubstituteRequest req,
                                                 Authentication authentication) {
         return toDto(
-                requestService.substituteItem(id, itemId, req.ingredientId(), req.quantity(), authentication.getName()));
+                requestService.substituteItem(id, itemId, req.ingredientId(), req.quantity(), authentication.getName(),
+                        isAdmin(authentication)));
     }
 
     /** Добавление совсем новой позиции сырья, которой не было в заявке (см. ProductionRequestService.addItem). */
@@ -103,14 +104,14 @@ public class ProductionRequestApiController {
     public ProductionRequestDto addItem(@PathVariable Long id, @Valid @RequestBody ProductionRequestAddItemRequest req,
                                          Authentication authentication) {
         return toDto(
-                requestService.addItem(id, req.ingredientId(), req.quantity(), authentication.getName()));
+                requestService.addItem(id, req.ingredientId(), req.quantity(), authentication.getName(), isAdmin(authentication)));
     }
 
     /** Удаление позиции сырья из заявки (см. ProductionRequestService.removeItem). */
     @DeleteMapping("/{id}/items/{itemId}")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_RAW')")
     public ProductionRequestDto removeItem(@PathVariable Long id, @PathVariable Long itemId, Authentication authentication) {
-        return toDto(requestService.removeItem(id, itemId, authentication.getName()));
+        return toDto(requestService.removeItem(id, itemId, authentication.getName(), isAdmin(authentication)));
     }
 
     @PostMapping("/{id}/collect")
@@ -127,6 +128,19 @@ public class ProductionRequestApiController {
                                              @Valid @RequestBody ProductionRequestReceiveRequest req,
                                              Authentication authentication) {
         return toDto(requestService.receiveLine(id, lineId, req.quantity(), authentication.getName()));
+    }
+
+    /** Админ исправляет уже оприходованное количество (см. ProductionRequestService.changeReceived). */
+    @PutMapping("/{id}/lines/{lineId}/received")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ProductionRequestDto changeReceived(@PathVariable Long id, @PathVariable Long lineId,
+                                               @Valid @RequestBody ProductionRequestReceiveRequest req,
+                                               Authentication authentication) {
+        return toDto(requestService.changeReceived(id, lineId, req.quantity(), authentication.getName()));
+    }
+
+    private static boolean isAdmin(Authentication authentication) {
+        return authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
     /** Повторная ручная выгрузка в 1С — см. ProductionRequestService.resyncOneC. */

@@ -329,18 +329,40 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest update(Long requestId, List<Line> lines, String updatedBy, LocalDate documentDate) {
+        return update(requestId, lines, updatedBy, documentDate, false);
+    }
+
+    /**
+     * {@code admin} — админ правит позиции в любом статусе, кроме отменённой, в т.ч. после
+     * оприходования и «Завершить»: оприходованный факт переносится на строку с тем же товаром,
+     * а за убранный из заявки оприходованный товар остаток склада ГП уменьшается обратно.
+     * Документы 1С при этом распроводятся, перезаписываются и проводятся снова (см.
+     * OneCProductionSyncService.rewrite).
+     */
+    @Transactional
+    public ProductionRequest update(Long requestId, List<Line> lines, String updatedBy, LocalDate documentDate,
+                                    boolean admin) {
         ProductionRequest request = findForUpdate(requestId);
-        if (request.getStatus() == ProductionRequestStatus.CANCELLED
-                || request.getStatus() == ProductionRequestStatus.RECEIVED) {
-            throw new IllegalStateException("Редактировать позиции можно только до полного оприходования заявки");
+        if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
+            throw new IllegalStateException("Отменённую заявку редактировать нельзя");
         }
-        if (request.isRequisitionCompleted()) {
-            throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
+        if (!admin) {
+            if (request.getStatus() == ProductionRequestStatus.RECEIVED) {
+                throw new IllegalStateException("Редактировать позиции можно только до полного оприходования заявки");
+            }
+            if (request.isRequisitionCompleted()) {
+                throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
+            }
+            if (request.getLines().stream().anyMatch(ProductionRequestLine::isReceived)) {
+                throw new IllegalStateException("Нельзя менять позиции — по заявке уже есть оприходованная продукция");
+            }
         }
-        boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED;
-        if (stockAlreadyWrittenOff && request.getLines().stream().anyMatch(ProductionRequestLine::isReceived)) {
-            throw new IllegalStateException("Нельзя менять позиции — по заявке уже есть оприходованная продукция");
-        }
+        boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
+                || request.getStatus() == ProductionRequestStatus.RECEIVED;
+        List<ReceivedFact> receivedBefore = request.getLines().stream()
+                .filter(ProductionRequestLine::isReceived)
+                .map(l -> new ReceivedFact(l.getProduct(), l.getReceivedQuantity(), l.getReceivedBy(), l.getReceivedAt()))
+                .collect(Collectors.toCollection(ArrayList::new));
         if (documentDate != null) {
             // Бригада привязана к дню: на другой день те же люди могут быть заняты в других
             // бригадах — сбрасываем, технолог распределит заново.
@@ -368,6 +390,9 @@ public class ProductionRequestService {
         // Название = группа товара, как при создании (см. createGrouped) — иначе после замены
         // товара на товар другой группы заявка так и называлась бы по старой группе.
         request.setTitle(titleFor(lines));
+        if (!receivedBefore.isEmpty()) {
+            carryOverReceived(request, receivedBefore, updatedBy);
+        }
 
         if (stockAlreadyWrittenOff) {
             Map<Long, BigDecimal> newRequirements = new LinkedHashMap<>();
@@ -395,6 +420,71 @@ public class ProductionRequestService {
                     .collect(Collectors.joining(", ")), false);
         }
 
+        oneCProductionSyncService.trySyncRequest(request);
+        return request;
+    }
+
+    private record ReceivedFact(Product product, BigDecimal quantity, String by, LocalDateTime at) {
+    }
+
+    /**
+     * После админской правки позиций: оприходованный факт остаётся у строки с тем же товаром;
+     * если такого товара в заявке больше нет — оприходованное снимается со склада ГП. Статус —
+     * «Оприходовано», если оприходованы все строки, иначе снова «Собрано» (новую строку нужно
+     * оприходовать; «Завершить» тогда тоже снимается — его нажмут после оприходования).
+     */
+    private void carryOverReceived(ProductionRequest request, List<ReceivedFact> receivedBefore, String by) {
+        for (ProductionRequestLine line : request.getLines()) {
+            for (var it = receivedBefore.iterator(); it.hasNext(); ) {
+                ReceivedFact fact = it.next();
+                if (fact.product().getId().equals(line.getProduct().getId())) {
+                    line.setReceivedQuantity(fact.quantity());
+                    line.setReceivedBy(fact.by());
+                    line.setReceivedAt(fact.at());
+                    it.remove();
+                    break;
+                }
+            }
+        }
+        String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — товар убран из заявки";
+        for (ReceivedFact removed : receivedBefore) {
+            stockService.revertProductForProduction(removed.product(), removed.quantity(), reason, by);
+        }
+        boolean allReceived = request.getLines().stream().allMatch(ProductionRequestLine::isReceived);
+        request.setStatus(allReceived ? ProductionRequestStatus.RECEIVED : ProductionRequestStatus.COLLECTED);
+        if (!allReceived) {
+            request.setRequisitionCompleted(false);
+        }
+    }
+
+    /**
+     * Админ исправляет уже оприходованное количество строки (в т.ч. после «Завершить»): остаток
+     * склада ГП двигается на разницу, отчёт производства в 1С распроводится, перезаписывается и
+     * проводится снова.
+     */
+    @Transactional
+    public ProductionRequest changeReceived(Long requestId, Long lineId, BigDecimal quantity, String by) {
+        ProductionRequest request = findForUpdate(requestId);
+        if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
+            throw new IllegalStateException("Отменённую заявку редактировать нельзя");
+        }
+        if (quantity == null || quantity.signum() <= 0) {
+            throw new IllegalArgumentException("Количество должно быть больше нуля");
+        }
+        ProductionRequestLine line = request.getLines().stream()
+                .filter(l -> l.getId().equals(lineId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Позиция заявки не найдена: " + lineId));
+        if (!line.isReceived()) {
+            throw new IllegalStateException("Эта позиция ещё не оприходована");
+        }
+        BigDecimal diff = quantity.subtract(line.getReceivedQuantity());
+        String reason = "Заявка №" + request.getId() + " «" + request.getTitle() + "» — исправлено оприходование";
+        if (diff.signum() > 0) {
+            stockService.receiveProductForProduction(line.getProduct(), diff, reason, by);
+        } else if (diff.signum() < 0) {
+            stockService.revertProductForProduction(line.getProduct(), diff.negate(), reason, by);
+        }
+        line.setReceivedQuantity(quantity);
         oneCProductionSyncService.trySyncRequest(request);
         return request;
     }
@@ -531,11 +621,18 @@ public class ProductionRequestService {
     @Transactional
     public ProductionRequest substituteItem(Long requestId, Long itemId, Long newIngredientId,
                                              BigDecimal newQuantity, String by) {
+        return substituteItem(requestId, itemId, newIngredientId, newQuantity, by, false);
+    }
+
+    /** {@code admin} — можно и после «Завершить»: требование-накладная в 1С перепроводится. */
+    @Transactional
+    public ProductionRequest substituteItem(Long requestId, Long itemId, Long newIngredientId,
+                                             BigDecimal newQuantity, String by, boolean admin) {
         ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Нельзя менять состав отменённой заявки");
         }
-        if (request.isRequisitionCompleted()) {
+        if (request.isRequisitionCompleted() && !admin) {
             throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
         }
         boolean stockAlreadyWrittenOff = request.getStatus() == ProductionRequestStatus.COLLECTED
@@ -617,11 +714,17 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest addItem(Long requestId, Long ingredientId, BigDecimal quantity, String by) {
+        return addItem(requestId, ingredientId, quantity, by, false);
+    }
+
+    /** {@code admin} — можно и после «Завершить»: требование-накладная в 1С перепроводится. */
+    @Transactional
+    public ProductionRequest addItem(Long requestId, Long ingredientId, BigDecimal quantity, String by, boolean admin) {
         ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Нельзя менять состав отменённой заявки");
         }
-        if (request.isRequisitionCompleted()) {
+        if (request.isRequisitionCompleted() && !admin) {
             throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
         }
         if (quantity == null || quantity.signum() <= 0) {
@@ -670,11 +773,17 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest removeItem(Long requestId, Long itemId, String by) {
+        return removeItem(requestId, itemId, by, false);
+    }
+
+    /** {@code admin} — можно и после «Завершить»: требование-накладная в 1С перепроводится. */
+    @Transactional
+    public ProductionRequest removeItem(Long requestId, Long itemId, String by, boolean admin) {
         ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Нельзя менять состав отменённой заявки");
         }
-        if (request.isRequisitionCompleted()) {
+        if (request.isRequisitionCompleted() && !admin) {
             throw new IllegalStateException("Заявка завершена — сначала отмените завершение");
         }
         ProductionRequestItem item = request.getItems().stream()

@@ -178,6 +178,26 @@ public class StockService {
         return logMovement(null, product, StockMovementType.RECEIPT, quantity, reason, by, false);
     }
 
+    /**
+     * Обратное {@link #receiveProductForProduction} — админ уменьшил оприходованное количество
+     * или убрал оприходованную строку из заявки. Без проверки остатка: продукция могла уже уйти
+     * в отгрузку, остаток в CRM тогда честно уходит в минус до сверки.
+     */
+    @Transactional
+    public StockMovement revertProductForProduction(Product product, BigDecimal quantity, String reason, String by) {
+        requirePositive(quantity, "списания");
+        product.setQuantityInStock(product.getQuantityInStock().subtract(quantity));
+        productRepository.save(product);
+        if (product.isSemiFinished()) {
+            ingredientRepository.findByNameIgnoreCase(product.getName()).ifPresent(mirror -> {
+                mirror.setQuantityInStock(mirror.getQuantityInStock().subtract(quantity));
+                ingredientRepository.save(mirror);
+                logMovement(mirror, null, StockMovementType.WRITE_OFF, quantity, reason, by, false);
+            });
+        }
+        return logMovement(null, product, StockMovementType.WRITE_OFF, quantity, reason, by, false);
+    }
+
     private void requirePositive(BigDecimal quantity, String action) {
         if (quantity == null || quantity.signum() <= 0) {
             throw new IllegalArgumentException("Количество " + action + " должно быть больше нуля");

@@ -31,6 +31,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _actionInProgress = false;
   String? _error;
   final Set<int> _checkedItems = {};
+  // Админ правит состав отгруженного/завершённого заказа прямо в списке (см. OrderService.updateItems).
+  bool _adminEditing = false;
 
   @override
   void initState() {
@@ -215,12 +217,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите корректное количество')));
       return;
     }
-    try {
-      await _api.updateOrderItems(o.id, {item.id: qty});
-      await _refresh();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
+    await _itemAction(() => _api.updateOrderItems(o.id, {item.id: qty}));
   }
 
   /// Удалить одну позицию из состава заказа при сборке (замена quantity=0 — см.
@@ -238,12 +235,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    try {
-      await _api.updateOrderItems(o.id, {item.id: 0});
-      await _refresh();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
+    await _itemAction(() => _api.updateOrderItems(o.id, {item.id: 0}));
   }
 
   /// Добавить новую позицию в состав заказа при сборке — кнопка внизу чек-листа.
@@ -283,11 +275,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите корректное количество')));
       return;
     }
+    await _itemAction(() => _api.updateOrderItems(o.id, {}, newItems: [(picked.id, qty)]));
+  }
+
+  /// Правка состава: пока запрос идёт (1С бывает долгой), кнопки правки неактивны — второе
+  /// нажатие не уйдёт вторым запросом.
+  Future<void> _itemAction(Future<Object?> Function() action) async {
+    if (_actionInProgress) return;
+    setState(() => _actionInProgress = true);
     try {
-      await _api.updateOrderItems(o.id, {}, newItems: [(picked.id, qty)]);
+      await action();
       await _refresh();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _actionInProgress = false);
     }
   }
 
@@ -313,6 +315,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final canComplete = role == 'ACCOUNTANT' || role == 'ADMIN';
     final canEditItems =
         role == 'WAREHOUSE_FG' || role == 'ADMIN' || role == 'ACCOUNTANT';
+    final isAdmin = role == 'ADMIN';
     return Scaffold(
       appBar: AppBar(
         title: FutureBuilder<Order>(
@@ -466,13 +469,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 icon: const Icon(Icons.edit_outlined, size: 20),
                                 tooltip: 'Изменить количество',
                                 visualDensity: VisualDensity.compact,
-                                onPressed: () => _changeItemQuantity(o, o.items[i]),
+                                onPressed: _actionInProgress ? null : () => _changeItemQuantity(o, o.items[i]),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, size: 20),
                                 tooltip: 'Удалить позицию',
                                 visualDensity: VisualDensity.compact,
-                                onPressed: () => _deleteItem(o, o.items[i]),
+                                onPressed: _actionInProgress ? null : () => _deleteItem(o, o.items[i]),
                               ),
                             ],
                           ),
@@ -544,9 +547,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 ],
                               ),
                             ),
-                            trailing: Text(
-                              formatMoney(item.price * item.quantity),
-                            ),
+                            trailing: _adminEditing && isAdmin
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, size: 20),
+                                        tooltip: 'Изменить количество',
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: _actionInProgress ? null : () => _changeItemQuantity(o, item),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, size: 20),
+                                        tooltip: 'Удалить позицию',
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: _actionInProgress ? null : () => _deleteItem(o, item),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    formatMoney(item.price * item.quantity),
+                                  ),
                           ),
                         const Divider(height: 1),
                         ListTile(
@@ -577,6 +598,32 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           ),
                         ],
                       ],
+                    ),
+                  ),
+                ],
+                if (isAdmin && (o.status == 'DELIVERED' || o.status == 'COMPLETED')) ...[
+                  const SizedBox(height: 10),
+                  if (_adminEditing) ...[
+                    const Text(
+                      'Документ в 1С будет распроведён, изменён и проведён заново; остаток склада поправится на разницу.',
+                      style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _actionInProgress ? null : () => _addItemDialog(o),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Добавить позицию'),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _actionInProgress ? null : () => setState(() => _adminEditing = !_adminEditing),
+                      icon: _actionInProgress && _adminEditing
+                          ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Icon(_adminEditing ? Icons.check : Icons.edit_outlined),
+                      label: Text(_adminEditing ? 'Готово' : 'Редактировать состав'),
                     ),
                   ),
                 ],
