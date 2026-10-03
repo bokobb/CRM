@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/employee.dart';
 import '../models/production_cost.dart';
 import '../services/api_client.dart';
+import 'hidden_search.dart';
 import 'tech_card_style.dart';
 
 /// Выбор бригады заявки: все работающие сотрудники кнопками-переключателями. Кто в этот день уже
@@ -40,8 +41,7 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
   late Future<(List<Employee>, Map<int, ProductionCostRequest>)> _future;
   bool _saving = false;
   String? _error;
-  final _search = TextEditingController();
-  String _query = '';
+  final _search = HiddenSearch();
 
   @override
   void dispose() {
@@ -98,39 +98,28 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
           }
           final (employees, busy) = snapshot.data!;
           // Выбранные видны всегда, остальные — по поиску (часть ФИО, без учёта регистра).
-          final shown = _query.isEmpty
-              ? employees
-              : employees.where((e) => _selected.contains(e.id) || e.fullName.toLowerCase().contains(_query)).toList();
+          final shown = employees.where((e) => _selected.contains(e.id) || _search.matches(e.fullName)).toList();
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Бригада', style: TK.h1.copyWith(fontSize: 18)),
-              const SizedBox(height: 2),
-              Text('№${widget.requestId} · ${widget.requestTitle}', style: TK.note),
-              const SizedBox(height: 12),
-              if (employees.length > 6) ...[
-                TextField(
-                  controller: _search,
-                  decoration: InputDecoration(
-                    hintText: 'Поиск сотрудника',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    suffixIcon: _query.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => setState(() {
-                              _search.clear();
-                              _query = '';
-                            }),
-                          ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Бригада', style: TK.h1.copyWith(fontSize: 18)),
+                        const SizedBox(height: 2),
+                        Text('№${widget.requestId} · ${widget.requestTitle}', style: TK.note),
+                      ],
+                    ),
                   ),
-                  onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-                ),
-                const SizedBox(height: 12),
-              ],
+                  if (employees.length > 6) _search.button(setState, color: TK.accent),
+                ],
+              ),
+              _search.field(setState),
+              const SizedBox(height: 12),
               if (employees.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -151,18 +140,18 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
                         for (final e in shown)
                           _EmployeeChip(
                             name: e.fullName,
+                            highlight: _search.query,
                             selected: _selected.contains(e.id),
                             busyIn: busy[e.id],
                             onTap: busy[e.id] != null
                                 ? null
-                                : () => setState(() {
-                                    if (!_selected.remove(e.id)) _selected.add(e.id);
-                                    // Выбрали по поиску — поле очищается под следующего.
-                                    if (_query.isNotEmpty) {
-                                      _search.clear();
-                                      _query = '';
-                                    }
-                                  }),
+                                : () {
+                                    setState(() {
+                                      if (!_selected.remove(e.id)) _selected.add(e.id);
+                                    });
+                                    // Выбрали по поиску — набранное сбрасывается под следующего.
+                                    if (_search.query.isNotEmpty) _search.clear(setState);
+                                  },
                           ),
                       ],
                     ),
@@ -185,11 +174,12 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
 
 class _EmployeeChip extends StatelessWidget {
   final String name;
+  final String highlight;
   final bool selected;
   final ProductionCostRequest? busyIn;
   final VoidCallback? onTap;
 
-  const _EmployeeChip({required this.name, required this.selected, this.busyIn, this.onTap});
+  const _EmployeeChip({required this.name, required this.selected, this.highlight = '', this.busyIn, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -206,8 +196,8 @@ class _EmployeeChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (selected) ...[const Icon(Icons.check, size: 16, color: Colors.white), const SizedBox(width: 4)],
-              Text(
-                name,
+              Text.rich(
+                TextSpan(children: highlightSpans(name, highlight)),
                 style: TextStyle(
                   fontFamily: TK.body,
                   fontSize: 14,

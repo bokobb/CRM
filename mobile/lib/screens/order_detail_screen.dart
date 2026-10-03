@@ -8,6 +8,7 @@ import '../services/api_client.dart';
 import '../services/invoice_pdf.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/hidden_search.dart';
 import '../widgets/order_returns_sheets.dart';
 import '../widgets/pick_from_list.dart';
 import '../widgets/product_avatar.dart';
@@ -33,6 +34,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   final Set<int> _checkedItems = {};
   // Админ правит состав отгруженного/завершённого заказа прямо в списке (см. OrderService.updateItems).
   bool _adminEditing = false;
+  // Поиск по составу: лупа, ввод не виден, совпадения красным (см. HiddenSearch).
+  final _search = HiddenSearch();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -422,15 +431,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                 ],
                 const SizedBox(height: 20),
-                Text(
-                  'Состав заказа',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Состав заказа',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    if (!(o.status == 'NEW' && canEditItems)) _search.button(setState),
+                  ],
                 ),
+                _search.field(setState),
                 const SizedBox(height: 8),
                 if (o.status == 'NEW' && canEditItems) ...[
                   ReceiptCard(
                     title: 'Состав заказа',
                     icon: Icons.checklist_rounded,
+                    action: _search.button(setState),
                     children: [
                       if (o.items.isNotEmpty)
                         ReceiptSelectAllRow(
@@ -446,7 +464,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           }),
                         ),
                       for (int i = 0; i < o.items.length; i++)
-                        ReceiptRow(
+                        if (_search.matches(o.items[i].productName)) ReceiptRow(
+                          highlight: _search.query,
                           index: i + 1,
                           name: o.items[i].isInsufficient
                               ? '${o.items[i].productName}\n(на складе: ${formatQty(o.items[i].availableQuantity)}'
@@ -525,13 +544,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   Card(
                     child: Column(
                       children: [
-                        for (final item in o.items)
+                        for (final item in o.items.where((it) => _search.matches(it.productName)))
                           ListTile(
                             leading: ProductAvatar(
                               name: item.productName,
                               imageUrl: item.productImageUrl,
                             ),
-                            title: Text(item.productName),
+                            title: Text.rich(TextSpan(children: highlightSpans(item.productName, _search.query))),
                             subtitle: RichText(
                               text: TextSpan(
                                 style: DefaultTextStyle.of(context).style.copyWith(color: Colors.grey),

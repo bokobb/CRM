@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'hidden_search.dart';
+
 const _receiptInk = Color(0xFF2B1F1A);
 const _receiptMuted = Color(0xFFB8A88F);
 const _receiptLine = Color(0xFFE3D9C8);
@@ -136,27 +138,6 @@ class ReceiptRow extends StatelessWidget {
     this.highlight,
   });
 
-  /// Название с выделенными красным совпадениями поиска (без учёта регистра).
-  List<TextSpan> _nameSpans() {
-    final q = highlight?.trim().toLowerCase() ?? '';
-    if (q.isEmpty) return [TextSpan(text: name)];
-    final lower = name.toLowerCase();
-    final spans = <TextSpan>[];
-    var start = 0;
-    while (true) {
-      final i = lower.indexOf(q, start);
-      if (i < 0) break;
-      if (i > start) spans.add(TextSpan(text: name.substring(start, i)));
-      spans.add(TextSpan(
-        text: name.substring(i, i + q.length),
-        style: const TextStyle(color: Color(0xFFD32F2F), fontWeight: FontWeight.w800, backgroundColor: Color(0x22D32F2F)),
-      ));
-      start = i + q.length;
-    }
-    if (start < name.length) spans.add(TextSpan(text: name.substring(start)));
-    return spans;
-  }
-
   @override
   Widget build(BuildContext context) {
     final checked = checkbox ?? false;
@@ -194,7 +175,7 @@ class ReceiptRow extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Text.rich(
-              TextSpan(children: _nameSpans()),
+              TextSpan(children: highlightSpans(name, highlight)),
               softWrap: true,
               style: TextStyle(
                 fontFamily: 'monospace',
