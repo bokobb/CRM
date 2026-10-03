@@ -14,14 +14,13 @@ Future<ProductionRequestCost?> showBrigadeSheet(
   required String requestTitle,
   required DateTime date,
   required List<int> current,
-}) =>
-    showModalBottomSheet<ProductionRequestCost>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: TK.paper,
-      builder: (_) => _BrigadeSheet(requestId: requestId, requestTitle: requestTitle, date: date, current: current),
-    );
+}) => showModalBottomSheet<ProductionRequestCost>(
+  context: context,
+  isScrollControlled: true,
+  showDragHandle: true,
+  backgroundColor: TK.paper,
+  builder: (_) => _BrigadeSheet(requestId: requestId, requestTitle: requestTitle, date: date, current: current),
+);
 
 class _BrigadeSheet extends StatefulWidget {
   final int requestId;
@@ -41,6 +40,14 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
   late Future<(List<Employee>, Map<int, ProductionCostRequest>)> _future;
   bool _saving = false;
   String? _error;
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -90,6 +97,10 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
             return Padding(padding: const EdgeInsets.all(16), child: Text(snapshot.error.toString()));
           }
           final (employees, busy) = snapshot.data!;
+          // Выбранные видны всегда, остальные — по поиску (часть ФИО, без учёта регистра).
+          final shown = _query.isEmpty
+              ? employees
+              : employees.where((e) => _selected.contains(e.id) || e.fullName.toLowerCase().contains(_query)).toList();
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -97,11 +108,37 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
               Text('Бригада', style: TK.h1.copyWith(fontSize: 18)),
               const SizedBox(height: 2),
               Text('№${widget.requestId} · ${widget.requestTitle}', style: TK.note),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
+              if (employees.length > 6) ...[
+                TextField(
+                  controller: _search,
+                  decoration: InputDecoration(
+                    hintText: 'Поиск сотрудника',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () => setState(() {
+                              _search.clear();
+                              _query = '';
+                            }),
+                          ),
+                  ),
+                  onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (employees.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Text('Сотрудников нет — добавьте их в меню «Сотрудники»', style: TK.note, textAlign: TextAlign.center),
+                  child: Text(
+                    'Сотрудников нет — добавьте их в меню «Сотрудники»',
+                    style: TK.note,
+                    textAlign: TextAlign.center,
+                  ),
                 )
               else
                 ConstrainedBox(
@@ -111,23 +148,27 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        for (final e in employees)
+                        for (final e in shown)
                           _EmployeeChip(
                             name: e.fullName,
                             selected: _selected.contains(e.id),
                             busyIn: busy[e.id],
                             onTap: busy[e.id] != null
                                 ? null
-                                : () => setState(() => _selected.contains(e.id) ? _selected.remove(e.id) : _selected.add(e.id)),
+                                : () => setState(() {
+                                    if (!_selected.remove(e.id)) _selected.add(e.id);
+                                    // Выбрали по поиску — поле очищается под следующего.
+                                    if (_query.isNotEmpty) {
+                                      _search.clear();
+                                      _query = '';
+                                    }
+                                  }),
                           ),
                       ],
                     ),
                   ),
                 ),
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Text(_error!, style: const TextStyle(color: TK.bad)),
-              ],
+              if (_error != null) ...[const SizedBox(height: 10), Text(_error!, style: const TextStyle(color: TK.bad))],
               const SizedBox(height: 16),
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: TK.accent, minimumSize: const Size.fromHeight(46)),
@@ -164,10 +205,7 @@ class _EmployeeChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (selected) ...[
-                const Icon(Icons.check, size: 16, color: Colors.white),
-                const SizedBox(width: 4),
-              ],
+              if (selected) ...[const Icon(Icons.check, size: 16, color: Colors.white), const SizedBox(width: 4)],
               Text(
                 name,
                 style: TextStyle(

@@ -31,6 +31,14 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   bool _cancelling = false;
   bool _syncing = false;
   bool _completing = false;
+  final _itemSearch = TextEditingController();
+  String _itemQuery = '';
+
+  /// Поиск в составе заявки — по названию сырья (и по прежнему, если была замена).
+  bool _itemMatches(ProductionRequestItem item) =>
+      _itemQuery.isEmpty ||
+      item.ingredientName.toLowerCase().contains(_itemQuery) ||
+      (item.originalIngredientName?.toLowerCase().contains(_itemQuery) ?? false);
 
   String? get _role => ApiClient.currentSession?.role;
   bool get _canCollect => _role == 'ADMIN' || _role == 'WAREHOUSE_RAW';
@@ -418,6 +426,30 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 for (final line in r.lines) _buildLineCard(r, line),
                 if (r.massSummary != null) _buildMassSummaryCard(r.massSummary!),
                 const SizedBox(height: 8),
+                if (r.items.length > 4) ...[
+                  TextField(
+                    controller: _itemSearch,
+                    decoration: InputDecoration(
+                      hintText: 'Поиск в составе заявки',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      suffixIcon: _itemQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () => setState(() {
+                                _itemSearch.clear();
+                                _itemQuery = '';
+                              }),
+                            ),
+                    ),
+                    onChanged: (v) => setState(() => _itemQuery = v.trim().toLowerCase()),
+                  ),
+                  const SizedBox(height: 10),
+                ],
 
                 if (r.status == 'NEW' && _canCollect) ...[
                   ReceiptCard(
@@ -438,7 +470,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                           }),
                         ),
                       for (int i = 0; i < r.items.length; i++)
-                        ReceiptRow(
+                        if (_itemMatches(r.items[i])) ReceiptRow(
                           index: i + 1,
                           name: r.items[i].originalIngredientName == null
                               ? r.items[i].ingredientName
@@ -512,7 +544,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     title: 'Состав заявки (сырьё)',
                     children: [
                       for (int i = 0; i < r.items.length; i++)
-                        ReceiptRow(
+                        if (_itemMatches(r.items[i])) ReceiptRow(
                           index: i + 1,
                           name: r.items[i].originalIngredientName == null
                               ? r.items[i].ingredientName
