@@ -432,11 +432,12 @@ public class ProductionRequestService {
                     stockService.receiveForProduction(ingredient, diff.negate(), reason, updatedBy);
                 }
             }
-            recordRevision(request, updatedBy, "Правка позиций: " + request.getLines().stream()
-                    .map(l -> l.getProduct().getName() + " — " + l.getBatches().stripTrailingZeros().toPlainString() + " замес.")
-                    .collect(Collectors.joining(", "))
-                    + (keepAdjustments ? " (поправки применены)" : " (поправки очищены)"), false);
         }
+        // История правок пишется и у «Новой» заявки (до «Собрано») — склад тогда не трогаем.
+        recordRevision(request, updatedBy, "Правка позиций: " + request.getLines().stream()
+                .map(l -> l.getProduct().getName() + " — " + l.getBatches().stripTrailingZeros().toPlainString() + " замес.")
+                .collect(Collectors.joining(", "))
+                + (keepAdjustments ? " (поправки применены)" : " (поправки очищены)"), false);
 
         oneCQueue.request(request);
         return request;
@@ -878,9 +879,7 @@ public class ProductionRequestService {
             item.setRequiredQuantity(newQty);
             revisionNote = "Замена: " + oldName + " " + fmt(oldQuantity) + " → " + newIngredient.getName() + " " + fmt(newQty);
         }
-        if (stockAlreadyWrittenOff) {
-            recordRevision(request, by, revisionNote, false);
-        }
+        recordRevision(request, by, revisionNote, false);
 
         oneCQueue.request(request);
         return request;
@@ -943,9 +942,7 @@ public class ProductionRequestService {
             item.setRequiredQuantity(quantity);
             request.addItem(item);
         }
-        if (stockAlreadyWrittenOff) {
-            recordRevision(request, by, "Добавлено: " + ingredient.getName() + " " + fmt(quantity), false);
-        }
+        recordRevision(request, by, "Добавлено: " + ingredient.getName() + " " + fmt(quantity), false);
 
         oneCQueue.request(request);
         return request;
@@ -984,9 +981,7 @@ public class ProductionRequestService {
             stockService.receiveForProduction(item.getIngredient(), item.getRequiredQuantity(), reason, by);
         }
         request.getItems().remove(item);
-        if (stockAlreadyWrittenOff) {
-            recordRevision(request, by, "Удалено: " + item.getIngredient().getName() + " " + fmt(item.getRequiredQuantity()), false);
-        }
+        recordRevision(request, by, "Удалено: " + item.getIngredient().getName() + " " + fmt(item.getRequiredQuantity()), false);
 
         oneCQueue.request(request);
         return request;
