@@ -190,6 +190,7 @@ public class OneCProductionSyncService {
                 log.info("Заявка №{} — повторная синхронизация с 1С: {}", request.getId(),
                         request.getOneCSyncError() == null ? "прошла" : request.getOneCSyncError());
             } catch (Exception e) {
+                log.info("Заявка №{} — повторная синхронизация с 1С не прошла: {}", request.getId(), e.getMessage());
                 request.setOneCSyncError(e.getMessage());
                 requestRepository.save(request);
             } finally {

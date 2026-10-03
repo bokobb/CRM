@@ -210,8 +210,11 @@ public class OneCOrderSyncService {
             }
             if (order.getOneCSyncError() == null) {
                 log.info("Заказ №{} — повторная выгрузка в 1С прошла", order.getId());
+            } else {
+                log.info("Заказ №{} — повторная выгрузка в 1С не прошла: {}", order.getId(), order.getOneCSyncError());
             }
         } catch (Exception e) {
+            log.info("Заказ №{} — повторная выгрузка в 1С не прошла: {}", order.getId(), e.getMessage());
             order.setOneCSyncError(truncate(e.getMessage()));
             orderRepository.save(order);
         } finally {
