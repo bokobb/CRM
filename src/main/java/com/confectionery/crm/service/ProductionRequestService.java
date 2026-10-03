@@ -42,6 +42,7 @@ public class ProductionRequestService {
     private final ProductionRequestLineRepository lineRepository;
     private final RecipeRepository recipeRepository;
     private final ProductService productService;
+    private final OneCQueue oneCQueue;
     private final StockService stockService;
     private final NotificationService notificationService;
     private final OneCProductionSyncService oneCProductionSyncService;
@@ -308,7 +309,7 @@ public class ProductionRequestService {
 
         request = requestRepository.save(request);
         notifyCreated(request);
-        oneCProductionSyncService.trySyncRequest(request);
+        oneCQueue.request(request);
         return request;
     }
 
@@ -437,7 +438,7 @@ public class ProductionRequestService {
                     + (keepAdjustments ? " (поправки применены)" : " (поправки очищены)"), false);
         }
 
-        oneCProductionSyncService.trySyncRequest(request);
+        oneCQueue.request(request);
         return request;
     }
 
@@ -619,7 +620,7 @@ public class ProductionRequestService {
             stockService.revertProductForProduction(line.getProduct(), diff.negate(), reason, by);
         }
         line.setReceivedQuantity(quantity);
-        oneCProductionSyncService.trySyncRequest(request);
+        oneCQueue.request(request);
         return request;
     }
 
@@ -659,14 +660,10 @@ public class ProductionRequestService {
         request.addLine(line);
 
         boolean allReceived = request.getLines().stream().allMatch(ProductionRequestLine::isReceived);
-        boolean becameReceived = allReceived && request.getStatus() == ProductionRequestStatus.COLLECTED;
         if (allReceived) {
             request.setStatus(ProductionRequestStatus.RECEIVED);
         }
-        oneCProductionSyncService.trySyncRequest(request);
-        if (becameReceived) {
-            oneCProductionSyncService.postReport(request);
-        }
+        oneCQueue.request(request);
         return request;
     }
 
@@ -761,7 +758,7 @@ public class ProductionRequestService {
         request.setStatus(ProductionRequestStatus.CANCELLED);
         request.setRequisitionCompleted(false);
         request.setCompositionDiffPending(false);
-        oneCProductionSyncService.tryUnpostAll(request);
+        oneCQueue.request(request);
 
         String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» отменена (" + by + ")";
         notificationService.notifyRole(Role.ADMIN, message, null);
@@ -885,7 +882,7 @@ public class ProductionRequestService {
             recordRevision(request, by, revisionNote, false);
         }
 
-        oneCProductionSyncService.trySyncRequest(request);
+        oneCQueue.request(request);
         return request;
     }
 
@@ -950,7 +947,7 @@ public class ProductionRequestService {
             recordRevision(request, by, "Добавлено: " + ingredient.getName() + " " + fmt(quantity), false);
         }
 
-        oneCProductionSyncService.trySyncRequest(request);
+        oneCQueue.request(request);
         return request;
     }
 
@@ -991,7 +988,7 @@ public class ProductionRequestService {
             recordRevision(request, by, "Удалено: " + item.getIngredient().getName() + " " + fmt(item.getRequiredQuantity()), false);
         }
 
-        oneCProductionSyncService.trySyncRequest(request);
+        oneCQueue.request(request);
         return request;
     }
 
@@ -1014,8 +1011,8 @@ public class ProductionRequestService {
         if (request.getStatus() != ProductionRequestStatus.RECEIVED) {
             throw new IllegalStateException("Завершить можно только полностью оприходованную заявку");
         }
-        oneCProductionSyncService.postRequisition(request);
         request.setRequisitionCompleted(true);
+        oneCQueue.request(request);
         notifyReceivedSummary(request);
         return request;
     }
@@ -1030,8 +1027,8 @@ public class ProductionRequestService {
         if (!request.isRequisitionCompleted()) {
             throw new IllegalStateException("Заявка ещё не завершена");
         }
-        oneCProductionSyncService.unpostRequisition(request);
         request.setRequisitionCompleted(false);
+        oneCQueue.request(request);
         return request;
     }
 
@@ -1138,10 +1135,7 @@ public class ProductionRequestService {
         // Без push на каждую отдельно оприходованную строку — в заявке обычно несколько
         // позиций, оприходуются по одной, спамить на каждую не нужно. Одна сводная
         // нотификация уходит по кнопке "Завершить" (см. completeRequisition/notifyReceivedSummary).
-        oneCProductionSyncService.trySyncRequest(request);
-        if (allReceived) {
-            oneCProductionSyncService.postReport(request);
-        }
+        oneCQueue.request(request);
         return request;
     }
 
@@ -1155,7 +1149,10 @@ public class ProductionRequestService {
     @Transactional
     public ProductionRequest resyncOneC(Long requestId) {
         ProductionRequest request = findForUpdate(requestId);
-        oneCProductionSyncService.syncOrThrow(request);
+        // Через очередь, а не напрямую: иначе ручной повтор мог бы создать документ в 1С
+        // параллельно с фоновой отправкой — получился бы дубль.
+        request.setOneCSyncError(null);
+        oneCQueue.request(request);
         return request;
     }
 

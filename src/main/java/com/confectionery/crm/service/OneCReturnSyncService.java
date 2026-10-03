@@ -61,7 +61,13 @@ public class OneCReturnSyncService {
     @Value("${crm.onec.default-nomenclature-group-key:}")
     private String defaultNomenclatureGroupKey;
 
-    /** Никогда не бросает исключение наружу — вызывается сразу после сохранения возврата. */
+    /** Фоновая очередь (OneCQueue): привести документ 1С к состоянию возврата в CRM. */
+    @Transactional
+    public void reconcile(Long returnId) {
+        productReturnRepository.findById(returnId).ifPresent(this::trySync);
+    }
+
+    /** Никогда не бросает исключение наружу — вызывается и из фоновой очереди. */
     @Transactional
     public void trySync(ProductReturn productReturn) {
         if (!oneCClient.isConfigured()) {

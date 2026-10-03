@@ -1,5 +1,6 @@
 package com.confectionery.crm.domain;
 
+import org.hibernate.annotations.DynamicUpdate;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,6 +25,7 @@ import java.util.Objects;
  * OneCPurchaseSyncService) — Counterparty обязателен именно поэтому (нужен Контрагент_Key).
  */
 @Entity
+@DynamicUpdate
 @Table(name = "purchases")
 @Getter
 @Setter
@@ -59,6 +61,13 @@ public class Purchase {
     private String oneCDocumentKey;
     private String oneCDocumentNumber;
     private String oneCSyncError;
+
+    /**
+     * Документ(ы) в 1С нужно привести к состоянию в CRM — этим занимается фоновая очередь
+     * (OneCQueue), пользователь 1С не ждёт.
+     */
+    @Column(name = "onec_pending", nullable = false, columnDefinition = "boolean default false")
+    private boolean oneCPending;
 
     @OneToMany(mappedBy = "purchase", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PurchaseItem> items = new ArrayList<>();

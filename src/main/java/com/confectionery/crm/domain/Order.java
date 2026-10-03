@@ -1,5 +1,6 @@
 package com.confectionery.crm.domain;
 
+import org.hibernate.annotations.DynamicUpdate;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@DynamicUpdate
 @Table(name = "orders")
 @Getter
 @Setter
@@ -65,6 +67,13 @@ public class Order {
     private String oneCDocumentKey;
     @Column(length = 500)
     private String oneCSyncError;
+
+    /**
+     * Документ(ы) в 1С нужно привести к состоянию в CRM — этим занимается фоновая очередь
+     * (OneCQueue), пользователь 1С не ждёт.
+     */
+    @Column(name = "onec_pending", nullable = false, columnDefinition = "boolean default false")
+    private boolean oneCPending;
 
     /**
      * Заказ заведён импортом из документа, созданного бухгалтером прямо в 1С (OneCOrderImportService).

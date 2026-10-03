@@ -30,6 +30,7 @@ public class ProductReturnService {
     private final ProductService productService;
     private final ClientPriceService clientPriceService;
     private final OneCReturnSyncService oneCReturnSyncService;
+    private final OneCQueue oneCQueue;
 
     /** price == null — берётся цена клиента (см. ClientPriceService.resolvePrice). */
     public record ItemInput(Long productId, BigDecimal quantity, BigDecimal price) {
@@ -66,7 +67,7 @@ public class ProductReturnService {
             productReturn.setOrder(findOrderOfSameClient(orderId, productReturn));
         }
         productReturn = productReturnRepository.save(productReturn);
-        oneCReturnSyncService.trySync(productReturn);
+        oneCQueue.productReturn(productReturn);
         return productReturn;
     }
 
@@ -84,7 +85,7 @@ public class ProductReturnService {
             productReturn.setOrder(null);
         }
         productReturn = productReturnRepository.save(productReturn);
-        oneCReturnSyncService.trySync(productReturn);
+        oneCQueue.productReturn(productReturn);
         return productReturn;
     }
 
@@ -167,7 +168,9 @@ public class ProductReturnService {
     @Transactional
     public ProductReturn resyncOneC(Long id) {
         ProductReturn productReturn = findById(id);
-        oneCReturnSyncService.syncOrThrow(productReturn);
+        // Через очередь — см. ProductionRequestService.resyncOneC (иначе возможен дубль в 1С).
+        productReturn.setOneCSyncError(null);
+        oneCQueue.productReturn(productReturn);
         return productReturn;
     }
 }

@@ -73,7 +73,13 @@ public class OneCPurchaseSyncService {
     @Value("${crm.onec.materials-warehouse-key:ca2e388a-4f43-11f1-9670-5254007c5efd}")
     private String materialsWarehouseKey;
 
-    /** Никогда не бросает исключение наружу — вызывается сразу после сохранения закупки. */
+    /** Фоновая очередь (OneCQueue): привести документ 1С к состоянию закупки в CRM. */
+    @Transactional
+    public void reconcile(Long purchaseId) {
+        purchaseRepository.findById(purchaseId).ifPresent(this::trySyncPurchase);
+    }
+
+    /** Никогда не бросает исключение наружу — вызывается и из фоновой очереди. */
     @Transactional
     public void trySyncPurchase(Purchase purchase) {
         if (!oneCClient.isConfigured()) {

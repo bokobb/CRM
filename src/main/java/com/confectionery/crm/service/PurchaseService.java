@@ -30,6 +30,7 @@ public class PurchaseService {
     private final StockService stockService;
     private final FileStorageService fileStorageService;
     private final OneCPurchaseSyncService oneCPurchaseSyncService;
+    private final OneCQueue oneCQueue;
 
     /** Одна позиция закупки: конкретное сырьё + количество + сумма (необязательно). */
     public record ItemInput(Long ingredientId, BigDecimal quantity, BigDecimal totalPrice) {
@@ -52,7 +53,9 @@ public class PurchaseService {
     @Transactional
     public Purchase resyncOneC(Long id) {
         Purchase purchase = findById(id);
-        oneCPurchaseSyncService.syncOrThrow(purchase);
+        // Через очередь — см. ProductionRequestService.resyncOneC (иначе возможен дубль в 1С).
+        purchase.setOneCSyncError(null);
+        oneCQueue.purchase(purchase);
         return purchase;
     }
 
@@ -68,7 +71,7 @@ public class PurchaseService {
         addItems(purchase, items, createdBy);
 
         purchase = purchaseRepository.save(purchase);
-        oneCPurchaseSyncService.trySyncPurchase(purchase);
+        oneCQueue.purchase(purchase);
         return purchase;
     }
 
@@ -92,7 +95,7 @@ public class PurchaseService {
         if (purchaseDate != null) purchase.setPurchaseDate(purchaseDate);
         addItems(purchase, items, by);
         purchase = purchaseRepository.save(purchase);
-        oneCPurchaseSyncService.trySyncPurchase(purchase);
+        oneCQueue.purchase(purchase);
         return purchase;
     }
 

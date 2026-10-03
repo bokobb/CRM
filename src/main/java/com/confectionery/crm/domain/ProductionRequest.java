@@ -1,5 +1,6 @@
 package com.confectionery.crm.domain;
 
+import org.hibernate.annotations.DynamicUpdate;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,6 +22,7 @@ import java.util.List;
  * не привязан к живым Recipe — правки рецептуры задним числом не влияют на уже созданные заявки.
  */
 @Entity
+@DynamicUpdate
 @Table(name = "production_requests")
 @Getter
 @Setter
@@ -70,6 +72,13 @@ public class ProductionRequest {
     private String oneCRequisitionNumber;
     @Column(length = 500)
     private String oneCSyncError;
+
+    /**
+     * Документ(ы) в 1С нужно привести к состоянию в CRM — этим занимается фоновая очередь
+     * (OneCQueue), пользователь 1С не ждёт.
+     */
+    @Column(name = "onec_pending", nullable = false, columnDefinition = "boolean default false")
+    private boolean oneCPending;
 
     /**
      * Кнопка "Завершить" нажата и требование-накладная проведена в 1С — дальше состав сырья

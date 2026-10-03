@@ -39,4 +39,12 @@ public interface ProductReturnRepository extends JpaRepository<ProductReturn, Lo
 
     /** Документ 1С уже есть в CRM (создан CRM или импортирован) — дедупликация в OneCReturnImportService. */
     Optional<ProductReturn> findByOneCDocumentKey(String oneCDocumentKey);
+
+    /** Ждут фоновой отправки в 1С (см. OneCQueue). */
+    @Query("select e.id from ProductReturn e where e.oneCPending = true order by e.id")
+    List<Long> findOneCPendingIds();
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update ProductReturn e set e.oneCPending = false where e.id = :id")
+    int clearOneCPending(@Param("id") Long id);
 }

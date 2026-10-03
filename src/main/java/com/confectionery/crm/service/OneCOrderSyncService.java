@@ -117,6 +117,19 @@ public class OneCOrderSyncService {
         }
     }
 
+    /** Фоновая очередь (OneCQueue): привести «Реализацию» в 1С к состоянию заказа в CRM. */
+    @Transactional
+    public void reconcile(Long orderId) {
+        if (!oneCClient.isConfigured()) return;
+        Order order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) return;
+        if (order.getStatus() == com.confectionery.crm.domain.OrderStatus.CANCELLED) {
+            trySyncCancel(order);
+        } else {
+            trySyncOrder(order, true);
+        }
+    }
+
     /**
      * Вызывается при отмене заказа (см. OrderService.cancel) — распроводит документ
      * "Реализация", если он проведён: документ остаётся в 1С черновиком, движения по складу
@@ -181,7 +194,6 @@ public class OneCOrderSyncService {
      * время, за последние 3 дня, без повторных уведомлений админу. Если бухгалтер уже провёл
      * документ сам и состав совпадает — ошибка просто снимается.
      */
-    @Scheduled(cron = "${crm.onec.order-retry-cron:0 */10 7-20 * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
     @Transactional
     public void retryFailedImported() {
         if (!oneCClient.isConfigured()) return;

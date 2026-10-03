@@ -170,7 +170,6 @@ public class OneCProductionSyncService {
      * OneCClient.UnavailableException): каждые 10 минут в рабочее время дотолкнуть правку —
      * записать документы, провести то, что должно быть проведено, у отменённой — распровести.
      */
-    @Scheduled(cron = "${crm.onec.order-retry-cron:0 */10 7-20 * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
     @Transactional
     public void retryUnavailable() {
         if (!oneCClient.isConfigured()) return;
@@ -195,6 +194,37 @@ public class OneCProductionSyncService {
                 requestRepository.save(request);
             } finally {
                 quiet.remove();
+            }
+        }
+    }
+
+    /**
+     * Фоновая очередь (OneCQueue): привести документы 1С к состоянию заявки в CRM — записать
+     * состав, отчёт производства проведён ⇔ заявка оприходована полностью, требование-накладная
+     * проведена ⇔ нажато «Завершить»; у отменённой — оба распровести.
+     */
+    @Transactional
+    public void reconcile(Long requestId) {
+        if (!oneCClient.isConfigured()) return;
+        ProductionRequest request = requestRepository.findById(requestId).orElse(null);
+        if (request == null) return;
+        if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
+            tryUnpostAll(request);
+            return;
+        }
+        trySyncRequest(request);
+        if (request.getOneCSyncError() != null) return;
+        if (request.getStatus() == ProductionRequestStatus.RECEIVED) {
+            postReport(request);
+        }
+        if (request.isRequisitionCompleted()) {
+            postRequisition(request);
+        } else if (request.getOneCRequisitionKey() != null) {
+            try {
+                unpostIfPosted(new Doc(REQUISITION, request.getOneCRequisitionKey(), "требование-накладная"));
+            } catch (Exception e) {
+                request.setOneCSyncError("Не удалось отменить проведение требования-накладной в 1С: " + e.getMessage());
+                requestRepository.save(request);
             }
         }
     }
@@ -418,7 +448,7 @@ public class OneCProductionSyncService {
             reportRef = request.getOneCReportKey();
             reportNumber = request.getOneCReportNumber();
             rewrite(request, new Doc(REPORT, reportRef, "отчёт производства №" + reportNumber),
-                    reportBody, "Продукция", productionLines);
+                    reportBody, "Продукция", productionLines, request.getStatus() == ProductionRequestStatus.RECEIVED);
         }
 
         List<String> substitutions = new ArrayList<>();
@@ -469,7 +499,8 @@ public class OneCProductionSyncService {
                     request.getId(), requisition.number(), reportNumber);
         } else {
             rewrite(request, new Doc(REQUISITION, request.getOneCRequisitionKey(),
-                    "требование-накладная №" + request.getOneCRequisitionNumber()), requisitionBody, "Материалы", materialLines);
+                    "требование-накладная №" + request.getOneCRequisitionNumber()), requisitionBody, "Материалы", materialLines,
+                    request.isRequisitionCompleted());
             request.setOneCSyncError(null);
             requestRepository.save(request);
         }
@@ -484,7 +515,7 @@ public class OneCProductionSyncService {
      * старую версию, чтобы в 1С не остался распроведённый документ.
      */
     private void rewrite(ProductionRequest request, Doc doc, Map<String, Object> body,
-                         String tableName, List<Map<String, Object>> lines) {
+                         String tableName, List<Map<String, Object>> lines, boolean postAfter) {
         JsonNode existing = oneCClient.fetchDocument(doc.entitySet(), doc.ref());
         boolean posted = existing.path("Posted").asBoolean(false);
         if (posted && sameDocument(existing, body, tableName, lines)) {
@@ -508,7 +539,7 @@ public class OneCProductionSyncService {
             throw e;
         }
         log.info("Заявка №{} — обновлён состав: {}", request.getId(), doc.what());
-        if (posted && request.getStatus() == ProductionRequestStatus.RECEIVED) {
+        if (posted && postAfter) {
             oneCClient.postDocument(doc.entitySet(), doc.ref());
             log.info("Заявка №{} — {} проведён(а) в 1С заново", request.getId(), doc.what());
         }

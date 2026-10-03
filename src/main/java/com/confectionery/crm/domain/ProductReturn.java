@@ -1,5 +1,6 @@
 package com.confectionery.crm.domain;
 
+import org.hibernate.annotations.DynamicUpdate;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,6 +24,7 @@ import java.util.List;
  * OneCReturnSyncService). Остатки CRM этот склад не видят (см. OneCStockSyncService).
  */
 @Entity
+@DynamicUpdate
 @Table(name = "product_returns")
 @Getter
 @Setter
@@ -59,6 +61,13 @@ public class ProductReturn {
     private String oneCDocumentNumber;
     @Column(length = 500)
     private String oneCSyncError;
+
+    /**
+     * Документ(ы) в 1С нужно привести к состоянию в CRM — этим занимается фоновая очередь
+     * (OneCQueue), пользователь 1С не ждёт.
+     */
+    @Column(name = "onec_pending", nullable = false, columnDefinition = "boolean default false")
+    private boolean oneCPending;
 
     @OneToMany(mappedBy = "productReturn", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductReturnItem> items = new ArrayList<>();

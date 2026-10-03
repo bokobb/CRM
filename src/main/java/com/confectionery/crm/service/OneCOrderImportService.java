@@ -93,7 +93,6 @@ public class OneCOrderImportService {
      */
     // Транзакция здесь, а не только на importAll: вызов изнутри класса идёт мимо прокси, а
     // сравнение состава с 1С (applyOneCChanges) читает ленивые строки заказа.
-    @Scheduled(cron = "${crm.onec.document-import-cron:0 */5 7-18 * * *}", zone = "${crm.schedule-zone:GMT+05:00}")
     @Transactional
     public void scheduledImport() {
         if (!oneCClient.isConfigured()) {
@@ -263,7 +262,7 @@ public class OneCOrderImportService {
     private boolean applyOneCChanges(Order order, List<OneCClient.SaleLine> docLines,
                                      Map<String, String> nomenclatureNames, Map<String, Product> productByName) {
         if (!order.isImportedFromOneC() || order.getStatus() == OrderStatus.CANCELLED
-                || order.getOneCSyncError() != null || docLines.isEmpty()) {
+                || order.getOneCSyncError() != null || order.isOneCPending() || docLines.isEmpty()) {
             return false;
         }
         Map<String, BigDecimal> inDoc = new HashMap<>();

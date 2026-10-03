@@ -32,4 +32,12 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
             order by p.purchaseDate desc, p.createdAt desc
             """)
     List<PurchaseItem> findPricedItemsNewestFirst(@Param("ingredientIds") Collection<Long> ingredientIds);
+
+    /** Ждут фоновой отправки в 1С (см. OneCQueue). */
+    @Query("select e.id from Purchase e where e.oneCPending = true order by e.id")
+    List<Long> findOneCPendingIds();
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update Purchase e set e.oneCPending = false where e.id = :id")
+    int clearOneCPending(@Param("id") Long id);
 }

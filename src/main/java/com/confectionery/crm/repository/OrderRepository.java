@@ -85,4 +85,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "AND (o.debtPaid IS NULL OR o.debtPaid = false) " +
             "AND o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED")
     List<Order> findOverdueDebts(@Param("today") LocalDate today);
+
+    /** Ждут фоновой отправки в 1С (см. OneCQueue). */
+    @Query("select e.id from Order e where e.oneCPending = true order by e.id")
+    List<Long> findOneCPendingIds();
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update Order e set e.oneCPending = false where e.id = :id")
+    int clearOneCPending(@Param("id") Long id);
 }

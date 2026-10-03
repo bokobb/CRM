@@ -42,6 +42,7 @@ public class OrderService {
     private final InvoicePdfService invoicePdfService;
     private final WhatsAppGatewayClient whatsAppGatewayClient;
     private final OneCOrderSyncService oneCOrderSyncService;
+    private final OneCQueue oneCQueue;
     private final NotificationRepository notificationRepository;
 
     public List<Order> findAll() {
@@ -121,7 +122,7 @@ public class OrderService {
                     "Новый заказ №" + order.getId() + " (" + client.getName() + ") на сумму " + order.getTotalPrice()
                             + " — создан клиентом", order);
         }
-        oneCOrderSyncService.trySyncOrder(order);
+        oneCQueue.order(order);
         return order;
     }
 
@@ -240,7 +241,7 @@ public class OrderService {
             }
         }
         order = orderRepository.save(order);
-        oneCOrderSyncService.trySyncOrder(order, true);
+        oneCQueue.order(order);
         return order;
     }
 
@@ -303,7 +304,7 @@ public class OrderService {
         String cancelMessage = "Заказ №" + order.getId() + " (" + order.getClient().getName() + ") отменён";
         notificationService.notifyRole(Role.ACCOUNTANT, cancelMessage, order);
         notificationService.notifyRole(Role.ADMIN, cancelMessage, order);
-        oneCOrderSyncService.trySyncCancel(order);
+        oneCQueue.order(order);
         return order;
     }
 
@@ -353,10 +354,22 @@ public class OrderService {
         // shippedAt выше уже проставлен, поэтому trySyncOrder здесь перезапишет дату на неё
         // и следом проведёт документ — товар списывается со склада в 1С именно проведением
         // (см. OneCOrderSyncService.postIfShipped). Отгрузку в CRM неудача в 1С не блокирует.
-        oneCOrderSyncService.trySyncOrder(order);
-        // накладная строится из документа 1С — поэтому уже после синхронизации, с датой отгрузки
-        sendInvoiceToClient(order);
+        oneCQueue.order(order);
+        // Накладная строится из документа 1С — поэтому её шлём, когда очередь отправит заказ в
+        // 1С (см. onOrderSynced), с датой отгрузки.
+        invoiceAfterSync.add(order.getId());
         return order;
+    }
+
+    /** Отгруженные заказы, которым после отправки в 1С нужно послать накладную клиенту. */
+    private final java.util.Set<Long> invoiceAfterSync = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    @org.springframework.context.event.EventListener
+    @Transactional
+    public void onOrderSynced(OneCQueue.OrderSynced event) {
+        if (invoiceAfterSync.remove(event.orderId())) {
+            orderRepository.findById(event.orderId()).ifPresent(this::sendInvoiceToClient);
+        }
     }
 
     /**

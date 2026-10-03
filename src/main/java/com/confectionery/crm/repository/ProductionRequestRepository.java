@@ -33,4 +33,12 @@ public interface ProductionRequestRepository extends JpaRepository<ProductionReq
 
     @Query("select r from ProductionRequest r where r.id = :id")
     Optional<ProductionRequest> findByIdForUpdate(@Param("id") Long id);
+
+    /** Ждут фоновой отправки в 1С (см. OneCQueue). */
+    @Query("select e.id from ProductionRequest e where e.oneCPending = true order by e.id")
+    List<Long> findOneCPendingIds();
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update ProductionRequest e set e.oneCPending = false where e.id = :id")
+    int clearOneCPending(@Param("id") Long id);
 }
