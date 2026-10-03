@@ -797,17 +797,37 @@ class ApiClient {
 
   /// Редактирование ещё не собранной заявки — позиции и (опционально) дата документа, название
   /// заявки не меняется.
-  Future<ProductionRequest> updateProductionRequest(int id, List<(int, double)> items, {DateTime? documentDate}) async {
+  /// [keepAdjustments] — сохранить поправки состава (добавленное сырьё, ручные количества,
+  /// замены) поверх рецептуры на новые замесы; false — состав только по рецептуре.
+  Future<ProductionRequest> updateProductionRequest(int id, List<(int, double)> items,
+      {DateTime? documentDate, bool keepAdjustments = false}) async {
     final res = await _http.put(
       await _uri('/production-requests/$id'),
       headers: await _authHeaders(),
       body: jsonEncode({
         'items': items.map((e) => {'productId': e.$1, 'batches': e.$2}).toList(),
         if (documentDate != null) 'documentDate': _isoDate(documentDate),
+        'keepAdjustments': keepAdjustments,
       }),
     );
     return ProductionRequest.fromJson(_decode(res));
   }
+
+  /// Поправки состава к рецептуре — текстом для вопроса «применить или очистить»; пусто — поправок нет.
+  Future<List<String>> getProductionRequestAdjustments(int id) async {
+    final res = await http.get(await _uri('/production-requests/$id/adjustments'), headers: await _authHeaders());
+    return (_decode(res) as List).map((e) {
+      final m = e as Map<String, dynamic>;
+      final delta = (m['delta'] as num?)?.toDouble();
+      final unit = m['unit'] as String? ?? '';
+      final what = m['note'] as String? ??
+          (delta == null ? '' : '${delta > 0 ? '+' : '−'}${_trimNum(delta.abs())} $unit');
+      return '${m['ingredientName']}: $what';
+    }).toList();
+  }
+
+  static String _trimNum(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll('.', ',');
 
   /// Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой — откатывает складские остатки, если
   /// сырьё уже было списано/продукция оприходована, и помечает связанные документы в 1С на

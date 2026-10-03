@@ -124,7 +124,19 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
           .map((l) => (l.product!.id, double.parse(l.batches.text.replaceAll(',', '.'))))
           .toList();
       if (_isEdit) {
-        await _api.updateProductionRequest(widget.requestId!, items, documentDate: _documentDate);
+        final adjustments = await _api.getProductionRequestAdjustments(widget.requestId!);
+        bool keep = false;
+        if (adjustments.isNotEmpty) {
+          if (!mounted) return;
+          final choice = await _askAdjustments(adjustments);
+          if (choice == null) {
+            setState(() => _saving = false);
+            return;
+          }
+          keep = choice;
+        }
+        await _api.updateProductionRequest(widget.requestId!, items,
+            documentDate: _documentDate, keepAdjustments: keep);
       } else {
         await _api.createProductionRequest(items, documentDate: _documentDate);
       }
@@ -136,6 +148,40 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
       });
     }
   }
+
+  /// В составе были поправки к рецептуре — применить их к новому составу или очистить.
+  /// null — отмена (ничего не сохраняем).
+  Future<bool?> _askAdjustments(List<String> adjustments) => showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Поправки в составе'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('В заявке есть поправки к рецептуре:'),
+                const SizedBox(height: 8),
+                for (final a in adjustments)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text('• $a', style: const TextStyle(fontSize: 13.5)),
+                  ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Применить — рецептура на новые замесы + эти поправки.\nОчистить — только рецептура.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Очистить')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Применить')),
+          ],
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {

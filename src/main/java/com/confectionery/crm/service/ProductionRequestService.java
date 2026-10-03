@@ -342,6 +342,18 @@ public class ProductionRequestService {
     @Transactional
     public ProductionRequest update(Long requestId, List<Line> lines, String updatedBy, LocalDate documentDate,
                                     boolean admin) {
+        return update(requestId, lines, updatedBy, documentDate, admin, false);
+    }
+
+    /**
+     * {@code keepAdjustments} — «Применить поправки»: новый состав = рецептура на новые замесы +
+     * всё, что поправили в составе до правки (добавленное сырьё, ручная разница в количестве,
+     * замены сырья, удалённые позиции — см. {@link #adjustmentsOf}). Иначе — чисто рецептура.
+     * История правок сохраняется в обоих случаях.
+     */
+    @Transactional
+    public ProductionRequest update(Long requestId, List<Line> lines, String updatedBy, LocalDate documentDate,
+                                    boolean admin, boolean keepAdjustments) {
         ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Отменённую заявку редактировать нельзя");
@@ -384,9 +396,13 @@ public class ProductionRequestService {
         if (stockAlreadyWrittenOff) {
             ensureIssuedBaseline(request);
         }
+        Adjustments adjustments = keepAdjustments ? adjustmentsOf(request) : null;
         request.getLines().clear();
         request.getItems().clear();
         populate(request, lines);
+        if (adjustments != null) {
+            applyAdjustments(request, adjustments);
+        }
         // Название = группа товара, как при создании (см. createGrouped) — иначе после замены
         // товара на товар другой группы заявка так и называлась бы по старой группе.
         request.setTitle(titleFor(lines));
@@ -417,7 +433,8 @@ public class ProductionRequestService {
             }
             recordRevision(request, updatedBy, "Правка позиций: " + request.getLines().stream()
                     .map(l -> l.getProduct().getName() + " — " + l.getBatches().stripTrailingZeros().toPlainString() + " замес.")
-                    .collect(Collectors.joining(", ")), false);
+                    .collect(Collectors.joining(", "))
+                    + (keepAdjustments ? " (поправки применены)" : " (поправки очищены)"), false);
         }
 
         oneCProductionSyncService.trySyncRequest(request);
@@ -425,6 +442,123 @@ public class ProductionRequestService {
     }
 
     private record ReceivedFact(Product product, BigDecimal quantity, String by, LocalDateTime at) {
+    }
+
+    /**
+     * Поправки состава относительно рецептуры: {@code deltas} — по сырью, сколько добавлено/убрано
+     * сверх рецептуры (у заменённого — относительно рецептурного количества исходного сырья);
+     * {@code substitutes} — исходное сырьё рецептуры → позиция-замена; {@code removed} — сырьё
+     * рецептуры, которое из заявки удалили совсем.
+     */
+    private record Adjustments(Map<Long, BigDecimal> deltas, Map<Long, Ingredient> ingredients,
+                               Map<Long, String> originalNames, Map<Long, ProductionRequestItem> substitutes,
+                               Set<Long> removed) {
+        boolean isEmpty() {
+            return substitutes.isEmpty() && removed.isEmpty() && deltas.values().stream().allMatch(d -> d.signum() == 0);
+        }
+    }
+
+    public record AdjustmentRow(String ingredientName, String unit, BigDecimal delta, String note) {
+    }
+
+    /** Поправки к рецептуре в заявке — для вопроса «применить или очистить» при правке позиций. */
+    @Transactional(readOnly = true)
+    public List<AdjustmentRow> adjustments(Long requestId) {
+        ProductionRequest request = findById(requestId);
+        Adjustments a = adjustmentsOf(request);
+        List<AdjustmentRow> rows = new ArrayList<>();
+        a.substitutes().forEach((originalId, item) -> rows.add(new AdjustmentRow(item.getIngredient().getName(),
+                item.getIngredient().getUnit(), null, "замена: вместо «" + item.getOriginalIngredientName() + "»")));
+        for (Long id : a.removed()) {
+            Ingredient ingredient = a.ingredients().get(id);
+            rows.add(new AdjustmentRow(ingredient.getName(), ingredient.getUnit(), null, "удалено из заявки"));
+        }
+        a.deltas().forEach((id, delta) -> {
+            if (delta.signum() != 0) {
+                Ingredient ingredient = a.ingredients().get(id);
+                rows.add(new AdjustmentRow(ingredient.getName(), ingredient.getUnit(), delta, null));
+            }
+        });
+        return rows;
+    }
+
+    private Adjustments adjustmentsOf(ProductionRequest request) {
+        Map<Long, BigDecimal> recipe = new LinkedHashMap<>();
+        Map<Long, Ingredient> ingredients = new LinkedHashMap<>();
+        Map<Ingredient, BigDecimal> combined = new LinkedHashMap<>();
+        for (ProductionRequestLine line : request.getLines()) {
+            if (line.getBatches() == null || line.getBatches().signum() <= 0) continue;
+            recipeRepository.findByProductId(line.getProduct().getId()).ifPresent(r -> {
+                for (RecipeItem ri : r.getItems()) {
+                    combined.merge(ri.getIngredient(), ri.getQuantity().multiply(line.getBatches(), MathContext.DECIMAL64), BigDecimal::add);
+                }
+            });
+        }
+        combined.forEach((ingredient, qty) -> {
+            recipe.merge(ingredient.getId(), roundRequiredQuantity(ingredient, qty), BigDecimal::add);
+            ingredients.put(ingredient.getId(), ingredient);
+        });
+
+        Set<Long> present = new LinkedHashSet<>();
+        for (ProductionRequestItem item : request.getItems()) {
+            present.add(item.getIngredient().getId());
+            ingredients.put(item.getIngredient().getId(), item.getIngredient());
+        }
+        Map<Long, ProductionRequestItem> substitutes = new LinkedHashMap<>();
+        Map<Long, Long> baseOf = new LinkedHashMap<>();
+        for (ProductionRequestItem item : request.getItems()) {
+            String original = item.getOriginalIngredientName();
+            if (original == null) continue;
+            recipe.keySet().stream()
+                    .filter(id -> !present.contains(id) && !substitutes.containsKey(id)
+                            && ingredients.get(id).getName().trim().equalsIgnoreCase(original.trim()))
+                    .findFirst()
+                    .ifPresent(originalId -> {
+                        substitutes.put(originalId, item);
+                        baseOf.put(item.getIngredient().getId(), originalId);
+                    });
+        }
+        Map<Long, BigDecimal> deltas = new LinkedHashMap<>();
+        Map<Long, String> originalNames = new LinkedHashMap<>();
+        for (ProductionRequestItem item : request.getItems()) {
+            Long id = item.getIngredient().getId();
+            Long baseId = baseOf.getOrDefault(id, id);
+            deltas.merge(id, item.getRequiredQuantity().subtract(recipe.getOrDefault(baseId, BigDecimal.ZERO)), BigDecimal::add);
+            if (item.getOriginalIngredientName() != null) originalNames.put(id, item.getOriginalIngredientName());
+        }
+        Set<Long> removed = new LinkedHashSet<>();
+        for (Long id : recipe.keySet()) {
+            if (!present.contains(id) && !substitutes.containsKey(id)) removed.add(id);
+        }
+        return new Adjustments(deltas, ingredients, originalNames, substitutes, removed);
+    }
+
+    /** Наложить поправки (см. {@link #adjustmentsOf}) на только что посчитанный по рецептуре состав. */
+    private void applyAdjustments(ProductionRequest request, Adjustments a) {
+        if (a.isEmpty()) return;
+        request.getItems().removeIf(item -> a.removed().contains(item.getIngredient().getId()));
+        for (ProductionRequestItem item : request.getItems()) {
+            ProductionRequestItem substitute = a.substitutes().get(item.getIngredient().getId());
+            if (substitute != null) {
+                item.setIngredient(substitute.getIngredient());
+                item.setOriginalIngredientName(substitute.getOriginalIngredientName());
+            }
+        }
+        a.deltas().forEach((id, delta) -> {
+            if (delta.signum() == 0) return;
+            ProductionRequestItem item = request.getItems().stream()
+                    .filter(i -> i.getIngredient().getId().equals(id)).findFirst().orElse(null);
+            if (item != null) {
+                item.setRequiredQuantity(item.getRequiredQuantity().add(delta));
+            } else if (delta.signum() > 0) {
+                ProductionRequestItem added = new ProductionRequestItem();
+                added.setIngredient(a.ingredients().get(id));
+                added.setRequiredQuantity(delta);
+                added.setOriginalIngredientName(a.originalNames().get(id));
+                request.addItem(added);
+            }
+        });
+        request.getItems().removeIf(item -> item.getRequiredQuantity().signum() <= 0);
     }
 
     /**

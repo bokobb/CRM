@@ -16,12 +16,16 @@ class ReceiptCard extends StatelessWidget {
   final List<Widget> children;
   final Widget? footer;
 
+  /// Кнопка рядом с заголовком (например, лупа поиска по составу).
+  final Widget? action;
+
   const ReceiptCard({
     super.key,
     required this.title,
     this.icon = Icons.receipt_long_rounded,
     required this.children,
     this.footer,
+    this.action,
   });
 
   @override
@@ -57,6 +61,10 @@ class ReceiptCard extends StatelessWidget {
                     color: _receiptAccent,
                   ),
                 ),
+                if (action != null) ...[
+                  const SizedBox(width: 4),
+                  action!,
+                ],
               ],
             ),
           ),

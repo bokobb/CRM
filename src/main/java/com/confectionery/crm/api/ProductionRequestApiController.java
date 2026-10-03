@@ -65,7 +65,14 @@ public class ProductionRequestApiController {
         List<ProductionRequestService.Line> lines = req.items().stream()
                 .map(i -> new ProductionRequestService.Line(i.productId(), i.batches()))
                 .toList();
-        return toDto(requestService.update(id, lines, authentication.getName(), req.documentDate(), isAdmin(authentication)));
+        return toDto(requestService.update(id, lines, authentication.getName(), req.documentDate(), isAdmin(authentication),
+                Boolean.TRUE.equals(req.keepAdjustments())));
+    }
+
+    /** Поправки состава к рецептуре — пусто, если их нет (тогда при правке позиций вопрос не задаётся). */
+    @GetMapping("/{id}/adjustments")
+    public List<ProductionRequestService.AdjustmentRow> adjustments(@PathVariable Long id) {
+        return requestService.adjustments(id);
     }
 
     /**

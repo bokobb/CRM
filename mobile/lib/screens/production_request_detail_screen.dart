@@ -34,6 +34,23 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   bool _completing = false;
   final _itemSearch = TextEditingController();
   String _itemQuery = '';
+  bool _itemSearchOpen = false;
+
+  /// Лупа рядом с «Состав заявки (сырьё)» — открывает/закрывает строку поиска.
+  Widget _searchToggle() => InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () => setState(() {
+          _itemSearchOpen = !_itemSearchOpen;
+          if (!_itemSearchOpen) {
+            _itemSearch.clear();
+            _itemQuery = '';
+          }
+        }),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(_itemSearchOpen ? Icons.search_off : Icons.search, size: 18, color: const Color(0xFF8F2438)),
+        ),
+      );
 
   /// Поиск в составе заявки — по названию сырья (и по прежнему, если была замена).
   bool _itemMatches(ProductionRequestItem item) =>
@@ -493,9 +510,10 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 for (final line in r.lines) _buildLineCard(r, line),
                 if (r.massSummary != null) _buildMassSummaryCard(r.massSummary!),
                 const SizedBox(height: 8),
-                if (r.items.length > 4) ...[
+                if (_itemSearchOpen) ...[
                   TextField(
                     controller: _itemSearch,
+                    autofocus: true,
                     decoration: InputDecoration(
                       hintText: 'Поиск в составе заявки',
                       prefixIcon: const Icon(Icons.search, size: 20),
@@ -510,6 +528,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                               onPressed: () => setState(() {
                                 _itemSearch.clear();
                                 _itemQuery = '';
+                                _itemSearchOpen = false;
                               }),
                             ),
                     ),
@@ -522,6 +541,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                   ReceiptCard(
                     title: 'Состав заявки (сырьё)',
                     icon: Icons.checklist_rounded,
+                    action: _searchToggle(),
                     children: [
                       if (r.items.isNotEmpty)
                         ReceiptSelectAllRow(
@@ -609,6 +629,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 ] else ...[
                   ReceiptCard(
                     title: 'Состав заявки (сырьё)',
+                    action: _searchToggle(),
                     children: [
                       for (int i = 0; i < r.items.length; i++)
                         if (_itemMatches(r.items[i])) ReceiptRow(
