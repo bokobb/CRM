@@ -26,6 +26,39 @@ class _RecipesScreenState extends State<RecipesScreen> {
   final _api = ApiClient();
   late Future<List<Product>> _future;
   String _query = '';
+  bool _importing = false;
+
+  /// Все рецепты разом из 1С — как кнопка «Импортировать из 1С» в рецепте товара, только для всех.
+  Future<void> _importAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Обновить все рецепты из 1С?'),
+        content: const Text('Состав и порядок сырья у всех товаров со спецификацией в 1С будут заменены '
+            'данными из 1С. Ручные правки рецептов пропадут.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Нет')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Обновить')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _importing = true);
+    try {
+      final r = await _api.importAllRecipesFromOneC();
+      final warnings = (r['warnings'] as List?)?.length ?? 0;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Обновлено: ${r['imported']}; нет в 1С: ${r['skippedNoOneCMatch']}; '
+            'без спецификации: ${r['skippedNoSpec']}${warnings > 0 ? '; предупреждений: $warnings' : ''}'),
+      ));
+      await _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
 
   @override
   void initState() {
@@ -60,6 +93,16 @@ class _RecipesScreenState extends State<RecipesScreen> {
         title: 'Рецепты',
         hintText: 'Название товара...',
         onQueryChanged: (v) => setState(() => _query = v),
+        extraActions: [
+          if (ApiClient.currentSession?.role == 'ADMIN')
+            IconButton(
+              tooltip: 'Обновить все рецепты из 1С',
+              onPressed: _importing ? null : _importAll,
+              icon: _importing
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.cloud_download_outlined),
+            ),
+        ],
       ),
       drawer: const AppDrawer(currentRoute: '/recipes'),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/recipes'),

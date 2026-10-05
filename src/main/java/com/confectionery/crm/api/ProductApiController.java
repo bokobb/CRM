@@ -122,6 +122,13 @@ public class ProductApiController {
         return oneCDepartmentImportService.importAll();
     }
 
+    /** Только ADMIN — рецепты ВСЕХ товаров из 1С разом (кнопка-облако на экране «Рецепты»). */
+    @PostMapping("/import-recipes-1c")
+    @PreAuthorize("hasRole('ADMIN')")
+    public OneCRecipeImportService.ImportResult importRecipesFromOneC() {
+        return oneCRecipeImportService.importAll();
+    }
+
     /**
      * Только ADMIN — заполняет рецепт (состав сырья) и GUID спецификации ОДНОГО товара из 1С,
      * не трогая остальные (см. OneCRecipeImportService.importOne) — кнопка "Импортировать рецепт

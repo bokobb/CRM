@@ -130,7 +130,7 @@ public class OneCRecipeImportService {
         if (!byOwner.containsKey(key)) return Outcome.NO_SPEC;
 
         OneCClient.Specification topSpec = pickTopSpec(key, byOwner);
-        Resolved resolved = resolve(key, byOwner, 0);
+        Resolved resolved = resolve(key, byOwner, names, ingredientByName, 0);
         if (resolved == null || resolved.raw().isEmpty()) return Outcome.NO_SPEC;
 
         BigDecimal factor = precisionFactor(resolved.raw().values());
@@ -201,7 +201,8 @@ public class OneCRecipeImportService {
      * спецификация (отдельный полуфабрикат, напр. "Рогалики для сырья") — разворачивается
      * рекурсивно. depth ограничивает глубину на случай зацикленных данных в самой 1С.
      */
-    private Resolved resolve(String key, Map<String, List<OneCClient.Specification>> byOwner, int depth) {
+    private Resolved resolve(String key, Map<String, List<OneCClient.Specification>> byOwner, Map<String, String> names,
+                             Map<String, Ingredient> ingredientByName, int depth) {
         List<OneCClient.Specification> list = byOwner.get(key);
         if (list == null) return null;
         OneCClient.Specification top = pickTopSpec(key, byOwner);
@@ -219,19 +220,27 @@ public class OneCRecipeImportService {
                 BigDecimal subYield = sub.yieldQuantity().signum() != 0 ? sub.yieldQuantity() : BigDecimal.ONE;
                 BigDecimal scale = qty.divide(subYield, MathContext.DECIMAL64);
                 for (OneCClient.SpecLine subLine : sub.lines()) {
-                    mergeExpanded(raw, subLine.ingredientKey(), subLine.quantity().multiply(scale), key, byOwner, depth);
+                    mergeExpanded(raw, subLine.ingredientKey(), subLine.quantity().multiply(scale), key, byOwner, names, ingredientByName, depth);
                 }
             } else {
-                mergeExpanded(raw, ingKey, qty, key, byOwner, depth);
+                mergeExpanded(raw, ingKey, qty, key, byOwner, names, ingredientByName, depth);
             }
         }
         return new Resolved(top.yieldQuantity(), raw);
     }
 
+    /**
+     * Полуфабрикат, который в CRM заведён как сырьё (Пряник, Коржик Сироп, Муравейник…), остаётся
+     * одной строкой, как в 1С: его пекут отдельной заявкой и оприходуют, а сырьё на него списано
+     * там — разворачивать его здесь значит списать муку/сахар второй раз. Разворачивается только
+     * вложенная спецификация, которой в CRM нет как сырья.
+     */
     private void mergeExpanded(Map<String, BigDecimal> raw, String ingKey, BigDecimal qty, String parentKey,
-                                Map<String, List<OneCClient.Specification>> byOwner, int depth) {
-        if (byOwner.containsKey(ingKey) && !ingKey.equals(parentKey) && depth < 5) {
-            Resolved nested = resolve(ingKey, byOwner, depth + 1);
+                                Map<String, List<OneCClient.Specification>> byOwner, Map<String, String> names,
+                                Map<String, Ingredient> ingredientByName, int depth) {
+        boolean semiFinishedIngredient = ingredientByName.containsKey(names.getOrDefault(ingKey, "").trim().toLowerCase());
+        if (byOwner.containsKey(ingKey) && !ingKey.equals(parentKey) && !semiFinishedIngredient && depth < 5) {
+            Resolved nested = resolve(ingKey, byOwner, names, ingredientByName, depth + 1);
             if (nested != null) {
                 BigDecimal nestedYield = nested.yield().signum() != 0 ? nested.yield() : BigDecimal.ONE;
                 BigDecimal nestedScale = qty.divide(nestedYield, MathContext.DECIMAL64);

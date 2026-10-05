@@ -790,6 +790,13 @@ class ApiClient {
     return Recipe.fromJson(_decode(res));
   }
 
+  /// Рецепты всех товаров из 1С разом (OneCRecipeImportService.importAll) — только ADMIN.
+  /// Возвращает сводку: сколько обновлено, сколько пропущено, предупреждения.
+  Future<Map<String, dynamic>> importAllRecipesFromOneC() async {
+    final res = await _http.post(await _uri('/products/import-recipes-1c'), headers: await _authHeaders());
+    return _decode(res) as Map<String, dynamic>;
+  }
+
   // ---- Production requests (заявки на сырьё) ----
   Future<List<ProductionRequestSummary>> getProductionRequests() async {
     final res = await http.get(
