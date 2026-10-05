@@ -98,7 +98,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       DashboardView.standard,
       DashboardView.chart,
       DashboardView.feed,
-      if (_hasRawPages) ...[DashboardView.raw, DashboardView.rawChart],
+      // Админу вместо страниц сырья — себестоимость (по дням и по продуктам за сегодня).
+      if (_role == 'ADMIN') ...[DashboardView.costDays, DashboardView.costProducts]
+      else if (_hasRawPages) ...[DashboardView.raw, DashboardView.rawChart],
     ];
   }
 
@@ -109,6 +111,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     DashboardView.raw: 'Сырьё',
     DashboardView.rawChart: 'Сырьё · график',
     DashboardView.sales: 'Продажи',
+    DashboardView.costDays: 'Себестоимость',
+    DashboardView.costProducts: 'Себестоимость продуктов',
   };
 
   int get _current {
@@ -145,11 +149,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         DashboardView.raw => _withDateFilter(_buildProductionBody()),
         DashboardView.rawChart => const RawInsightsView(),
         DashboardView.sales => _withDateFilter(_buildSalesBody()),
+        DashboardView.costDays => const CostByDayView(),
+        DashboardView.costProducts => const ProductCostTodayView(),
       };
 
   /// Кнопка внизу: на страницах продаж — новый заказ, на страницах сырья — новая заявка на сырьё.
   Widget? _bottomAction(DashboardView v) {
-    final raw = v == DashboardView.raw || v == DashboardView.rawChart;
+    final raw = v == DashboardView.raw || v == DashboardView.rawChart ||
+        v == DashboardView.costDays || v == DashboardView.costProducts;
     if (raw && _canCreateRequest) {
       return FilledButton.icon(
         onPressed: () async {

@@ -60,6 +60,8 @@ class ThemeSettingsScreen extends StatelessWidget {
                   (DashboardView.raw, 'Сырьё', 'Заявки на сырьё и низкие остатки'),
                   (DashboardView.rawChart, 'Сырьё · график', 'Замесы по дням и «Требует внимания» по сырью'),
                   (DashboardView.sales, 'Продажи (склад ГП)', 'Страница продаж на дашборде склада ГП'),
+                  (DashboardView.costDays, 'Себестоимость (админ)', 'Себестоимость выпуска по дням за 2 недели'),
+                  (DashboardView.costProducts, 'Себестоимость продуктов (админ)', 'Каждый продукт, вышедший сегодня'),
                 ],
               ),
               _ChoiceGroup<OrdersView>(

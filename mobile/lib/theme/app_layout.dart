@@ -3,8 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Компоновки экранов (Настройки › Оформление › Компоновка) — хранятся на телефоне, как темы.
 /// Страницы дашборда (листаются свайпом): продажи, график продаж, лента дня, сырьё, график сырья;
-/// sales — страница продаж у склада ГП (его «Обычный» — сборка/отгрузка).
-enum DashboardView { standard, chart, feed, raw, rawChart, sales }
+/// sales — страница продаж у склада ГП (его «Обычный» — сборка/отгрузка); costDays/costProducts —
+/// себестоимость по дням и по продуктам за сегодня (у админа вместо страниц сырья).
+enum DashboardView { standard, chart, feed, raw, rawChart, sales, costDays, costProducts }
 
 enum OrdersView { list, table, board }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/dashboard.dart';
 import '../models/order.dart';
+import '../models/production_cost.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import 'error_view.dart';
@@ -658,6 +659,383 @@ class _RawInsightsViewState extends State<RawInsightsView> {
                     ),
                   ),
               ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+String _pct(double cost, double sale) {
+  if (cost <= 0 || sale <= 0) return '—';
+  final m = ((sale - cost) / cost * 100).round();
+  return '${m >= 0 ? '+' : ''}$m%';
+}
+
+/// Предупреждение «у части сырья нет цены — себестоимость неполная».
+Widget _unpricedNote(BuildContext context, List<String> names) {
+  if (names.isEmpty) return const SizedBox.shrink();
+  final p = context.pal;
+  return Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: p.tint(p.warn), borderRadius: BorderRadius.circular(p.radius - 2)),
+      child: Text(
+        'Нет цены у ${names.length} видов сырья — себестоимость неполная: ${names.take(6).join(', ')}'
+        '${names.length > 6 ? '…' : ''}',
+        style: TextStyle(fontSize: 12.5, color: p.warn, fontWeight: FontWeight.w500),
+      ),
+    ),
+  );
+}
+
+/// Страница дашборда «Себестоимость по дням» — те же данные, что «Производство» (14 дней):
+/// себестоимость выпуска, его стоимость по ценам продажи и наценка.
+class CostByDayView extends StatefulWidget {
+  const CostByDayView({super.key});
+
+  @override
+  State<CostByDayView> createState() => _CostByDayViewState();
+}
+
+class _CostByDayViewState extends State<CostByDayView> {
+  final _api = ApiClient();
+  late Future<ProductionCost> _future = _api.getProductionCost(DateUtils.dateOnly(DateTime.now()));
+
+  Future<void> _refresh() async {
+    setState(() => _future = _api.getProductionCost(DateUtils.dateOnly(DateTime.now())));
+    await _future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: FutureBuilder<ProductionCost>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+          }
+          final d = snapshot.data!;
+          final days = d.history;
+          final maxCost = days.fold<double>(0, (m, e) => e.finishedCost > m ? e.finishedCost : m);
+          final total = days.fold<double>(0, (s, e) => s + e.finishedCost);
+          final totalSale = days.fold<double>(0, (s, e) => s + e.finishedSaleValue);
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Себестоимость выпуска сегодня', style: TextStyle(fontSize: 13, color: p.muted)),
+                      const SizedBox(height: 6),
+                      Text(
+                        formatMoney(d.finishedCost),
+                        style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w500, fontFeatures: [FontFeature.tabularFigures()]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'по ценам продажи ${formatMoney(d.finishedSaleValue)} · наценка ${_pct(d.finishedCost, d.finishedSaleValue)}',
+                        style: TextStyle(fontSize: 13, color: p.muted),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 110,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            for (var i = 0; i < days.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 4),
+                              Expanded(
+                                child: Tooltip(
+                                  message: '${formatDate(days[i].date)}: ${formatMoney(days[i].finishedCost)}',
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      Container(
+                                        height: maxCost <= 0 ? 3 : 3 + 82 * (days[i].finishedCost / maxCost),
+                                        decoration: BoxDecoration(
+                                          color: i == days.length - 1 ? p.accent : p.track,
+                                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4), bottom: Radius.circular(2)),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text('${days[i].date.day}', style: TextStyle(fontSize: 10, color: p.muted)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _unpricedNote(context, d.unpricedIngredients),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 8),
+                child: Text(
+                  'ПО ДНЯМ · 2 НЕДЕЛИ',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: p.muted),
+                ),
+              ),
+              Card(
+                margin: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    for (final (i, day) in days.reversed.indexed) ...[
+                      if (i > 0) Divider(height: 1, indent: 14, endIndent: 14, color: p.line),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 64,
+                              child: Text(
+                                '${_weekdayShort(day.date)}, ${day.date.day.toString().padLeft(2, '0')}.${day.date.month.toString().padLeft(2, '0')}',
+                                style: TextStyle(fontSize: 13, color: p.muted),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                day.finishedCost > 0 ? formatMoney(day.finishedCost) : '—',
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500, fontFeatures: [FontFeature.tabularFigures()]),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 110,
+                              child: Text(
+                                day.finishedSaleValue > 0 ? formatMoney(day.finishedSaleValue) : '',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(fontSize: 13, color: p.muted, fontFeatures: const [FontFeature.tabularFigures()]),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 52,
+                              child: Text(
+                                _pct(day.finishedCost, day.finishedSaleValue),
+                                textAlign: TextAlign.right,
+                                style: TextStyle(fontSize: 12.5, color: p.success),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    Divider(height: 1, color: p.line),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 64, child: Text('Итого', style: TextStyle(fontWeight: FontWeight.w600))),
+                          Expanded(
+                            child: Text(
+                              formatMoney(total),
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()]),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 110,
+                            child: Text(formatMoney(totalSale), textAlign: TextAlign.right, style: TextStyle(fontSize: 13, color: p.muted)),
+                          ),
+                          SizedBox(
+                            width: 52,
+                            child: Text(_pct(total, totalSale), textAlign: TextAlign.right, style: TextStyle(fontSize: 12.5, color: p.success)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                child: Text(
+                  'Себестоимость = сырьё по факту выдачи + зарплата бригады + накладные цеха. '
+                  'Вторая колонка — тот же выпуск по ценам продажи.',
+                  style: TextStyle(fontSize: 12, color: p.muted),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProductCostAgg {
+  final String name;
+  final String unit;
+  double quantity = 0;
+  double cost = 0;
+  double raw = 0;
+  double labor = 0;
+  double overhead = 0;
+  double? salePrice;
+  bool laborKnown = false;
+
+  _ProductCostAgg(this.name, this.unit);
+
+  double? get unitCost => quantity > 0 ? cost / quantity : null;
+}
+
+/// Страница дашборда «Себестоимость продуктов»: каждый продукт, оприходованный сегодня, — сколько
+/// вышло, себестоимость за единицу и всего (сырьё / зарплата / накладные), цена продажи и наценка.
+class ProductCostTodayView extends StatefulWidget {
+  const ProductCostTodayView({super.key});
+
+  @override
+  State<ProductCostTodayView> createState() => _ProductCostTodayViewState();
+}
+
+class _ProductCostTodayViewState extends State<ProductCostTodayView> {
+  final _api = ApiClient();
+  late Future<ProductionCost> _future = _api.getProductionCost(DateUtils.dateOnly(DateTime.now()));
+
+  Future<void> _refresh() async {
+    setState(() => _future = _api.getProductionCost(DateUtils.dateOnly(DateTime.now())));
+    await _future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: FutureBuilder<ProductionCost>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+          }
+          final d = snapshot.data!;
+          // Один продукт может быть в нескольких заявках дня — складываем по productId.
+          final byProduct = <int, _ProductCostAgg>{};
+          for (final r in d.requests) {
+            for (final l in r.lines) {
+              if (!l.received || l.semiFinished) continue;
+              final a = byProduct.putIfAbsent(l.productId, () => _ProductCostAgg(l.name, l.unit ?? 'шт'));
+              a.quantity += l.quantity;
+              a.cost += l.cost;
+              a.raw += l.rawCost;
+              if (l.laborCost != null) {
+                a.labor += l.laborCost!;
+                a.laborKnown = true;
+              }
+              a.overhead += l.overheadCost ?? 0;
+              a.salePrice ??= l.salePrice;
+            }
+          }
+          final products = byProduct.values.toList()..sort((a, b) => b.cost.compareTo(a.cost));
+          final total = products.fold<double>(0, (s, a) => s + a.cost);
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Вышло сегодня · ${products.length} продукт(ов)', style: TextStyle(fontSize: 13, color: p.muted)),
+                      const SizedBox(height: 6),
+                      Text(
+                        formatMoney(total),
+                        style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w500, fontFeatures: [FontFeature.tabularFigures()]),
+                      ),
+                      Text('себестоимость всего выпуска', style: TextStyle(fontSize: 13, color: p.muted)),
+                    ],
+                  ),
+                ),
+              ),
+              _unpricedNote(context, d.unpricedIngredients),
+              const SizedBox(height: 16),
+              if (products.isEmpty)
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    leading: Icon(Icons.hourglass_empty, color: p.muted),
+                    title: const Text('Сегодня ещё ничего не оприходовано'),
+                    subtitle: Text('Продукт появится здесь после приёма на склад ГП', style: TextStyle(color: p.muted)),
+                  ),
+                )
+              else
+                for (final a in products)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(a.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                              ),
+                              Text(
+                                a.unitCost == null ? '—' : '${formatMoney(a.unitCost!)} / ${a.unit}',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()]),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'вышло ${formatQty(a.quantity)} ${a.unit} · всего ${formatMoney(a.cost)}',
+                            style: TextStyle(fontSize: 13, color: p.muted),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            [
+                              'сырьё ${formatMoney(a.raw)}',
+                              if (a.laborKnown) 'зарплата ${formatMoney(a.labor)}',
+                              if (a.overhead > 0) 'накладные ${formatMoney(a.overhead)}',
+                            ].join(' · '),
+                            style: TextStyle(fontSize: 12.5, color: p.muted),
+                          ),
+                          if (a.salePrice != null && a.unitCost != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Text('цена продажи ${formatMoney(a.salePrice!)}', style: TextStyle(fontSize: 13, color: p.ink)),
+                                const Spacer(),
+                                Text(
+                                  'наценка ${_pct(a.unitCost!, a.salePrice!)}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: a.salePrice! >= a.unitCost! ? p.success : p.danger,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
             ],
           );
         },
