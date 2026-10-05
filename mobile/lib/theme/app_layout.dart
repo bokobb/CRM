@@ -2,8 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Компоновки экранов (Настройки › Оформление › Компоновка) — хранятся на телефоне, как темы.
-/// Страницы дашборда (листаются свайпом): продажи, график продаж, лента дня, сырьё, график сырья.
-enum DashboardView { standard, chart, feed, raw, rawChart }
+/// Страницы дашборда (листаются свайпом): продажи, график продаж, лента дня, сырьё, график сырья;
+/// sales — страница продаж у склада ГП (его «Обычный» — сборка/отгрузка).
+enum DashboardView { standard, chart, feed, raw, rawChart, sales }
 
 enum OrdersView { list, table, board }
 

@@ -60,7 +60,7 @@ public class DashboardExtrasApiController {
 
     @GetMapping("/insights")
     @Transactional(readOnly = true)
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','SALES')")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','SALES','WAREHOUSE_FG')")
     public DashboardInsightsDto insights(@RequestParam(required = false) LocalDate to) {
         LocalDate end = to != null ? to : LocalDate.now();
         LocalDate start = end.minusDays(6);
@@ -155,9 +155,9 @@ public class DashboardExtrasApiController {
     @GetMapping("/feed")
     @Transactional(readOnly = true)
     public DayFeedDto feed(@RequestParam(required = false) LocalDate date, Authentication authentication) {
-        // Склады (ГП, сырьё) видят события дня, но без денег — суммы продаж им не показываем.
+        // Склад сырья видит события дня без денег; склад ГП — с суммами, как руководство.
         Role role = userService.roleOf(authentication.getName());
-        boolean money = role == Role.ADMIN || role == Role.ACCOUNTANT || role == Role.SALES;
+        boolean money = role == Role.ADMIN || role == Role.ACCOUNTANT || role == Role.SALES || role == Role.WAREHOUSE_FG;
         LocalDate day = date != null ? date : LocalDate.now();
         LocalDateTime start = day.atStartOfDay();
         LocalDateTime end = day.plusDays(1).atStartOfDay();

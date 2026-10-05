@@ -62,7 +62,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     if (_isWarehouseFg) {
       _fgFuture = _api.getWarehouseDashboard(from: _range.start, to: _range.end);
-    } else if (!_isWarehouseRaw) {
+    }
+    // Продажи — всем, кроме склада сырья (у склада ГП это отдельная страница «Продажи»).
+    if (!_isWarehouseRaw) {
       _future = _api.getDashboard(from: _range.start, to: _range.end);
     }
   }
@@ -89,7 +91,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// что Настройки › Оформление › Компоновка).
   List<DashboardView> get _pages {
     if (_isWarehouseRaw) return const [DashboardView.raw, DashboardView.rawChart, DashboardView.feed];
-    if (_isWarehouseFg) return const [DashboardView.standard, DashboardView.feed];
+    if (_isWarehouseFg) {
+      return const [DashboardView.standard, DashboardView.sales, DashboardView.chart, DashboardView.feed];
+    }
     return [
       DashboardView.standard,
       DashboardView.chart,
@@ -104,6 +108,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     DashboardView.feed: 'Лента дня',
     DashboardView.raw: 'Сырьё',
     DashboardView.rawChart: 'Сырьё · график',
+    DashboardView.sales: 'Продажи',
   };
 
   int get _current {
@@ -139,6 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         DashboardView.feed => const FeedView(),
         DashboardView.raw => _withDateFilter(_buildProductionBody()),
         DashboardView.rawChart => const RawInsightsView(),
+        DashboardView.sales => _withDateFilter(_buildSalesBody()),
       };
 
   /// Кнопка внизу: на страницах продаж — новый заказ, на страницах сырья — новая заявка на сырьё.
@@ -386,7 +392,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppListTile(
                   leadingIcon: Icons.receipt_long_outlined,
                   title: '#${o.id} · ${o.clientName}',
-                  subtitle: formatDate(o.createdAt), // складу ГП суммы не показываем
+                  subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}',
                   trailing: StatusBadge(status: o.status, label: o.statusLabel),
                   onTap: () async {
                     await Navigator.of(context).pushNamed('/orders/detail', arguments: o.id);

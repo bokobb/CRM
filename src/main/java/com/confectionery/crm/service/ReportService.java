@@ -90,7 +90,8 @@ public class ReportService {
         return switch (role == null ? "" : role) {
             case "ADMIN", "ACCOUNTANT" -> List.of(Kind.values());
             case "TECHNOLOGIST" -> List.of(Kind.SHIFT_RECEIPT, Kind.EMPLOYEES);
-            case "WAREHOUSE_FG" -> List.of(Kind.SHIFT_RECEIPT);
+            // Склад ГП видит и продажи (по просьбе владельца, 05.10) — но не сводку с расходами.
+            case "WAREHOUSE_FG" -> List.of(Kind.SHIFT_RECEIPT, Kind.CLIENTS, Kind.PRODUCTS);
             default -> List.of();
         };
     }

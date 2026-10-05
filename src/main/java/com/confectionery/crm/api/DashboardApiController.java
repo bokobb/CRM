@@ -45,9 +45,9 @@ public class DashboardApiController {
     private final ProductRepository productRepository;
 
     /** from/to не заданы — по умолчанию сегодня (в отличие от заказов/уведомлений, где "не задан" = все даты). */
-    /** Продажи в деньгах — только руководству и продажам; складам свои дашборды (см. ниже). */
+    /** Продажи в деньгах — руководству, продажам и складу ГП; складу сырья — нет. */
     @GetMapping
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','SALES')")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','SALES','WAREHOUSE_FG')")
     public DashboardDto get(@RequestParam(required = false) LocalDate from,
                              @RequestParam(required = false) LocalDate to,
                              Authentication authentication) {
