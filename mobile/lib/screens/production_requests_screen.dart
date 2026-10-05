@@ -10,6 +10,7 @@ import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/production_composition_sheet.dart';
+import '../widgets/production_merge_sheet.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/swipe_cancel_delete.dart';
 import 'production_request_detail_screen.dart';
@@ -41,6 +42,16 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
   late Future<List<ProductionRequestSummary>> _future;
   DateTimeRange _range = todayRange();
   String? _status;
+
+  /// Режим слияния рецептур: иконка в шапке включает галочки на карточках; при 2+ выбранных
+  /// — кнопка «Показать слияние» (см. showProductionMergePreview).
+  bool _merging = false;
+  final Set<int> _selected = {};
+
+  void _toggleMerging() => setState(() {
+        _merging = !_merging;
+        _selected.clear();
+      });
 
   bool get _canCreate {
     final role = ApiClient.currentSession?.role;
@@ -96,12 +107,29 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Заявки на сырьё')),
+      appBar: AppBar(
+        leading: _merging ? IconButton(icon: const Icon(Icons.close), tooltip: 'Отменить', onPressed: _toggleMerging) : null,
+        title: Text(_merging ? 'Выберите заявки (${_selected.length})' : 'Заявки на сырьё'),
+        actions: [
+          if (!_merging)
+            IconButton(icon: const Icon(Icons.call_merge), tooltip: 'Слияние рецептур', onPressed: _toggleMerging),
+          const SizedBox(width: 4),
+        ],
+      ),
       drawer: const AppDrawer(currentRoute: '/production-requests'),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/production-requests'),
-      floatingActionButton: _canCreate
-          ? FloatingActionButton(onPressed: _openNew, child: const Icon(Icons.add))
-          : null,
+      floatingActionButton: _merging
+          ? FloatingActionButton.extended(
+              onPressed: _selected.length < 2
+                  ? null
+                  : () => showProductionMergePreview(context, _selected.toList()),
+              backgroundColor: _selected.length < 2 ? context.pal.line : null,
+              icon: const Icon(Icons.call_merge),
+              label: Text(_selected.length < 2 ? 'Отметьте 2 и больше' : 'Показать слияние (${_selected.length})'),
+            )
+          : _canCreate
+              ? FloatingActionButton(onPressed: _openNew, child: const Icon(Icons.add))
+              : null,
       body: Column(
         children: [
           DateFilterBar(range: _range, onChanged: _onRangeChanged),
@@ -151,7 +179,14 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                     itemCount: requests.length,
                     itemBuilder: (context, index) {
                       final r = requests[index];
+                      final selected = _selected.contains(r.id);
                       final tile = AppListTile(
+                        leading: _merging
+                            ? Checkbox(
+                                value: selected,
+                                onChanged: (_) => setState(() => selected ? _selected.remove(r.id) : _selected.add(r.id)),
+                              )
+                            : null,
                         leadingIcon: Icons.science_outlined,
                         leadingColor: context.pal.warn,
                         backgroundColor: (_isWarehouseRaw && r.requisitionCompleted) ? context.pal.line : null,
@@ -181,12 +216,15 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                           label: r.requisitionCompleted ? 'Завершена' : r.statusLabel,
                           insufficient: r.hasShortfall,
                         ),
-                        onTap: () => _openDetail(r.id),
-                        onLongPress: () async {
+                        onTap: _merging
+                            ? () => setState(() => selected ? _selected.remove(r.id) : _selected.add(r.id))
+                            : () => _openDetail(r.id),
+                        onLongPress: _merging ? null : () async {
                           await showProductionCompositionDiff(context, requestId: r.id);
                           _refresh();
                         },
                       );
+                      if (_merging) return tile;
                       return SwipeCancelDelete(
                         itemKey: r.id,
                         cancelled: r.status == 'CANCELLED',
