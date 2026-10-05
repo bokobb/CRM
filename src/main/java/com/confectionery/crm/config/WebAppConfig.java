@@ -8,7 +8,6 @@ import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Раздаёт веб-сборку Flutter-приложения (см. mobile/, {@code flutter build web}) как статику
@@ -26,6 +25,11 @@ import java.util.concurrent.TimeUnit;
  * пустую строку, а не "index.html", запрос падал мимо и в итоге улетал в security-чейн для
  * остального сайта (редирект на /login) — то же самое случалось для ЛЮБОГО отсутствующего
  * файла под /app/**, просто совпало по симптому. Полдня на кеш index.html не стоят той цены.
+ *
+ * <p>2026-10-05: кеш на час заменён на no-cache для всего /app/** — тем же одним обработчиком
+ * (без отдельного под index.html): браузер каждый раз сверяет Last-Modified и получает 304,
+ * если файл не менялся. Иначе Safari на iPhone до часа показывал старую сборку после выкладки
+ * (имена main.dart.js/flutter_bootstrap.js не содержат хеша, «сбросить» кеш нечем).
  */
 @Configuration
 public class WebAppConfig implements WebMvcConfigurer {
@@ -38,7 +42,7 @@ public class WebAppConfig implements WebMvcConfigurer {
         String location = "file:" + Path.of(webAppDir).toAbsolutePath().normalize() + "/";
         registry.addResourceHandler("/app/**")
                 .addResourceLocations(location)
-                .setCacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePublic());
+                .setCacheControl(CacheControl.noCache().cachePublic());
     }
 
     /** /app и /app/ (без имени файла) — на index.html, ResourceHandler сам directory index не угадывает. */
