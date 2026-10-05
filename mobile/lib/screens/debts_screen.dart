@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../theme/app_theme.dart';
 
 /// Заявки (заказы), по которым клиент ещё не оплатил — с сроком оплаты.
 /// Просроченные подсвечиваются; по истечении срока бухгалтер получает уведомление
@@ -58,13 +59,13 @@ class _DebtsScreenState extends State<DebtsScreen> {
             final debts = snapshot.data!;
             if (debts.isEmpty) {
               return ListView(
-                children: const [
+                children: [
                   Padding(
                     padding: EdgeInsets.all(32),
                     child: Center(
                       child: Text(
                         'Неоплаченных долгов нет',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: context.pal.muted),
                       ),
                     ),
                   ),
@@ -80,15 +81,15 @@ class _DebtsScreenState extends State<DebtsScreen> {
                 return AppListTile(
                   leadingIcon: Icons.hourglass_bottom_outlined,
                   leadingColor: overdue
-                      ? const Color(0xFFB8433F)
-                      : const Color(0xFFD9A73F),
+                      ? context.pal.danger
+                      : context.pal.warn,
                   title: '#${o.id} · ${o.clientName}',
                   subtitle:
                       '${formatMoney(o.netTotal)}${o.returnsCount > 0 ? ' (с учётом возврата)' : ''} · срок ${formatDate(o.debtDueDate!)}'
                       '${overdue ? " · просрочен" : ""}',
                   trailing: Icon(
                     Icons.chevron_right,
-                    color: overdue ? const Color(0xFFB8433F) : Colors.grey,
+                    color: overdue ? context.pal.danger : context.pal.muted,
                   ),
                   onTap: () async {
                     await Navigator.of(context)

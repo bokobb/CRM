@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/whatsapp_session.dart';
 import '../services/api_client.dart';
+import '../theme/app_theme.dart';
 
 /// Настройки -> WhatsApp-сессия: статус подключения шлюза, QR для нового подключения, разрыв
 /// текущей сессии. Опрашивает статус каждые несколько секунд — соединение и QR меняются
@@ -74,7 +75,7 @@ class _WhatsAppSessionScreenState extends State<WhatsAppSessionScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB8433F)),
+            style: FilledButton.styleFrom(backgroundColor: context.pal.danger),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Разорвать'),
           ),
@@ -105,7 +106,7 @@ class _WhatsAppSessionScreenState extends State<WhatsAppSessionScreen> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                child: Text(_error!, style: TextStyle(color: context.pal.danger)),
               ),
             _buildBody(),
           ],
@@ -135,23 +136,23 @@ class _WhatsAppSessionScreenState extends State<WhatsAppSessionScreen> {
     return Column(
       children: [
         const SizedBox(height: 24),
-        const Icon(Icons.check_circle, color: Color(0xFF4C8A5E), size: 64),
+        Icon(Icons.check_circle, color: context.pal.success, size: 64),
         const SizedBox(height: 16),
         const Text('Подключено', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         if (session.phone != null) ...[
           const SizedBox(height: 6),
-          Text('+${session.phone}', style: const TextStyle(color: Colors.grey, fontSize: 15)),
+          Text('+${session.phone}', style: TextStyle(color: context.pal.muted, fontSize: 15)),
         ],
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Заказы из WhatsApp обрабатываются автоматически.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: context.pal.muted),
         ),
         const SizedBox(height: 28),
         OutlinedButton.icon(
           onPressed: _loggingOut ? null : _logout,
-          style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB8433F)),
+          style: OutlinedButton.styleFrom(foregroundColor: context.pal.danger),
           icon: _loggingOut
               ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.link_off),
@@ -170,29 +171,29 @@ class _WhatsAppSessionScreenState extends State<WhatsAppSessionScreen> {
         if (_qrBytes != null)
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE7E0D8)), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(border: Border.all(color: context.pal.line), borderRadius: BorderRadius.circular(12)),
             child: Image.memory(_qrBytes!, width: 260, height: 260),
           )
         else
           const SizedBox(height: 260, child: Center(child: CircularProgressIndicator())),
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'На телефоне, который будет принимать заказы, откройте WhatsApp → Настройки → '
           'Связанные устройства → Привязка устройства и отсканируйте этот QR-код.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: context.pal.muted),
         ),
       ],
     );
   }
 
   Widget _buildConnecting() {
-    return const Column(
+    return Column(
       children: [
         SizedBox(height: 40),
         CircularProgressIndicator(),
         SizedBox(height: 16),
-        Text('Подключение к WhatsApp...', style: TextStyle(color: Colors.grey)),
+        Text('Подключение к WhatsApp...', style: TextStyle(color: context.pal.muted)),
       ],
     );
   }
@@ -201,14 +202,14 @@ class _WhatsAppSessionScreenState extends State<WhatsAppSessionScreen> {
     return Column(
       children: [
         const SizedBox(height: 24),
-        const Icon(Icons.error_outline, color: Color(0xFFB8433F), size: 56),
+        Icon(Icons.error_outline, color: context.pal.danger, size: 56),
         const SizedBox(height: 16),
         const Text('WhatsApp-шлюз недоступен', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Не удалось связаться со шлюзом на сервере — проверьте, что он запущен.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: context.pal.muted),
         ),
         const SizedBox(height: 16),
         OutlinedButton(onPressed: _poll, child: const Text('Повторить')),

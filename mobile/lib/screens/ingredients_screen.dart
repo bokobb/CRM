@@ -7,6 +7,7 @@ import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/searchable_app_bar.dart';
+import '../theme/app_theme.dart';
 
 class IngredientsScreen extends StatefulWidget {
   const IngredientsScreen({super.key});
@@ -185,7 +186,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
                       _query.isNotEmpty
                           ? 'Ничего не найдено'
                           : (_lowStockOnly ? 'Дефицита нет — всё в норме' : 'Ингредиентов пока нет'),
-                      style: const TextStyle(color: Colors.grey),
+                      style: TextStyle(color: context.pal.muted),
                     ),
                   ),
                 ),
@@ -198,14 +199,14 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
                 final i = ingredients[index];
                 return AppListTile(
                   leadingIcon: i.lowStock ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
-                  leadingColor: i.lowStock ? const Color(0xFFB8433F) : Colors.grey,
+                  leadingColor: i.lowStock ? context.pal.danger : context.pal.muted,
                   title: i.name,
                   subtitle: 'минимум ${formatQty(i.minThreshold)} ${i.unit}',
                   trailing: Text(
                     '${formatQty(i.quantityInStock)} ${i.unit}',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: i.lowStock ? const Color(0xFFB8433F) : null,
+                      color: i.lowStock ? context.pal.danger : null,
                     ),
                   ),
                   onLongPress: () => _delete(i),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class StatusBadge extends StatelessWidget {
   final String status;
@@ -10,70 +11,41 @@ class StatusBadge extends StatelessWidget {
 
   const StatusBadge({super.key, required this.status, required this.label, this.insufficient = false});
 
-  Color _bg(BuildContext context) {
-    if (insufficient) return const Color(0xFFF6E0DF);
+  Color _color(BuildContext context) {
+    final p = context.pal;
+    if (insufficient) return p.danger;
     switch (status) {
       case 'NEW':
       case 'PENDING':
-        return const Color(0xFFF7EDD6);
+        return p.warn;
       case 'CONFIRMED':
       case 'IN_PRODUCTION':
       case 'IN_PROGRESS':
       case 'COLLECTED':
-        return const Color(0xFFF4E3DC);
       case 'READY':
+        return p.info;
+      case 'DELIVERED':
       case 'DONE':
       case 'RECEIVED':
-        return const Color(0xFFE3F0E6);
-      case 'DELIVERED':
-        return const Color(0xFFE5E5E5);
-      case 'COMPLETED':
-        return const Color(0xFFEFE3C2);
+        return p.success;
       case 'CANCELLED':
-        return const Color(0xFFF6E0DF);
+        return p.danger;
       default:
-        return const Color(0xFFEEEEEE);
+        return p.muted;
     }
   }
 
-  Color _fg(BuildContext context) {
-    if (insufficient) return const Color(0xFFB8433F);
-    switch (status) {
-      case 'NEW':
-      case 'PENDING':
-        return const Color(0xFFC99A2E);
-      case 'CONFIRMED':
-      case 'IN_PRODUCTION':
-      case 'IN_PROGRESS':
-      case 'COLLECTED':
-        return const Color(0xFF8F2438);
-      case 'READY':
-      case 'DONE':
-      case 'RECEIVED':
-        return const Color(0xFF4C8A5E);
-      case 'DELIVERED':
-        return const Color(0xFF555555);
-      case 'COMPLETED':
-        return const Color(0xFF9A7A1E);
-      case 'CANCELLED':
-        return const Color(0xFFB8433F);
-      default:
-        return const Color(0xFF777777);
-    }
-  }
-
+  /// Строгий вид: точка + подпись цветом статуса, без цветной плашки.
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _bg(context),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: _fg(context), fontSize: 12, fontWeight: FontWeight.w600),
-      ),
+    final c = _color(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 7, height: 7, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: c, fontSize: 12.5, fontWeight: FontWeight.w500)),
+      ],
     );
   }
 }

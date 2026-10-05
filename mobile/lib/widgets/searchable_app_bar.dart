@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../main.dart' show ink;
+import '../theme/app_theme.dart';
 
 /// AppBar с сворачиваемым поиском: обычно просто заголовок + иконка-лупа справа; после тапа
 /// заголовок заменяется текстовым полем, ввод сразу фильтрует список через [onQueryChanged]
@@ -53,8 +53,8 @@ class _SearchableAppBarState extends State<SearchableAppBar> {
           ? TextField(
               controller: _controller,
               autofocus: true,
-              style: const TextStyle(color: ink),
-              cursorColor: ink,
+              style: TextStyle(color: context.pal.ink),
+              cursorColor: context.pal.ink,
               decoration: InputDecoration(
                 hintText: widget.hintText,
                 hintStyle: const TextStyle(color: Color(0x992B1F1A)),

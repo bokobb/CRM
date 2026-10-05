@@ -7,6 +7,7 @@ import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import 'timesheet_screen.dart';
+import '../theme/app_theme.dart';
 
 /// Меню «Отчёты»: список отчётов, доступных роли (приходит с сервера), плюс прежний отчёт
 /// «Производство: план / факт» с PDF. Любой серверный отчёт открывается одним экраном
@@ -62,7 +63,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     leadingIcon: _icons[r.key] ?? Icons.summarize_outlined,
                     title: r.title,
                     subtitle: r.description,
-                    trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                    trailing: Icon(Icons.chevron_right, color: context.pal.muted),
                     // Табель — своя таблица по дням с правкой, а не общий отчёт.
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => r.key == 'employees' ? const TimesheetScreen() : ReportScreen(info: r))),
@@ -72,7 +73,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     leadingIcon: Icons.picture_as_pdf_outlined,
                     title: 'Производство: план / факт',
                     subtitle: 'Оприходовано за день по товарам, отклонение от нормы, выгрузка PDF',
-                    trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                    trailing: Icon(Icons.chevron_right, color: context.pal.muted),
                     onTap: () => Navigator.of(context).pushNamed('/production-requests/report'),
                   ),
               ],
@@ -250,7 +251,7 @@ class _ReportScreenState extends State<ReportScreen> {
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
           child: Text(
             _from == _to ? formatDate(_from) : '${formatDate(_from)} — ${formatDate(_to)}',
-            style: const TextStyle(color: Colors.grey, fontSize: 13),
+            style: TextStyle(color: context.pal.muted, fontSize: 13),
           ),
         ),
       ],
@@ -258,10 +259,10 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 }
 
-Color? _toneColor(String? tone) => switch (tone) {
-      'good' => const Color(0xFF2F7D4F),
-      'bad' => const Color(0xFFB23A2E),
-      'muted' => Colors.grey,
+Color? _toneColor(BuildContext context, String? tone) => switch (tone) {
+      'good' => context.pal.success,
+      'bad' => context.pal.danger,
+      'muted' => context.pal.muted,
       _ => null,
     };
 
@@ -297,9 +298,9 @@ class _ReportBody extends StatelessWidget {
           ),
         const SizedBox(height: 12),
         if (r.rows.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(24),
-            child: Center(child: Text('За этот период данных нет', style: TextStyle(color: Colors.grey))),
+            child: Center(child: Text('За этот период данных нет', style: TextStyle(color: context.pal.muted))),
           )
         else
           Card(
@@ -313,7 +314,7 @@ class _ReportBody extends StatelessWidget {
         for (final n in r.notes)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(n, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            child: Text(n, style: TextStyle(color: context.pal.muted, fontSize: 12)),
           ),
       ],
     );
@@ -321,7 +322,7 @@ class _ReportBody extends StatelessWidget {
 
   Widget _table(BuildContext context) {
     final r = report;
-    final border = BorderSide(color: Colors.grey.shade300, width: 0.6);
+    final border = BorderSide(color: context.pal.line, width: 0.6);
     Widget cell(String text, {bool numeric = false, bool bold = false, Color? color, bool first = false}) => Container(
           constraints: BoxConstraints(minWidth: first ? 140 : 64, maxWidth: first ? 240 : 320),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -343,10 +344,10 @@ class _ReportBody extends StatelessWidget {
       border: TableBorder(horizontalInside: border),
       children: [
         TableRow(
-          decoration: BoxDecoration(color: Colors.grey.shade100),
+          decoration: BoxDecoration(color: context.pal.seg),
           children: [
             for (var i = 0; i < r.columns.length; i++)
-              cell(r.columns[i].label, numeric: r.columns[i].numeric, bold: true, color: Colors.grey.shade700, first: i == 0),
+              cell(r.columns[i].label, numeric: r.columns[i].numeric, bold: true, color: context.pal.muted, first: i == 0),
           ],
         ),
         for (final row in r.rows)
@@ -362,14 +363,14 @@ class _ReportBody extends StatelessWidget {
                   _fmt(i < row.cells.length ? row.cells[i] : null, r.columns[i].type),
                   numeric: r.columns[i].numeric,
                   first: i == 0,
-                  color: row.tone == 'muted' ? Colors.grey : (i == r.columns.length - 1 ? _toneColor(row.tone) : null),
+                  color: row.tone == 'muted' ? context.pal.muted : (i == r.columns.length - 1 ? _toneColor(context, row.tone) : null),
                   bold: i == r.columns.length - 1 && (row.tone == 'bad' || row.tone == 'good'),
                 ),
             ],
           ),
         if (r.totals != null)
           TableRow(
-            decoration: BoxDecoration(color: Colors.grey.shade100),
+            decoration: BoxDecoration(color: context.pal.seg),
             children: [
               for (var i = 0; i < r.columns.length; i++)
                 cell(_fmt(i < r.totals!.length ? r.totals![i] : null, r.columns[i].type),
@@ -398,13 +399,13 @@ class _CardTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(card.label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(card.label, style: TextStyle(color: context.pal.muted, fontSize: 12)),
               const SizedBox(height: 4),
               Text(
                 _fmt(card.value, card.type),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _toneColor(card.tone)),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _toneColor(context, card.tone)),
               ),
-              if (card.hint != null) Text(card.hint!, style: const TextStyle(color: Colors.grey, fontSize: 11.5)),
+              if (card.hint != null) Text(card.hint!, style: TextStyle(color: context.pal.muted, fontSize: 11.5)),
             ],
           ),
         ),

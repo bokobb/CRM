@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
+import '../theme/app_theme.dart';
 
 class WarehouseScreen extends StatelessWidget {
   const WarehouseScreen({super.key});
@@ -18,23 +19,23 @@ class WarehouseScreen extends StatelessWidget {
             leadingIcon: Icons.inventory_2_outlined,
             title: 'Остатки',
             subtitle: 'Готовая продукция на складе',
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            trailing: Icon(Icons.chevron_right, color: context.pal.muted),
             onTap: () => Navigator.of(context).pushNamed('/warehouse/stock'),
           ),
           AppListTile(
             leadingIcon: Icons.add_box_outlined,
-            leadingColor: const Color(0xFF3F8F5B),
+            leadingColor: context.pal.success,
             title: 'Поступления',
             subtitle: 'Приход готовой продукции на склад',
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            trailing: Icon(Icons.chevron_right, color: context.pal.muted),
             onTap: () => Navigator.of(context).pushNamed('/warehouse/receipts'),
           ),
           AppListTile(
             leadingIcon: Icons.remove_circle_outline,
-            leadingColor: const Color(0xFFB8433F),
+            leadingColor: context.pal.danger,
             title: 'Списание товара',
             subtitle: 'Порча, недостача и другие списания',
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            trailing: Icon(Icons.chevron_right, color: context.pal.muted),
             onTap: () => Navigator.of(context).pushNamed('/warehouse/writeoffs'),
           ),
         ],

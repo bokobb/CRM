@@ -5,6 +5,7 @@ import '../models/production_cost.dart';
 import '../services/api_client.dart';
 import 'hidden_search.dart';
 import 'tech_card_style.dart';
+import '../theme/app_theme.dart';
 
 /// Выбор бригады заявки: все работающие сотрудники кнопками-переключателями. Кто в этот день уже
 /// в другой бригаде — кнопка неактивна с номером той заявки (один человек — одна бригада за день).
@@ -19,7 +20,7 @@ Future<ProductionRequestCost?> showBrigadeSheet(
   context: context,
   isScrollControlled: true,
   showDragHandle: true,
-  backgroundColor: TK.paper,
+  backgroundColor: context.pal.card,
   builder: (_) => _BrigadeSheet(requestId: requestId, requestTitle: requestTitle, date: date, current: current),
 );
 
@@ -111,21 +112,21 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
                       children: [
                         Text('Бригада', style: TK.h1.copyWith(fontSize: 18)),
                         const SizedBox(height: 2),
-                        Text('№${widget.requestId} · ${widget.requestTitle}', style: TK.note),
+                        Text('№${widget.requestId} · ${widget.requestTitle}', style: TK.note.copyWith(color: context.pal.muted)),
                       ],
                     ),
                   ),
-                  if (employees.length > 6) _search.button(setState, color: TK.accent),
+                  if (employees.length > 6) _search.button(setState, color: context.pal.accent),
                 ],
               ),
               _search.field(setState),
               const SizedBox(height: 12),
               if (employees.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
                   child: Text(
                     'Сотрудников нет — добавьте их в меню «Сотрудники»',
-                    style: TK.note,
+                    style: TK.note.copyWith(color: context.pal.muted),
                     textAlign: TextAlign.center,
                   ),
                 )
@@ -157,10 +158,10 @@ class _BrigadeSheetState extends State<_BrigadeSheet> {
                     ),
                   ),
                 ),
-              if (_error != null) ...[const SizedBox(height: 10), Text(_error!, style: const TextStyle(color: TK.bad))],
+              if (_error != null) ...[const SizedBox(height: 10), Text(_error!, style: TextStyle(color: context.pal.danger))],
               const SizedBox(height: 16),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: TK.accent, minimumSize: const Size.fromHeight(46)),
+                style: FilledButton.styleFrom(backgroundColor: context.pal.accent, minimumSize: const Size.fromHeight(46)),
                 onPressed: _saving ? null : _save,
                 child: Text(_saving ? 'Сохраняю…' : 'Сохранить · ${_selected.length} чел.'),
               ),
@@ -185,8 +186,8 @@ class _EmployeeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final busy = busyIn != null;
     return Material(
-      color: selected ? TK.accent : (busy ? TK.soft : TK.paper),
-      shape: StadiumBorder(side: BorderSide(color: selected ? TK.accent : TK.line)),
+      color: selected ? context.pal.accent : (busy ? context.pal.seg : context.pal.card),
+      shape: StadiumBorder(side: BorderSide(color: selected ? context.pal.accent : context.pal.line)),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: onTap,
@@ -202,12 +203,12 @@ class _EmployeeChip extends StatelessWidget {
                   fontFamily: TK.body,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: selected ? Colors.white : (busy ? TK.muted : TK.ink),
+                  color: selected ? Colors.white : (busy ? context.pal.muted : context.pal.ink),
                 ),
               ),
               if (busy) ...[
                 const SizedBox(width: 6),
-                Text('№${busyIn!.id}', style: TK.num.copyWith(fontSize: 11.5, color: TK.muted)),
+                Text('№${busyIn!.id}', style: TK.num.copyWith(fontSize: 11.5, color: context.pal.muted)),
               ],
             ],
           ),

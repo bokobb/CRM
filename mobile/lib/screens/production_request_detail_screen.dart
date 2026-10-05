@@ -10,6 +10,7 @@ import '../widgets/pick_from_list.dart';
 import '../widgets/receipt_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/success_feedback.dart';
+import '../theme/app_theme.dart';
 
 class ProductionRequestDetailScreen extends StatefulWidget {
   final int requestId;
@@ -43,7 +44,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   Widget _searchToggle() => IconButton(
         iconSize: 28,
         tooltip: _itemSearchOpen ? 'Сбросить поиск' : 'Поиск в составе',
-        color: const Color(0xFF8F2438),
+        color: context.pal.accent,
         icon: Icon(_itemSearchOpen ? Icons.search_off : Icons.search),
         onPressed: () => setState(() {
           _itemSearchOpen = !_itemSearchOpen;
@@ -457,11 +458,11 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                           const SizedBox(height: 4),
                           Text(
                             'Итого ${formatQty(r.totalBatches)} замес. · ${r.createdBy} · ${formatDateTime(r.createdAt)}',
-                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            style: TextStyle(color: context.pal.muted, fontSize: 13),
                           ),
                           Text(
                             'Дата документа для 1С: ${formatDate(r.documentDate)}',
-                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            style: TextStyle(color: context.pal.muted, fontSize: 13),
                           ),
                         ],
                       ),
@@ -472,19 +473,19 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 if (r.status == 'COLLECTED' || r.status == 'RECEIVED') ...[
                   const SizedBox(height: 10),
                   Text('Собрал: ${r.collectedBy} · ${formatDateTime(r.collectedAt!)}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                      style: TextStyle(color: context.pal.muted, fontSize: 13)),
                 ],
                 if (r.oneCReportNumber != null) ...[
                   const SizedBox(height: 10),
                   Text(
                     'В 1С: отчёт производства №${r.oneCReportNumber}, требование-накладная №${r.oneCRequisitionNumber}',
-                    style: const TextStyle(color: Color(0xFF4C8A5E), fontSize: 13),
+                    style: TextStyle(color: context.pal.success, fontSize: 13),
                   ),
                 ],
                 if (r.oneCSyncError != null) ...[
                   const SizedBox(height: 10),
                   Text('Не синхронизировано с 1С: ${r.oneCSyncError}',
-                      style: const TextStyle(color: Colors.orange, fontSize: 13)),
+                      style: TextStyle(color: context.pal.warn, fontSize: 13)),
                 ],
                 if (r.status != 'CANCELLED' &&
                     (r.oneCReportNumber == null || r.oneCSyncError != null) &&
@@ -499,7 +500,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                    child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                   ),
 
                 // Долгое нажатие — скрытое «оприходовать сверх заявки» (см. _receiveExtra).
@@ -604,13 +605,13 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                                 ? 'Не хватает на складе — отмечено красным'
                                 : 'Отмечено ${_checked.length} из ${r.items.length}',
                             style: TextStyle(
-                              color: r.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
+                              color: r.items.any((i) => i.isInsufficient) ? context.pal.danger : context.pal.muted,
                               fontSize: 12.5,
                               fontWeight: r.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
                             ),
                           ),
                           if (_checked.length == r.items.length)
-                            const Icon(Icons.check_circle, size: 16, color: Color(0xFF4C8A5E)),
+                            Icon(Icons.check_circle, size: 16, color: context.pal.success),
                         ],
                       ),
                     ),
@@ -661,7 +662,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     ],
                     footer: Text(
                       'Позиций: ${r.items.length}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                      style: TextStyle(color: context.pal.muted, fontSize: 12.5),
                     ),
                   ),
                 ],
@@ -703,7 +704,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: _cancelling ? null : () => _cancel(r),
-                      style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB8433F)),
+                      style: OutlinedButton.styleFrom(foregroundColor: context.pal.danger),
                       icon: _cancelling
                           ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.cancel_outlined, size: 18),
@@ -766,7 +767,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                               );
                               if (confirmed == true) await _cancelCompletion();
                             },
-                      style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB8433F)),
+                      style: OutlinedButton.styleFrom(foregroundColor: context.pal.danger),
                       child: Text(_completing ? 'Отправка...' : 'Отменить'),
                     ),
                   ),
@@ -784,7 +785,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
   /// рабочие перепутали пропорции между фасовками при нарезке (см. Product.netWeightGrams).
   Widget _buildMassSummaryCard(ProductionMassSummary s) {
     final done = s.allWeightedReceived;
-    final color = !done ? Colors.grey : (s.insufficient ? const Color(0xFFB8433F) : const Color(0xFF4C8A5E));
+    final color = !done ? context.pal.muted : (s.insufficient ? context.pal.danger : context.pal.success);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -797,7 +798,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
             Text(
               'Норма: ${formatQty(s.plannedKg)} кг'
               '${!done ? ' · факт (пока не всё оприходовано): ${formatQty(s.actualKg)} кг' : ' · факт: ${formatQty(s.actualKg)} кг'}',
-              style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+              style: TextStyle(color: context.pal.muted, fontSize: 12.5),
             ),
             if (done)
               Padding(
@@ -834,7 +835,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                 Text(
                   line.batches == 0 ? 'сверх заявки' : '${formatQty(line.batches)} замес.'
                   '${line.plannedQuantity != null ? " (≈${formatQty(line.plannedQuantity!)} $unit)" : ""}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                  style: TextStyle(color: context.pal.muted, fontSize: 12.5),
                 ),
               ],
             ),
@@ -846,7 +847,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                     child: Text(
                       'Оприходовано ${formatQty(line.receivedQuantity!)} $unit — ${line.receivedBy} · '
                       '${formatDateTime(line.receivedAt!)}',
-                      style: const TextStyle(color: Color(0xFF4C8A5E), fontWeight: FontWeight.w600, fontSize: 12.5),
+                      style: TextStyle(color: context.pal.success, fontWeight: FontWeight.w600, fontSize: 12.5),
                     ),
                   ),
                   if (_isAdmin && r.status != 'CANCELLED')
@@ -863,7 +864,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                   padding: const EdgeInsets.only(top: 2),
                   child: Text(
                     'Недостаточно — ${formatQty(line.shortfall)} $unit',
-                    style: const TextStyle(color: Color(0xFFB8433F), fontWeight: FontWeight.w600, fontSize: 12),
+                    style: TextStyle(color: context.pal.danger, fontWeight: FontWeight.w600, fontSize: 12),
                   ),
                 ),
             ] else if (r.status == 'COLLECTED' && _canReceive) ...[
@@ -903,7 +904,7 @@ class _ProductionRequestDetailScreenState extends State<ProductionRequestDetailS
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: enough ? const Color(0xFF4C8A5E) : const Color(0xFFB8433F),
+                        color: enough ? context.pal.success : context.pal.danger,
                       ),
                     ),
                   );

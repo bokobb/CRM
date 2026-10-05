@@ -8,6 +8,7 @@ import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/product_avatar.dart';
 import '../widgets/searchable_app_bar.dart';
+import '../theme/app_theme.dart';
 
 /// Остатки готовой продукции на складе ГП (не сырьё — то теперь отдельным разделом "Сырьё").
 class ProductStockScreen extends StatefulWidget {
@@ -145,7 +146,7 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
                   padding: const EdgeInsets.all(32),
                   child: Center(
                     child: Text(_query.isEmpty ? 'Товаров пока нет' : 'Ничего не найдено',
-                        style: const TextStyle(color: Colors.grey)),
+                        style: TextStyle(color: context.pal.muted)),
                   ),
                 ),
               ]);

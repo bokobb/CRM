@@ -9,6 +9,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../theme/app_theme.dart';
 
 /// Дневной отчёт "сколько сегодня изготовили" — зав. склада ГП открывает по кнопке "Отчёт" в
 /// меню, видит список товаров, оприходованных за выбранный день, и может скачать/отправить PDF
@@ -123,11 +124,11 @@ class _ProductionReportScreenState extends State<ProductionReportScreen> {
                   }
                   final items = snapshot.data!.items;
                   if (items.isEmpty) {
-                    return ListView(children: const [
+                    return ListView(children: [
                       Padding(
                         padding: EdgeInsets.all(32),
                         child: Center(
-                          child: Text('За этот день ничего не оприходовано', style: TextStyle(color: Colors.grey)),
+                          child: Text('За этот день ничего не оприходовано', style: TextStyle(color: context.pal.muted)),
                         ),
                       ),
                     ]);
@@ -138,13 +139,13 @@ class _ProductionReportScreenState extends State<ProductionReportScreen> {
                     itemBuilder: (context, index) {
                       final it = items[index];
                       final deviationColor = it.deviation > 0
-                          ? Colors.green.shade700
-                          : (it.deviation < 0 ? Colors.red.shade700 : Colors.grey);
+                          ? context.pal.success
+                          : (it.deviation < 0 ? context.pal.danger : context.pal.muted);
                       final deviationText =
                           '${it.deviation > 0 ? '+' : ''}${formatQty(it.deviation)} ${it.unit}';
                       return AppListTile(
                         leadingIcon: Icons.inventory_2_outlined,
-                        leadingColor: const Color(0xFFD9A73F),
+                        leadingColor: context.pal.warn,
                         title: it.productName,
                         subtitle: '${formatQty(it.batches)} замес. · норма ${formatQty(it.norm)} ${it.unit} · '
                             'оприходований: ${it.receivedCount}',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 /// Свайп карточки влево: первый раз — «Отменить» (всё откатывается, документы в 1С
 /// распроводятся и остаются черновиками), у уже отменённой — корзина «Удалить» (документы в 1С
@@ -30,7 +31,7 @@ class SwipeCancelDelete extends StatelessWidget {
     required this.child,
   });
 
-  static const _red = Color(0xFFC0392B);
+  static Color _red(BuildContext context) => context.pal.danger;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +47,7 @@ class SwipeCancelDelete extends StatelessWidget {
         child: Container(
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.symmetric(horizontal: 22),
-          decoration: BoxDecoration(color: _red, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: _red(context), borderRadius: BorderRadius.circular(12)),
           child: deleting
               ? const Icon(Icons.delete_outline, color: Colors.white, size: 28)
               : const Text(
@@ -77,7 +78,7 @@ class SwipeCancelDelete extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Нет')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: _red),
+            style: TextButton.styleFrom(foregroundColor: _red(context)),
             child: Text(deleting ? 'Удалить' : 'Отменить'),
           ),
         ],

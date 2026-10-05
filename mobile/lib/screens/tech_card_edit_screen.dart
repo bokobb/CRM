@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/tech_card.dart';
 import '../services/api_client.dart';
 import '../widgets/tech_card_style.dart';
+import '../theme/app_theme.dart';
 
 class _StageForm {
   final TextEditingController title;
@@ -153,9 +154,9 @@ class _TechCardEditScreenState extends State<TechCardEditScreen> {
               onPressed: () => setState(() => _stages.add(_StageForm())),
               icon: const Icon(Icons.add),
               style: OutlinedButton.styleFrom(
-                foregroundColor: TK.ink,
-                backgroundColor: TK.paper,
-                side: const BorderSide(color: TK.line),
+                foregroundColor: context.pal.ink,
+                backgroundColor: context.pal.card,
+                side: BorderSide(color: context.pal.line),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
               ),
               label: const Text('Добавить этап'),
@@ -176,8 +177,8 @@ class _TechCardEditScreenState extends State<TechCardEditScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: TK.paper,
-        border: Border.all(color: s.ccp ? TK.yolk : TK.line),
+        color: context.pal.card,
+        border: Border.all(color: s.ccp ? context.pal.warn : context.pal.line),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Padding(
@@ -190,7 +191,7 @@ class _TechCardEditScreenState extends State<TechCardEditScreen> {
                   width: 26,
                   height: 26,
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: s.ccp ? TK.yolk : TK.soft, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: s.ccp ? context.pal.warn : context.pal.seg, shape: BoxShape.circle),
                   child: Text('${i + 1}', style: TK.num.copyWith(fontSize: 12.5, fontWeight: FontWeight.w600)),
                 ),
                 const SizedBox(width: 8),
@@ -207,7 +208,7 @@ class _TechCardEditScreenState extends State<TechCardEditScreen> {
                   onPressed: i == _stages.length - 1 ? null : () => _move(i, 1),
                 ),
                 IconButton(
-                  icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade700),
+                  icon: Icon(Icons.delete_outline, size: 20, color: context.pal.danger),
                   tooltip: 'Удалить этап',
                   onPressed: () => setState(() => _stages.removeAt(i).dispose()),
                 ),
@@ -231,7 +232,7 @@ class _TechCardEditScreenState extends State<TechCardEditScreen> {
                     dense: true,
                     title: const Text('Критическая контрольная точка (ККТ)'),
                     value: s.ccp,
-                    activeThumbColor: TK.yolk,
+                    activeThumbColor: context.pal.warn,
                     onChanged: (v) => setState(() => s.ccp = v),
                   ),
                 ],

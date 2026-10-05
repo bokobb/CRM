@@ -4,6 +4,7 @@ import '../models/client.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/error_view.dart';
+import '../theme/app_theme.dart';
 
 /// Точка входа в индивидуальные цены из Настроек: список клиентов, тап ведёт на
 /// уже существующий client_prices_screen.dart (обычно туда попадают из карточки клиента).
@@ -49,10 +50,10 @@ class _PricesScreenState extends State<PricesScreen> {
             }
             final clients = snapshot.data!;
             if (clients.isEmpty) {
-              return ListView(children: const [
+              return ListView(children: [
                 Padding(
                   padding: EdgeInsets.all(32),
-                  child: Center(child: Text('Клиентов пока нет', style: TextStyle(color: Colors.grey))),
+                  child: Center(child: Text('Клиентов пока нет', style: TextStyle(color: context.pal.muted))),
                 ),
               ]);
             }

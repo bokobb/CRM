@@ -4,6 +4,7 @@ import '../models/counterparty.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/error_view.dart';
+import '../theme/app_theme.dart';
 
 /// "Настройки → Контрагенты" — поставщики сырья для закупок (см. CounterpartyService на
 /// бэкенде). Создание здесь сразу выгружает контрагента и в 1С (best-effort — см. oneCLinked/
@@ -59,7 +60,7 @@ class _CounterpartiesScreenState extends State<CounterpartiesScreen> {
       if (created.oneCSyncError != null) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Контрагент создан, но не выгружен в 1С: ${created.oneCSyncError}'),
-          backgroundColor: const Color(0xFFB8433F),
+          backgroundColor: context.pal.danger,
         ));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Контрагент создан')));
@@ -97,10 +98,10 @@ class _CounterpartiesScreenState extends State<CounterpartiesScreen> {
             }
             final counterparties = snapshot.data!;
             if (counterparties.isEmpty) {
-              return ListView(children: const [
+              return ListView(children: [
                 Padding(
                   padding: EdgeInsets.all(32),
-                  child: Center(child: Text('Контрагентов пока нет', style: TextStyle(color: Colors.grey))),
+                  child: Center(child: Text('Контрагентов пока нет', style: TextStyle(color: context.pal.muted))),
                 ),
               ]);
             }
@@ -112,9 +113,9 @@ class _CounterpartiesScreenState extends State<CounterpartiesScreen> {
                 return ListTile(
                   title: Text(c.name),
                   subtitle: c.oneCSyncError != null
-                      ? Text('Не выгружен в 1С: ${c.oneCSyncError}', style: const TextStyle(color: Color(0xFFB8433F)))
-                      : Text(c.oneCLinked ? 'Привязан к 1С' : '—', style: const TextStyle(color: Colors.grey)),
-                  trailing: c.oneCLinked ? const Icon(Icons.check_circle, color: Color(0xFF4C8A5E)) : null,
+                      ? Text('Не выгружен в 1С: ${c.oneCSyncError}', style: TextStyle(color: context.pal.danger))
+                      : Text(c.oneCLinked ? 'Привязан к 1С' : '—', style: TextStyle(color: context.pal.muted)),
+                  trailing: c.oneCLinked ? Icon(Icons.check_circle, color: context.pal.success) : null,
                 );
               },
             );

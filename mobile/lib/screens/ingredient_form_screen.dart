@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
+import '../theme/app_theme.dart';
 
 class IngredientFormScreen extends StatefulWidget {
   final int? ingredientId;
@@ -80,7 +81,7 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                      child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                     ),
                   TextFormField(
                     controller: _name,

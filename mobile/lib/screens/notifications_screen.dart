@@ -10,6 +10,7 @@ import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/order_notification_sheet.dart';
 import '../widgets/status_badge.dart';
+import '../theme/app_theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -64,10 +65,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   }
                   final (groups, general) = snapshot.data!;
                   if (groups.isEmpty && general.isEmpty) {
-                    return ListView(children: const [
+                    return ListView(children: [
                       Padding(
                         padding: EdgeInsets.all(32),
-                        child: Center(child: Text('Уведомлений пока нет', style: TextStyle(color: Colors.grey))),
+                        child: Center(child: Text('Уведомлений пока нет', style: TextStyle(color: context.pal.muted))),
                       ),
                     ]);
                   }
@@ -88,7 +89,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         for (final n in general)
                           AppListTile(
                             leadingIcon: Icons.info_outline,
-                            leadingColor: Colors.grey,
+                            leadingColor: context.pal.muted,
                             title: n.message,
                             subtitle: formatDateTime(n.createdAt),
                           ),

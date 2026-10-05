@@ -7,6 +7,7 @@ import '../widgets/brigade_sheet.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/tech_card_style.dart';
+import '../theme/app_theme.dart';
 
 /// Заявка на сырьё глазами себестоимости (открывается с карточки на «Производстве»):
 /// сверху — сколько оприходовано и отклонение сырья от нормы, ниже — рецептура норма/выдано с
@@ -106,8 +107,8 @@ class _Sheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: TK.paper,
-      border: Border.all(color: TK.line),
+      color: context.pal.card,
+      border: Border.all(color: context.pal.line),
       borderRadius: BorderRadius.circular(10),
     ),
     child: Column(
@@ -118,8 +119,8 @@ class _Sheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             decoration: i == 0
                 ? null
-                : const BoxDecoration(
-                    border: Border(top: BorderSide(color: TK.line)),
+                : BoxDecoration(
+                    border: Border(top: BorderSide(color: context.pal.line)),
                   ),
             child: children[i],
           ),
@@ -141,7 +142,7 @@ class _SecTitle extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: TK.h2),
-        if (note != null) ...[const SizedBox(height: 3), Text(note!, style: TK.note)],
+        if (note != null) ...[const SizedBox(height: 3), Text(note!, style: TK.note.copyWith(color: context.pal.muted))],
       ],
     ),
   );
@@ -168,9 +169,9 @@ class _Header extends StatelessWidget {
           children: [
             Expanded(
               child: r.brigade.isEmpty
-                  ? const Text(
+                  ? Text(
                       'Бригада не назначена',
-                      style: TextStyle(fontFamily: TK.body, fontSize: 13.5, color: TK.yolkInk),
+                      style: TextStyle(fontFamily: TK.body, fontSize: 13.5, color: context.pal.warn),
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,7 +183,7 @@ class _Header extends StatelessWidget {
                               children: [
                                 Expanded(child: Text(m.fullName, style: TK.text.copyWith(fontSize: 13.5))),
                                 if (m.dailyRate != null)
-                                  Text(_money(m.dailyRate!), style: TK.num.copyWith(fontSize: 12.5, color: TK.muted)),
+                                  Text(_money(m.dailyRate!), style: TK.num.copyWith(fontSize: 12.5, color: context.pal.muted)),
                               ],
                             ),
                           ),
@@ -194,7 +195,7 @@ class _Header extends StatelessWidget {
                         if (r.overheadCost != null && r.overheadCost! > 0)
                           Text(
                             'Накладные цеха: ${_money(r.overheadCost!)}',
-                            style: TK.num.copyWith(fontSize: 12.5, color: TK.muted),
+                            style: TK.num.copyWith(fontSize: 12.5, color: context.pal.muted),
                           ),
                       ],
                     ),
@@ -205,8 +206,8 @@ class _Header extends StatelessWidget {
               icon: const Icon(Icons.groups_outlined, size: 18),
               label: const Text('Бригада'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: TK.accent,
-                side: const BorderSide(color: TK.accent),
+                foregroundColor: context.pal.accent,
+                side: BorderSide(color: context.pal.accent),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
@@ -237,7 +238,7 @@ class _Received extends StatelessWidget {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: over ? TK.bad.withValues(alpha: 0.07) : TK.soft, borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: over ? context.pal.danger.withValues(alpha: 0.07) : context.pal.seg, borderRadius: BorderRadius.circular(8)),
           child: Row(
             children: [
               Expanded(
@@ -263,7 +264,7 @@ class _Received extends StatelessWidget {
                     style: TK.num.copyWith(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: dev.abs() < 1 ? TK.good : (over ? TK.bad : TK.good),
+                      color: dev.abs() < 1 ? context.pal.success : (over ? context.pal.danger : context.pal.success),
                     ),
                   ),
                 ],
@@ -298,12 +299,12 @@ class _ReceivedRow extends StatelessWidget {
               children: [
                 Text(
                   l.name + (l.semiFinished ? ' · п/ф' : ''),
-                  style: const TextStyle(fontFamily: TK.body, fontSize: 13.5, fontWeight: FontWeight.w600, color: TK.ink),
+                  style: TextStyle(fontFamily: TK.body, fontSize: 13.5, fontWeight: FontWeight.w600, color: context.pal.ink),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${formatQty(l.batches)} зам. · план ${formatQty(l.plannedQuantity)} $unit',
-                  style: TK.num.copyWith(fontSize: 12, color: TK.muted),
+                  style: TK.num.copyWith(fontSize: 12, color: context.pal.muted),
                 ),
               ],
             ),
@@ -314,12 +315,12 @@ class _ReceivedRow extends StatelessWidget {
             children: [
               Text(
                 l.received ? '${formatQty(l.quantity)} $unit' : 'не оприходовано',
-                style: TK.num.copyWith(fontWeight: FontWeight.w600, color: l.received ? TK.ink : TK.muted),
+                style: TK.num.copyWith(fontWeight: FontWeight.w600, color: l.received ? context.pal.ink : context.pal.muted),
               ),
               if (l.received && diff.abs() > 0.0005)
                 Text(
                   '${_signed(diff, formatQty)} $unit  ${_signed(pct, (v) => '${v.toStringAsFixed(1)} %')}',
-                  style: TK.num.copyWith(fontSize: 12, color: diff < 0 ? TK.bad : TK.good, fontWeight: FontWeight.w600),
+                  style: TK.num.copyWith(fontSize: 12, color: diff < 0 ? context.pal.danger : context.pal.success, fontWeight: FontWeight.w600),
                 ),
             ],
           ),
@@ -337,7 +338,7 @@ class _Recipe extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const head = TextStyle(fontFamily: TK.body, fontSize: 10.5, fontWeight: FontWeight.w600, color: TK.muted, letterSpacing: 0.4);
+    final head = TextStyle(fontFamily: TK.body, fontSize: 10.5, fontWeight: FontWeight.w600, color: context.pal.muted, letterSpacing: 0.4);
     final num = TK.num.copyWith(fontSize: 12);
     Widget cell(Widget child, {bool right = true}) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
@@ -359,15 +360,15 @@ class _Recipe extends StatelessWidget {
             3: IntrinsicColumnWidth(),
             4: IntrinsicColumnWidth(),
           },
-          border: const TableBorder(horizontalInside: BorderSide(color: TK.line)),
+          border: TableBorder(horizontalInside: BorderSide(color: context.pal.line)),
           children: [
             TableRow(
               children: [
-                cell(const Text('СЫРЬЁ', style: head), right: false),
-                cell(const Text('НОРМА', style: head)),
-                cell(const Text('ВЫДАНО', style: head)),
-                cell(const Text('ЦЕНА', style: head)),
-                cell(const Text('СУММА ₸', style: head)),
+                cell(Text('СЫРЬЁ', style: head), right: false),
+                cell(Text('НОРМА', style: head)),
+                cell(Text('ВЫДАНО', style: head)),
+                cell(Text('ЦЕНА', style: head)),
+                cell(Text('СУММА ₸', style: head)),
               ],
             ),
             for (final i in data.ingredients)
@@ -384,31 +385,31 @@ class _Recipe extends StatelessWidget {
                     ),
                     right: false,
                   ),
-                  cell(Text(formatQty(i.normQuantity), style: num.copyWith(color: TK.muted))),
+                  cell(Text(formatQty(i.normQuantity), style: num.copyWith(color: context.pal.muted))),
                   cell(
                     Text(
                       formatQty(i.issuedQuantity),
                       style: num.copyWith(
                         fontWeight: FontWeight.w600,
                         color: (i.issuedQuantity - i.normQuantity).abs() < 0.0005
-                            ? TK.ink
-                            : (i.issuedQuantity > i.normQuantity ? TK.bad : TK.good),
+                            ? context.pal.ink
+                            : (i.issuedQuantity > i.normQuantity ? context.pal.danger : context.pal.success),
                       ),
                     ),
                   ),
                   cell(
                     i.unitPrice == null
-                        ? Text('нет', style: num.copyWith(color: TK.bad))
+                        ? Text('нет', style: num.copyWith(color: context.pal.danger))
                         : Text(
                             '${formatQty(i.unitPrice!)}${i.priceSource == 'SEMI_FINISHED' ? ' п/ф' : ''}',
-                            style: num.copyWith(color: TK.muted),
+                            style: num.copyWith(color: context.pal.muted),
                           ),
                   ),
                   cell(Text(i.issuedCost == null ? '—' : formatQty(i.issuedCost!.roundToDouble()), style: num)),
                 ],
               ),
             TableRow(
-              decoration: const BoxDecoration(color: TK.soft),
+              decoration: BoxDecoration(color: context.pal.seg),
               children: [
                 cell(
                   const Text(
@@ -417,7 +418,7 @@ class _Recipe extends StatelessWidget {
                   ),
                   right: false,
                 ),
-                cell(Text(formatQty(normTotal.roundToDouble()), style: num.copyWith(color: TK.muted))),
+                cell(Text(formatQty(normTotal.roundToDouble()), style: num.copyWith(color: context.pal.muted))),
                 cell(const SizedBox()),
                 cell(const SizedBox()),
                 cell(Text(formatQty(issuedTotal.roundToDouble()), style: num.copyWith(fontWeight: FontWeight.w700))),
@@ -429,7 +430,7 @@ class _Recipe extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             'Без цены (вошли как 0 ₸): ${data.unpricedIngredients.join(', ')}',
-            style: const TextStyle(fontFamily: TK.body, fontSize: 12, color: TK.yolkInk),
+            style: TextStyle(fontFamily: TK.body, fontSize: 12, color: context.pal.warn),
           ),
         ],
       ],
@@ -483,9 +484,9 @@ class _UnitCostCard extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             value,
-            style: TK.num.copyWith(fontSize: 15, fontWeight: FontWeight.w600, color: color ?? TK.ink),
+            style: TK.num.copyWith(fontSize: 15, fontWeight: FontWeight.w600, color: color ?? context.pal.ink),
           ),
-          if (hint != null) Text(hint, style: TK.note.copyWith(fontSize: 11.5, color: color ?? TK.muted)),
+          if (hint != null) Text(hint, style: TK.note.copyWith(fontSize: 11.5, color: color ?? context.pal.muted)),
         ],
       ),
     );
@@ -493,7 +494,7 @@ class _UnitCostCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: TK.line),
+        border: Border.all(color: context.pal.line),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -501,7 +502,7 @@ class _UnitCostCard extends StatelessWidget {
         children: [
           Text(
             l.name + (l.semiFinished ? ' · п/ф' : ''),
-            style: const TextStyle(fontFamily: TK.body, fontSize: 14, fontWeight: FontWeight.w600, color: TK.ink),
+            style: TextStyle(fontFamily: TK.body, fontSize: 14, fontWeight: FontWeight.w600, color: context.pal.ink),
           ),
           const SizedBox(height: 10),
           Row(
@@ -511,7 +512,7 @@ class _UnitCostCard extends StatelessWidget {
               col(
                 l.received ? 'Факт' : 'Факт (на план)',
                 fact == null ? '—' : '${formatMoney(fact)}/$unit',
-                color: diff == null || diff.abs() < 0.01 ? null : (diff > 0 ? TK.bad : TK.good),
+                color: diff == null || diff.abs() < 0.01 ? null : (diff > 0 ? context.pal.danger : context.pal.success),
                 hint: diff == null || diff.abs() < 0.01
                     ? null
                     : '${_signed(diff, formatMoney)}  ${_signed(diff / plan! * 100, (v) => '${v.toStringAsFixed(1)} %')}',
@@ -520,7 +521,7 @@ class _UnitCostCard extends StatelessWidget {
                 'Цена продажи',
                 l.salePrice == null ? '—' : formatMoney(l.salePrice!),
                 hint: markup == null ? null : 'наценка ${markup.round()} %',
-                color: markup != null && markup < 0 ? TK.bad : null,
+                color: markup != null && markup < 0 ? context.pal.danger : null,
               ),
             ],
           ),
@@ -530,7 +531,7 @@ class _UnitCostCard extends StatelessWidget {
             '${l.laborCost != null ? ' + зарплата ${_money(l.laborCost!)}' : ''}'
             '${l.overheadCost != null && l.overheadCost! > 0 ? ' + накладные ${_money(l.overheadCost!)}' : ''}'
             ' · выпуск ${formatQty(l.quantity)} $unit',
-            style: TK.num.copyWith(fontSize: 11.5, color: TK.muted),
+            style: TK.num.copyWith(fontSize: 11.5, color: context.pal.muted),
           ),
         ],
       ),

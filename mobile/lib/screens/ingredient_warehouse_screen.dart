@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
+import '../theme/app_theme.dart';
 
 /// "Склад сырья" — зеркало WarehouseScreen, но для сырья: раньше "Сырьё" в меню вело сразу на
 /// остатки, а поступления/списание сырья были смешаны с товаром на страницах "Склада". Теперь
@@ -21,23 +22,23 @@ class IngredientWarehouseScreen extends StatelessWidget {
             leadingIcon: Icons.grain_outlined,
             title: 'Остатки',
             subtitle: 'Сырьё на складе и пороги для уведомлений',
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            trailing: Icon(Icons.chevron_right, color: context.pal.muted),
             onTap: () => Navigator.of(context).pushNamed('/ingredients'),
           ),
           AppListTile(
             leadingIcon: Icons.add_box_outlined,
-            leadingColor: const Color(0xFF3F8F5B),
+            leadingColor: context.pal.success,
             title: 'Поступления',
             subtitle: 'Приход сырья на склад',
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            trailing: Icon(Icons.chevron_right, color: context.pal.muted),
             onTap: () => Navigator.of(context).pushNamed('/ingredients/receipts'),
           ),
           AppListTile(
             leadingIcon: Icons.remove_circle_outline,
-            leadingColor: const Color(0xFFB8433F),
+            leadingColor: context.pal.danger,
             title: 'Списание',
             subtitle: 'Порча, недостача и другие списания сырья',
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            trailing: Icon(Icons.chevron_right, color: context.pal.muted),
             onTap: () => Navigator.of(context).pushNamed('/ingredients/writeoffs'),
           ),
         ],

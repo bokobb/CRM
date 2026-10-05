@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class ErrorView extends StatelessWidget {
   final String error;
@@ -14,7 +15,7 @@ class ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off, size: 42, color: Colors.grey),
+            Icon(Icons.cloud_off, size: 42, color: context.pal.muted),
             const SizedBox(height: 12),
             Text(error, textAlign: TextAlign.center),
             const SizedBox(height: 12),

@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/status_badge.dart';
+import '../theme/app_theme.dart';
 
 class ClientDetailScreen extends StatefulWidget {
   final int clientId;
@@ -80,7 +81,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 const SizedBox(height: 4),
                 Text(
                   [if (client.phone != null) client.phone!, if (client.email != null) client.email!].join(' · '),
-                  style: const TextStyle(color: Colors.grey),
+                  style: TextStyle(color: context.pal.muted),
                 ),
                 if (client.address != null && client.address!.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -98,16 +99,16 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 ),
                 const SizedBox(height: 20),
                 Card(
-                  color: const Color(0xFFB8324A),
                   child: Padding(
                     padding: const EdgeInsets.all(18),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text('ПОКУПКИ ЗА ЭТОТ МЕСЯЦ',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: context.pal.muted)),
+                        const SizedBox(height: 8),
                         Text(formatMoney(monthlySales.toDouble()),
-                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-                        const SizedBox(height: 2),
-                        const Text('Покупки за этот месяц', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()])),
                       ],
                     ),
                   ),
@@ -116,9 +117,9 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 Text('История заказов', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 if (orders.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('Заказов пока не было', style: TextStyle(color: Colors.grey)),
+                    child: Text('Заказов пока не было', style: TextStyle(color: context.pal.muted)),
                   )
                 else
                   Card(

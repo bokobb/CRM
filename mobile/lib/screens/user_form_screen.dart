@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user.dart';
 import '../services/api_client.dart';
+import '../theme/app_theme.dart';
 
 bool get _isCurrentUserAdmin => ApiClient.currentSession?.role == 'ADMIN';
 
@@ -89,7 +90,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                      child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                     ),
                   TextFormField(
                     controller: _username,

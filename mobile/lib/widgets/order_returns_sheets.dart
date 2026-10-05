@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import 'error_view.dart';
 import 'format.dart';
 import 'returns_receipt.dart';
+import '../theme/app_theme.dart';
 
 /// Расчёт по заказу с учётом закреплённых возвратов: "Заказ − Возврат = Итого" — открывается
 /// долгим нажатием на карточку заказа (см. orders_screen.dart). Отсюда же открывается любой
@@ -82,13 +83,13 @@ class _CalculationSheetState extends State<_CalculationSheet> {
                   const SizedBox(height: 12),
                   _row('Сумма заказа', formatMoney(widget.orderTotal)),
                   if (returns.isEmpty) ...[
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('Возвратов по заказу нет', style: TextStyle(color: Colors.grey)),
+                      child: Text('Возвратов по заказу нет', style: TextStyle(color: context.pal.muted)),
                     ),
                     _createButton(),
                   ] else ...[
-                    _row('Возврат (${returns.length})', '−${formatMoney(returnTotal)}', color: returnColor),
+                    _row('Возврат (${returns.length})', '−${formatMoney(returnTotal)}', color: returnColor(context)),
                     const SizedBox(height: 8),
                     Flexible(
                       child: SingleChildScrollView(
@@ -131,7 +132,7 @@ class _CalculationSheetState extends State<_CalculationSheet> {
   Widget _createButton() {
     return FilledButton.icon(
       style: FilledButton.styleFrom(
-        backgroundColor: returnColor,
+        backgroundColor: returnColor(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         padding: const EdgeInsets.symmetric(vertical: 12),
       ),
@@ -239,7 +240,7 @@ class _AttachSheetState extends State<_AttachSheet> {
                 children: [
                   Text('Возвраты по заказу #${widget.orderId}', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 4),
-                  Text(widget.clientName, style: const TextStyle(color: Colors.grey)),
+                  Text(widget.clientName, style: TextStyle(color: context.pal.muted)),
                   if (_busy) const LinearProgressIndicator(),
                   const SizedBox(height: 12),
                   if (attached.isNotEmpty) ...[
@@ -257,11 +258,11 @@ class _AttachSheetState extends State<_AttachSheet> {
                   ],
                   Text('Можно закрепить', style: Theme.of(context).textTheme.titleSmall),
                   if (available.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: Text(
                         'Незакреплённых возвратов этого клиента нет — создайте возврат в разделе «Возвраты»',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: context.pal.muted),
                       ),
                     )
                   else
@@ -285,7 +286,7 @@ class _AttachSheetState extends State<_AttachSheet> {
   Widget _tile(ProductReturn r, {required Widget trailing}) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.assignment_return_outlined, color: returnColor),
+      leading: Icon(Icons.assignment_return_outlined, color: returnColor(context)),
       title: Text('№${r.id} · ${formatMoney(r.totalSum)}'),
       subtitle: Text(
         '${formatDate(r.returnDate)} · ${r.items.map((i) => '${i.productName} × ${formatQty(i.quantity)}').join(', ')}',

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../main.dart';
+import '../theme/app_theme.dart';
 import '../models/product.dart';
 import '../models/whatsapp_inbox.dart';
 import '../services/api_client.dart';
@@ -110,19 +110,19 @@ class _WhatsAppInboxResolveScreenState extends State<WhatsAppInboxResolveScreen>
             padding: const EdgeInsets.all(16),
             children: [
               Text(message.clientName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text(message.fromPhone, style: const TextStyle(color: Colors.grey)),
+              Text(message.fromPhone, style: TextStyle(color: context.pal.muted)),
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: context.pal.bg, borderRadius: BorderRadius.circular(12)),
                 child: Text(message.rawText),
               ),
               const SizedBox(height: 16),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                  child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                 ),
               for (final item in message.items)
                 Container(
@@ -131,7 +131,7 @@ class _WhatsAppInboxResolveScreenState extends State<WhatsAppInboxResolveScreen>
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE7E0D8)),
+                    border: Border.all(color: context.pal.line),
                   ),
                   child: Row(
                     children: [
@@ -140,15 +140,15 @@ class _WhatsAppInboxResolveScreenState extends State<WhatsAppInboxResolveScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('"${item.rawProductText}" · ${formatQty(item.quantity)}',
-                                style: const TextStyle(color: Colors.grey, fontSize: 12.5)),
+                                style: TextStyle(color: context.pal.muted, fontSize: 12.5)),
                             const SizedBox(height: 4),
                             if (item.isMatched)
                               Text(item.productName!, style: const TextStyle(fontWeight: FontWeight.w600))
                             else if (_selections.containsKey(item.id))
                               Text(_selections[item.id]!.name,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, color: accent))
+                                  style: TextStyle(fontWeight: FontWeight.w600, color: context.pal.accent))
                             else
-                              const Text('Не выбран товар', style: TextStyle(color: Colors.grey)),
+                              Text('Не выбран товар', style: TextStyle(color: context.pal.muted)),
                           ],
                         ),
                       ),
@@ -176,7 +176,7 @@ class _WhatsAppInboxResolveScreenState extends State<WhatsAppInboxResolveScreen>
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () => _ignore(message),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                  style: OutlinedButton.styleFrom(foregroundColor: context.pal.danger),
                   child: const Text('Игнорировать сообщение'),
                 ),
               ),

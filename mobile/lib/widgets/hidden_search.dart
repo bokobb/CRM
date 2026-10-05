@@ -40,7 +40,7 @@ class HiddenSearch {
         query = '';
       });
 
-  Widget button(void Function(VoidCallback) setState, {Color color = const Color(0xFF8F2438)}) => IconButton(
+  Widget button(void Function(VoidCallback) setState, {Color? color}) => IconButton(
         iconSize: 28,
         tooltip: open ? 'Сбросить поиск' : 'Поиск',
         color: color,

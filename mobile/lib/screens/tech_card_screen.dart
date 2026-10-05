@@ -7,6 +7,7 @@ import '../widgets/format.dart';
 import '../widgets/product_avatar.dart';
 import '../widgets/tech_card_style.dart';
 import 'tech_card_edit_screen.dart';
+import '../theme/app_theme.dart';
 
 /// Техкарта товара: паспорт, расчёт партии под план выпуска (сырьё и себестоимость по последним
 /// закупочным ценам), рецептура, техпроцесс с ККТ, органолептика. Рецептура редактируется на
@@ -166,8 +167,8 @@ class _TechCardScreenState extends State<TechCardScreen> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: TK.paper,
-            border: Border.all(color: TK.line),
+            color: context.pal.card,
+            border: Border.all(color: context.pal.line),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
@@ -188,11 +189,11 @@ class _TechCardScreenState extends State<TechCardScreen> {
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(color: TK.yolkBg, borderRadius: BorderRadius.circular(6)),
-                              child: const Text(
+                              decoration: BoxDecoration(color: context.pal.tint(context.pal.warn), borderRadius: BorderRadius.circular(6)),
+                              child: Text(
                                 'Черновик: этапы, режимы и сроки типовые, их нужно проверить технологу. '
                                 'Пометка снимется после сохранения карты.',
-                                style: TextStyle(fontFamily: TK.body, fontSize: 12, color: TK.yolkInk),
+                                style: TextStyle(fontFamily: TK.body, fontSize: 12, color: context.pal.warn),
                               ),
                             ),
                           ],
@@ -218,7 +219,7 @@ class _TechCardScreenState extends State<TechCardScreen> {
                 const _SecHead(title: 'Расчёт партии и себестоимость', note: 'Цены сырья — по последней закупке, ₸ за единицу'),
                 Container(
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: TK.soft, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: context.pal.seg, borderRadius: BorderRadius.circular(8)),
                   child: Wrap(
                     spacing: 20,
                     runSpacing: 10,
@@ -235,7 +236,7 @@ class _TechCardScreenState extends State<TechCardScreen> {
                               controller: _plan,
                               style: TK.num.copyWith(fontSize: 15),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(fillColor: TK.paper),
+                              decoration: InputDecoration(fillColor: context.pal.card),
                               onChanged: (_) => setState(() {}),
                             ),
                           ],
@@ -245,7 +246,7 @@ class _TechCardScreenState extends State<TechCardScreen> {
                         padding: const EdgeInsets.only(bottom: 4),
                         child: Text(
                           'Коэффициент пересчёта ×${formatQty(_round(factor, 2))} · ${formatQty(_round(factor, 2))} замес.',
-                          style: TK.note,
+                          style: TK.note.copyWith(color: context.pal.muted),
                         ),
                       ),
                     ],
@@ -285,32 +286,32 @@ class _TechCardScreenState extends State<TechCardScreen> {
               _Sec(children: [
                 _SecHead(title: 'Рецептура', note: 'На партию — под план выпуска; на замес — на ${formatQty(c.yieldQuantity)} $unit. Таблица листается вбок'),
                 if (c.items.isEmpty)
-                  const Text('Рецептура пуста — заполните её на экране «Рецептура»', style: TK.note)
+                  Text('Рецептура пуста — заполните её на экране «Рецептура»', style: TK.note.copyWith(color: context.pal.muted))
                 else
                   _RecipeTable(items: c.items, factor: factor, totalCost: cost),
               ]),
 
               // ---- Техпроцесс ----
               _Sec(children: [
-                const _SecHead(
+                _SecHead(
                   title: 'Технологический процесс',
                   noteWidget: Text.rich(
                     TextSpan(children: [
                       WidgetSpan(alignment: PlaceholderAlignment.middle, child: TKCcp()),
                       TextSpan(text: '  — критическая контрольная точка, фиксируется в журнале'),
                     ]),
-                    style: TK.note,
+                    style: TK.note.copyWith(color: context.pal.muted),
                   ),
                 ),
                 if (c.stages.isEmpty)
                   Row(
                     children: [
-                      const Expanded(child: Text('Этапы ещё не заполнены', style: TK.note)),
+                      Expanded(child: Text('Этапы ещё не заполнены', style: TK.note.copyWith(color: context.pal.muted))),
                       if (isAdmin)
                         OutlinedButton(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: TK.ink,
-                            side: const BorderSide(color: TK.line),
+                            foregroundColor: context.pal.ink,
+                            side: BorderSide(color: context.pal.line),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                           ),
                           onPressed: () => _edit(c),
@@ -347,7 +348,7 @@ class _TechCardScreenState extends State<TechCardScreen> {
               ]),
 
               _Sec(children: [
-                Text('Составил: __________   Утвердил: __________   Дата: ${formatDate(DateTime.now())}', style: TK.note),
+                Text('Составил: __________   Утвердил: __________   Дата: ${formatDate(DateTime.now())}', style: TK.note.copyWith(color: context.pal.muted)),
               ]),
             ],
           ),
@@ -372,7 +373,7 @@ class _Sec extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(border: first ? null : const Border(top: BorderSide(color: TK.line))),
+        decoration: BoxDecoration(border: first ? null : Border(top: BorderSide(color: context.pal.line))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
       );
 }
@@ -391,7 +392,7 @@ class _SecHead extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: TK.h2),
-            if (note != null) ...[const SizedBox(height: 4), Text(note!, style: TK.note)],
+            if (note != null) ...[const SizedBox(height: 4), Text(note!, style: TK.note.copyWith(color: context.pal.muted))],
             if (noteWidget != null) ...[const SizedBox(height: 6), noteWidget!],
           ],
         ),
@@ -424,8 +425,8 @@ class _FieldGrid extends StatelessWidget {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-                      decoration: BoxDecoration(color: TK.soft, borderRadius: BorderRadius.circular(6)),
-                      child: Text(value ?? '—', style: TK.text.copyWith(color: value == null ? TK.muted : TK.ink)),
+                      decoration: BoxDecoration(color: context.pal.seg, borderRadius: BorderRadius.circular(6)),
+                      child: Text(value ?? '—', style: TK.text.copyWith(color: value == null ? context.pal.muted : context.pal.ink)),
                     ),
                   ],
                 ),
@@ -454,7 +455,7 @@ class _StatGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget tile(_Stat s) => Container(
-          color: TK.paper,
+          color: context.pal.card,
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,11 +467,11 @@ class _StatGrid extends StatelessWidget {
                 style: TK.num.copyWith(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: s.highlight ? TK.accent : TK.ink,
+                  color: s.highlight ? context.pal.accent : context.pal.ink,
                 ),
               ),
               const SizedBox(height: 2),
-              Text(s.hint, style: TK.note.copyWith(color: s.warn ? TK.bad : TK.muted)),
+              Text(s.hint, style: TK.note.copyWith(color: s.warn ? context.pal.danger : context.pal.muted)),
             ],
           ),
         );
@@ -483,7 +484,7 @@ class _StatGrid extends StatelessWidget {
           children: [
             Expanded(child: tile(stats[i])),
             const SizedBox(width: 1),
-            Expanded(child: i + 1 < stats.length ? tile(stats[i + 1]) : Container(color: TK.paper)),
+            Expanded(child: i + 1 < stats.length ? tile(stats[i + 1]) : Container(color: context.pal.card)),
           ],
         ),
       ));
@@ -492,9 +493,9 @@ class _StatGrid extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        color: TK.line,
+        color: context.pal.line,
         foregroundDecoration: BoxDecoration(
-          border: Border.all(color: TK.line),
+          border: Border.all(color: context.pal.line),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(children: rows),
@@ -511,7 +512,7 @@ class _RecipeTable extends StatelessWidget {
 
   const _RecipeTable({required this.items, required this.factor, required this.totalCost});
 
-  static const _head = TextStyle(fontFamily: TK.body, fontSize: 11, fontWeight: FontWeight.w600, color: TK.muted, letterSpacing: 0.6);
+  static TextStyle _head(BuildContext context) => TextStyle(fontFamily: TK.body, fontSize: 11, fontWeight: FontWeight.w600, color: context.pal.muted, letterSpacing: 0.6);
 
   Widget _cell(String text, {bool right = false, TextStyle? style, Color? bg}) => Container(
         color: bg,
@@ -522,20 +523,20 @@ class _RecipeTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const border = BorderSide(color: TK.line);
-    final missing = TK.num.copyWith(color: TK.bad, fontFamily: TK.body, fontSize: 12.5);
+    final border = BorderSide(color: context.pal.line);
+    final missing = TK.num.copyWith(color: context.pal.danger, fontFamily: TK.body, fontSize: 12.5);
     final bold = TK.num.copyWith(fontWeight: FontWeight.w600);
 
     final rows = <TableRow>[
       TableRow(
-        decoration: const BoxDecoration(color: TK.soft, border: Border(bottom: border)),
+        decoration: BoxDecoration(color: context.pal.seg, border: Border(bottom: border)),
         children: [
-          _cell('СЫРЬЁ', style: _head),
-          _cell('НА ПАРТИЮ', right: true, style: _head),
-          _cell('СУММА, ₸', right: true, style: _head),
-          _cell('ДОЛЯ, %', right: true, style: _head),
-          _cell('НА ЗАМЕС', right: true, style: _head),
-          _cell('ЦЕНА, ₸/ЕД', right: true, style: _head),
+          _cell('СЫРЬЁ', style: _head(context)),
+          _cell('НА ПАРТИЮ', right: true, style: _head(context)),
+          _cell('СУММА, ₸', right: true, style: _head(context)),
+          _cell('ДОЛЯ, %', right: true, style: _head(context)),
+          _cell('НА ЗАМЕС', right: true, style: _head(context)),
+          _cell('ЦЕНА, ₸/ЕД', right: true, style: _head(context)),
         ],
       ),
     ];
@@ -543,7 +544,7 @@ class _RecipeTable extends StatelessWidget {
       final perBatch = i.quantity * factor;
       final sum = i.unitPrice == null ? null : perBatch * i.unitPrice!;
       rows.add(TableRow(
-        decoration: const BoxDecoration(border: Border(bottom: border)),
+        decoration: BoxDecoration(border: Border(bottom: border)),
         children: [
           _cell(i.name),
           _cell('${formatQty(_round(perBatch, 3))} ${i.unit}', right: true),
@@ -555,7 +556,7 @@ class _RecipeTable extends StatelessWidget {
       ));
     }
     rows.add(TableRow(
-      decoration: const BoxDecoration(color: TK.soft),
+      decoration: BoxDecoration(color: context.pal.seg),
       children: [
         _cell('Итого', style: TK.text.copyWith(fontWeight: FontWeight.w600)),
         _cell(''),
@@ -567,7 +568,7 @@ class _RecipeTable extends StatelessWidget {
     ));
 
     return Container(
-      decoration: BoxDecoration(border: Border.all(color: TK.line), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(border: Border.all(color: context.pal.line), borderRadius: BorderRadius.circular(8)),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(7),
         child: SingleChildScrollView(
@@ -599,7 +600,7 @@ class _StageRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(border: last ? null : const Border(bottom: BorderSide(color: TK.line))),
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: context.pal.line))),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -607,13 +608,13 @@ class _StageRow extends StatelessWidget {
             width: 28,
             height: 28,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: stage.ccp ? TK.yolk : TK.soft, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: stage.ccp ? context.pal.warn : context.pal.seg, shape: BoxShape.circle),
             child: Text(
               '$number',
               style: TK.num.copyWith(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: stage.ccp ? const Color(0xFF3A2800) : TK.muted,
+                color: stage.ccp ? const Color(0xFF3A2800) : context.pal.muted,
               ),
             ),
           ),
@@ -625,7 +626,7 @@ class _StageRow extends StatelessWidget {
                 Text(stage.title, style: TK.text.copyWith(fontWeight: FontWeight.w600, fontSize: 15)),
                 if (stage.description != null) ...[
                   const SizedBox(height: 3),
-                  Text(stage.description!, style: TK.text.copyWith(color: TK.muted, height: 1.4)),
+                  Text(stage.description!, style: TK.text.copyWith(color: context.pal.muted, height: 1.4)),
                 ],
                 const SizedBox(height: 8),
                 Wrap(
@@ -655,11 +656,11 @@ class _ParamChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
-        decoration: BoxDecoration(color: TK.soft, borderRadius: BorderRadius.circular(999)),
+        decoration: BoxDecoration(color: context.pal.seg, borderRadius: BorderRadius.circular(999)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label, style: TK.note),
+            Text(label, style: TK.note.copyWith(color: context.pal.muted)),
             const SizedBox(width: 6),
             Text(value, style: TK.num.copyWith(fontSize: 12)),
           ],
@@ -682,7 +683,7 @@ class _Dl extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(width: 120, child: Text(term, style: TK.text.copyWith(color: TK.muted))),
+                  SizedBox(width: 120, child: Text(term, style: TK.text.copyWith(color: context.pal.muted))),
                   const SizedBox(width: 12),
                   Expanded(child: Text(desc ?? '—', style: TK.text)),
                 ],

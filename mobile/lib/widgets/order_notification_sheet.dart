@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/notification.dart';
 import 'format.dart';
 import 'status_badge.dart';
+import '../theme/app_theme.dart';
 
 /// Нижний лист с полной историей уведомлений по одному заказу — используется и на
 /// дашборде, и на экране "Уведомления", чтобы группировка "один заказ — одна карточка"
@@ -45,7 +46,7 @@ void showOrderNotificationHistory(BuildContext context, OrderNotificationGroup g
                   children: [
                     Text(n.message),
                     const SizedBox(height: 2),
-                    Text(formatDateTime(n.createdAt), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text(formatDateTime(n.createdAt), style: TextStyle(color: context.pal.muted, fontSize: 12)),
                   ],
                 );
               },

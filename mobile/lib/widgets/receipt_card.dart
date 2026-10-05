@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'hidden_search.dart';
+import '../theme/app_theme.dart';
 
-const _receiptInk = Color(0xFF2B1F1A);
-const _receiptMuted = Color(0xFFB8A88F);
-const _receiptLine = Color(0xFFE3D9C8);
-const _receiptAccent = Color(0xFF8F2438);
-const _receiptInsufficient = Color(0xFFC0392B);
+Color _receiptInk(BuildContext context) => context.pal.ink;
+Color _receiptMuted(BuildContext context) => context.pal.muted;
+Color _receiptLine(BuildContext context) => context.pal.line;
+Color _receiptAccent(BuildContext context) => context.pal.accent;
+Color _receiptInsufficient(BuildContext context) => context.pal.danger;
 
 /// Карточка-«чек»: используется там, где нужно показать состав заявки/списка
 /// позиций в узнаваемом виде кассового чека (шапка, пунктирные разделители,
@@ -57,17 +58,17 @@ class ReceiptCard extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(icon, size: 15, color: _receiptAccent),
+                      Icon(icon, size: 15, color: _receiptAccent(context)),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           title.toUpperCase(),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 12.5,
                             letterSpacing: 1.4,
-                            color: _receiptAccent,
+                            color: _receiptAccent(context),
                           ),
                         ),
                       ),
@@ -141,7 +142,7 @@ class ReceiptRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final checked = checkbox ?? false;
-    final insufficientColor = insufficient && !checked ? _receiptInsufficient : null;
+    final insufficientColor = insufficient && !checked ? _receiptInsufficient(context) : null;
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -163,7 +164,7 @@ class ReceiptRow extends StatelessWidget {
               width: 22,
               child: Text(
                 '$index',
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: _receiptMuted),
+                style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: _receiptMuted(context)),
               ),
             ),
           const SizedBox(width: 4),
@@ -182,9 +183,9 @@ class ReceiptRow extends StatelessWidget {
                 fontSize: 13.5,
                 fontWeight: insufficientColor != null ? FontWeight.w700 : null,
                 height: 1.2,
-                color: insufficientColor ?? (checked ? _receiptMuted : _receiptInk),
+                color: insufficientColor ?? (checked ? _receiptMuted(context) : _receiptInk(context)),
                 decoration: checked ? TextDecoration.lineThrough : null,
-                decorationColor: _receiptMuted,
+                decorationColor: _receiptMuted(context),
               ),
             ),
           ),
@@ -192,7 +193,7 @@ class ReceiptRow extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: _DottedLeader(color: checked ? const Color(0xFFEDE6D9) : _receiptLine),
+              child: _DottedLeader(color: checked ? context.pal.seg : _receiptLine(context)),
             ),
           ),
           Text(
@@ -201,7 +202,7 @@ class ReceiptRow extends StatelessWidget {
               fontFamily: 'monospace',
               fontSize: 13.5,
               fontWeight: FontWeight.w700,
-              color: insufficientColor ?? (checked ? _receiptMuted : _receiptInk),
+              color: insufficientColor ?? (checked ? _receiptMuted(context) : _receiptInk(context)),
             ),
           ),
           if (trailingAction != null) ...[
@@ -272,11 +273,11 @@ class ReceiptSelectAllRow extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   value == true ? 'Снять всё' : title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: _receiptInk,
+                    color: _receiptInk(context),
                   ),
                 ),
               ],
@@ -339,7 +340,7 @@ class _DashedLine extends StatelessWidget {
               count,
               (_) => Padding(
                 padding: const EdgeInsets.only(right: dashSpace),
-                child: Container(width: dashWidth, height: 1, color: _receiptLine),
+                child: Container(width: dashWidth, height: 1, color: _receiptLine(context)),
               ),
             ),
           ),
@@ -364,13 +365,13 @@ class _ReceiptBarcode extends StatelessWidget {
         height: 20,
         padding: const EdgeInsets.symmetric(horizontal: 18),
         alignment: Alignment.center,
-        color: const Color(0xFFFBF9F5),
+        color: context.pal.seg,
         child: Row(
           children: [
             for (final w in _pattern)
               Padding(
                 padding: const EdgeInsets.only(right: 2),
-                child: Container(width: w.toDouble(), height: 14, color: const Color(0xFFD8CEBB)),
+                child: Container(width: w.toDouble(), height: 14, color: context.pal.line),
               ),
           ],
         ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../navigation.dart';
 import '../services/api_client.dart';
 import '../widgets/connection_sheet.dart';
+import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -94,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (_error != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                        child: Text(_error!, style: TextStyle(color: context.pal.danger), textAlign: TextAlign.center),
                       ),
                     TextFormField(
                       controller: _username,

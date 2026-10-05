@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/company_profile.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
+import '../theme/app_theme.dart';
 
 class CompanyProfileScreen extends StatefulWidget {
   const CompanyProfileScreen({super.key});
@@ -72,7 +73,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                    child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                   ),
                 TextField(controller: _name, decoration: const InputDecoration(labelText: 'Название компании')),
                 const SizedBox(height: 12),
@@ -90,7 +91,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                 ),
                 if (_saved) ...[
                   const SizedBox(height: 8),
-                  const Text('Сохранено', style: TextStyle(color: Color(0xFF4C8A5E))),
+                  Text('Сохранено', style: TextStyle(color: context.pal.success)),
                 ],
               ],
             ),

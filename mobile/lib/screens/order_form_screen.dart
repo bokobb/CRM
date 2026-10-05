@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../main.dart';
+import '../theme/app_theme.dart';
 import '../models/client.dart';
 import '../models/client_price.dart';
 import '../models/product.dart';
@@ -258,7 +258,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE7E0D8)),
+          border: Border.all(color: context.pal.line),
         ),
         child: child,
       ),
@@ -269,9 +269,9 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
     final step = _step(product);
     return Container(
       decoration: BoxDecoration(
-        color: bg,
+        color: context.pal.bg,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFE7E0D8)),
+        border: Border.all(color: context.pal.line),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
@@ -303,7 +303,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
         height: 26,
         alignment: Alignment.center,
         decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        child: Icon(icon, size: 15, color: ink),
+        child: Icon(icon, size: 15, color: context.pal.ink),
       ),
     );
   }
@@ -318,10 +318,10 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
           onTap: () => _openProductScreen(products, row: row),
           child: Row(
             children: [
-              const Icon(Icons.add_circle_outline, color: accent),
+              Icon(Icons.add_circle_outline, color: context.pal.accent),
               const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Выбрать товар', style: TextStyle(color: Colors.grey)),
+              Expanded(
+                child: Text('Выбрать товар', style: TextStyle(color: context.pal.muted)),
               ),
               if (_rows.length > 1)
                 IconButton(
@@ -339,7 +339,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE7E0D8)),
+        border: Border.all(color: context.pal.line),
       ),
       child: Row(
         children: [
@@ -358,7 +358,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                   const SizedBox(height: 2),
                   Text(
                     '${formatMoney(_priceFor(product))}${product.unit != null ? ' / ${product.unit}' : ''}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                    style: TextStyle(color: context.pal.muted, fontSize: 12.5),
                   ),
                 ],
               ),
@@ -369,7 +369,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
           if (_rows.length > 1) ...[
             const SizedBox(width: 2),
             IconButton(
-              icon: const Icon(Icons.close, size: 16, color: Colors.grey),
+              icon: Icon(Icons.close, size: 16, color: context.pal.muted),
               onPressed: () => setState(() => _rows.removeAt(i)),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -388,7 +388,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
         actions: [
           TextButton(
             onPressed: _clearAll,
-            child: const Text('Очистить', style: TextStyle(color: accent, fontWeight: FontWeight.w600)),
+            child: Text('Очистить', style: TextStyle(color: context.pal.accent, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -417,7 +417,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                     if (_error != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                        child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                       ),
                     _pillRow(
                       onTap: () async {
@@ -432,13 +432,13 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                       },
                       child: Row(
                         children: [
-                          Icon(Icons.person_outline, color: _client == null ? Colors.grey : accent),
+                          Icon(Icons.person_outline, color: _client == null ? context.pal.muted : context.pal.accent),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               _client?.name ?? 'Выбрать клиента',
                               style: TextStyle(
-                                color: _client == null ? Colors.grey : ink,
+                                color: _client == null ? context.pal.muted : context.pal.ink,
                                 fontWeight: _client == null ? FontWeight.normal : FontWeight.w600,
                               ),
                             ),
@@ -447,7 +447,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                             const SizedBox(
                                 height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))
                           else
-                            const Icon(Icons.chevron_right, color: Colors.grey),
+                            Icon(Icons.chevron_right, color: context.pal.muted),
                         ],
                       ),
                     ),
@@ -464,11 +464,11 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                       },
                       child: Row(
                         children: [
-                          const Text('Срок выполнения', style: TextStyle(color: Colors.grey)),
+                          Text('Срок выполнения', style: TextStyle(color: context.pal.muted)),
                           const Spacer(),
                           Text(
                             _dueDate == null ? 'Не указан' : formatDate(_dueDate!),
-                            style: const TextStyle(color: accent, fontWeight: FontWeight.w600),
+                            style: TextStyle(color: context.pal.accent, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -488,14 +488,14 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(30),
-                          border: Border.all(color: accent),
+                          border: Border.all(color: context.pal.accent),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add, size: 18, color: accent),
+                            Icon(Icons.add, size: 18, color: context.pal.accent),
                             SizedBox(width: 6),
-                            Text('Добавить позицию', style: TextStyle(color: accent, fontWeight: FontWeight.w600)),
+                            Text('Добавить позицию', style: TextStyle(color: context.pal.accent, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -518,8 +518,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                     height: 52,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: accent,
-                        disabledBackgroundColor: accent.withValues(alpha: 0.35),
+                        backgroundColor: context.pal.accent,
+                        disabledBackgroundColor: context.pal.accent.withValues(alpha: 0.35),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       ),
                       onPressed: canOrder ? _save : null,

@@ -4,9 +4,10 @@ import '../models/production_request.dart';
 import '../services/api_client.dart';
 import 'error_view.dart';
 import 'format.dart';
+import '../theme/app_theme.dart';
 
 const _green = Color(0xFF2E8B57);
-const _red = Color(0xFFC0392B);
+Color _red(BuildContext context) => context.pal.danger;
 
 /// Состав заявки против выданного работникам — открывается долгим нажатием на карточку заявки
 /// (см. production_requests_screen.dart). После правки состава одних позиций не хватает
@@ -100,14 +101,14 @@ class _CompositionSheetState extends State<_CompositionSheet> {
                         ? 'Сырьё ещё не выдавали — разницы нет'
                         : 'Выдано работникам: ${formatDateTime(d.issuedAt!)}'
                             '${d.issuedBy != null ? ' · ${d.issuedBy}' : ''}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                    style: TextStyle(color: context.pal.muted, fontSize: 12.5),
                   ),
                   if (d.issuedAt != null) ...[
                     const SizedBox(height: 8),
                     Wrap(spacing: 12, runSpacing: 4, children: [
                       if (!d.hasDiff) const Text('Разницы нет', style: TextStyle(fontWeight: FontWeight.w600)),
                       if (toGive > 0) _legend(_green, 'довыдать: $toGive поз.'),
-                      if (toReturn > 0) _legend(_red, 'вернуть: $toReturn поз.'),
+                      if (toReturn > 0) _legend(_red(context), 'вернуть: $toReturn поз.'),
                     ]),
                   ],
                   const Divider(height: 20),
@@ -156,21 +157,21 @@ class _CompositionSheetState extends State<_CompositionSheet> {
       ]);
 
   static const _numStyle = TextStyle(fontSize: 13);
-  static const _headStyle = TextStyle(fontSize: 11.5, color: Colors.grey);
+  static TextStyle _headStyle(BuildContext context) => TextStyle(fontSize: 11.5, color: context.pal.muted);
 
   Widget _headerRow(bool issued) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Row(children: [
-          const Expanded(flex: 5, child: Text('Сырьё', style: _headStyle)),
-          if (issued) const Expanded(flex: 3, child: Text('Выдано', style: _headStyle, textAlign: TextAlign.right)),
-          const Expanded(flex: 3, child: Text('Сейчас', style: _headStyle, textAlign: TextAlign.right)),
-          if (issued) const Expanded(flex: 4, child: Text('Разница', style: _headStyle, textAlign: TextAlign.right)),
+          Expanded(flex: 5, child: Text('Сырьё', style: _headStyle(context))),
+          if (issued) Expanded(flex: 3, child: Text('Выдано', style: _headStyle(context), textAlign: TextAlign.right)),
+          Expanded(flex: 3, child: Text('Сейчас', style: _headStyle(context), textAlign: TextAlign.right)),
+          if (issued) Expanded(flex: 4, child: Text('Разница', style: _headStyle(context), textAlign: TextAlign.right)),
         ]),
       );
 
   Widget _row(CompositionDiffRow r, bool issued) {
     final unit = r.unit ?? '';
-    final color = r.diff > 0 ? _green : (r.diff < 0 ? _red : null);
+    final color = r.diff > 0 ? _green : (r.diff < 0 ? _red(context) : null);
     final diffText = r.diff > 0
         ? '+${formatQty(r.diff)} $unit'
         : r.diff < 0
@@ -180,7 +181,7 @@ class _CompositionSheetState extends State<_CompositionSheet> {
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       decoration: BoxDecoration(
         color: color?.withValues(alpha: 0.08),
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        border: Border(bottom: BorderSide(color: context.pal.line)),
       ),
       child: Row(children: [
         Expanded(
@@ -195,7 +196,7 @@ class _CompositionSheetState extends State<_CompositionSheet> {
             flex: 4,
             child: Text(diffText,
                 textAlign: TextAlign.right,
-                style: TextStyle(fontSize: 13, color: color ?? Colors.grey, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 13, color: color ?? context.pal.muted, fontWeight: FontWeight.w700)),
           ),
       ]),
     );
@@ -205,7 +206,7 @@ class _CompositionSheetState extends State<_CompositionSheet> {
         tilePadding: const EdgeInsets.symmetric(horizontal: 4),
         dense: true,
         leading: Icon(h.issued ? Icons.inventory_2_outlined : Icons.edit_outlined,
-            size: 20, color: h.issued ? _green : Colors.grey),
+            size: 20, color: h.issued ? _green : context.pal.muted),
         title: Text(h.note ?? (h.issued ? 'Выдано' : 'Правка'), style: const TextStyle(fontSize: 13)),
         subtitle: Text('${formatDateTime(h.createdAt)} · ${h.createdBy}', style: const TextStyle(fontSize: 11.5)),
         children: [

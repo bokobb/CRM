@@ -4,7 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../main.dart';
+import '../theme/app_theme.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/timeout_cache_manager.dart';
@@ -83,12 +83,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined, color: accent),
+              leading: Icon(Icons.photo_library_outlined, color: context.pal.accent),
               title: const Text('Выбрать из галереи'),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_camera_outlined, color: accent),
+              leading: Icon(Icons.photo_camera_outlined, color: context.pal.accent),
               title: const Text('Сделать фото'),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
@@ -154,7 +154,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                      child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                     ),
                   Center(child: _photoPreview()),
                   const SizedBox(height: 10),
@@ -283,17 +283,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         imageUrl: _existingImageUrl!,
         cacheManager: TimeoutCacheManager(),
         fit: BoxFit.cover,
-        errorWidget: (context, url, error) => const Icon(Icons.image_not_supported_outlined, color: Colors.grey),
+        errorWidget: (context, url, error) => Icon(Icons.image_not_supported_outlined, color: context.pal.muted),
       );
     } else {
-      child = const Icon(Icons.image_outlined, size: 36, color: Colors.grey);
+      child = Icon(Icons.image_outlined, size: 36, color: context.pal.muted);
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: Container(
         width: 140,
         height: 140,
-        color: bg,
+        color: context.pal.bg,
         alignment: Alignment.center,
         child: child,
       ),

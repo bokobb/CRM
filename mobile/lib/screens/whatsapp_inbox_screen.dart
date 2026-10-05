@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../theme/app_theme.dart';
 
 /// Заказы из WhatsApp, которые ИИ не смог распознать полностью — здесь администратор
 /// подбирает товар для непонятных позиций (см. WhatsAppOrderIntakeService.resolvePending
@@ -53,11 +54,11 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             final messages = snapshot.data!;
             if (messages.isEmpty) {
               return ListView(
-                children: const [
+                children: [
                   Padding(
                     padding: EdgeInsets.all(32),
                     child: Center(
-                      child: Text('Нет сообщений, ожидающих уточнения', style: TextStyle(color: Colors.grey)),
+                      child: Text('Нет сообщений, ожидающих уточнения', style: TextStyle(color: context.pal.muted)),
                     ),
                   ),
                 ],
@@ -73,7 +74,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                   leadingColor: const Color(0xFF25D366),
                   title: m.clientName,
                   subtitle: '${formatDateTime(m.createdAt)} · ${m.rawText.split("\n").join(" / ")}',
-                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                  trailing: Icon(Icons.chevron_right, color: context.pal.muted),
                   onTap: () async {
                     await Navigator.of(context).pushNamed('/whatsapp-inbox/detail', arguments: m);
                     _refresh();

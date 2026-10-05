@@ -8,6 +8,7 @@ import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/product_avatar.dart';
 import '../widgets/searchable_app_bar.dart';
+import '../theme/app_theme.dart';
 
 const _noGroup = 'Без группы';
 
@@ -78,7 +79,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
                   padding: const EdgeInsets.all(32),
                   child: Center(
                     child: Text(_query.isEmpty ? 'Товаров пока нет' : 'Ничего не найдено',
-                        style: const TextStyle(color: Colors.grey)),
+                        style: TextStyle(color: context.pal.muted)),
                   ),
                 ),
               ]);

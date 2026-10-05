@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../main.dart';
+import '../theme/app_theme.dart';
 import '../models/client.dart';
 import '../models/product.dart';
 import '../models/product_return.dart';
@@ -274,7 +274,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE7E0D8)),
+          border: Border.all(color: context.pal.line),
         ),
         child: child,
       ),
@@ -285,9 +285,9 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
     final step = quantityStep(product.unit);
     return Container(
       decoration: BoxDecoration(
-        color: bg,
+        color: context.pal.bg,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFE7E0D8)),
+        border: Border.all(color: context.pal.line),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
@@ -319,7 +319,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
         height: 26,
         alignment: Alignment.center,
         decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        child: Icon(icon, size: 15, color: ink),
+        child: Icon(icon, size: 15, color: context.pal.ink),
       ),
     );
   }
@@ -334,10 +334,10 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
           onTap: () => _pickProduct(products, row: row),
           child: Row(
             children: [
-              const Icon(Icons.add_circle_outline, color: accent),
+              Icon(Icons.add_circle_outline, color: context.pal.accent),
               const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Выбрать товар', style: TextStyle(color: Colors.grey)),
+              Expanded(
+                child: Text('Выбрать товар', style: TextStyle(color: context.pal.muted)),
               ),
               if (_rows.length > 1)
                 IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => _rows.removeAt(i))),
@@ -352,7 +352,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE7E0D8)),
+        border: Border.all(color: context.pal.line),
       ),
       child: Row(
         children: [
@@ -373,7 +373,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                   const SizedBox(height: 2),
                   Text(
                     '${formatMoney(_priceOf(row))}${product.unit != null ? ' / ${product.unit}' : ''}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+                    style: TextStyle(color: context.pal.muted, fontSize: 12.5),
                   ),
                 ],
               ),
@@ -384,7 +384,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
           if (_rows.length > 1) ...[
             const SizedBox(width: 2),
             IconButton(
-              icon: const Icon(Icons.close, size: 16, color: Colors.grey),
+              icon: Icon(Icons.close, size: 16, color: context.pal.muted),
               onPressed: () => setState(() => _rows.removeAt(i)),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -409,9 +409,9 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
         actions: [
           TextButton(
             onPressed: _clearAll,
-            child: const Text(
+            child: Text(
               'Очистить',
-              style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+              style: TextStyle(color: context.pal.accent, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -436,7 +436,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                     if (_error != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                        child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                       ),
                     _pillRow(
                       onTap: _clientLocked
@@ -459,13 +459,13 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                             },
                       child: Row(
                         children: [
-                          Icon(Icons.person_outline, color: _clientId == null ? Colors.grey : accent),
+                          Icon(Icons.person_outline, color: _clientId == null ? context.pal.muted : context.pal.accent),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               _clientName ?? 'Выбрать клиента',
                               style: TextStyle(
-                                color: _clientId == null ? Colors.grey : ink,
+                                color: _clientId == null ? context.pal.muted : context.pal.ink,
                                 fontWeight: _clientId == null ? FontWeight.normal : FontWeight.w600,
                               ),
                             ),
@@ -473,7 +473,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                           if (_loadingPrices)
                             const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))
                           else if (!_clientLocked)
-                            const Icon(Icons.chevron_right, color: Colors.grey),
+                            Icon(Icons.chevron_right, color: context.pal.muted),
                         ],
                       ),
                     ),
@@ -492,11 +492,11 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                       },
                       child: Row(
                         children: [
-                          const Text('Дата возврата', style: TextStyle(color: Colors.grey)),
+                          Text('Дата возврата', style: TextStyle(color: context.pal.muted)),
                           const Spacer(),
                           Text(
                             formatDate(_date),
-                            style: const TextStyle(color: accent, fontWeight: FontWeight.w600),
+                            style: TextStyle(color: context.pal.accent, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -516,16 +516,16 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(30),
-                          border: Border.all(color: accent),
+                          border: Border.all(color: context.pal.accent),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add, size: 18, color: accent),
+                            Icon(Icons.add, size: 18, color: context.pal.accent),
                             SizedBox(width: 6),
                             Text(
                               'Добавить позицию',
-                              style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+                              style: TextStyle(color: context.pal.accent, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -549,8 +549,8 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                     height: 52,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: accent,
-                        disabledBackgroundColor: accent.withValues(alpha: 0.35),
+                        backgroundColor: context.pal.accent,
+                        disabledBackgroundColor: context.pal.accent.withValues(alpha: 0.35),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       ),
                       onPressed: canSave ? _save : null,

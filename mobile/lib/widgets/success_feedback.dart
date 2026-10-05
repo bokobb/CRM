@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 
-import '../main.dart' show accent;
+import '../theme/app_theme.dart';
 
 /// Короткий "успех"-фидбек на ключевых шагах жизненного цикла заказа (оформление заказа,
 /// подтверждение сборки, отгрузка, завершение, подтверждение заказа из WhatsApp): звук +
-/// Lottie-анимация галочки (2с), перекрашенная в цвет кнопок приложения (accent) через
+/// Lottie-анимация галочки (2с), перекрашенная в цвет кнопок приложения (context.pal.accent) через
 /// ColorFiltered. Через Overlay, а не через диалог/route — так исключается зависание на
 /// экране, если что-то пойдёт не так со стеком навигации сразу после вызова (например,
 /// экран, вызвавший анимацию, сам параллельно уходит на другой роут).
@@ -22,7 +22,7 @@ Future<void> playSuccessFeedback(BuildContext context) async {
           width: 180,
           height: 180,
           child: ColorFiltered(
-            colorFilter: const ColorFilter.mode(accent, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(context.pal.accent, BlendMode.srcIn),
             child: Lottie.asset('assets/animations/check_success.json', repeat: false),
           ),
         ),

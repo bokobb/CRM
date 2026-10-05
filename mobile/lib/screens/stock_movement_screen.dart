@@ -8,6 +8,7 @@ import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../theme/app_theme.dart';
 
 /// Общий экран для "Поступления" и "Списание" — товара и сырья (см. [isProduct]) — отличаются
 /// типом движения (RECEIPT/WRITE_OFF), видом номенклатуры, заголовком и тем, какой метод
@@ -183,7 +184,7 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
                         padding: const EdgeInsets.all(32),
                         child: Center(
                           child: Text(_hasFilter ? 'Ничего не найдено' : 'Записей пока нет',
-                              style: const TextStyle(color: Colors.grey)),
+                              style: TextStyle(color: context.pal.muted)),
                         ),
                       ),
                     ]);
@@ -196,13 +197,13 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
                       final deleteMode = _deleteModeId == m.id;
                       return AppListTile(
                         leadingIcon: m.isProduct ? Icons.cake_outlined : Icons.grain_outlined,
-                        leadingColor: m.isProduct ? const Color(0xFFB8324A) : const Color(0xFFD9A73F),
+                        leadingColor: m.isProduct ? context.pal.accent : context.pal.warn,
                         title: m.itemName,
                         subtitle:
                             '${m.reason?.isNotEmpty == true ? '${m.reason} · ' : ''}${m.createdBy} · ${formatDateTime(m.createdAt)}',
                         trailing: deleteMode
                             ? IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                icon: Icon(Icons.delete_outline, color: context.pal.danger),
                                 tooltip: 'Удалить',
                                 onPressed: () => _deleteMovement(m),
                               )
@@ -210,7 +211,7 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
                                 '${widget.isReceipt ? '+' : '−'}${formatQty(m.quantity)} ${m.unit}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: widget.isReceipt ? const Color(0xFF4C8A5E) : const Color(0xFFB8433F),
+                                  color: widget.isReceipt ? context.pal.success : context.pal.danger,
                                 ),
                               ),
                         onLongPress: () => setState(() => _deleteModeId = m.id),
@@ -318,7 +319,7 @@ class _StockMovementFormState extends State<_StockMovementForm> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                child: Text(_error!, style: TextStyle(color: context.pal.danger)),
               ),
             if (_loadingItems)
               const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))

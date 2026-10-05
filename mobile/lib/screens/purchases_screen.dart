@@ -14,6 +14,7 @@ import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/searchable_app_bar.dart';
 import 'purchase_invoice_screen.dart';
+import '../theme/app_theme.dart';
 
 /// Закупки сырья у контрагентов — см. PurchaseService на бэкенде. Один контрагент может
 /// привезти сразу несколько разных товаров за один раз (см. Purchase.items).
@@ -148,7 +149,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                         padding: const EdgeInsets.all(32),
                         child: Center(
                           child: Text(_query.isEmpty ? 'Закупок пока нет' : 'Ничего не найдено',
-                              style: const TextStyle(color: Colors.grey)),
+                              style: TextStyle(color: context.pal.muted)),
                         ),
                       ),
                     ]);
@@ -164,7 +165,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                       final syncing = _syncingIds.contains(p.id);
                       final tile = AppListTile(
                         leadingIcon: Icons.local_shipping_outlined,
-                        leadingColor: const Color(0xFFD9A73F),
+                        leadingColor: context.pal.warn,
                         title: p.counterpartyName,
                         subtitle: '$itemsSummary · ${formatDate(p.purchaseDate)}'
                             '${p.oneCSyncError != null ? ' · не синхронизировано с 1С' : ''}',
@@ -172,7 +173,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (p.imageUrl != null) ...[
-                              const Icon(Icons.photo_camera_outlined, size: 18, color: Colors.grey),
+                              Icon(Icons.photo_camera_outlined, size: 18, color: context.pal.muted),
                               const SizedBox(width: 6),
                             ],
                             if (p.totalSum > 0) ...[
@@ -187,12 +188,12 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                               )
                             else if (p.oneCSyncError != null)
                               IconButton(
-                                icon: const Icon(Icons.sync_problem, color: Colors.red),
+                                icon: Icon(Icons.sync_problem, color: context.pal.danger),
                                 tooltip: '${p.oneCSyncError}\nНажмите, чтобы повторить',
                                 onPressed: () => _syncOneC(p),
                               )
                             else if (p.oneCDocumentNumber != null)
-                              Icon(Icons.check_circle_outline, color: const Color(0xFF4C8A5E), size: 20,
+                              Icon(Icons.check_circle_outline, color: context.pal.success, size: 20,
                                   semanticLabel: 'В 1С №${p.oneCDocumentNumber}'),
                           ],
                         ),
@@ -234,7 +235,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.symmetric(horizontal: 22),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFD9A73F),
+                              color: context.pal.warn,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Row(
@@ -452,15 +453,15 @@ class _PurchaseFormState extends State<_PurchaseForm> {
                   Text(widget.purchase == null ? 'Новая закупка' : 'Закупка №${widget.purchase!.id} — изменить',
                       style: Theme.of(context).textTheme.titleMedium),
                   if (widget.purchase != null)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(top: 4),
-                      child: Text('Склад сырья и документ в 1С пересчитаются', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      child: Text('Склад сырья и документ в 1С пересчитаются', style: TextStyle(color: context.pal.muted, fontSize: 12)),
                     ),
                   const SizedBox(height: 16),
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                      child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                     ),
                   Autocomplete<Counterparty>(
                     displayStringForOption: (c) => c.name,

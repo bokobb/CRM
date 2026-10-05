@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/pick_from_list.dart';
 import '../widgets/product_avatar.dart';
+import '../theme/app_theme.dart';
 
 class _RecipeRow {
   int? ingredientId;
@@ -226,10 +227,10 @@ class _RecipeScreenState extends State<RecipeScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'Сколько сырья уходит на партию. При завершении цеховой задачи сырьё '
                     'списывается автоматически пропорционально количеству.',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                    style: TextStyle(color: context.pal.muted, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
                   if (ApiClient.currentSession?.role == 'ADMIN')
@@ -314,7 +315,7 @@ class _RecipeScreenState extends State<RecipeScreen> {
                                           return ListTile(
                                             dense: true,
                                             title: Text(ing.name),
-                                            trailing: Text(ing.unit, style: const TextStyle(color: Colors.grey)),
+                                            trailing: Text(ing.unit, style: TextStyle(color: context.pal.muted)),
                                             onTap: () => onSelected(ing),
                                           );
                                         },
@@ -357,7 +358,7 @@ class _RecipeScreenState extends State<RecipeScreen> {
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                      child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                     ),
                   FilledButton(
                     onPressed: _saving ? null : _save,

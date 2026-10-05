@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../theme/app_theme.dart';
 
 /// Табель сотрудников за месяц. Ячейка дня: ✓ пришёл, 0,5 полдня (отпросился), ✗ не пришёл, В выходной, пусто.
 /// Сами собой ставятся ✓ — по бригадам заявок на сырьё, и В — по воскресеньям. Нажатие на
@@ -213,12 +214,12 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
                 IconButton(onPressed: () => _shiftMonth(1), icon: const Icon(Icons.chevron_right)),
               ],
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(12, 0, 12, 6),
               child: Text(
                 '✓ пришёл · 0,5 полдня (отпросился) · ✗ не пришёл · В выходной. Нажмите на ячейку, чтобы поменять. '
                 'Бледная ✓ — из бригады заявки. При сохранении пустые дни до вчера станут ✗.',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: context.pal.muted, fontSize: 12),
               ),
             ),
             const Divider(height: 1),
@@ -237,19 +238,19 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
     final rows = (sheet['rows'] as List).cast<Map<String, dynamic>>();
     final showMoney = sheet['totalPay'] != null;
     if (rows.isEmpty) {
-      return const Center(child: Text('Сотрудников нет', style: TextStyle(color: Colors.grey)));
+      return Center(child: Text('Сотрудников нет', style: TextStyle(color: context.pal.muted)));
     }
 
     Widget header(String top, String bottom, {bool sunday = false, double width = _cellWidth}) => Container(
           width: width,
           height: 44,
           alignment: Alignment.center,
-          color: sunday ? const Color(0xFFFBE3E0) : Colors.grey.shade100,
+          color: sunday ? context.pal.tint(context.pal.danger) : context.pal.seg,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(top, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5, color: sunday ? const Color(0xFFB23A2E) : null)),
-              Text(bottom, style: TextStyle(fontSize: 10.5, color: sunday ? const Color(0xFFB23A2E) : Colors.grey)),
+              Text(top, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5, color: sunday ? context.pal.danger : null)),
+              Text(bottom, style: TextStyle(fontSize: 10.5, color: sunday ? context.pal.danger : context.pal.muted)),
             ],
           ),
         );
@@ -260,11 +261,11 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
       final sunday = days[i]['sunday'] as bool;
       final changed = _changes.containsKey('${row['employeeId']}|$i');
       final (text, color) = switch (s) {
-        'P' => ('✓', auto ? const Color(0x992F7D4F) : const Color(0xFF2F7D4F)),
+        'P' => ('✓', auto ? const Color(0x992F7D4F) : context.pal.success),
         'H' => ('0,5', const Color(0xFFB7791F)),
-        'A' => ('✗', const Color(0xFFB23A2E)),
-        'O' => ('В', Colors.grey),
-        _ => ('', Colors.grey),
+        'A' => ('✗', context.pal.danger),
+        'O' => ('В', context.pal.muted),
+        _ => ('', context.pal.muted),
       };
       return InkWell(
         onTap: () => _tap(row, i),
@@ -273,10 +274,10 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
           height: _rowHeight,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: changed ? const Color(0xFFFFF3C4) : sunday ? const Color(0xFFFDF1EF) : null,
+            color: changed ? context.pal.tint(context.pal.warn) : sunday ? context.pal.tint(context.pal.danger) : null,
             border: Border(
-              right: BorderSide(color: Colors.grey.shade200),
-              bottom: BorderSide(color: Colors.grey.shade200),
+              right: BorderSide(color: context.pal.line),
+              bottom: BorderSide(color: context.pal.line),
             ),
           ),
           child: Text(text, style: TextStyle(fontSize: s == 'H' ? 12 : 16, fontWeight: FontWeight.w700, color: color)),
@@ -302,7 +303,7 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
           height: _rowHeight,
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.pal.line))),
           child: Text(text, style: TextStyle(fontSize: 12.5, fontWeight: bold ? FontWeight.w600 : null)),
         );
 
@@ -313,7 +314,7 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
           height: 44,
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          color: Colors.grey.shade100,
+          color: context.pal.seg,
           child: const Text('Сотрудник', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
         ),
         for (final row in rows)
@@ -324,8 +325,8 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Colors.grey.shade200),
-                right: BorderSide(color: Colors.grey.shade300),
+                bottom: BorderSide(color: context.pal.line),
+                right: BorderSide(color: context.pal.line),
               ),
             ),
             child: Column(
@@ -334,7 +335,7 @@ class _TimesheetScreenState extends State<TimesheetScreen> {
               children: [
                 Text(row['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5)),
                 Text(row['position'] as String? ?? row['group'] as String? ?? '',
-                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: Colors.grey)),
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, color: context.pal.muted)),
               ],
             ),
           ),

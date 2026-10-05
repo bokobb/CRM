@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/product_return.dart';
 import 'format.dart';
 import 'receipt_card.dart';
+import '../theme/app_theme.dart';
 
-const _mono = TextStyle(fontFamily: 'monospace', fontSize: 13, color: Color(0xFF2B1F1A));
-const _monoMuted = TextStyle(fontFamily: 'monospace', fontSize: 11.5, color: Color(0xFFB8A88F));
+TextStyle _mono(BuildContext context) => TextStyle(fontFamily: 'monospace', fontSize: 13, color: context.pal.ink);
+TextStyle _monoMuted(BuildContext context) => TextStyle(fontFamily: 'monospace', fontSize: 11.5, color: context.pal.muted);
 
 /// Позиции возвратов в виде кассового чека: наименование · кол-во · сумма. Используется в окне
 /// расчёта по заказу (несколько возвратов, строка открывает свой возврат — [onTap]) и в карточке
@@ -40,15 +41,15 @@ class ReturnsReceipt extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE3D9C8)),
+        border: Border.all(color: context.pal.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _line(
-            const Text('НАИМЕНОВАНИЕ', style: _monoMuted),
-            const Text('КОЛ-ВО', style: _monoMuted),
-            const Text('СУММА', style: _monoMuted),
+            Text('НАИМЕНОВАНИЕ', style: _monoMuted(context)),
+            Text('КОЛ-ВО', style: _monoMuted(context)),
+            Text('СУММА', style: _monoMuted(context)),
           ),
           const SizedBox(height: 6),
           const ReceiptDashedLine(),
@@ -60,9 +61,9 @@ class ReturnsReceipt extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 5),
                   child: _line(
-                    Text(i.productName, style: _mono),
-                    Text(formatQty(i.quantity), style: _mono),
-                    Text(formatMoney(i.sum), style: _mono.copyWith(fontWeight: FontWeight.w700)),
+                    Text(i.productName, style: _mono(context)),
+                    Text(formatQty(i.quantity), style: _mono(context)),
+                    Text(formatMoney(i.sum), style: _mono(context).copyWith(fontWeight: FontWeight.w700)),
                   ),
                 ),
               ),

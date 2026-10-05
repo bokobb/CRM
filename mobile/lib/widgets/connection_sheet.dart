@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
+import '../theme/app_theme.dart';
 
 /// Смена адреса backend (Base URL) — вынесен в общий виджет, т.к. нужен и из Настроек
 /// (после входа), и с экрана логина (до входа — иначе новый человек с неверным адресом
@@ -50,12 +51,12 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
               children: [
                 Text('Подключение', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'Адрес backend API кондитерской CRM (Spring Boot). '
                   'Для Android-эмулятора хост-машина доступна как 10.0.2.2, '
                   'для физического устройства укажите IP компьютера в вашей Wi-Fi сети '
                   '(например http://192.168.1.50:8080/api).',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: context.pal.muted),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -67,7 +68,7 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
                 FilledButton(onPressed: _save, child: const Text('Сохранить')),
                 if (_saved) ...[
                   const SizedBox(height: 8),
-                  const Text('Сохранено', style: TextStyle(color: Color(0xFF4C8A5E))),
+                  Text('Сохранено', style: TextStyle(color: context.pal.success)),
                 ],
               ],
             ),

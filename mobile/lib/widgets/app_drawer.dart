@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../services/push_service.dart';
+import '../theme/app_theme.dart';
 
 typedef _Item = (String route, String label, IconData icon);
 
@@ -104,16 +105,16 @@ class AppDrawer extends StatelessWidget {
                         const Text(
                           'Юг Сладости',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         if (session != null)
                           Text(
                             '${session.fullName} · ${session.roleLabel}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: context.pal.muted,
                             ),
                           ),
                       ],
@@ -145,6 +146,14 @@ class AppDrawer extends StatelessWidget {
                 },
               ),
             const Divider(height: 1),
+            SwitchListTile(
+              secondary: Icon(Theme.of(context).brightness == Brightness.dark
+                  ? Icons.dark_mode_outlined
+                  : Icons.light_mode_outlined),
+              title: const Text('Ночная тема'),
+              value: Theme.of(context).brightness == Brightness.dark,
+              onChanged: (_) => ThemeController.toggle(context),
+            ),
             ListTile(
               leading: const Icon(Icons.settings_outlined),
               title: const Text('Настройки'),

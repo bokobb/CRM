@@ -13,6 +13,7 @@ import '../widgets/status_badge.dart';
 import '../widgets/swipe_cancel_delete.dart';
 import 'production_request_detail_screen.dart';
 import 'production_request_form_screen.dart';
+import '../theme/app_theme.dart';
 
 /// Порядок и подписи статусов для фильтра — совпадают с ProductionRequestStatus на бэкенде
 /// (см. ProductionRequestService.STATUS_ORDER — там же порядок для сортировки списка).
@@ -136,10 +137,10 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                   }
                   final requests = _filter(snapshot.data!);
                   if (requests.isEmpty) {
-                    return ListView(children: const [
+                    return ListView(children: [
                       Padding(
                         padding: EdgeInsets.all(32),
-                        child: Center(child: Text('Заявок пока нет', style: TextStyle(color: Colors.grey))),
+                        child: Center(child: Text('Заявок пока нет', style: TextStyle(color: context.pal.muted))),
                       ),
                     ]);
                   }
@@ -150,8 +151,8 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                       final r = requests[index];
                       final tile = AppListTile(
                         leadingIcon: Icons.science_outlined,
-                        leadingColor: const Color(0xFFD9A73F),
-                        backgroundColor: (_isWarehouseRaw && r.requisitionCompleted) ? Colors.grey.shade300 : null,
+                        leadingColor: context.pal.warn,
+                        backgroundColor: (_isWarehouseRaw && r.requisitionCompleted) ? context.pal.line : null,
                         title: r.title,
                         subtitle: '№${r.id} · ${r.productNames.join(", ")} · ${formatQty(r.totalBatches)} замес. всего · '
                             '${r.createdBy} · ${formatDate(r.documentDate)}',
@@ -162,8 +163,8 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                                   if (r.hasShortfall)
                                     Text(
                                       'Недостаточно: ${r.shortfallText}',
-                                      style: const TextStyle(
-                                          color: Color(0xFFB8433F), fontWeight: FontWeight.w600, fontSize: 12),
+                                      style: TextStyle(
+                                          color: context.pal.danger, fontWeight: FontWeight.w600, fontSize: 12),
                                     ),
                                   if (r.compositionDiffPending)
                                     const Text(

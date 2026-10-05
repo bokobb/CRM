@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/searchable_app_bar.dart';
+import '../theme/app_theme.dart';
 
 class ClientsScreen extends StatefulWidget {
   const ClientsScreen({super.key});
@@ -98,7 +99,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   padding: const EdgeInsets.all(32),
                   child: Center(
                     child: Text(_query.isEmpty ? 'Клиентов пока нет' : 'Ничего не найдено',
-                        style: const TextStyle(color: Colors.grey)),
+                        style: TextStyle(color: context.pal.muted)),
                   ),
                 ),
               ]);
@@ -121,7 +122,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                             PopupMenuItem(value: 'delete', child: Text('Удалить')),
                           ],
                         )
-                      : const Icon(Icons.chevron_right, color: Colors.grey),
+                      : Icon(Icons.chevron_right, color: context.pal.muted),
                   onTap: () async {
                     await Navigator.of(context).pushNamed('/clients/detail', arguments: c.id);
                     _refresh();

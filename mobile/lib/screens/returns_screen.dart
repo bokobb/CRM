@@ -10,8 +10,9 @@ import '../widgets/format.dart';
 import '../widgets/returns_receipt.dart';
 import '../widgets/searchable_app_bar.dart';
 import 'return_form_screen.dart';
+import '../theme/app_theme.dart';
 
-const returnColor = Color(0xFFD9822B);
+Color returnColor(BuildContext context) => context.pal.warn;
 
 /// Возвраты испорченного / просроченного товара — см. ProductReturnService на бэкенде.
 /// Создаются с нуля (товар мог быть продан когда угодно), сразу уходят в 1С на склад
@@ -128,7 +129,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           child: Center(
                             child: Text(
                               _query.isEmpty ? 'Возвратов нет' : 'Ничего не найдено',
-                              style: const TextStyle(color: Colors.grey),
+                              style: TextStyle(color: context.pal.muted),
                             ),
                           ),
                         ),
@@ -153,7 +154,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                       final syncing = _syncingIds.contains(r.id);
                       return AppListTile(
                         leadingIcon: Icons.assignment_return_outlined,
-                        leadingColor: returnColor,
+                        leadingColor: returnColor(context),
                         title: r.clientName,
                         subtitle: formatDate(r.returnDate),
                         trailing: Column(
@@ -195,10 +196,10 @@ class ReturnStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, fg, bg) = r.oneCSyncError != null
-        ? ('Ошибка 1С', const Color(0xFFB8433F), const Color(0xFFF6E0DF))
+        ? ('Ошибка 1С', context.pal.danger, context.pal.tint(context.pal.danger))
         : r.orderId != null
-        ? ('Заказ #${r.orderId}', const Color(0xFF4C8A5E), const Color(0xFFE3F0E6))
-        : ('Не закреплён', const Color(0xFF777777), const Color(0xFFEEEEEE));
+        ? ('Заказ #${r.orderId}', context.pal.success, context.pal.tint(context.pal.success))
+        : ('Не закреплён', context.pal.muted, context.pal.line);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
@@ -244,9 +245,9 @@ void showReturnDetails(BuildContext context, ProductReturn r, {VoidCallback? onC
                   if (r.oneCDocumentNumber != null) '1С №${r.oneCDocumentNumber}',
                   if (r.reason != null) r.reason!,
                 ].join(' · '),
-                style: const TextStyle(color: Colors.grey),
+                style: TextStyle(color: context.pal.muted),
               ),
-              if (r.oneCSyncError != null) Text(r.oneCSyncError!, style: const TextStyle(color: Colors.red)),
+              if (r.oneCSyncError != null) Text(r.oneCSyncError!, style: TextStyle(color: context.pal.danger)),
               const SizedBox(height: 12),
               Flexible(
                 child: SingleChildScrollView(child: ReturnsReceipt(returns: [r], showTotal: true)),
@@ -257,7 +258,7 @@ void showReturnDetails(BuildContext context, ProductReturn r, {VoidCallback? onC
                   if (canDelete) ...[
                     Expanded(
                       child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                        style: OutlinedButton.styleFrom(foregroundColor: context.pal.danger),
                         icon: const Icon(Icons.delete_outline, size: 18),
                         label: const Text('Удалить'),
                         onPressed: () async {
@@ -334,7 +335,7 @@ Future<bool> _deleteReturn(BuildContext context, ProductReturn r) async {
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          style: TextButton.styleFrom(foregroundColor: context.pal.danger),
           child: const Text('Удалить'),
         ),
       ],

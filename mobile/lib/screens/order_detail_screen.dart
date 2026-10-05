@@ -16,6 +16,7 @@ import '../widgets/receipt_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/success_feedback.dart';
 import 'returns_screen.dart' show returnColor;
+import '../theme/app_theme.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -434,8 +435,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           Text(
                             'создан ${formatDateTime(o.createdAt)}'
                             '${o.dueDate != null ? ' · срок ${formatDate(o.dueDate!)}' : ''}',
-                            style: const TextStyle(
-                              color: Colors.grey,
+                            style: TextStyle(
+                              color: context.pal.muted,
                               fontSize: 12,
                             ),
                           ),
@@ -451,7 +452,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       _error!,
-                      style: const TextStyle(color: Colors.red),
+                      style: TextStyle(color: context.pal.danger),
                     ),
                   ),
                 if (o.vehicleNumber != null) ...[
@@ -557,7 +558,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                     : 'Отмечено ${_checkedItems.length} из ${o.items.length}',
                                 softWrap: true,
                                 style: TextStyle(
-                                  color: o.items.any((i) => i.isInsufficient) ? const Color(0xFFC0392B) : Colors.grey,
+                                  color: o.items.any((i) => i.isInsufficient) ? context.pal.danger : context.pal.muted,
                                   fontSize: 12.5,
                                   fontWeight: o.items.any((i) => i.isInsufficient) ? FontWeight.w600 : null,
                                 ),
@@ -589,13 +590,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             title: Text.rich(TextSpan(children: highlightSpans(item.productName, _search.query))),
                             subtitle: RichText(
                               text: TextSpan(
-                                style: DefaultTextStyle.of(context).style.copyWith(color: Colors.grey),
+                                style: DefaultTextStyle.of(context).style.copyWith(color: context.pal.muted),
                                 children: [
                                   TextSpan(
                                     text: formatQty(item.quantity),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF8F2438),
+                                      color: context.pal.accent,
                                     ),
                                   ),
                                   TextSpan(text: ' × ${formatMoney(item.price)}'),
@@ -638,9 +639,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         if (o.returnsCount > 0) ...[
                           ListTile(
                             dense: true,
-                            leading: const Icon(Icons.assignment_return, color: returnColor),
+                            leading: Icon(Icons.assignment_return, color: returnColor(context)),
                             title: Text('Возврат (${o.returnsCount})'),
-                            trailing: Text('−${formatMoney(o.returnTotal)}', style: const TextStyle(color: returnColor)),
+                            trailing: Text('−${formatMoney(o.returnTotal)}', style: TextStyle(color: returnColor(context))),
                             onTap: () async {
                               await showOrderReturnsCalculation(context,
                                   orderId: o.id, clientId: o.clientId, clientName: o.clientName, orderTotal: o.totalPrice);
@@ -659,9 +660,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 if (isAdmin && (o.status == 'DELIVERED' || o.status == 'COMPLETED')) ...[
                   const SizedBox(height: 10),
                   if (_adminEditing) ...[
-                    const Text(
+                    Text(
                       'Документ в 1С будет распроведён, изменён и проведён заново; остаток склада поправится на разницу.',
-                      style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                      style: TextStyle(color: context.pal.muted, fontSize: 12.5),
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
@@ -684,7 +685,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ],
                 if (o.notes != null && o.notes!.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  Text(o.notes!, style: const TextStyle(color: Colors.grey)),
+                  Text(o.notes!, style: TextStyle(color: context.pal.muted)),
                 ],
                 if (role != 'ACCOUNTANT' && role != 'WAREHOUSE_FG') ...[
                   const SizedBox(height: 20),
@@ -694,11 +695,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   if (o.productionTasks.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: Text(
                         'Для этого заказа цеховых задач нет',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: context.pal.muted),
                       ),
                     )
                   else
@@ -788,8 +789,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFD9A73F),
-                            side: const BorderSide(color: Color(0xFFD9A73F)),
+                            foregroundColor: context.pal.warn,
+                            side: BorderSide(color: context.pal.warn),
                           ),
                           onPressed: _actionInProgress
                               ? null
@@ -803,11 +804,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ],
                   if (o.hasUnpaidDebt) ...[
                     Card(
-                      color: const Color(0xFFD9A73F).withValues(alpha: 0.12),
+                      color: context.pal.warn.withValues(alpha: 0.12),
                       child: ListTile(
-                        leading: const Icon(
+                        leading: Icon(
                           Icons.hourglass_bottom_outlined,
-                          color: Color(0xFFD9A73F),
+                          color: context.pal.warn,
                         ),
                         title: Text('Долг до ${formatDate(o.debtDueDate!)}'),
                       ),
@@ -822,8 +823,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFB8433F),
-                          side: const BorderSide(color: Color(0xFFB8433F)),
+                          foregroundColor: context.pal.danger,
+                          side: BorderSide(color: context.pal.danger),
                         ),
                         onPressed: _actionInProgress
                             ? null

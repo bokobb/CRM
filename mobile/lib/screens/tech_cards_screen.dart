@@ -8,6 +8,7 @@ import '../widgets/format.dart';
 import '../widgets/product_avatar.dart';
 import '../widgets/tech_card_style.dart';
 import 'tech_card_screen.dart';
+import '../theme/app_theme.dart';
 
 /// «Техкарта» — техкарты товаров: все товары с рецептурой, фильтр по группе товара
 /// (Product.group) таблетками. Карточка ведёт на полную техкарту (рецептура, расчёт партии,
@@ -82,19 +83,19 @@ class _TechCardsScreenState extends State<TechCardsScreen> {
                 children: [
                   const Text('Техкарты', style: TK.h1),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'Полный цикл приготовления: рецептура, расчёт партии, себестоимость, этапы и контрольные точки.',
-                    style: TextStyle(fontFamily: TK.body, fontSize: 13, color: TK.muted),
+                    style: TextStyle(fontFamily: TK.body, fontSize: 13, color: context.pal.muted),
                   ),
                   const SizedBox(height: 14),
                   TextField(
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Поиск по названию…',
-                      prefixIcon: Icon(Icons.search, color: TK.muted),
-                      fillColor: TK.paper,
+                      prefixIcon: Icon(Icons.search, color: context.pal.muted),
+                      fillColor: context.pal.card,
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(8)),
-                        borderSide: BorderSide(color: TK.line),
+                        borderSide: BorderSide(color: context.pal.line),
                       ),
                     ),
                     onChanged: (v) => setState(() => _query = v.toLowerCase()),
@@ -118,7 +119,7 @@ class _TechCardsScreenState extends State<TechCardsScreen> {
                     Padding(
                       padding: const EdgeInsets.all(32),
                       child: Center(
-                        child: Text(all.isEmpty ? 'Нет товаров с рецептурой' : 'Ничего не найдено', style: TK.note),
+                        child: Text(all.isEmpty ? 'Нет товаров с рецептурой' : 'Ничего не найдено', style: TK.note.copyWith(color: context.pal.muted)),
                       ),
                     ),
                   for (final c in cards) _TechCardTile(card: c, onTap: () => _open(cards, c)),
@@ -144,10 +145,10 @@ class _TechCardTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: TK.paper,
+        color: context.pal.card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: TK.line),
+          side: BorderSide(color: context.pal.line),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -166,12 +167,12 @@ class _TechCardTile extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         card.name,
-                        style: const TextStyle(fontFamily: TK.display, fontSize: 14, fontWeight: FontWeight.w700, color: TK.ink, height: 1.25),
+                        style: TextStyle(fontFamily: TK.display, fontSize: 14, fontWeight: FontWeight.w700, color: context.pal.ink, height: 1.25),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         '${formatQty(card.yieldQuantity)} $unit/замес · ${card.ingredientCount} сырья',
-                        style: TK.num.copyWith(fontSize: 12, color: TK.muted),
+                        style: TK.num.copyWith(fontSize: 12, color: context.pal.muted),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
@@ -188,7 +189,7 @@ class _TechCardTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: TK.muted),
+                Icon(Icons.chevron_right, color: context.pal.muted),
               ],
             ),
           ),
@@ -210,8 +211,8 @@ class _Tag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: ccp ? TK.yolkBg : (dashed ? Colors.transparent : TK.soft),
-        border: ccp ? Border.all(color: TK.yolk) : (dashed ? Border.all(color: TK.line) : null),
+        color: ccp ? context.pal.tint(context.pal.warn) : (dashed ? Colors.transparent : context.pal.seg),
+        border: ccp ? Border.all(color: context.pal.warn) : (dashed ? Border.all(color: context.pal.line) : null),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -220,7 +221,7 @@ class _Tag extends StatelessWidget {
           fontFamily: TK.body,
           fontSize: 11.5,
           fontWeight: FontWeight.w600,
-          color: ccp ? TK.yolkInk : TK.muted,
+          color: ccp ? context.pal.warn : context.pal.muted,
         ),
       ),
     );

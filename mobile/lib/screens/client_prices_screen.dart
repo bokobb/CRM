@@ -5,6 +5,7 @@ import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../theme/app_theme.dart';
 
 class ClientPricesScreen extends StatefulWidget {
   final int clientId;
@@ -55,7 +56,7 @@ class _ClientPricesScreenState extends State<ClientPricesScreen> {
           if (current != null)
             TextButton(
               onPressed: () => Navigator.pop(context, '_clear_'),
-              child: const Text('Сбросить до базовой', style: TextStyle(color: Colors.red)),
+              child: Text('Сбросить до базовой', style: TextStyle(color: context.pal.danger)),
             ),
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
           FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Сохранить')),
@@ -116,7 +117,7 @@ class _ClientPricesScreenState extends State<ClientPricesScreen> {
                         override != null ? formatMoney(override.price) : '—',
                         style: TextStyle(
                           fontWeight: override != null ? FontWeight.bold : FontWeight.normal,
-                          color: override != null ? Theme.of(context).colorScheme.primary : Colors.grey,
+                          color: override != null ? Theme.of(context).colorScheme.primary : context.pal.muted,
                         ),
                       ),
                       const SizedBox(width: 8),

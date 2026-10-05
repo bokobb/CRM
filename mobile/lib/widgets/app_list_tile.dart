@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'hidden_search.dart';
+import '../theme/app_theme.dart';
 
 /// Карточка-строка списка: используется вместо плоского ListTile+Divider на всех
 /// экранах со списками (клиенты, товары, заказы, остатки и т.п.) для единого,
@@ -43,10 +44,16 @@ class AppListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = leadingColor ?? const Color(0xFFB8324A);
+    // Строгий вид: иконка нейтральная в сером квадрате; цветная — только если её задали явно.
+    final color = leadingColor ?? context.pal.muted;
     return Card(
       color: backgroundColor,
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: context.pal.line),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -55,18 +62,22 @@ class AppListTile extends StatelessWidget {
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             leading: leading ??
                 (leadingIcon != null
-                    ? CircleAvatar(
-                        radius: 20,
-                        backgroundColor: color.withValues(alpha: 0.12),
+                    ? Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: leadingColor == null ? context.pal.seg : context.pal.tint(color),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         child: Icon(leadingIcon, color: color, size: 20),
                       )
                     : null),
             title: Text.rich(
               TextSpan(children: highlightSpans(title, highlight)),
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
             ),
             subtitle: subtitle != null && subtitle!.isNotEmpty
-                ? Text(subtitle!, style: const TextStyle(color: Colors.grey, fontSize: 12.5))
+                ? Text(subtitle!, style: TextStyle(color: context.pal.muted, fontSize: 12.5))
                 : null,
             trailing: trailing,
             onTap: onTap,
@@ -92,7 +103,7 @@ class InitialAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? const Color(0xFFB8324A);
+    final c = color ?? context.pal.accent;
     final letter = text.trim().isEmpty ? '?' : text.trim()[0].toUpperCase();
     return CircleAvatar(
       radius: 20,

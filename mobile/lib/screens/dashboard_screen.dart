@@ -10,6 +10,7 @@ import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/status_badge.dart';
 import 'orders_screen.dart';
+import '../theme/app_theme.dart';
 
 bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
@@ -73,7 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Дашборд')),
+      appBar: AppBar(title: const Text('Дашборд'), actions: const [ThemeToggleButton(), SizedBox(width: 4)]),
       drawer: const AppDrawer(currentRoute: '/'),
       body: Column(
         children: [
@@ -107,32 +108,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   return ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      Card(
-                        color: const Color(0xFFB8324A),
-                        child: Padding(
-                          padding: const EdgeInsets.all(18),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                formatMoney(d.todaySalesTotal),
-                                style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Фактическая продажа за ${_rangeLabel(d.from, d.to)}',
-                                style: const TextStyle(color: Colors.white70, fontSize: 13),
-                              ),
-                              if (d.returnsTotal > 0) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Продано ${formatMoney(d.grossSalesTotal)} · возвраты −${formatMoney(d.returnsTotal)}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
+                      _HeroCard(
+                        caption: 'Фактическая продажа · ${_rangeLabel(d.from, d.to)}',
+                        value: formatMoney(d.todaySalesTotal),
+                        left: ('Продано', formatMoney(d.grossSalesTotal), null),
+                        right: ('Возвраты', d.returnsTotal > 0 ? '−${formatMoney(d.returnsTotal)}' : formatMoney(0), context.pal.danger),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -176,25 +156,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Card(
-              color: const Color(0xFFB8324A),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${d.collectedInRange}',
-                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Заявок собрано за ${_rangeLabel(d.from, d.to)}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
+            _HeroCard(
+              caption: 'Заявок собрано · ${_rangeLabel(d.from, d.to)}',
+              value: '${d.collectedInRange}',
             ),
             const SizedBox(height: 12),
             Row(
@@ -222,9 +186,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const _SectionHeader(title: 'Заявки, ожидающие сборки'),
             const SizedBox(height: 8),
             if (d.pendingRequests.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Заявок, ожидающих сборки, нет', style: TextStyle(color: Colors.grey)),
+                child: Text('Заявок, ожидающих сборки, нет', style: TextStyle(color: context.pal.muted)),
               )
             else
               for (final r in d.pendingRequests)
@@ -259,25 +223,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Card(
-              color: const Color(0xFFB8324A),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${d.shippedInRange}',
-                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Заказов отгружено за ${_rangeLabel(d.from, d.to)}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
+            _HeroCard(
+              caption: 'Заказов отгружено · ${_rangeLabel(d.from, d.to)}',
+              value: '${d.shippedInRange}',
             ),
             const SizedBox(height: 12),
             Row(
@@ -303,9 +251,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const _SectionHeader(title: 'Заказы в работе'),
             const SizedBox(height: 8),
             if (d.activeOrders.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Заказов на сборку и отгрузку нет', style: TextStyle(color: Colors.grey)),
+                child: Text('Заказов на сборку и отгрузку нет', style: TextStyle(color: context.pal.muted)),
               )
             else
               for (final o in d.activeOrders)
@@ -341,11 +289,11 @@ class _SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title.toUpperCase(),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: Color(0xFF6B6259)),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: context.pal.muted),
           ),
         ),
         if (trailing != null)
-          Text(trailing!, style: const TextStyle(fontSize: 12, color: Color(0xFF8A817A))),
+          Text(trailing!, style: TextStyle(fontSize: 12, color: context.pal.muted)),
       ],
     );
   }
@@ -433,7 +381,7 @@ class _StockRow extends StatelessWidget {
     final t = threshold;
     final ratio = t != null && t > 0 ? (quantity / t).clamp(0.0, 1.0) : null;
     final critical = quantity <= 0 || (ratio != null && ratio < 0.5);
-    final color = critical ? const Color(0xFFB8433F) : const Color(0xFFC08A2E);
+    final color = critical ? context.pal.danger : const Color(0xFFC08A2E);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
@@ -454,7 +402,7 @@ class _StockRow extends StatelessWidget {
                     ),
                     TextSpan(
                       text: t != null ? ' / ${formatQty(t)} $unit' : ' $unit',
-                      style: const TextStyle(color: Color(0xFF8A817A)),
+                      style: TextStyle(color: context.pal.muted),
                     ),
                   ],
                 ),
@@ -480,6 +428,76 @@ class _StockRow extends StatelessWidget {
   }
 }
 
+class _HeroCard extends StatelessWidget {
+  final String caption;
+  final String value;
+  final (String, String, Color?)? left;
+  final (String, String, Color?)? right;
+
+  const _HeroCard({required this.caption, required this.value, this.left, this.right});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    Widget col((String, String, Color?) c) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(c.$1, style: TextStyle(fontSize: 12, color: p.muted)),
+            const SizedBox(height: 2),
+            Text(
+              c.$2,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: c.$3 ?? p.ink,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        );
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              caption.toUpperCase(),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: p.muted),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.6,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+            if (left != null && right != null) ...[
+              const SizedBox(height: 14),
+              Divider(height: 1, color: p.line),
+              const SizedBox(height: 12),
+              IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(child: col(left!)),
+                    VerticalDivider(width: 1, color: p.line),
+                    const SizedBox(width: 14),
+                    Expanded(child: col(right!)),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _StatCard extends StatelessWidget {
   final String value;
   final String label;
@@ -499,9 +517,9 @@ class _StatCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+              Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()])),
               const SizedBox(height: 2),
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(label, style: TextStyle(color: context.pal.muted, fontSize: 12)),
             ],
           ),
         ),

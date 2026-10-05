@@ -1,57 +1,24 @@
 import 'package:flutter/material.dart';
 
-/// Палитра и типографика техкарт (экран «Производство») — повторяет образец-артефакт
-/// «Техкарты выпечки»: Unbounded для заголовков, Onest для текста, JetBrains Mono для цифр.
+import '../theme/app_theme.dart';
+
+/// Типографика техкарт (экран «Производство») — на общем деловом стиле приложения.
 class TK {
-  static const bg = Color(0xFFF3F4F2);
-  static const paper = Color(0xFFFFFFFF);
-  static const ink = Color(0xFF1F2421);
-  static const muted = Color(0xFF667068);
-  static const line = Color(0xFFDCE0DB);
-  static const soft = Color(0xFFEEF0EC);
-  static const accent = Color(0xFF5B3A2E);
-  static const yolk = Color(0xFFE0A526);
-  static const yolkBg = Color(0xFFFBF0D3);
-  static const yolkInk = Color(0xFF6B4A00);
-  static const good = Color(0xFF2F7D4F);
-  static const bad = Color(0xFFB23A2E);
+  // Техкарты переведены на общий деловой стиль приложения (см. theme/app_theme.dart): цвета —
+  // из темы через context.pal (день/ночь), шрифт — IBM Plex Sans; здесь остались только размеры.
+  static const display = appFont;
+  static const body = appFont;
+  static const mono = appFont;
 
-  static const display = 'Unbounded';
-  static const body = 'Onest';
-  static const mono = 'JetBrainsMono';
+  static const h1 = TextStyle(fontFamily: appFont, fontSize: 20, fontWeight: FontWeight.w600, height: 1.2);
+  static const h2 = TextStyle(fontFamily: appFont, fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.2, height: 1.2);
+  static const label = TextStyle(fontFamily: appFont, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.9);
+  static const note = TextStyle(fontFamily: appFont, fontSize: 12);
+  static const text = TextStyle(fontFamily: appFont, fontSize: 14);
+  static const num = TextStyle(fontFamily: appFont, fontSize: 13.5, fontFeatures: [FontFeature.tabularFigures()]);
 
-  static const h1 = TextStyle(fontFamily: display, fontSize: 20, fontWeight: FontWeight.w700, color: ink, height: 1.2);
-  static const h2 = TextStyle(fontFamily: display, fontSize: 14, fontWeight: FontWeight.w500, color: ink, letterSpacing: 0.3, height: 1.2);
-  static const label = TextStyle(fontFamily: body, fontSize: 11, fontWeight: FontWeight.w600, color: muted, letterSpacing: 0.9);
-  static const note = TextStyle(fontFamily: body, fontSize: 12, color: muted);
-  static const text = TextStyle(fontFamily: body, fontSize: 14, color: ink);
-  static const num = TextStyle(fontFamily: mono, fontSize: 13.5, color: ink, fontFeatures: [FontFeature.tabularFigures()]);
-
-  /// Тема для экранов техкарт: шрифт Onest, фон и поля ввода как в образце.
-  static ThemeData theme(ThemeData base) => base.copyWith(
-        scaffoldBackgroundColor: bg,
-        textTheme: base.textTheme.apply(fontFamily: body, bodyColor: ink, displayColor: ink),
-        appBarTheme: base.appBarTheme.copyWith(
-          backgroundColor: bg,
-          foregroundColor: ink,
-          surfaceTintColor: Colors.transparent,
-          titleTextStyle: const TextStyle(fontFamily: display, fontSize: 17, fontWeight: FontWeight.w700, color: ink),
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          filled: true,
-          fillColor: soft,
-          isDense: true,
-          labelStyle: TextStyle(fontFamily: body, color: muted),
-          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(6)), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(6)), borderSide: BorderSide.none),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(6)),
-            borderSide: BorderSide(color: yolk, width: 2),
-          ),
-        ),
-        colorScheme: base.colorScheme.copyWith(primary: accent, surface: paper),
-      );
+  /// Экраны техкарт используют общую тему приложения.
+  static ThemeData theme(ThemeData base) => base;
 }
 
 /// Подпись капсом, как `.label` в образце.
@@ -63,7 +30,7 @@ class TKLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      Text(text.toUpperCase(), style: color == null ? TK.label : TK.label.copyWith(color: color));
+      Text(text.toUpperCase(), style: TK.label.copyWith(color: color ?? context.pal.muted));
 }
 
 /// Таблетка-переключатель (вкладки товаров, фильтры): выбранная — коричневая.
@@ -76,8 +43,8 @@ class TKPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: selected ? TK.accent : TK.paper,
-        shape: StadiumBorder(side: BorderSide(color: selected ? TK.accent : TK.line)),
+        color: selected ? context.pal.accent : context.pal.card,
+        shape: StadiumBorder(side: BorderSide(color: selected ? context.pal.accent : context.pal.line)),
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: onTap,
@@ -89,7 +56,7 @@ class TKPill extends StatelessWidget {
                 fontFamily: TK.body,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: selected ? Colors.white : TK.ink,
+                color: selected ? Colors.white : context.pal.ink,
               ),
             ),
           ),
@@ -105,11 +72,11 @@ class TKCcp extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: TK.yolkBg,
-          border: Border.all(color: TK.yolk),
+          color: context.pal.tint(context.pal.warn),
+          border: Border.all(color: context.pal.warn),
           borderRadius: BorderRadius.circular(999),
         ),
-        child: const Text('ККТ',
-            style: TextStyle(fontFamily: TK.body, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.4, color: TK.yolkInk)),
+        child: Text('ККТ',
+            style: TextStyle(fontFamily: TK.body, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.4, color: context.pal.warn)),
       );
 }

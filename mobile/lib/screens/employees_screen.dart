@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../theme/app_theme.dart';
 
 /// «Сотрудники» — работники цеха (без входа в приложение). Технолог распределяет их по бригадам
 /// на экране «Производство». Ставку за смену видят и задают только админ и бухгалтер.
@@ -105,12 +106,12 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
             }
             final list = snapshot.data!;
             if (list.isEmpty) {
-              return ListView(children: const [
+              return ListView(children: [
                 Padding(
                   padding: EdgeInsets.all(32),
                   child: Center(
                     child: Text('Сотрудников пока нет — загрузите из 1С (значок облака) или добавьте кнопкой «+»',
-                        textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                        textAlign: TextAlign.center, style: TextStyle(color: context.pal.muted)),
                   ),
                 ),
               ]);
@@ -147,10 +148,10 @@ extension on _EmployeesScreenState {
     ];
     return AppListTile(
       leadingIcon: e.active ? Icons.person_outline : Icons.person_off_outlined,
-      leadingColor: e.active ? null : Colors.grey,
+      leadingColor: e.active ? null : context.pal.muted,
       title: e.fullName,
       subtitle: parts.isEmpty ? null : parts.join(' · '),
-      trailing: const Icon(Icons.edit_outlined, color: Colors.grey),
+      trailing: Icon(Icons.edit_outlined, color: context.pal.muted),
       onTap: () => _edit(e),
     );
   }
@@ -178,10 +179,10 @@ class _SectionHeader extends StatelessWidget {
           Row(
             children: [
               Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
-              Text(right, style: const TextStyle(color: Colors.grey, fontSize: 12.5)),
+              Text(right, style: TextStyle(color: context.pal.muted, fontSize: 12.5)),
             ],
           ),
-          if (note != null) Text(note!, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          if (note != null) Text(note!, style: TextStyle(color: context.pal.muted, fontSize: 12)),
         ],
       ),
     );
@@ -299,7 +300,7 @@ class _EmployeeFormState extends State<_EmployeeForm> {
                   if (widget.employee!.hiredAt != null) 'принят ${formatDate(widget.employee!.hiredAt!)}',
                   if (widget.employee!.fromOneC) 'из 1С',
                 ].join(' · '),
-                style: const TextStyle(color: Colors.grey),
+                style: TextStyle(color: context.pal.muted),
               ),
             ],
             if (_canSeeRates) ...[

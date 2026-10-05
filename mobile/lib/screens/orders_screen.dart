@@ -12,6 +12,7 @@ import '../widgets/hidden_search.dart';
 import '../widgets/order_returns_sheets.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/swipe_cancel_delete.dart';
+import '../theme/app_theme.dart';
 
 /// Аргументы навигации на экран заказов с предустановленным фильтром — используется,
 /// например, при переходе с плиток дашборда ("Новых заказов" / "Готовы к отгрузке").
@@ -148,10 +149,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       .toList();
                   if (orders.isEmpty) {
                     return ListView(
-                      children: const [
+                      children: [
                         Padding(
                           padding: EdgeInsets.all(32),
-                          child: Center(child: Text('Заказов не найдено', style: TextStyle(color: Colors.grey))),
+                          child: Center(child: Text('Заказов не найдено', style: TextStyle(color: context.pal.muted))),
                         ),
                       ],
                     );
@@ -174,7 +175,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             ? Icons.history_outlined
                             : (o.fromWhatsapp ? Icons.chat_bubble_rounded : Icons.receipt_long_outlined),
                         leadingColor: isOutOfRange
-                            ? const Color(0xFFC99A2E)
+                            ? context.pal.warn
                             : (o.fromWhatsapp ? const Color(0xFF25D366) : null),
                         title: '#${o.id} · ${o.clientName}',
                         highlight: _search.query,

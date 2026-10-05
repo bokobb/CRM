@@ -4,6 +4,7 @@ import '../models/production_request.dart';
 import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../theme/app_theme.dart';
 
 class _Line {
   ProductionEligibleProduct? product;
@@ -168,9 +169,9 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
                     child: Text('• $a', style: const TextStyle(fontSize: 13.5)),
                   ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Применить — рецептура на новые замесы + эти поправки.\nОчистить — только рецептура.',
-                  style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                  style: TextStyle(color: context.pal.muted, fontSize: 12.5),
                 ),
               ],
             ),
@@ -201,13 +202,13 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
           }
           final products = snapshot.data!;
           if (products.isEmpty) {
-            return const Padding(
+            return Padding(
               padding: EdgeInsets.all(24),
               child: Center(
                 child: Text(
                   'Нет ни одного товара с заполненной рецептурой — сначала добавьте рецептуру на странице товара.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: context.pal.muted),
                 ),
               ),
             );
@@ -225,7 +226,7 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
                           'решили сделать несколько разных вариантов. Замесы и штуки пересчитываются сами. '
                           'Название заявки определится автоматически по группе товара — если позиции из '
                           'разных групп, будет создано несколько заявок.',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  style: TextStyle(color: context.pal.muted, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
                 InkWell(
@@ -239,7 +240,7 @@ class _ProductionRequestFormScreenState extends State<ProductionRequestFormScree
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                    child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                   ),
                 ..._buildPositionWidgets(products),
                 OutlinedButton.icon(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_list_tile.dart';
+import '../theme/app_theme.dart';
 
 /// Полноэкранный bottom sheet с полем поиска — тап открывает лист, ввод сразу фильтрует
 /// список. Единственная реализация выбора товара/клиента/сырья из списка во всём
@@ -102,7 +103,7 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFE7E0D8),
+                color: context.pal.line,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),

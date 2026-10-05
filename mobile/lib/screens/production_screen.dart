@@ -9,6 +9,7 @@ import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/tech_card_style.dart';
 import 'production_request_cost_screen.dart';
+import '../theme/app_theme.dart';
 
 /// «Производство» — себестоимость за день: заявки на сырьё с этой датой документа × техкарты.
 /// Норма — рецептура техкарты × замесы; факт — сырьё, реально выданное по заявке, разнесённое по
@@ -83,9 +84,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
             children: [
               const Text('Себестоимость за день', style: TK.h1),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Заявки на сырьё за день по техкартам: норма против выданного сырья и себестоимость единицы.',
-                style: TextStyle(fontFamily: TK.body, fontSize: 13, color: TK.muted),
+                style: TextStyle(fontFamily: TK.body, fontSize: 13, color: context.pal.muted),
               ),
               const SizedBox(height: 12),
               Row(
@@ -164,11 +165,11 @@ class _DayView extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: TK.paper,
-              border: Border.all(color: TK.line),
+              color: context.pal.card,
+              border: Border.all(color: context.pal.line),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text('В этот день заявок на сырьё нет.', style: TK.note, textAlign: TextAlign.center),
+            child: Text('В этот день заявок на сырьё нет.', style: TK.note.copyWith(color: context.pal.muted), textAlign: TextAlign.center),
           )
         else ...[
           _Stats(stats: [
@@ -192,11 +193,11 @@ class _DayView extends StatelessWidget {
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: TK.yolkBg, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: context.pal.tint(context.pal.warn), borderRadius: BorderRadius.circular(8)),
               child: Text(
                 'Нет цены (ни одной закупки с суммой): ${d.unpricedIngredients.join(', ')}. '
                 'В себестоимость они вошли как 0 ₸.',
-                style: const TextStyle(fontFamily: TK.body, fontSize: 12.5, color: TK.yolkInk),
+                style: TextStyle(fontFamily: TK.body, fontSize: 12.5, color: context.pal.warn),
               ),
             ),
           ],
@@ -224,8 +225,8 @@ class _History extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       decoration: BoxDecoration(
-        color: TK.paper,
-        border: Border.all(color: TK.line),
+        color: context.pal.card,
+        border: Border.all(color: context.pal.line),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -234,7 +235,7 @@ class _History extends StatelessWidget {
           Row(
             children: [
               const Expanded(child: TKLabel('Себестоимость по дням')),
-              Text(max > 0 ? 'макс. ${_money(max)}' : '', style: TK.num.copyWith(fontSize: 11.5, color: TK.muted)),
+              Text(max > 0 ? 'макс. ${_money(max)}' : '', style: TK.num.copyWith(fontSize: 11.5, color: context.pal.muted)),
             ],
           ),
           const SizedBox(height: 10),
@@ -257,8 +258,8 @@ class _History extends StatelessWidget {
                               height: max > 0 && d.finishedCost > 0 ? 4 + 64 * d.finishedCost / max : 2,
                               decoration: BoxDecoration(
                                 color: _same(d.date, selected)
-                                    ? TK.accent
-                                    : (d.finishedCost > 0 ? TK.accent.withValues(alpha: 0.28) : TK.line),
+                                    ? context.pal.accent
+                                    : (d.finishedCost > 0 ? context.pal.accent.withValues(alpha: 0.28) : context.pal.line),
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
                               ),
                             ),
@@ -268,7 +269,7 @@ class _History extends StatelessWidget {
                             _shortDay.format(d.date),
                             style: TK.num.copyWith(
                               fontSize: 10.5,
-                              color: _same(d.date, selected) ? TK.ink : TK.muted,
+                              color: _same(d.date, selected) ? context.pal.ink : context.pal.muted,
                               fontWeight: _same(d.date, selected) ? FontWeight.w600 : FontWeight.w400,
                             ),
                           ),
@@ -296,16 +297,16 @@ class _Stats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget tile((String, String, String, bool) s) => Container(
-          color: TK.paper,
+          color: context.pal.card,
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TKLabel(s.$1),
               const SizedBox(height: 4),
-              Text(s.$2, style: TK.num.copyWith(fontSize: 17, fontWeight: FontWeight.w600, color: s.$4 ? TK.bad : TK.ink)),
+              Text(s.$2, style: TK.num.copyWith(fontSize: 17, fontWeight: FontWeight.w600, color: s.$4 ? context.pal.danger : context.pal.ink)),
               const SizedBox(height: 2),
-              Text(s.$3, style: TK.note.copyWith(color: s.$4 ? TK.bad : TK.muted)),
+              Text(s.$3, style: TK.note.copyWith(color: s.$4 ? context.pal.danger : context.pal.muted)),
             ],
           ),
         );
@@ -317,7 +318,7 @@ class _Stats extends StatelessWidget {
           children: [
             Expanded(child: tile(stats[i])),
             const SizedBox(width: 1),
-            Expanded(child: i + 1 < stats.length ? tile(stats[i + 1]) : Container(color: TK.paper)),
+            Expanded(child: i + 1 < stats.length ? tile(stats[i + 1]) : Container(color: context.pal.card)),
           ],
         ),
       ));
@@ -326,8 +327,8 @@ class _Stats extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        color: TK.line,
-        foregroundDecoration: BoxDecoration(border: Border.all(color: TK.line), borderRadius: BorderRadius.circular(8)),
+        color: context.pal.line,
+        foregroundDecoration: BoxDecoration(border: Border.all(color: context.pal.line), borderRadius: BorderRadius.circular(8)),
         child: Column(children: rows),
       ),
     );
@@ -359,8 +360,8 @@ class _RequestCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: TK.paper,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: TK.line)),
+        color: context.pal.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: context.pal.line)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () async {
@@ -379,7 +380,7 @@ class _RequestCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         '№${r.id} · ${r.title}',
-                        style: const TextStyle(fontFamily: TK.display, fontSize: 14, fontWeight: FontWeight.w700, color: TK.ink),
+                        style: TextStyle(fontFamily: TK.display, fontSize: 14, fontWeight: FontWeight.w700, color: context.pal.ink),
                       ),
                     ),
                     _StatusChip(status: r.status, label: r.statusLabel),
@@ -389,11 +390,11 @@ class _RequestCard extends StatelessWidget {
                 Text.rich(
                   TextSpan(children: [
                     TextSpan(text: 'сырьё ${_money(r.issuedCost)}'),
-                    TextSpan(text: ' · норма ${_money(r.normCost)}', style: const TextStyle(color: TK.muted)),
+                    TextSpan(text: ' · норма ${_money(r.normCost)}', style: TextStyle(color: context.pal.muted)),
                     if (deviation.abs() >= 1)
                       TextSpan(
                         text: '  ${deviation > 0 ? '+' : ''}${_money(deviation)}',
-                        style: TextStyle(color: deviation > 0 ? TK.bad : TK.good, fontWeight: FontWeight.w600),
+                        style: TextStyle(color: deviation > 0 ? context.pal.danger : context.pal.success, fontWeight: FontWeight.w600),
                       ),
                   ]),
                   style: TK.num.copyWith(fontSize: 12.5),
@@ -423,12 +424,12 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: done ? TK.good.withValues(alpha: 0.12) : TK.soft,
+        color: done ? context.pal.success.withValues(alpha: 0.12) : context.pal.seg,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: TextStyle(fontFamily: TK.body, fontSize: 11.5, fontWeight: FontWeight.w600, color: done ? TK.good : TK.muted),
+        style: TextStyle(fontFamily: TK.body, fontSize: 11.5, fontWeight: FontWeight.w600, color: done ? context.pal.success : context.pal.muted),
       ),
     );
   }
@@ -447,7 +448,7 @@ class _LineRow extends StatelessWidget {
     final loss = l.unitCost != null && l.salePrice != null && l.salePrice! > 0 && l.unitCost! > l.salePrice!;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: const BoxDecoration(border: Border(top: BorderSide(color: TK.line))),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: context.pal.line))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -457,7 +458,7 @@ class _LineRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   l.name + (l.semiFinished ? ' · п/ф' : ''),
-                  style: const TextStyle(fontFamily: TK.body, fontSize: 13.5, fontWeight: FontWeight.w600, color: TK.ink),
+                  style: TextStyle(fontFamily: TK.body, fontSize: 13.5, fontWeight: FontWeight.w600, color: context.pal.ink),
                 ),
               ),
               const SizedBox(width: 8),
@@ -470,7 +471,7 @@ class _LineRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   '${formatQty(l.batches)} зам. → ${formatQty(l.quantity)} $unit ${l.received ? 'факт' : 'план'}',
-                  style: TK.num.copyWith(fontSize: 12, color: TK.muted),
+                  style: TK.num.copyWith(fontSize: 12, color: context.pal.muted),
                 ),
               ),
               if (l.unitCost != null)
@@ -480,7 +481,7 @@ class _LineRow extends StatelessWidget {
                     if (markup != null)
                       TextSpan(
                         text: '  $markup',
-                        style: TextStyle(color: loss ? TK.bad : TK.good, fontWeight: FontWeight.w600),
+                        style: TextStyle(color: loss ? context.pal.danger : context.pal.success, fontWeight: FontWeight.w600),
                       ),
                   ]),
                   style: TK.num.copyWith(fontSize: 12),
@@ -509,8 +510,8 @@ class _BrigadeRow extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Material(
-          color: r.brigade.isEmpty ? TK.yolkBg : TK.soft,
-          shape: StadiumBorder(side: BorderSide(color: r.brigade.isEmpty ? TK.yolk : TK.line)),
+          color: r.brigade.isEmpty ? context.pal.tint(context.pal.warn) : context.pal.seg,
+          shape: StadiumBorder(side: BorderSide(color: r.brigade.isEmpty ? context.pal.warn : context.pal.line)),
           child: InkWell(
             customBorder: const StadiumBorder(),
             onTap: onEdit,
@@ -519,7 +520,7 @@ class _BrigadeRow extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.groups_outlined, size: 16, color: r.brigade.isEmpty ? TK.yolkInk : TK.accent),
+                  Icon(Icons.groups_outlined, size: 16, color: r.brigade.isEmpty ? context.pal.warn : context.pal.accent),
                   const SizedBox(width: 5),
                   Text(
                     r.brigade.isEmpty ? 'Назначить бригаду' : 'Бригада · ${r.brigade.length}',
@@ -527,12 +528,12 @@ class _BrigadeRow extends StatelessWidget {
                       fontFamily: TK.body,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: r.brigade.isEmpty ? TK.yolkInk : TK.accent,
+                      color: r.brigade.isEmpty ? context.pal.warn : context.pal.accent,
                     ),
                   ),
                   if (r.laborCost != null && r.laborCost! > 0) ...[
                     const SizedBox(width: 6),
-                    Text(_money(r.laborCost!), style: TK.num.copyWith(fontSize: 11.5, color: TK.muted)),
+                    Text(_money(r.laborCost!), style: TK.num.copyWith(fontSize: 11.5, color: context.pal.muted)),
                   ],
                 ],
               ),
@@ -541,7 +542,7 @@ class _BrigadeRow extends StatelessWidget {
         ),
         if (r.brigade.isNotEmpty)
           Text(r.brigade.map((m) => m.fullName).join(', '),
-              style: const TextStyle(fontFamily: TK.body, fontSize: 12.5, color: TK.ink)),
+              style: TextStyle(fontFamily: TK.body, fontSize: 12.5, color: context.pal.ink)),
       ],
     );
   }
