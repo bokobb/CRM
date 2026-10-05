@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
+import '../services/push_service.dart';
 
 import '../services/api_client.dart';
 import '../widgets/app_bottom_nav.dart';
@@ -33,6 +36,10 @@ class SettingsScreen extends StatelessWidget {
               MaterialPageRoute<void>(builder: (_) => const ThemeSettingsScreen()),
             ),
           ),
+          if (kIsWeb) ...[
+            const Divider(height: 1),
+            const _WebPushTile(),
+          ],
           const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.wifi_outlined),
@@ -113,3 +120,54 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
+
+/// Веб-версия (iPhone): включение push на этом устройстве. iPhone показывает запрос разрешения
+/// только по нажатию и только если приложение открыто с экрана «Домой» (iOS 16.4+).
+class _WebPushTile extends StatefulWidget {
+  const _WebPushTile();
+
+  @override
+  State<_WebPushTile> createState() => _WebPushTileState();
+}
+
+class _WebPushTileState extends State<_WebPushTile> {
+  bool? _enabled;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    PushService.webPushEnabled().then((v) {
+      if (mounted) setState(() => _enabled = v);
+    });
+  }
+
+  Future<void> _enable() async {
+    setState(() => _busy = true);
+    final error = await PushService.enableWebPush();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _enabled = error == null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error ?? 'Уведомления включены на этом устройстве')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final on = _enabled == true;
+    return ListTile(
+      leading: Icon(on ? Icons.notifications_active_outlined : Icons.notifications_off_outlined),
+      title: const Text('Уведомления на этом устройстве'),
+      subtitle: Text(on
+          ? 'Включены. Нажмите, чтобы обновить подписку'
+          : 'iPhone: сначала «На экран Домой» в Safari и откройте приложение оттуда'),
+      trailing: _busy
+          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+          : FilledButton(onPressed: _enable, child: Text(on ? 'Обновить' : 'Включить')),
+      onTap: _busy ? null : _enable,
+    );
+  }
+}

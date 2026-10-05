@@ -1,7 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'firebase_web_options.dart';
 import 'models/whatsapp_inbox.dart';
 import 'navigation.dart';
 import 'screens/client_detail_screen.dart';
@@ -75,7 +77,7 @@ Future<void> main() async {
 /// остальной функционал работает как обычно.
 Future<bool> _initFirebase() async {
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(options: kIsWeb ? firebaseWebOptions : null);
     return true;
   } catch (e) {
     debugPrint('Firebase не подключён, push-уведомления отключены: $e');

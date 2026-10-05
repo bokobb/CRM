@@ -124,7 +124,7 @@ public class SecurityConfig {
         http.securityMatcher("/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/h2-console/**").permitAll()
+                        .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/h2-console/**", "/firebase-messaging-sw.js").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form
                         .loginPage("/login")

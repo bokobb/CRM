@@ -43,6 +43,9 @@ public class NotificationService {
     @Value("${crm.notifications.email-enabled:false}")
     private boolean emailEnabled;
 
+    @Value("${crm.public-url:https://94.131.90.178.nip.io}")
+    private String publicUrl;
+
     public Notification notify(String recipient, String message, Order order) {
         message = truncate(message);
         Notification notification = new Notification();
@@ -108,6 +111,15 @@ public class NotificationService {
                     .setNotification(com.google.firebase.messaging.Notification.builder()
                             .setTitle("Юг Сладости")
                             .setBody(message)
+                            .build())
+                    // Веб-версия (iPhone, «На экран Домой»): иконка и куда вести по нажатию.
+                    .setWebpushConfig(com.google.firebase.messaging.WebpushConfig.builder()
+                            .setNotification(com.google.firebase.messaging.WebpushNotification.builder()
+                                    .setTitle("Юг Сладости")
+                                    .setBody(message)
+                                    .setIcon(publicUrl + "/app/icons/Icon-192.png")
+                                    .build())
+                            .setFcmOptions(com.google.firebase.messaging.WebpushFcmOptions.withLink(publicUrl + "/app/index.html"))
                             .build());
             if (order != null) {
                 builder.putData("orderId", String.valueOf(order.getId()));

@@ -313,6 +313,16 @@ class ApiClient {
     return DayFeed.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
+  /// Веб-версия: токен push этого браузера — сервер подпишет его на уведомления роли.
+  Future<void> registerWebPushToken(String token) async {
+    final res = await http.post(
+      await _uri('/push/web-token'),
+      headers: {...await _authHeaders(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'token': token}),
+    );
+    _decode(res);
+  }
+
   static String _isoDate(DateTime d) => d.toIso8601String().split('T').first;
 
   static Map<String, String>? _rangeQuery(DateTime? from, DateTime? to) {
