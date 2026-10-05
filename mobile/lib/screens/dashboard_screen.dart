@@ -45,6 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _load();
+    LayoutController.dashboard.addListener(_onLayoutChanged);
   }
 
   void _load() {
@@ -75,39 +76,90 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   @override
+  /// Свайп влево/вправо листает виды дашборда в этом порядке; выбранный запоминается (как в
+  /// Настройки › Оформление › Компоновка).
+  static const _pages = [DashboardView.standard, DashboardView.chart, DashboardView.feed, DashboardView.tiles];
+  static const _pageNames = ['Обычный', 'График', 'Лента дня', 'Плитки'];
+  late final PageController _pageController =
+      PageController(initialPage: _pages.indexOf(LayoutController.dashboard.value));
+
+  void _onLayoutChanged() {
+    final i = _pages.indexOf(LayoutController.dashboard.value);
+    if (_pageController.hasClients && _pageController.page?.round() != i) _pageController.jumpToPage(i);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    LayoutController.dashboard.removeListener(_onLayoutChanged);
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Widget _standardOrTiles({required bool tiles}) => Column(
+        children: [
+          DateFilterBar(range: _range, onChanged: _onRangeChanged),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: tiles
+                  ? _buildTilesBody()
+                  : _isWarehouseRaw
+                      ? _buildProductionBody()
+                      : _isWarehouseFg
+                          ? _buildWarehouseBody()
+                          : _buildSalesBody(),
+            ),
+          ),
+        ],
+      );
+
+  @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: LayoutController.dashboard,
-      builder: (context, _) {
-        final view = LayoutController.dashboard.value;
-        final Widget body = switch (view) {
-          DashboardView.chart => const InsightsView(),
-          DashboardView.feed => const FeedView(),
-          _ => Column(
+    final p = context.pal;
+    final current = _pages.indexOf(LayoutController.dashboard.value);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Дашборд · ${_pageNames[current]}'),
+        actions: const [ThemeToggleButton(), SizedBox(width: 4)],
+      ),
+      drawer: const AppDrawer(currentRoute: '/'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/'),
+      body: Column(
+        children: [
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (i) => LayoutController.setDashboard(_pages[i]),
               children: [
-                DateFilterBar(range: _range, onChanged: _onRangeChanged),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _refresh,
-                    child: view == DashboardView.tiles
-                        ? _buildTilesBody()
-                        : _isWarehouseRaw
-                            ? _buildProductionBody()
-                            : _isWarehouseFg
-                                ? _buildWarehouseBody()
-                                : _buildSalesBody(),
-                  ),
-                ),
+                _standardOrTiles(tiles: false),
+                const InsightsView(),
+                const FeedView(),
+                _standardOrTiles(tiles: true),
               ],
             ),
-        };
-        return Scaffold(
-          appBar: AppBar(title: const Text('Дашборд'), actions: const [ThemeToggleButton(), SizedBox(width: 4)]),
-          drawer: const AppDrawer(currentRoute: '/'),
-          bottomNavigationBar: const AppBottomNav(currentRoute: '/'),
-          body: body,
-        );
-      },
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < _pages.length; i++)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == current ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: i == current ? p.accent : p.line,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -230,6 +282,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 20),
                       _LowStockCard(title: 'Низкие остатки сырья', items: d.lowStock),
+                      const RecentOrdersSection(),
                     ],
                   );
                 },

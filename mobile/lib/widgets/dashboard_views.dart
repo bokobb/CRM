@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../models/dashboard.dart';
+import '../models/order.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import 'error_view.dart';
 import 'format.dart';
+import 'status_badge.dart';
 
 /// Плитка для компоновки «Крупные плитки».
 class BigTile {
@@ -268,6 +270,7 @@ class _InsightsViewState extends State<InsightsView> {
                             },
                     ),
                   ),
+              const RecentOrdersSection(),
             ],
           );
         },
@@ -503,6 +506,90 @@ class _FeedRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// «Последние заказы» внизу дашборда: 5 самых свежих за неделю, «Все» ведёт в список заказов.
+class RecentOrdersSection extends StatefulWidget {
+  const RecentOrdersSection({super.key});
+
+  @override
+  State<RecentOrdersSection> createState() => _RecentOrdersSectionState();
+}
+
+class _RecentOrdersSectionState extends State<RecentOrdersSection> {
+  late final Future<List<OrderSummary>> _future = () {
+    final today = DateUtils.dateOnly(DateTime.now());
+    return ApiClient().getOrders(from: today.subtract(const Duration(days: 6)), to: today);
+  }();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    return FutureBuilder<List<OrderSummary>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final orders = [...snapshot.data!]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        final recent = orders.take(5).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Text(
+                      'ПОСЛЕДНИЕ ЗАКАЗЫ',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: p.muted),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pushNamed('/orders'),
+                  child: const Text('Все'),
+                ),
+              ],
+            ),
+            if (recent.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                child: Text('За неделю заказов нет', style: TextStyle(color: p.muted)),
+              )
+            else
+              Card(
+                margin: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    for (final (i, o) in recent.indexed) ...[
+                      if (i > 0) Divider(height: 1, indent: 14, endIndent: 14, color: p.line),
+                      ListTile(
+                        title: Text(o.clientName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text('№${o.id} · ${formatDate(o.createdAt)}', style: TextStyle(fontSize: 12.5, color: p.muted)),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              formatMoney(o.totalPrice),
+                              style: const TextStyle(fontWeight: FontWeight.w500, fontFeatures: [FontFeature.tabularFigures()]),
+                            ),
+                            const SizedBox(height: 3),
+                            StatusBadge(status: o.status, label: o.statusLabel),
+                          ],
+                        ),
+                        onTap: () => Navigator.of(context).pushNamed('/orders/detail', arguments: o.id),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
