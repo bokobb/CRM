@@ -39,7 +39,10 @@
                         <div class="product-card-price" th:text="${row.priceLabel()}"></div>
                     </div>
                     <button type="button" class="shop-quick-add" title="Добавить в корзину"
-                            th:attr="data-product-id=${row.product().id}">+</button>
+                            th:attr="data-product-id=${row.product().id},data-name=${row.product().name},
+                                     data-price=${row.priceRaw()},data-price-label=${row.priceLabel()},
+                                     data-step=${row.stepRaw()},data-unit=${row.unit()},data-in-cart=${row.inCartRaw()},
+                                     data-img=${row.product().imageUrl}">+</button>
                 </a>
             </div>
         </div>
@@ -49,6 +52,31 @@
     </main>
 
     <div th:replace="~{shop/fragments/bottom-nav :: bottomnav(active='home', cartCount=${cartCount})}"></div>
+
+    <!-- Окно ввода количества по «+» на карточке: клиент сразу вводит, сколько нужно. -->
+    <div class="qty-modal" id="qtyModal" role="dialog" aria-modal="true" aria-labelledby="qtyModalName">
+        <div class="qty-modal-sheet">
+            <div class="qty-modal-head">
+                <img id="qtyModalImg" alt="" style="display:none">
+                <div class="product-card-avatar" id="qtyModalAvatar"></div>
+                <div>
+                    <div class="qty-modal-name" id="qtyModalName"></div>
+                    <div class="qty-modal-price" id="qtyModalPrice"></div>
+                </div>
+            </div>
+            <div class="qty-modal-stepper">
+                <button type="button" id="qtyModalDec" aria-label="Меньше">−</button>
+                <input type="number" id="qtyModalInput" inputmode="decimal" min="0" aria-label="Количество">
+                <button type="button" id="qtyModalInc" aria-label="Больше">+</button>
+            </div>
+            <div class="qty-modal-unit" id="qtyModalUnit"></div>
+            <div class="qty-modal-sum" id="qtyModalSum"></div>
+            <div class="qty-modal-actions">
+                <button type="button" class="btn" id="qtyModalCancel">Отмена</button>
+                <button type="button" class="btn primary" id="qtyModalOk">Добавить</button>
+            </div>
+        </div>
+    </div>
 </div>
 <script th:inline="none">
     // Запоминаем прокрутку строго по turbo:before-visit (Turbo сам вызывает это событие
@@ -92,29 +120,83 @@
             document.getElementById('shopProductEmpty').style.display = totalVisible === 0 ? '' : 'none';
         };
 
-        // Быстрое добавление в корзину прямо с карточки (кнопка "+" на фото) — без перехода
-        // на экран товара. Переиспользует тот же эндпоинт степпера, что и корзина
-        // (см. shop/catalog.html), с шагом по умолчанию (1 шт. или 0.1 для весовых/объёмных).
-        // Кнопка внутри <a> — обязательно stopPropagation, иначе клик ещё и откроет карточку.
+        // «+» на карточке открывает окно ввода количества (раньше сразу клал 1 шт. в корзину —
+        // клиенту приходилось потом идти в корзину и править). Количество уходит тем же
+        // эндпоинтом, что и прямой ввод в корзине (/set). Кнопка внутри <a> — обязательно
+        // stopPropagation, иначе клик ещё и откроет карточку товара.
+        var modal = document.getElementById('qtyModal');
+        var input = document.getElementById('qtyModalInput');
+        var current = null;
+        var money = new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 2});
+
+        function stepOf() { return parseFloat(current.getAttribute('data-step')) || 1; }
+        function round(v) { return Math.round(v * 1000) / 1000; }
+        function updateSum() {
+            var q = parseFloat(String(input.value).replace(',', '.'));
+            var price = parseFloat(current.getAttribute('data-price')) || 0;
+            var ok = q > 0;
+            document.getElementById('qtyModalSum').textContent = ok ? 'Сумма: ' + money.format(round(q * price)) + ' ₸' : 'Введите количество';
+            document.getElementById('qtyModalOk').disabled = !ok;
+        }
+        function openModal(btn) {
+            current = btn;
+            var img = btn.getAttribute('data-img');
+            var imgEl = document.getElementById('qtyModalImg');
+            var avatar = document.getElementById('qtyModalAvatar');
+            if (img) { imgEl.src = img; imgEl.style.display = ''; avatar.style.display = 'none'; }
+            else { imgEl.style.display = 'none'; avatar.style.display = ''; avatar.textContent = btn.getAttribute('data-name').charAt(0); }
+            document.getElementById('qtyModalName').textContent = btn.getAttribute('data-name');
+            document.getElementById('qtyModalPrice').textContent = btn.getAttribute('data-price-label');
+            document.getElementById('qtyModalUnit').textContent = btn.getAttribute('data-unit');
+            var inCart = btn.getAttribute('data-in-cart');
+            input.value = inCart ? inCart : '';
+            input.step = String(stepOf());
+            document.getElementById('qtyModalOk').textContent = inCart ? 'Сохранить' : 'Добавить';
+            updateSum();
+            modal.classList.add('open');
+            setTimeout(function () { input.focus(); input.select(); }, 50);
+        }
+        function closeModal() { modal.classList.remove('open'); current = null; input.blur(); }
+
         document.querySelectorAll('.shop-quick-add').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                var id = btn.getAttribute('data-product-id');
-                fetch('/shop/cart/item/' + id + '/inc', {method: 'POST', headers: {'X-Requested-With': 'fetch'}})
-                    .then(function (res) {
-                        if (!res.ok) throw new Error('bad status');
-                        return res.json();
-                    })
-                    .then(function (data) {
-                        playAddAnimation(btn, data.cartCount);
-                    })
-                    .catch(function () {
-                        // Сеть подвела (см. историю с Cloudflare-туннелем) — переходим на
-                        // карточку товара как надёжный запасной путь добавления.
-                        window.location.href = '/shop/products/' + id;
-                    });
+                openModal(btn);
             });
+        });
+        input.addEventListener('input', updateSum);
+        input.addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('qtyModalOk').click(); });
+        document.getElementById('qtyModalInc').addEventListener('click', function () {
+            var q = parseFloat(String(input.value).replace(',', '.')) || 0;
+            input.value = round(q + stepOf()); updateSum();
+        });
+        document.getElementById('qtyModalDec').addEventListener('click', function () {
+            var q = parseFloat(String(input.value).replace(',', '.')) || 0;
+            input.value = Math.max(round(q - stepOf()), 0) || ''; updateSum();
+        });
+        document.getElementById('qtyModalCancel').addEventListener('click', closeModal);
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+        document.getElementById('qtyModalOk').addEventListener('click', function () {
+            var q = parseFloat(String(input.value).replace(',', '.'));
+            if (!(q > 0) || !current) return;
+            var btn = current;
+            var id = btn.getAttribute('data-product-id');
+            var body = new URLSearchParams({qty: String(q)});
+            closeModal();
+            fetch('/shop/cart/item/' + id + '/set', {method: 'POST', headers: {'X-Requested-With': 'fetch'}, body: body})
+                .then(function (res) {
+                    if (!res.ok) throw new Error('bad status');
+                    return res.json();
+                })
+                .then(function (data) {
+                    btn.setAttribute('data-in-cart', String(q));
+                    playAddAnimation(btn, data.cartCount);
+                })
+                .catch(function () {
+                    // Сеть подвела — переходим на карточку товара как надёжный запасной путь.
+                    window.location.href = '/shop/products/' + id;
+                });
         });
 
         function playAddAnimation(btn, cartCount) {

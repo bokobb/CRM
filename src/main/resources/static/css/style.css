@@ -499,6 +499,7 @@ a.stat-card:hover { border-color: var(--accent); }
 .shop-order-total { font-weight: 700; font-size: 15px; white-space: nowrap; }
 .shop-order-total-box { text-align: right; }
 .shop-order-return-total { color: #c0392b; font-weight: 600; font-size: 12.5px; white-space: nowrap; margin-top: 2px; }
+.shop-order-net-total { font-weight: 700; font-size: 14px; white-space: nowrap; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
 /* Позиции заказа/возврата — каждая своей строкой: название | количество | сумма. */
 .shop-order-items { list-style: none; margin: 0 0 12px; padding: 0; font-size: 13px; }
 .shop-order-items li {
@@ -915,3 +916,26 @@ input.qty-input {
 }
 /* === /Мобильная адаптация админки === */
 
+
+/* Окно ввода количества по «+» на карточке товара (shop/products.html). */
+.qty-modal { position: fixed; inset: 0; z-index: 1000; display: none; align-items: flex-end; justify-content: center;
+  background: rgba(30, 24, 20, 0.45); }
+.qty-modal.open { display: flex; }
+.qty-modal-sheet { width: 100%; max-width: 480px; background: var(--panel); border-radius: 18px 18px 0 0;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); box-shadow: 0 -6px 24px rgba(0,0,0,.15);
+  animation: qtySheetUp .18s ease-out; }
+@media (min-width: 600px) { .qty-modal { align-items: center; } .qty-modal-sheet { border-radius: 18px; } }
+@keyframes qtySheetUp { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+.qty-modal-head { display: flex; gap: 12px; align-items: center; }
+.qty-modal-head img, .qty-modal-head .product-card-avatar { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
+.qty-modal-name { font-weight: 700; font-size: 17px; line-height: 1.25; }
+.qty-modal-price { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.qty-modal-stepper { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 20px 0 8px; }
+.qty-modal-stepper button { width: 52px; height: 52px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--bg); font-size: 26px; color: var(--ink); cursor: pointer; }
+.qty-modal-stepper input { width: 130px; height: 52px; text-align: center; font-size: 24px; font-weight: 700;
+  border: 2px solid var(--accent); border-radius: 14px; color: var(--ink); background: var(--panel); }
+.qty-modal-unit { text-align: center; color: var(--muted); font-size: 13px; }
+.qty-modal-sum { text-align: center; font-size: 15px; margin: 10px 0 16px; }
+.qty-modal-actions { display: flex; gap: 10px; }
+.qty-modal-actions .btn { flex: 1; height: 50px; font-size: 16px; justify-content: center; }

@@ -40,6 +40,8 @@
                     <div class="shop-order-total" th:text="${row.totalLabel}"></div>
                     <div class="shop-order-return-total" th:if="${row.returnTotalLabel}"
                          th:text="'возврат ' + ${row.returnTotalLabel}"></div>
+                    <div class="shop-order-net-total" th:if="${row.netTotalLabel}"
+                         th:text="'итого ' + ${row.netTotalLabel}"></div>
                 </div>
             </div>
 

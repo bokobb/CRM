@@ -268,9 +268,21 @@ public class ShopController {
         }
         Map<String, List<Product>> byCategory = productService.groupByCategory(productService.findVisibleToClients());
         Map<String, List<ProductRow>> rowsByCategory = new LinkedHashMap<>();
+        // Внутри категории — строго по алфавиту (русская сортировка, без учёта регистра), чтобы
+        // «Кекс классический» и «Кекс с изюмом» стояли рядом, а не в разных концах списка.
+        java.text.Collator collator = java.text.Collator.getInstance(new java.util.Locale("ru", "RU"));
+        collator.setStrength(java.text.Collator.SECONDARY);
+        Map<Long, BigDecimal> cart = cart(session);
         for (Map.Entry<String, List<Product>> entry : byCategory.entrySet()) {
             rowsByCategory.put(entry.getKey(), entry.getValue().stream()
-                    .map(p -> new ProductRow(p, priceUnitLabel(clientPriceService.resolvePrice(client, p), p.getUnit())))
+                    .sorted((a, b) -> collator.compare(a.getName().trim(), b.getName().trim()))
+                    .map(p -> {
+                        BigDecimal price = clientPriceService.resolvePrice(client, p);
+                        BigDecimal inCart = cart.get(p.getId());
+                        return new ProductRow(p, priceUnitLabel(price, p.getUnit()), price.toPlainString(),
+                                step(p).toPlainString(), p.getUnit() == null || p.getUnit().isBlank() ? "шт" : p.getUnit(),
+                                inCart == null ? "" : inCart.stripTrailingZeros().toPlainString());
+                    })
                     .toList());
         }
         model.addAttribute("clientName", client.getName());
@@ -447,7 +459,8 @@ public class ShopController {
         BigDecimal returnTotal = orderReturns.stream()
                 .map(ProductReturn::getTotalSum).reduce(BigDecimal.ZERO, BigDecimal::add);
         return new OrderHistoryRow(o, items, MONEY_FORMAT.format(o.getTotalPrice()) + " ₸", returns,
-                returns.isEmpty() ? null : "−" + MONEY_FORMAT.format(returnTotal) + " ₸");
+                returns.isEmpty() ? null : "−" + MONEY_FORMAT.format(returnTotal) + " ₸",
+                returns.isEmpty() ? null : MONEY_FORMAT.format(o.getTotalPrice().subtract(returnTotal)) + " ₸");
     }
 
     private ItemLine itemLine(Product product, BigDecimal quantity, BigDecimal price) {
@@ -566,11 +579,14 @@ public class ShopController {
                            String sumLabel, BigDecimal step) {
     }
 
-    public record ProductRow(Product product, String priceLabel) {
+    /** priceRaw/stepRaw/inCartRaw — для окна ввода количества по «+» на карточке (shop/products.html). */
+    public record ProductRow(Product product, String priceLabel, String priceRaw, String stepRaw, String unit,
+                             String inCartRaw) {
     }
 
+    /** netTotalLabel — итог «заказ минус возвраты», только если возвраты есть. */
     public record OrderHistoryRow(Order order, List<ItemLine> items, String totalLabel,
-                                  List<ReturnRow> returns, String returnTotalLabel) {
+                                  List<ReturnRow> returns, String returnTotalLabel, String netTotalLabel) {
     }
 
     public record ItemLine(String name, String qtyLabel, String sumLabel) {
