@@ -8,6 +8,7 @@ import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/hidden_search.dart';
 import '../widgets/order_returns_sheets.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/swipe_cancel_delete.dart';
@@ -36,6 +37,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
   late Future<List<OrderSummary>> _future;
   String? _status;
   late DateTimeRange _range;
+  // Поиск лупой: ввод не виден, список фильтруется по номеру и клиенту (см. HiddenSearch).
+  final _search = HiddenSearch();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -78,7 +87,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Заказы')),
+      appBar: AppBar(
+        title: const Text('Заказы'),
+        actions: [_search.button(setState), const SizedBox(width: 4)],
+      ),
       drawer: const AppDrawer(currentRoute: '/orders'),
       floatingActionButton: _canCreate()
           ? FloatingActionButton(
@@ -91,6 +103,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           : null,
       body: Column(
         children: [
+          _search.field(setState),
           DateFilterBar(range: _range, onChanged: _onRangeChanged),
           SizedBox(
             height: 48,
@@ -130,7 +143,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   if (snapshot.hasError) {
                     return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
                   }
-                  final orders = snapshot.data!;
+                  final orders = snapshot.data!
+                      .where((o) => _search.matches('#${o.id} · ${o.clientName}'))
+                      .toList();
                   if (orders.isEmpty) {
                     return ListView(
                       children: const [
@@ -162,6 +177,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             ? const Color(0xFFC99A2E)
                             : (o.fromWhatsapp ? const Color(0xFF25D366) : null),
                         title: '#${o.id} · ${o.clientName}',
+                        highlight: _search.query,
                         subtitle: '${o.shippedAt != null ? 'отгружен ${formatDate(o.shippedAt!)}' : formatDate(o.createdAt)}'
                             ' · ${formatMoney(o.totalPrice)}'
                             '${o.returnsCount > 0 ? ' · возврат −${formatMoney(o.returnTotal)}' : ''}',

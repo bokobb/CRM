@@ -4,6 +4,10 @@ import com.confectionery.crm.api.dto.DashboardDto;
 import com.confectionery.crm.api.dto.IngredientDto;
 import com.confectionery.crm.api.dto.ProductionDashboardDto;
 import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
+import com.confectionery.crm.api.dto.OrderDto;
+import com.confectionery.crm.api.dto.WarehouseDashboardDto;
+import com.confectionery.crm.domain.Product;
+import com.confectionery.crm.repository.ProductRepository;
 import com.confectionery.crm.domain.EmployeeCostGroup;
 import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.repository.OrderRepository;
@@ -23,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -36,6 +42,7 @@ public class DashboardApiController {
     private final UserService userService;
     private final ProductionRequestService productionRequestService;
     private final SalaryFundService salaryFundService;
+    private final ProductRepository productRepository;
 
     /** from/to не заданы — по умолчанию сегодня (в отличие от заказов/уведомлений, где "не задан" = все даты). */
     @GetMapping
@@ -85,6 +92,38 @@ public class DashboardApiController {
                 summary.counts().createdInRange(), summary.counts().collectedInRange(),
                 ingredientService.findLowStock().stream().map(IngredientDto::from).toList(),
                 summary.pendingRequests().stream().map(ProductionRequestSummaryDto::from).toList()
+        );
+    }
+
+    /**
+     * Дашборд склада ГП: что собрать и отгрузить (все текущие, независимо от периода), сколько
+     * отгружено за период, сколько заявок цех собрал и ждёт приёма, и 8 товаров с наименьшим
+     * остатком (порога для готовой продукции нет — показываем самые "тонкие" позиции).
+     */
+    @GetMapping("/warehouse")
+    public WarehouseDashboardDto getWarehouse(@RequestParam(required = false) LocalDate from,
+                                              @RequestParam(required = false) LocalDate to) {
+        LocalDate rangeFrom = from != null ? from : LocalDate.now();
+        LocalDate rangeTo = to != null ? to : LocalDate.now();
+        LocalDateTime start = rangeFrom.atStartOfDay();
+        LocalDateTime end = rangeTo.plusDays(1).atStartOfDay();
+
+        var summary = productionRequestService.dashboardSummary(start, end, 0);
+        List<WarehouseDashboardDto.StockLine> lowStock = productRepository.findByActiveTrue().stream()
+                .sorted(Comparator.comparing(Product::getQuantityInStock))
+                .limit(8)
+                .map(p -> new WarehouseDashboardDto.StockLine(p.getId(), p.getName(), p.getUnit(), p.getQuantityInStock()))
+                .toList();
+        return new WarehouseDashboardDto(
+                rangeFrom, rangeTo,
+                orderRepository.countByStatus(OrderStatus.NEW),
+                orderRepository.countByStatus(OrderStatus.READY),
+                orderRepository.countByStatusInAndShippedAtBetween(
+                        List.of(OrderStatus.DELIVERED, OrderStatus.COMPLETED), start, end),
+                summary.counts().awaitingReceipt(),
+                lowStock,
+                orderRepository.findByStatusInOrderByCreatedAtAsc(List.of(OrderStatus.NEW, OrderStatus.READY))
+                        .stream().map(OrderDto::summary).toList()
         );
     }
 }

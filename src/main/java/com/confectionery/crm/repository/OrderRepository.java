@@ -58,6 +58,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                   @Param("end") LocalDateTime end,
                                   @Param("finalStatuses") List<OrderStatus> finalStatuses);
 
+    long countByStatusInAndShippedAtBetween(java.util.Collection<OrderStatus> statuses, LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByStatusInOrderByCreatedAtAsc(java.util.Collection<OrderStatus> statuses);
+
     long countByStatusAndCreatedAtBetween(OrderStatus status, LocalDateTime start, LocalDateTime end);
 
     /** Сумма проданного (отгружено или завершено) за период — по дате отгрузки. */

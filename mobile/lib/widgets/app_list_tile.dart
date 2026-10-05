@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'hidden_search.dart';
+
 /// Карточка-строка списка: используется вместо плоского ListTile+Divider на всех
 /// экранах со списками (клиенты, товары, заказы, остатки и т.п.) для единого,
 /// более "воздушного" дизайна списков во всём приложении.
@@ -21,6 +23,9 @@ class AppListTile extends StatelessWidget {
   /// заявку от остальных (см. production_requests_screen.dart). Null — обычный цвет темы.
   final Color? backgroundColor;
 
+  /// Подсветить совпадения с этим текстом в заголовке (поиск лупой, см. HiddenSearch).
+  final String? highlight;
+
   const AppListTile({
     super.key,
     this.leadingIcon,
@@ -33,6 +38,7 @@ class AppListTile extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.backgroundColor,
+    this.highlight,
   });
 
   @override
@@ -55,7 +61,10 @@ class AppListTile extends StatelessWidget {
                         child: Icon(leadingIcon, color: color, size: 20),
                       )
                     : null),
-            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            title: Text.rich(
+              TextSpan(children: highlightSpans(title, highlight)),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
             subtitle: subtitle != null && subtitle!.isNotEmpty
                 ? Text(subtitle!, style: const TextStyle(color: Colors.grey, fontSize: 12.5))
                 : null,

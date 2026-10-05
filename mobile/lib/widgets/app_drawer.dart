@@ -61,7 +61,7 @@ class AppDrawer extends StatelessWidget {
       case 'SALES':
         return [_dashboard, _orders, _returns, _clients, _products, _recipes, _whatsappInbox, _notifications];
       case 'WAREHOUSE_FG':
-        return [_orders, _returns, _productionRequests, _warehouse, _ingredientWarehouse, _reports, _notifications];
+        return [_dashboard, _orders, _returns, _productionRequests, _warehouse, _ingredientWarehouse, _reports, _notifications];
       case 'WAREHOUSE_RAW':
         // Дашборд по производству (не по заказам — см. DashboardScreen), заявки (сборка по
         // чек-листу), покупки (приход от поставщиков) и склад сырья (остатки/поступления/
