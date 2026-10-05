@@ -102,6 +102,13 @@ public class OrderApiController {
         return OrderDto.from(orderService.reopenForEditing(id));
     }
 
+    /** Админ откатывает статус на шаг назад (см. OrderService.rollback). */
+    @PostMapping("/{id}/rollback")
+    @PreAuthorize("hasRole('ADMIN')")
+    public OrderDto rollback(@PathVariable Long id) {
+        return OrderDto.from(orderService.rollback(id));
+    }
+
     /** Отмена: документ в 1С распроводится (черновик); отгруженный заказ — только админ/бухгалтер. */
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT','WAREHOUSE_FG')")

@@ -163,6 +163,46 @@ public class OrderService {
     }
 
     /**
+     * Админ откатывает заказ на шаг назад — исправить ошибочно выставленный статус:
+     * Завершён -> Отгружен -> Готов к отгрузке -> В процессе сборки; Отменён -> В процессе сборки.
+     * Откат отгрузки снимает её следы: товар, списанный отгрузкой через CRM, возвращается на
+     * остаток, а "Реализация" в 1С распроводится очередью (не отгруженный заказ = черновик, см.
+     * OneCOrderSyncService). Без уведомлений — это исправление, а не событие.
+     */
+    @Transactional
+    public Order rollback(Long orderId) {
+        Order order = findById(orderId);
+        switch (order.getStatus()) {
+            case COMPLETED -> order.setStatus(OrderStatus.DELIVERED);
+            case DELIVERED -> {
+                if (order.getVehicleNumber() != null) {
+                    for (OrderItem item : order.getItems()) {
+                        Product product = item.getProduct();
+                        product.setQuantityInStock(product.getQuantityInStock().add(item.getQuantity()));
+                        productRepository.save(product);
+                    }
+                }
+                order.setStatus(OrderStatus.READY);
+                order.setVehicleNumber(null);
+                order.setShippedAt(null);
+                order.setShippedByName(null);
+                oneCQueue.order(order);
+            }
+            case READY, CONFIRMED, IN_PRODUCTION -> order.setStatus(OrderStatus.NEW);
+            case CANCELLED -> {
+                // Отмена уже вернула списанный товар и распровела документ — заказ просто снова в сборке.
+                order.setStatus(OrderStatus.NEW);
+                order.setVehicleNumber(null);
+                order.setShippedAt(null);
+                order.setShippedByName(null);
+                oneCQueue.order(order);
+            }
+            case NEW -> throw new IllegalStateException("Заказ уже в начальном статусе — откатывать некуда");
+        }
+        return order;
+    }
+
+    /**
      * Полное редактирование состава заказа — и корректировка при сборке склада ГП (часть
      * товара может оказаться не в наличии или в меньшем количестве, чем заказано — количество
      * можно уменьшить, позиция с количеством <= 0 удаляется из заказа целиком), и смена товара

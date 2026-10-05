@@ -1319,6 +1319,15 @@ class ApiClient {
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
+  /// Админ откатывает статус заказа на шаг назад (см. OrderService.rollback на бэкенде).
+  Future<Order> rollbackOrder(int id) async {
+    final res = await _http.post(
+      await _uri('/orders/$id/rollback'),
+      headers: await _authHeaders(),
+    );
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
+  }
+
   Future<Order> cancelOrder(int id) async {
     final res = await _http.post(
       await _uri('/orders/$id/cancel'),

@@ -253,6 +253,13 @@ public class OneCOrderSyncService {
             docLines.putIfAbsent(line.path("Номенклатура_Key").asText(""), line);
         }
         boolean same = sameComposition(order, doc.path("Товары"));
+        if (posted && !isShipped(order)) {
+            // Заказ не отгружен (например, админ откатил отгрузку, см. OrderService.rollback) —
+            // документ в 1С должен быть черновиком, иначе товар числится списанным.
+            unpostIfPosted(ref);
+            log.info("Заказ №{} (из 1С) не отгружен — документ №{} распроведён", order.getId(), order.getOneCDocumentNumber());
+            posted = false;
+        }
         boolean wasPosted = posted;
         if (posted && !same && repost) {
             unpostIfPosted(ref);
@@ -470,11 +477,18 @@ public class OneCOrderSyncService {
         order.setOneCSyncError(null);
         orderRepository.save(order);
         log.info("Заказ №{} — обновлён состав документа №{} в 1С", order.getId(), order.getOneCDocumentNumber());
-        if (wasPosted && order.getShippedAt() == null) {
+        // Не отгруженный заказ остаётся черновиком (в т.ч. после отката отгрузки, см.
+        // OrderService.rollback); отгруженный без даты отгрузки (старые заказы) проводим снова.
+        if (wasPosted && order.getShippedAt() == null && isShipped(order)) {
             postAgain(order);
             return;
         }
         postIfShipped(order);
+    }
+
+    private static boolean isShipped(Order order) {
+        return order.getStatus() == com.confectionery.crm.domain.OrderStatus.DELIVERED
+                || order.getStatus() == com.confectionery.crm.domain.OrderStatus.COMPLETED;
     }
 
     /**

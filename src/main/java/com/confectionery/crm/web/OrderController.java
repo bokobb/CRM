@@ -191,6 +191,18 @@ public class OrderController {
         return "redirect:/orders/" + id;
     }
 
+    /** Админ откатывает статус на шаг назад (см. OrderService.rollback). */
+    @PostMapping("/{id}/rollback")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String rollback(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            orderService.rollback(id);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/orders/" + id;
+    }
+
     @PostMapping("/{id}/confirm")
     @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN')")
     public String confirm(@PathVariable Long id, RedirectAttributes redirectAttributes) {

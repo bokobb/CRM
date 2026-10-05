@@ -186,6 +186,42 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  static const _previousStatusLabel = {
+    'COMPLETED': 'Отгружен',
+    'DELIVERED': 'Готов к отгрузке',
+    'READY': 'В процессе сборки',
+    'CONFIRMED': 'В процессе сборки',
+    'IN_PRODUCTION': 'В процессе сборки',
+    'CANCELLED': 'В процессе сборки',
+  };
+
+  Future<void> _rollbackDialog(Order o) async {
+    final target = _previousStatusLabel[o.status] ?? '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Откатить статус?'),
+        content: Text(
+          'Заказ вернётся в статус «$target».'
+          '${o.status == 'DELIVERED' ? '\nОтгрузка отменится, документ в 1С будет распроведён.' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Нет'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Откатить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      _runAction(() => _api.rollbackOrder(o.id));
+    }
+  }
+
   /// Общий выбор товара из списка (поиск по названию) — используется и для замены товара
   /// в существующей позиции, и для выбора товара новой позиции.
   Future<Product?> _pickAnyProduct(List<Product> products, String title) {
@@ -682,6 +718,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         ],
                       ),
                     ),
+                ],
+                if (isAdmin && _previousStatusLabel.containsKey(o.status)) ...[
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _actionInProgress ? null : () => _rollbackDialog(o),
+                      icon: const Icon(Icons.undo),
+                      label: Text('Откатить в «${_previousStatusLabel[o.status]}»'),
+                    ),
+                  ),
                 ],
                 if (canManageOrder || canShip || canComplete) ...[
                   const SizedBox(height: 28),

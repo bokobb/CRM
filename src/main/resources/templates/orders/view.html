@@ -59,6 +59,11 @@
                 <input type="date" name="dueDate" required>
                 <button class="btn" type="submit">Долг</button>
             </form>
+            <form th:if="${order.status.name() != 'NEW'}" sec:authorize="hasRole('ADMIN')"
+                  th:action="@{/orders/{id}/rollback(id=${order.id})}" method="post"
+                  onsubmit="return confirm('Откатить статус заказа на шаг назад?');">
+                <button class="btn" type="submit">↶ Откатить статус</button>
+            </form>
         </div>
 
         <div class="alert warn" th:if="${order.debtDueDate != null and order.debtPaid != true}">
