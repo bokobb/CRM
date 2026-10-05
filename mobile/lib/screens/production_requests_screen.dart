@@ -204,9 +204,12 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                                           color: context.pal.danger, fontWeight: FontWeight.w600, fontSize: 12),
                                     ),
                                   if (r.compositionDiffPending)
-                                    const Text(
-                                      'Состав изменён после выдачи — удерживайте, чтобы увидеть разницу',
-                                      style: TextStyle(color: Color(0xFFC77C12), fontWeight: FontWeight.w600, fontSize: 12),
+                                    Text(
+                                      r.compositionDiffBatches != null
+                                          ? 'Замес изменён после выдачи: ${r.compositionDiffBatches} — удерживайте, чтобы увидеть разницу'
+                                          : 'Состав изменён после выдачи — удерживайте, чтобы увидеть разницу',
+                                      style: const TextStyle(
+                                          color: Color(0xFFC77C12), fontWeight: FontWeight.w600, fontSize: 12),
                                     ),
                                 ],
                               )

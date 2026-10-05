@@ -28,7 +28,9 @@ public record ProductionRequestSummaryDto(
         /** Требование-накладная проведена в 1С кнопкой "Завершить" — см. ProductionRequest.requisitionCompleted. */
         boolean requisitionCompleted,
         /** Состав менялся после выдачи работникам, разницу ещё не выдали/не вернули. */
-        boolean compositionDiffPending
+        boolean compositionDiffPending,
+        /** «Медовик 3 → 4» — замесы изменены после выдачи; null — нет. */
+        String compositionDiffBatches
 ) {
     /** Эталон сверки по массе — самый крупный товар заявки (без запроса к базе). */
     public static ProductionRequestSummaryDto from(ProductionRequest r) {
@@ -56,7 +58,7 @@ public record ProductionRequestSummaryDto(
                 r.getId(), r.getTitle(), r.getLines().stream().map(l -> l.getProduct().getName()).toList(), total,
                 r.getStatus().name(), r.getStatus().getLabel(), r.getCreatedBy(), r.getCreatedAt(), r.getDocumentDate(),
                 !shortfallText.isEmpty(), shortfallText.isEmpty() ? null : shortfallText, r.isRequisitionCompleted(),
-                r.isCompositionDiffPending()
+                r.isCompositionDiffPending(), r.getCompositionDiffBatches()
         );
     }
 

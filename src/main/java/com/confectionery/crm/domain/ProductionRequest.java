@@ -112,6 +112,10 @@ public class ProductionRequest {
      */
     private Boolean compositionDiffPending;
 
+    /** «Медовик 3 → 4» — замесы изменены после выдачи (вместе с compositionDiffPending), null — нет. */
+    @Column(length = 500)
+    private String compositionDiffBatches;
+
     public boolean isCompositionDiffPending() {
         return Boolean.TRUE.equals(compositionDiffPending);
     }

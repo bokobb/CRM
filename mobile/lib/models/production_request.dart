@@ -28,6 +28,9 @@ class ProductionRequestSummary {
   /// в списке, само окно с разницей — по долгому нажатию (production_composition_sheet.dart).
   final bool compositionDiffPending;
 
+  /// «Медовик 3 → 4» — замесы изменены после выдачи; null — нет.
+  final String? compositionDiffBatches;
+
   ProductionRequestSummary({
     required this.id,
     required this.title,
@@ -42,6 +45,7 @@ class ProductionRequestSummary {
     this.shortfallText,
     this.requisitionCompleted = false,
     this.compositionDiffPending = false,
+    this.compositionDiffBatches,
   });
 
   factory ProductionRequestSummary.fromJson(Map<String, dynamic> json) => ProductionRequestSummary(
@@ -58,6 +62,7 @@ class ProductionRequestSummary {
         shortfallText: json['shortfallText'] as String?,
         requisitionCompleted: json['requisitionCompleted'] as bool? ?? false,
         compositionDiffPending: json['compositionDiffPending'] as bool? ?? false,
+        compositionDiffBatches: json['compositionDiffBatches'] as String?,
       );
 }
 
@@ -343,6 +348,15 @@ class ProductionCompositionDiff {
   final List<CompositionDiffRow> rows;
   final List<CompositionRevision> history;
 
+  /// Вторая таблица окна: сырьё против нормы по рецептуре.
+  final List<CompositionNormRow> normRows;
+
+  /// Замесы, изменённые после выдачи.
+  final List<CompositionBatchChange> batchChanges;
+
+  /// Текущие замесы по товарам.
+  final List<CompositionLine> lines;
+
   ProductionCompositionDiff({
     required this.requestId,
     required this.title,
@@ -351,6 +365,9 @@ class ProductionCompositionDiff {
     this.issuedBy,
     required this.rows,
     required this.history,
+    this.normRows = const [],
+    this.batchChanges = const [],
+    this.lines = const [],
   });
 
   bool get hasDiff => rows.any((r) => r.diff != 0);
@@ -363,6 +380,67 @@ class ProductionCompositionDiff {
         issuedBy: json['issuedBy'] as String?,
         rows: (json['rows'] as List).map((e) => CompositionDiffRow.fromJson(e)).toList(),
         history: (json['history'] as List).map((e) => CompositionRevision.fromJson(e)).toList(),
+        normRows: (json['normRows'] as List? ?? []).map((e) => CompositionNormRow.fromJson(e)).toList(),
+        batchChanges: (json['batchChanges'] as List? ?? [])
+            .map((e) => CompositionBatchChange(
+                  productName: e['productName'] as String,
+                  issued: (e['issued'] as num).toDouble(),
+                  current: (e['current'] as num).toDouble(),
+                ))
+            .toList(),
+        lines: (json['lines'] as List? ?? []).map((e) => CompositionLine.fromJson(e)).toList(),
+      );
+}
+
+/// Сырьё заявки против нормы по рецептуре (рецептура × замесы).
+class CompositionNormRow {
+  final String ingredientName;
+  final String? unit;
+  final double norm;
+  final double current;
+
+  /// current − norm: плюс — сверх нормы, минус — меньше нормы.
+  final double diff;
+
+  /// «вместо …», «нет в рецептуре», «удалено из заявки».
+  final String? note;
+
+  CompositionNormRow({
+    required this.ingredientName,
+    this.unit,
+    required this.norm,
+    required this.current,
+    required this.diff,
+    this.note,
+  });
+
+  factory CompositionNormRow.fromJson(Map<String, dynamic> json) => CompositionNormRow(
+        ingredientName: json['ingredientName'] as String,
+        unit: json['unit'] as String?,
+        norm: (json['norm'] as num).toDouble(),
+        current: (json['current'] as num).toDouble(),
+        diff: (json['diff'] as num).toDouble(),
+        note: json['note'] as String?,
+      );
+}
+
+class CompositionBatchChange {
+  final String productName;
+  final double issued;
+  final double current;
+
+  CompositionBatchChange({required this.productName, required this.issued, required this.current});
+}
+
+class CompositionLine {
+  final String productName;
+  final double batches;
+
+  CompositionLine({required this.productName, required this.batches});
+
+  factory CompositionLine.fromJson(Map<String, dynamic> json) => CompositionLine(
+        productName: json['productName'] as String,
+        batches: (json['batches'] as num).toDouble(),
       );
 }
 
@@ -401,12 +479,16 @@ class CompositionRevision {
   final bool issued;
   final List<CompositionRevisionItem> items;
 
+  /// Замесы на момент снимка; у снимков до 05.10 пусто.
+  final List<CompositionLine> lines;
+
   CompositionRevision({
     required this.createdAt,
     required this.createdBy,
     this.note,
     required this.issued,
     required this.items,
+    this.lines = const [],
   });
 
   factory CompositionRevision.fromJson(Map<String, dynamic> json) => CompositionRevision(
@@ -421,6 +503,7 @@ class CompositionRevision {
                   quantity: (e['quantity'] as num).toDouble(),
                 ))
             .toList(),
+        lines: (json['lines'] as List? ?? []).map((e) => CompositionLine.fromJson(e)).toList(),
       );
 }
 

@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,6 +63,43 @@ class ProductionRequestAdjustmentsTest {
         assertThat(requestService.adjustments(clear.getId())).isEmpty();
     }
 
+    @Test
+    void normRowsAndBatchChanges() {
+        String s = String.valueOf(System.nanoTime());
+        Ingredient flour = ingredient("Мука " + s, "кг");
+        Ingredient sugar = ingredient("Сахар " + s, "кг");
+        Ingredient butter = ingredient("Масло " + s, "кг");
+        Ingredient margarine = ingredient("Маргарин " + s, "кг");
+        Ingredient gloves = ingredient("Перчатки " + s, "шт");
+        Product product = product("Коржик " + s, Map.of(flour, "10", sugar, "2", butter, "1"));
+        ProductionRequest r = withAdjustments(product, sugar, butter, margarine, gloves);
+
+        Map<String, String> norm = requestService.compositionDiff(r.getId()).normRows().stream().collect(Collectors.toMap(
+                ProductionRequestService.NormRow::ingredientName,
+                n -> n.norm().stripTrailingZeros().toPlainString() + "/" + n.diff().stripTrailingZeros().toPlainString()
+                        + (n.note() != null ? " " + n.note() : "")));
+        assertThat(norm).isEqualTo(Map.of(
+                flour.getName(), "245/0", sugar.getName(), "49/6",
+                margarine.getName(), "24.5/0 вместо «" + butter.getName() + "»",
+                gloves.getName(), "0/10 нет в рецептуре"));
+
+        Set<Long> all = tx.execute(st -> requestService.findById(r.getId()).getItems().stream()
+                .map(ProductionRequestItem::getId).collect(Collectors.toSet()));
+        requestService.collect(r.getId(), all, "test");
+        requestService.update(r.getId(), List.of(new ProductionRequestService.Line(product.getId(), new BigDecimal("30"))),
+                "test", null, true, true);
+        var diff = requestService.compositionDiff(r.getId());
+        assertThat(diff.batchChanges()).singleElement().satisfies(c -> {
+            assertThat(c.issued()).isEqualByComparingTo("24.5");
+            assertThat(c.current()).isEqualByComparingTo("30");
+        });
+        assertThat(batchesText(r.getId()))
+                .isEqualTo(product.getName() + " 24.5 → 30");
+        requestService.settleComposition(r.getId(), "test");
+        assertThat(requestService.compositionDiff(r.getId()).batchChanges()).isEmpty();
+        assertThat(batchesText(r.getId())).isNull();
+    }
+
     /** 24,5 замеса + перчатки 10 шт, сахар +6 кг, масло заменено маргарином. */
     private ProductionRequest withAdjustments(Product product, Ingredient sugar, Ingredient butter, Ingredient margarine,
                                               Ingredient gloves) {
@@ -71,6 +109,10 @@ class ProductionRequestAdjustmentsTest {
         requestService.substituteItem(r.getId(), itemId(r.getId(), sugar), null, new BigDecimal("55"), "test");
         requestService.substituteItem(r.getId(), itemId(r.getId(), butter), margarine.getId(), null, "test");
         return r;
+    }
+
+    private String batchesText(Long requestId) {
+        return tx.execute(st -> requestService.findById(requestId).getCompositionDiffBatches());
     }
 
     private Long itemId(Long requestId, Ingredient ingredient) {

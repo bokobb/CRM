@@ -50,6 +50,12 @@ public class ProductionRequestRevision {
     @OrderColumn(name = "item_order")
     private List<Item> items = new ArrayList<>();
 
+    /** Замесы по товарам на момент снимка — чтобы видеть «замес 3 → 4». У снимков до 05.10 пусто. */
+    @ElementCollection
+    @CollectionTable(name = "production_request_revision_lines", joinColumns = @JoinColumn(name = "revision_id"))
+    @OrderColumn(name = "line_order")
+    private List<Line> lines = new ArrayList<>();
+
     /** Одна позиция снимка — название/единица копируются, чтобы история не зависела от справочника. */
     @Embeddable
     @Getter
@@ -69,6 +75,25 @@ public class ProductionRequestRevision {
             this.ingredientName = ingredientName;
             this.unit = unit;
             this.quantity = quantity;
+        }
+    }
+
+    @Embeddable
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class Line {
+        @Column(nullable = false)
+        private Long productId;
+        @Column(nullable = false)
+        private String productName;
+        @Column(nullable = false, precision = 12, scale = 3)
+        private BigDecimal batches;
+
+        public Line(Long productId, String productName, BigDecimal batches) {
+            this.productId = productId;
+            this.productName = productName;
+            this.batches = batches;
         }
     }
 }

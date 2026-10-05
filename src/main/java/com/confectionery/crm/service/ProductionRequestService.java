@@ -454,7 +454,7 @@ public class ProductionRequestService {
      */
     private record Adjustments(Map<Long, BigDecimal> deltas, Map<Long, Ingredient> ingredients,
                                Map<Long, String> originalNames, Map<Long, ProductionRequestItem> substitutes,
-                               Set<Long> removed) {
+                               Set<Long> removed, Map<Long, BigDecimal> recipe) {
         boolean isEmpty() {
             return substitutes.isEmpty() && removed.isEmpty() && deltas.values().stream().allMatch(d -> d.signum() == 0);
         }
@@ -532,7 +532,7 @@ public class ProductionRequestService {
         for (Long id : recipe.keySet()) {
             if (!present.contains(id) && !substitutes.containsKey(id)) removed.add(id);
         }
-        return new Adjustments(deltas, ingredients, originalNames, substitutes, removed);
+        return new Adjustments(deltas, ingredients, originalNames, substitutes, removed, recipe);
     }
 
     /** Наложить поправки (см. {@link #adjustmentsOf}) на только что посчитанный по рецептуре состав. */
@@ -759,6 +759,7 @@ public class ProductionRequestService {
         request.setStatus(ProductionRequestStatus.CANCELLED);
         request.setRequisitionCompleted(false);
         request.setCompositionDiffPending(false);
+        request.setCompositionDiffBatches(null);
         oneCQueue.request(request);
 
         String message = "Заявка №" + request.getId() + " «" + request.getTitle() + "» отменена (" + by + ")";
@@ -1200,10 +1201,24 @@ public class ProductionRequestService {
      * {@code baseline == null} — сырьё ещё не выдавали (заявка «Новая»), разницы нет.
      */
     public record CompositionDiff(ProductionRequest request, ProductionRequestRevision baseline,
-                                  List<DiffRow> rows, List<ProductionRequestRevision> history) {
+                                  List<DiffRow> rows, List<ProductionRequestRevision> history,
+                                  List<NormRow> normRows, List<BatchChange> batchChanges) {
     }
 
     public record DiffRow(String ingredientName, String unit, BigDecimal issued, BigDecimal current, BigDecimal diff) {
+    }
+
+    /**
+     * Сырьё заявки против нормы по рецептуре (рецептура × замесы, как при создании заявки):
+     * {@code diff = current − norm}: плюс — сверх нормы, минус — меньше нормы. У замены норма —
+     * рецептурное количество исходного сырья, {@code note} = «вместо …».
+     */
+    public record NormRow(String ingredientName, String unit, BigDecimal norm, BigDecimal current, BigDecimal diff,
+                          String note) {
+    }
+
+    /** Замес товара изменён после выдачи: было (в последнем «выдано») → сейчас. */
+    public record BatchChange(String productName, BigDecimal issued, BigDecimal current) {
     }
 
     @Transactional(readOnly = true)
@@ -1213,7 +1228,10 @@ public class ProductionRequestService {
         List<DiffRow> rows = diffRows(baseline, request);
         // Инициализируем ленивые коллекции внутри транзакции — DTO собирается уже снаружи.
         request.getRevisions().forEach(r -> r.getItems().size());
-        return new CompositionDiff(request, baseline, rows, List.copyOf(request.getRevisions()));
+        request.getRevisions().forEach(r -> r.getLines().size());
+        request.getLines().forEach(l -> l.getProduct().getName());
+        return new CompositionDiff(request, baseline, rows, List.copyOf(request.getRevisions()),
+                normRows(request), batchChanges(baseline, request));
     }
 
     /**
@@ -1261,6 +1279,61 @@ public class ProductionRequestService {
                 .toList();
     }
 
+    private List<NormRow> normRows(ProductionRequest request) {
+        Adjustments a = adjustmentsOf(request);
+        Map<Long, Long> baseOf = new LinkedHashMap<>();
+        a.substitutes().forEach((originalId, item) -> baseOf.put(item.getIngredient().getId(), originalId));
+        Map<Long, BigDecimal> current = new LinkedHashMap<>();
+        for (ProductionRequestItem item : request.getItems()) {
+            current.merge(item.getIngredient().getId(), item.getRequiredQuantity(), BigDecimal::add);
+        }
+        List<NormRow> rows = new ArrayList<>();
+        current.forEach((id, qty) -> {
+            Ingredient ingredient = a.ingredients().get(id);
+            Long baseId = baseOf.get(id);
+            BigDecimal norm = a.recipe().getOrDefault(baseId != null ? baseId : id, BigDecimal.ZERO);
+            String note = baseId != null ? "вместо «" + a.ingredients().get(baseId).getName() + "»"
+                    : a.recipe().containsKey(id) ? null : "нет в рецептуре";
+            rows.add(new NormRow(ingredient.getName(), ingredient.getUnit(), norm, qty, qty.subtract(norm), note));
+        });
+        for (Long id : a.removed()) {
+            Ingredient ingredient = a.ingredients().get(id);
+            BigDecimal norm = a.recipe().get(id);
+            rows.add(new NormRow(ingredient.getName(), ingredient.getUnit(), norm, BigDecimal.ZERO, norm.negate(),
+                    "удалено из заявки"));
+        }
+        return rows;
+    }
+
+    /** Пусто, если сырьё не выдавали или снимок «выдано» сделан до того, как в историю стали писать замесы. */
+    private static List<BatchChange> batchChanges(ProductionRequestRevision baseline, ProductionRequest request) {
+        if (baseline == null || baseline.getLines().isEmpty()) {
+            return List.of();
+        }
+        Map<Long, String> names = new LinkedHashMap<>();
+        Map<Long, BigDecimal> issued = new LinkedHashMap<>();
+        Map<Long, BigDecimal> current = new LinkedHashMap<>();
+        for (ProductionRequestRevision.Line l : baseline.getLines()) {
+            names.put(l.getProductId(), l.getProductName());
+            issued.merge(l.getProductId(), l.getBatches(), BigDecimal::add);
+        }
+        for (ProductionRequestLine l : request.getLines()) {
+            names.put(l.getProduct().getId(), l.getProduct().getName());
+            current.merge(l.getProduct().getId(), batchesOf(l), BigDecimal::add);
+        }
+        List<BatchChange> changes = new ArrayList<>();
+        names.forEach((id, name) -> {
+            BigDecimal was = issued.getOrDefault(id, BigDecimal.ZERO);
+            BigDecimal now = current.getOrDefault(id, BigDecimal.ZERO);
+            if (was.compareTo(now) != 0) changes.add(new BatchChange(name, was, now));
+        });
+        return changes;
+    }
+
+    private static BigDecimal batchesOf(ProductionRequestLine line) {
+        return line.getBatches() == null ? BigDecimal.ZERO : line.getBatches();
+    }
+
     /**
      * Заявки, собранные до появления истории, снимка «выдано» не имеют — перед первой правкой
      * снимаем текущий (ещё не изменённый) состав как выданный, иначе разницу не посчитать.
@@ -1280,9 +1353,13 @@ public class ProductionRequestService {
     private void recordRevision(ProductionRequest request, String by, String note, boolean issued) {
         snapshot(request, by, note, issued);
         ProductionRequestRevision baseline = lastIssued(request);
+        List<BatchChange> changes = batchChanges(baseline, request);
         boolean pending = baseline != null
-                && diffRows(baseline, request).stream().anyMatch(r -> r.diff().signum() != 0);
+                && (!changes.isEmpty() || diffRows(baseline, request).stream().anyMatch(r -> r.diff().signum() != 0));
         request.setCompositionDiffPending(pending);
+        request.setCompositionDiffBatches(pending && !changes.isEmpty() ? changes.stream()
+                .map(c -> c.productName() + " " + fmt(c.issued()) + " → " + fmt(c.current()))
+                .collect(Collectors.joining(", ")) : null);
     }
 
     private static ProductionRequestRevision snapshot(ProductionRequest request, String by, String note, boolean issued) {
@@ -1294,6 +1371,10 @@ public class ProductionRequestService {
         for (ProductionRequestItem i : request.getItems()) {
             revision.getItems().add(new ProductionRequestRevision.Item(i.getIngredient().getId(),
                     i.getIngredient().getName(), i.getIngredient().getUnit(), i.getRequiredQuantity()));
+        }
+        for (ProductionRequestLine l : request.getLines()) {
+            revision.getLines().add(new ProductionRequestRevision.Line(l.getProduct().getId(),
+                    l.getProduct().getName(), batchesOf(l)));
         }
         request.getRevisions().add(revision);
         return revision;
