@@ -12,7 +12,10 @@ import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.domain.ProductionRequest;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductReturnRepository;
+import com.confectionery.crm.domain.Role;
 import com.confectionery.crm.service.IngredientService;
+import com.confectionery.crm.service.UserService;
+import org.springframework.security.core.Authentication;
 import com.confectionery.crm.service.ProductionRequestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +49,7 @@ public class DashboardExtrasApiController {
     private final ProductReturnRepository productReturnRepository;
     private final IngredientService ingredientService;
     private final ProductionRequestService productionRequestService;
+    private final UserService userService;
 
     /** Продажа за день = отгружено минус возвраты, как на обычном дашборде. */
     private BigDecimal netSales(LocalDate from, LocalDate to) {
@@ -56,6 +60,7 @@ public class DashboardExtrasApiController {
 
     @GetMapping("/insights")
     @Transactional(readOnly = true)
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','SALES')")
     public DashboardInsightsDto insights(@RequestParam(required = false) LocalDate to) {
         LocalDate end = to != null ? to : LocalDate.now();
         LocalDate start = end.minusDays(6);
@@ -149,7 +154,10 @@ public class DashboardExtrasApiController {
 
     @GetMapping("/feed")
     @Transactional(readOnly = true)
-    public DayFeedDto feed(@RequestParam(required = false) LocalDate date) {
+    public DayFeedDto feed(@RequestParam(required = false) LocalDate date, Authentication authentication) {
+        // Склады (ГП, сырьё) видят события дня, но без денег — суммы продаж им не показываем.
+        Role role = userService.roleOf(authentication.getName());
+        boolean money = role == Role.ADMIN || role == Role.ACCOUNTANT || role == Role.SALES;
         LocalDate day = date != null ? date : LocalDate.now();
         LocalDateTime start = day.atStartOfDay();
         LocalDateTime end = day.plusDays(1).atStartOfDay();
@@ -157,21 +165,22 @@ public class DashboardExtrasApiController {
 
         List<Order> created = orderRepository.findByCreatedAtBetween(start, end);
         for (Order o : created) {
-            String meta = money(o.getTotalPrice()) + (Boolean.TRUE.equals(o.getFromWhatsapp()) ? " · из WhatsApp" : "")
-                    + (o.isImportedFromOneC() ? " · из 1С" : "");
+            String meta = join(money ? money(o.getTotalPrice()) : null,
+                    Boolean.TRUE.equals(o.getFromWhatsapp()) ? "из WhatsApp" : null,
+                    o.isImportedFromOneC() ? "из 1С" : null);
             events.add(new DayFeedDto.Event(o.getCreatedAt(), "ORDER_NEW",
                     "Новый заказ №" + o.getId() + " · " + o.getClient().getName(), meta, o.getId(), null));
         }
         for (Order o : orderRepository.findByShippedAtBetween(start, end)) {
             if (o.getStatus() == OrderStatus.CANCELLED) continue;
-            String meta = money(o.getTotalPrice()) + (o.getVehicleNumber() != null ? " · " + o.getVehicleNumber() : "");
+            String meta = join(money ? money(o.getTotalPrice()) : null, o.getVehicleNumber());
             events.add(new DayFeedDto.Event(o.getShippedAt(), "ORDER_SHIPPED",
                     "Отгружен №" + o.getId() + " · " + o.getClient().getName(), meta, o.getId(), null));
         }
         for (ProductReturn r : productReturnRepository.findByReturnDateBetweenOrderByCreatedAtDesc(day, day)) {
-            String reason = r.getReason() != null && !r.getReason().isBlank() ? " · " + r.getReason() : "";
             events.add(new DayFeedDto.Event(r.getCreatedAt(), "RETURN",
-                    "Возврат · " + r.getClient().getName(), "−" + money(r.getTotalSum()) + reason,
+                    "Возврат · " + r.getClient().getName(),
+                    join(money ? "−" + money(r.getTotalSum()) : null, r.getReason()),
                     r.getOrder() != null ? r.getOrder().getId() : null, null));
         }
         for (ProductionRequest pr : productionRequestService.findAll()) {
@@ -185,7 +194,13 @@ public class DashboardExtrasApiController {
             }
         }
         events.sort(Comparator.comparing(DayFeedDto.Event::time).reversed());
-        return new DayFeedDto(day, netSales(day, day), created.size(), events);
+        return new DayFeedDto(day, money ? netSales(day, day) : null, created.size(), events);
+    }
+
+    /** Непустые части через « · ». */
+    private static String join(String... parts) {
+        return java.util.Arrays.stream(parts).filter(p -> p != null && !p.isBlank())
+                .collect(java.util.stream.Collectors.joining(" · "));
     }
 
     private static String title(ProductionRequest pr) {

@@ -386,7 +386,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppListTile(
                   leadingIcon: Icons.receipt_long_outlined,
                   title: '#${o.id} · ${o.clientName}',
-                  subtitle: '${formatDate(o.createdAt)} · ${formatMoney(o.totalPrice)}',
+                  subtitle: formatDate(o.createdAt), // складу ГП суммы не показываем
                   trailing: StatusBadge(status: o.status, label: o.statusLabel),
                   onTap: () async {
                     await Navigator.of(context).pushNamed('/orders/detail', arguments: o.id);

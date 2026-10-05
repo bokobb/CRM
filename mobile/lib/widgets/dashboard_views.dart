@@ -275,10 +275,11 @@ class _FeedViewState extends State<FeedView> {
                       child: Wrap(
                         spacing: 18,
                         children: [
-                          Text.rich(TextSpan(children: [
-                            TextSpan(text: 'Продано ', style: TextStyle(color: p.muted)),
-                            TextSpan(text: formatMoney(f.salesTotal), style: const TextStyle(fontWeight: FontWeight.w500)),
-                          ])),
+                          if (f.salesTotal != null)
+                            Text.rich(TextSpan(children: [
+                              TextSpan(text: 'Продано ', style: TextStyle(color: p.muted)),
+                              TextSpan(text: formatMoney(f.salesTotal!), style: const TextStyle(fontWeight: FontWeight.w500)),
+                            ])),
                           Text.rich(TextSpan(children: [
                             TextSpan(text: 'Заказов ', style: TextStyle(color: p.muted)),
                             TextSpan(text: '${f.ordersCreated}', style: const TextStyle(fontWeight: FontWeight.w500)),

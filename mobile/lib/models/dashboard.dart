@@ -198,7 +198,9 @@ class DashboardAlert {
 /// Лента дня.
 class DayFeed {
   final DateTime date;
-  final double salesTotal;
+
+  /// null — роль без денег (склады): «Продано» не показываем.
+  final double? salesTotal;
   final int ordersCreated;
   final List<FeedEvent> events;
 
@@ -206,7 +208,7 @@ class DayFeed {
 
   factory DayFeed.fromJson(Map<String, dynamic> json) => DayFeed(
     date: DateTime.parse(json['date'] as String),
-    salesTotal: (json['salesTotal'] as num).toDouble(),
+    salesTotal: (json['salesTotal'] as num?)?.toDouble(),
     ordersCreated: json['ordersCreated'] as int,
     events: (json['events'] as List).map((e) => FeedEvent.fromJson(e as Map<String, dynamic>)).toList(),
   );
