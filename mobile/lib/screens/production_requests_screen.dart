@@ -193,25 +193,10 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                         title: r.title,
                         subtitle: '№${r.id} · ${r.productNames.join(", ")} · ${formatQty(r.totalBatches)} замес. всего · '
                             '${r.createdBy} · ${formatDate(r.documentDate)}',
-                        subtitleExtra: (r.hasShortfall || r.compositionDiffPending)
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (r.hasShortfall)
-                                    Text(
-                                      'Недостаточно: ${r.shortfallText}',
-                                      style: TextStyle(
-                                          color: context.pal.danger, fontWeight: FontWeight.w600, fontSize: 12),
-                                    ),
-                                  if (r.compositionDiffPending)
-                                    Text(
-                                      r.compositionDiffBatches != null
-                                          ? 'Замес изменён после выдачи: ${r.compositionDiffBatches} — удерживайте, чтобы увидеть разницу'
-                                          : 'Состав изменён после выдачи — удерживайте, чтобы увидеть разницу',
-                                      style: const TextStyle(
-                                          color: Color(0xFFC77C12), fontWeight: FontWeight.w600, fontSize: 12),
-                                    ),
-                                ],
+                        subtitleExtra: r.hasShortfall
+                            ? Text(
+                                'Недостаточно: ${r.shortfallText}',
+                                style: TextStyle(color: context.pal.danger, fontWeight: FontWeight.w600, fontSize: 12),
                               )
                             : null,
                         trailing: StatusBadge(
