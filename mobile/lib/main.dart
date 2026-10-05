@@ -86,15 +86,15 @@ class CrmApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: ThemeController.mode,
-      builder: (context, themeMode, _) => MaterialApp(
+    return ListenableBuilder(
+      listenable: ThemeController.listenable,
+      builder: (context, _) => MaterialApp(
         title: 'Юг Сладости',
         debugShowCheckedModeBanner: false,
         navigatorKey: navigatorKey,
-        theme: buildAppTheme(AppPalette.light),
-        darkTheme: buildAppTheme(AppPalette.dark),
-        themeMode: themeMode,
+        theme: buildAppTheme(ThemeController.day.value),
+        darkTheme: buildAppTheme(ThemeController.night.value),
+        themeMode: ThemeController.mode.value,
         initialRoute: ApiClient.currentSession == null ? '/login' : homeRouteForRole(ApiClient.currentSession!.role),
         onGenerateRoute: (settings) {
           switch (settings.name) {

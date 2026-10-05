@@ -6,16 +6,17 @@ import '../theme/app_theme.dart';
 class TK {
   // Техкарты переведены на общий деловой стиль приложения (см. theme/app_theme.dart): цвета —
   // из темы через context.pal (день/ночь), шрифт — IBM Plex Sans; здесь остались только размеры.
-  static const display = appFont;
-  static const body = appFont;
-  static const mono = appFont;
+  // null — шрифт берётся из выбранной темы.
+  static const String? display = null;
+  static const String? body = null;
+  static const String? mono = null;
 
-  static const h1 = TextStyle(fontFamily: appFont, fontSize: 20, fontWeight: FontWeight.w600, height: 1.2);
-  static const h2 = TextStyle(fontFamily: appFont, fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.2, height: 1.2);
-  static const label = TextStyle(fontFamily: appFont, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.9);
-  static const note = TextStyle(fontFamily: appFont, fontSize: 12);
-  static const text = TextStyle(fontFamily: appFont, fontSize: 14);
-  static const num = TextStyle(fontFamily: appFont, fontSize: 13.5, fontFeatures: [FontFeature.tabularFigures()]);
+  static const h1 = TextStyle(fontSize: 20, fontWeight: FontWeight.w600, height: 1.2);
+  static const h2 = TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.2, height: 1.2);
+  static const label = TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.9);
+  static const note = TextStyle(fontSize: 12);
+  static const text = TextStyle(fontSize: 14);
+  static const num = TextStyle(fontSize: 13.5, fontFeatures: [FontFeature.tabularFigures()]);
 
   /// Экраны техкарт используют общую тему приложения.
   static ThemeData theme(ThemeData base) => base;

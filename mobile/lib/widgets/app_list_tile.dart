@@ -50,8 +50,8 @@ class AppListTile extends StatelessWidget {
       color: backgroundColor,
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: context.pal.line),
+        borderRadius: BorderRadius.circular(context.pal.radius - 2),
+        side: BorderSide(color: context.pal.cardBorder),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(

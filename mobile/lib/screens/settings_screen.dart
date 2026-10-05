@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/connection_sheet.dart';
+import 'theme_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -21,6 +22,16 @@ class SettingsScreen extends StatelessWidget {
       drawer: const AppDrawer(currentRoute: '/settings'),
       body: ListView(
         children: [
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('Оформление'),
+            subtitle: const Text('Темы: дневная, ночная, режим'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ThemeSettingsScreen()),
+            ),
+          ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.wifi_outlined),
             title: const Text('Подключение'),

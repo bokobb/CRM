@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Палитра строгого делового стиля (см. макет «Юг Сладости — новый стиль»): нейтральный фон,
-/// белые карточки с тонкой рамкой, бордовый акцент только на главных действиях. Две версии —
-/// день и ночь; экраны берут цвета через `context.pal`, а не константами, чтобы ночная тема
-/// работала везде.
+/// Палитра темы приложения. Тем несколько (см. [AppPalette.all]) — пользователь выбирает
+/// дневную и ночную в «Настройки › Оформление». Экраны берут цвета через `context.pal`, а не
+/// константами, чтобы любая тема работала везде.
 @immutable
 class AppPalette extends ThemeExtension<AppPalette> {
+  final String id;
+  final String name;
+  final bool isDark;
+
+  /// Шрифт темы; null — системный (Roboto), как было в первой версии приложения.
+  final String? font;
+
+  /// Карточки с тонкой рамкой; без рамки — отделяются от фона только оттенком.
+  final bool bordered;
+  final double radius;
+
   final Color bg;
   final Color card;
   final Color ink;
@@ -15,12 +25,19 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color seg;
   final Color track;
   final Color accent;
+  final Color onAccent;
   final Color danger;
   final Color warn;
   final Color success;
   final Color info;
 
   const AppPalette({
+    required this.id,
+    required this.name,
+    required this.isDark,
+    this.font = appFont,
+    this.bordered = true,
+    this.radius = 14,
     required this.bg,
     required this.card,
     required this.ink,
@@ -29,13 +46,39 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.seg,
     required this.track,
     required this.accent,
+    this.onAccent = Colors.white,
     required this.danger,
     required this.warn,
     required this.success,
     required this.info,
   });
 
+  /// Первая версия: малиновый акцент, кремовый фон, системный шрифт.
+  static const classic = AppPalette(
+    id: 'classic',
+    name: 'Классическая',
+    isDark: false,
+    font: null,
+    radius: 12,
+    bg: Color(0xFFF7F3EC),
+    card: Color(0xFFFFFFFF),
+    ink: Color(0xFF2B1F1A),
+    muted: Color(0xFF8A817A),
+    line: Color(0xFFE7E0D8),
+    seg: Color(0xFFEFE8DE),
+    track: Color(0xFFEFE8DE),
+    accent: Color(0xFFB8324A),
+    danger: Color(0xFFB8433F),
+    warn: Color(0xFFC08A2E),
+    success: Color(0xFF4C8A5E),
+    info: Color(0xFF3F6A93),
+  );
+
+  /// Строгая (день): нейтральный фон, белые карточки с рамкой, бордовый акцент.
   static const light = AppPalette(
+    id: 'strict_light',
+    name: 'Строгая',
+    isDark: false,
     bg: Color(0xFFF5F4F1),
     card: Color(0xFFFFFFFF),
     ink: Color(0xFF1C1B1A),
@@ -50,7 +93,55 @@ class AppPalette extends ThemeExtension<AppPalette> {
     info: Color(0xFF2B6CB0),
   );
 
+  /// Тёплая бумага: без чистого белого, тёмно-коричневый текст, терракотовый акцент.
+  static const paper = AppPalette(
+    id: 'paper',
+    name: 'Тёплая бумага',
+    isDark: false,
+    bordered: false,
+    radius: 18,
+    bg: Color(0xFFECE6DC),
+    card: Color(0xFFF6F2EA),
+    ink: Color(0xFF3B342D),
+    muted: Color(0xFF7A7066),
+    line: Color(0xFFE4DDD2),
+    seg: Color(0xFFE2DBCF),
+    track: Color(0xFFE2DBCF),
+    accent: Color(0xFF8C4A3C),
+    onAccent: Color(0xFFFBF6EE),
+    danger: Color(0xFFA5453A),
+    warn: Color(0xFF9A6A1E),
+    success: Color(0xFF4A7A55),
+    info: Color(0xFF3F6A93),
+  );
+
+  /// Шалфей: приглушённый серо-зелёный, минимум бликов.
+  static const sage = AppPalette(
+    id: 'sage',
+    name: 'Шалфей',
+    isDark: false,
+    bordered: false,
+    radius: 18,
+    bg: Color(0xFFE3E7E1),
+    card: Color(0xFFEEF1EC),
+    ink: Color(0xFF2F3631),
+    muted: Color(0xFF6C766E),
+    line: Color(0xFFDCE1D9),
+    seg: Color(0xFFD8DDD5),
+    track: Color(0xFFD8DDD5),
+    accent: Color(0xFF3F6B5B),
+    onAccent: Color(0xFFF3F6F2),
+    danger: Color(0xFFA44B42),
+    warn: Color(0xFF94701F),
+    success: Color(0xFF3F6B5B),
+    info: Color(0xFF3D6888),
+  );
+
+  /// Строгая (ночь): тёмно-серая.
   static const dark = AppPalette(
+    id: 'strict_dark',
+    name: 'Строгая ночь',
+    isDark: true,
     bg: Color(0xFF141517),
     card: Color(0xFF1E1F22),
     ink: Color(0xFFECEAE6),
@@ -65,10 +156,62 @@ class AppPalette extends ThemeExtension<AppPalette> {
     info: Color(0xFF7FA7E0),
   );
 
-  /// Мягкий фон под цветной текст/иконку (плашки статусов, предупреждения) — в обеих темах.
-  Color tint(Color c) => c.withValues(alpha: identical(this, dark) ? 0.16 : 0.10);
+  /// Сумерки: тёмная, но не чёрная; светло-серый текст вместо белого.
+  static const dusk = AppPalette(
+    id: 'dusk',
+    name: 'Сумерки',
+    isDark: true,
+    bordered: false,
+    radius: 18,
+    bg: Color(0xFF2B2E33),
+    card: Color(0xFF353940),
+    ink: Color(0xFFD8D5CF),
+    muted: Color(0xFF9C9A95),
+    line: Color(0xFF40454C),
+    seg: Color(0xFF34383E),
+    track: Color(0xFF40454C),
+    accent: Color(0xFFC98A7E),
+    onAccent: Color(0xFF2B2E33),
+    danger: Color(0xFFE2958B),
+    warn: Color(0xFFD9B26B),
+    success: Color(0xFF9CC4A5),
+    info: Color(0xFF93B3D3),
+  );
 
-  bool get isDark => identical(this, dark);
+  /// Сепия: тёплая тёмная, как режим чтения.
+  static const sepia = AppPalette(
+    id: 'sepia',
+    name: 'Сепия',
+    isDark: true,
+    bordered: false,
+    radius: 18,
+    bg: Color(0xFF26211C),
+    card: Color(0xFF322C26),
+    ink: Color(0xFFE3D8C8),
+    muted: Color(0xFFA89B8A),
+    line: Color(0xFF3D362F),
+    seg: Color(0xFF302A24),
+    track: Color(0xFF3D362F),
+    accent: Color(0xFFD2A15F),
+    onAccent: Color(0xFF26211C),
+    danger: Color(0xFFE09A86),
+    warn: Color(0xFFD9B06A),
+    success: Color(0xFFB3C59A),
+    info: Color(0xFFA9BCCB),
+  );
+
+  static const all = [classic, light, paper, sage, dark, dusk, sepia];
+  static List<AppPalette> get lightThemes => all.where((p) => !p.isDark).toList();
+  static List<AppPalette> get darkThemes => all.where((p) => p.isDark).toList();
+
+  static AppPalette byId(String? id, AppPalette fallback) =>
+      all.firstWhere((p) => p.id == id, orElse: () => fallback);
+
+  /// Мягкий фон под цветной текст/иконку (плашки статусов, предупреждения) — в любой теме.
+  Color tint(Color c) => c.withValues(alpha: isDark ? 0.16 : 0.10);
+
+  /// Рамка карточки: линия или (у тем без рамок) прозрачная.
+  Color get cardBorder => bordered ? line : Colors.transparent;
 
   @override
   AppPalette copyWith() => this;
@@ -87,7 +230,7 @@ ThemeData buildAppTheme(AppPalette p) {
   final brightness = p.isDark ? Brightness.dark : Brightness.light;
   final scheme = ColorScheme.fromSeed(seedColor: p.accent, brightness: brightness).copyWith(
     primary: p.accent,
-    onPrimary: Colors.white,
+    onPrimary: p.onAccent,
     secondary: p.warn,
     surface: p.card,
     onSurface: p.ink,
@@ -101,7 +244,7 @@ ThemeData buildAppTheme(AppPalette p) {
     surfaceContainerHigh: p.card,
     surfaceContainerHighest: p.seg,
   );
-  final base = ThemeData(useMaterial3: true, brightness: brightness, colorScheme: scheme, fontFamily: appFont);
+  final base = ThemeData(useMaterial3: true, brightness: brightness, colorScheme: scheme, fontFamily: p.font);
   const radius12 = BorderRadius.all(Radius.circular(12));
   return base.copyWith(
     extensions: [p],
@@ -116,7 +259,7 @@ ThemeData buildAppTheme(AppPalette p) {
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: TextStyle(fontFamily: appFont, fontSize: 20, fontWeight: FontWeight.w600, color: p.ink, letterSpacing: -0.2),
+      titleTextStyle: TextStyle(fontFamily: p.font, fontSize: 20, fontWeight: FontWeight.w600, color: p.ink, letterSpacing: -0.2),
     ),
     cardTheme: CardThemeData(
       color: p.card,
@@ -124,8 +267,8 @@ ThemeData buildAppTheme(AppPalette p) {
       elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 4),
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(14)),
-        side: BorderSide(color: p.line),
+        borderRadius: BorderRadius.all(Radius.circular(p.radius)),
+        side: BorderSide(color: p.cardBorder),
       ),
     ),
     dividerTheme: DividerThemeData(color: p.line, thickness: 1, space: 1),
@@ -137,7 +280,7 @@ ThemeData buildAppTheme(AppPalette p) {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: p.isDark ? p.seg : p.ink,
-      contentTextStyle: TextStyle(fontFamily: appFont, color: p.isDark ? p.ink : p.bg),
+      contentTextStyle: TextStyle(fontFamily: p.font, color: p.isDark ? p.ink : p.bg),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -151,16 +294,16 @@ ThemeData buildAppTheme(AppPalette p) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: p.accent,
-        foregroundColor: Colors.white,
+        foregroundColor: p.onAccent,
         minimumSize: const Size(0, 48),
         shape: const RoundedRectangleBorder(borderRadius: radius12),
-        textStyle: const TextStyle(fontFamily: appFont, fontSize: 15, fontWeight: FontWeight.w600),
+        textStyle: TextStyle(fontFamily: p.font, fontSize: 15, fontWeight: FontWeight.w600),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: p.accent,
-        foregroundColor: Colors.white,
+        foregroundColor: p.onAccent,
         elevation: 0,
         minimumSize: const Size(0, 48),
         shape: const RoundedRectangleBorder(borderRadius: radius12),
@@ -172,13 +315,13 @@ ThemeData buildAppTheme(AppPalette p) {
         side: BorderSide(color: p.line),
         minimumSize: const Size(0, 48),
         shape: const RoundedRectangleBorder(borderRadius: radius12),
-        textStyle: const TextStyle(fontFamily: appFont, fontSize: 15, fontWeight: FontWeight.w500),
+        textStyle: TextStyle(fontFamily: p.font, fontSize: 15, fontWeight: FontWeight.w500),
       ),
     ),
     textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: p.accent)),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: p.accent,
-      foregroundColor: Colors.white,
+      foregroundColor: p.onAccent,
       elevation: 2,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
     ),
@@ -186,15 +329,15 @@ ThemeData buildAppTheme(AppPalette p) {
       backgroundColor: p.card,
       selectedColor: p.ink,
       side: BorderSide(color: p.line),
-      labelStyle: TextStyle(fontFamily: appFont, color: p.ink, fontSize: 13),
-      secondaryLabelStyle: TextStyle(fontFamily: appFont, color: p.bg, fontSize: 13),
+      labelStyle: TextStyle(fontFamily: p.font, color: p.ink, fontSize: 13),
+      secondaryLabelStyle: TextStyle(fontFamily: p.font, color: p.bg, fontSize: 13),
       checkmarkColor: p.bg,
       shape: const StadiumBorder(),
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: p.accent, linearTrackColor: p.track),
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? p.accent : null),
-      checkColor: const WidgetStatePropertyAll(Colors.white),
+      checkColor: WidgetStatePropertyAll(p.onAccent),
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Colors.white : null),
@@ -212,29 +355,54 @@ ThemeData buildAppTheme(AppPalette p) {
   );
 }
 
-/// День / ночь / как в системе — выбор хранится на телефоне.
+/// Выбор оформления (хранится на телефоне): дневная тема, ночная тема и режим — авто (как в
+/// системе), день или ночь. Переключатель солнце/луна меняет режим между выбранными темами.
 class ThemeController {
   static final mode = ValueNotifier<ThemeMode>(ThemeMode.system);
-  static const _key = 'theme_mode';
+  static final day = ValueNotifier<AppPalette>(AppPalette.light);
+  static final night = ValueNotifier<AppPalette>(AppPalette.dark);
+  static final listenable = Listenable.merge([mode, day, night]);
+
+  static const _modeKey = 'theme_mode';
+  static const _dayKey = 'theme_day';
+  static const _nightKey = 'theme_night';
 
   static Future<void> load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      mode.value = switch (prefs.getString(_key)) {
+      mode.value = switch (prefs.getString(_modeKey)) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
         _ => ThemeMode.system,
       };
+      day.value = AppPalette.byId(prefs.getString(_dayKey), AppPalette.light);
+      night.value = AppPalette.byId(prefs.getString(_nightKey), AppPalette.dark);
     } catch (_) {}
   }
 
+  static Future<void> setMode(ThemeMode m) async {
+    mode.value = m;
+    await _save(_modeKey, switch (m) { ThemeMode.light => 'light', ThemeMode.dark => 'dark', _ => 'system' });
+  }
+
+  static Future<void> setDay(AppPalette p) async {
+    day.value = p;
+    await _save(_dayKey, p.id);
+  }
+
+  static Future<void> setNight(AppPalette p) async {
+    night.value = p;
+    await _save(_nightKey, p.id);
+  }
+
   /// Переключатель в шапке: из текущего вида — в противоположный.
-  static Future<void> toggle(BuildContext context) async {
-    final next = Theme.of(context).brightness == Brightness.dark ? ThemeMode.light : ThemeMode.dark;
-    mode.value = next;
+  static Future<void> toggle(BuildContext context) =>
+      setMode(Theme.of(context).brightness == Brightness.dark ? ThemeMode.light : ThemeMode.dark);
+
+  static Future<void> _save(String key, String value) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_key, next == ThemeMode.dark ? 'dark' : 'light');
+      await prefs.setString(key, value);
     } catch (_) {}
   }
 }
