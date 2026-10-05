@@ -8,114 +8,6 @@ import 'error_view.dart';
 import 'format.dart';
 import 'status_badge.dart';
 
-/// Плитка для компоновки «Крупные плитки».
-class BigTile {
-  final String label;
-  final String value;
-  final Color? dot;
-  final String? hint;
-  final VoidCallback? onTap;
-
-  const BigTile({required this.label, required this.value, this.dot, this.hint, this.onTap});
-}
-
-/// Компоновка «Крупные плитки»: первая плитка на всю ширину, остальные по две в ряд; большие цифры
-/// и кнопки — видно издалека и легко попасть пальцем (склад).
-class BigTilesView extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final List<BigTile> tiles;
-
-  const BigTilesView({super.key, required this.title, required this.subtitle, required this.tiles});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.pal;
-    Widget tile(BigTile t, {bool big = false}) => Material(
-          color: p.card,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(p.radius + 6),
-            side: BorderSide(color: p.cardBorder),
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(p.radius + 6),
-            onTap: t.onTap,
-            child: Padding(
-              padding: EdgeInsets.all(big ? 22 : 18),
-              child: SizedBox(
-                height: big ? 132 : 104,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        if (t.dot != null) ...[
-                          Container(width: 11, height: 11, decoration: BoxDecoration(color: t.dot, shape: BoxShape.circle)),
-                          const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: Text(t.label, style: TextStyle(fontSize: big ? 17 : 15.5, color: p.muted)),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            t.value,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: big ? 58 : (t.value.length > 6 ? 24 : 44),
-                              fontWeight: FontWeight.w500,
-                              height: 1,
-                              fontFeatures: const [FontFeature.tabularFigures()],
-                            ),
-                          ),
-                        ),
-                        if (t.hint != null)
-                          Text(t.hint!, style: TextStyle(fontSize: 13.5, color: p.muted)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 4, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(subtitle, style: TextStyle(fontSize: 14, color: p.muted)),
-              const SizedBox(height: 2),
-              Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
-        if (tiles.isNotEmpty) tile(tiles.first, big: true),
-        for (var i = 1; i < tiles.length; i += 2) ...[
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: tile(tiles[i])),
-              const SizedBox(width: 12),
-              Expanded(child: i + 1 < tiles.length ? tile(tiles[i + 1]) : const SizedBox()),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 String _weekdayShort(DateTime d) => const ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'][d.weekday - 1];
 
 /// Компоновка «График и Требует внимания»: продажи по дням за неделю, сравнение с прошлой
@@ -590,6 +482,185 @@ class _RecentOrdersSectionState extends State<RecentOrdersSection> {
           ],
         );
       },
+    );
+  }
+}
+
+/// Страница «Сырьё · график»: замесы, собранные складом сырья по дням за неделю, сколько заявок
+/// ждут сборки/приёма и предупреждения (мало сырья или минус, застрявшие заявки).
+class RawInsightsView extends StatefulWidget {
+  const RawInsightsView({super.key});
+
+  @override
+  State<RawInsightsView> createState() => _RawInsightsViewState();
+}
+
+class _RawInsightsViewState extends State<RawInsightsView> {
+  final _api = ApiClient();
+  late Future<RawInsights> _future = _api.getRawInsights();
+
+  Future<void> _refresh() async {
+    setState(() => _future = _api.getRawInsights());
+    await _future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: FutureBuilder<RawInsights>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+          }
+          final d = snapshot.data!;
+          final maxDay = d.days.fold<double>(0, (m, e) => e.batches > m ? e.batches : m);
+          final change = d.prevWeekBatches > 0
+              ? ((d.weekBatches - d.prevWeekBatches) / d.prevWeekBatches * 100).round()
+              : null;
+          Widget stat(String label, int value, Color color, VoidCallback onTap) => Expanded(
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onTap,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(label, style: TextStyle(fontSize: 12.5, color: p.muted)),
+                          const SizedBox(height: 4),
+                          Text('$value', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: color)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text('Собрано замесов за 7 дней', style: TextStyle(fontSize: 13, color: p.muted))),
+                          if (change != null)
+                            Text(
+                              '${change >= 0 ? '+' : ''}$change% к прошлой неделе',
+                              style: TextStyle(fontSize: 13, color: p.muted),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        formatQty(d.weekBatches),
+                        style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w500, fontFeatures: [FontFeature.tabularFigures()]),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 118,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            for (var i = 0; i < d.days.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 8),
+                              Expanded(
+                                child: Tooltip(
+                                  message: '${formatDate(d.days[i].date)}: ${formatQty(d.days[i].batches)} замес., '
+                                      'заявок ${d.days[i].requests}',
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      Container(
+                                        height: maxDay <= 0 ? 4 : 4 + 86 * (d.days[i].batches / maxDay),
+                                        decoration: BoxDecoration(
+                                          color: i == d.days.length - 1 ? p.accent : p.track,
+                                          borderRadius: const BorderRadius.vertical(top: Radius.circular(6), bottom: Radius.circular(3)),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _weekdayShort(d.days[i].date),
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: i == d.days.length - 1 ? p.ink : p.muted,
+                                          fontWeight: i == d.days.length - 1 ? FontWeight.w600 : FontWeight.w400,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  stat('Ждут сборки', d.pending, p.warn, () => Navigator.of(context).pushNamed('/production-requests')),
+                  const SizedBox(width: 12),
+                  stat('Ждут склад ГП', d.awaitingReceipt, p.info, () => Navigator.of(context).pushNamed('/production-requests')),
+                ],
+              ),
+              if (d.alerts.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    'ТРЕБУЕТ ВНИМАНИЯ',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: p.muted),
+                  ),
+                ),
+                for (final a in d.alerts)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: p.tint(a.kind == 'LOW_STOCK' ? p.danger : (a.kind == 'STUCK_REQUEST' ? p.warn : p.info)),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Icon(
+                          a.kind == 'LOW_STOCK' ? Icons.inventory_2_outlined : Icons.schedule_outlined,
+                          color: a.kind == 'LOW_STOCK' ? p.danger : (a.kind == 'STUCK_REQUEST' ? p.warn : p.info),
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(a.title, style: const TextStyle(fontSize: 14.5)),
+                      subtitle: Text(a.meta, style: TextStyle(fontSize: 12.5, color: p.muted)),
+                      trailing: a.requestId != null ? Icon(Icons.chevron_right, color: p.muted) : null,
+                      onTap: a.requestId == null
+                          ? null
+                          : () async {
+                              await Navigator.of(context).pushNamed('/production-requests/detail', arguments: a.requestId);
+                              _refresh();
+                            },
+                    ),
+                  ),
+              ],
+            ],
+          );
+        },
+      ),
     );
   }
 }

@@ -48,12 +48,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     LayoutController.dashboard.addListener(_onLayoutChanged);
   }
 
+  String? get _role => ApiClient.currentSession?.role;
+
+  /// Страницы сырья — складу сырья и тем, кто создаёт заявки на сырьё (админ, бухгалтер).
+  bool get _hasRawPages => _isWarehouseRaw || _role == 'ADMIN' || _role == 'ACCOUNTANT';
+
+  bool get _canCreateOrder => _role == 'SALES' || _role == 'ADMIN' || _role == 'ACCOUNTANT';
+  bool get _canCreateRequest => _role == 'ADMIN' || _role == 'ACCOUNTANT';
+
   void _load() {
-    if (_isWarehouseRaw) {
+    if (_hasRawPages) {
       _prodFuture = _api.getProductionDashboard(from: _range.start, to: _range.end);
-    } else if (_isWarehouseFg) {
+    }
+    if (_isWarehouseFg) {
       _fgFuture = _api.getWarehouseDashboard(from: _range.start, to: _range.end);
-    } else {
+    } else if (!_isWarehouseRaw) {
       _future = _api.getDashboard(from: _range.start, to: _range.end);
     }
   }
@@ -76,15 +85,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   @override
-  /// Свайп влево/вправо листает виды дашборда в этом порядке; выбранный запоминается (как в
-  /// Настройки › Оформление › Компоновка).
-  static const _pages = [DashboardView.standard, DashboardView.chart, DashboardView.feed, DashboardView.tiles];
-  static const _pageNames = ['Обычный', 'График', 'Лента дня', 'Плитки'];
-  late final PageController _pageController =
-      PageController(initialPage: _pages.indexOf(LayoutController.dashboard.value));
+  /// Страницы дашборда роли, листаются свайпом влево/вправо; открытая запоминается (то же,
+  /// что Настройки › Оформление › Компоновка).
+  List<DashboardView> get _pages {
+    if (_isWarehouseRaw) return const [DashboardView.raw, DashboardView.rawChart, DashboardView.feed];
+    if (_isWarehouseFg) return const [DashboardView.standard, DashboardView.feed];
+    return [
+      DashboardView.standard,
+      DashboardView.chart,
+      DashboardView.feed,
+      if (_hasRawPages) ...[DashboardView.raw, DashboardView.rawChart],
+    ];
+  }
+
+  static const _pageNames = {
+    DashboardView.standard: 'Обычный',
+    DashboardView.chart: 'График',
+    DashboardView.feed: 'Лента дня',
+    DashboardView.raw: 'Сырьё',
+    DashboardView.rawChart: 'Сырьё · график',
+  };
+
+  int get _current {
+    final i = _pages.indexOf(LayoutController.dashboard.value);
+    return i < 0 ? 0 : i;
+  }
+
+  late final PageController _pageController = PageController(initialPage: _current);
 
   void _onLayoutChanged() {
-    final i = _pages.indexOf(LayoutController.dashboard.value);
+    final i = _current;
     if (_pageController.hasClients && _pageController.page?.round() != i) _pageController.jumpToPage(i);
     if (mounted) setState(() {});
   }
@@ -96,31 +126,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  Widget _standardOrTiles({required bool tiles}) => Column(
+  Widget _withDateFilter(Widget child) => Column(
         children: [
           DateFilterBar(range: _range, onChanged: _onRangeChanged),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refresh,
-              child: tiles
-                  ? _buildTilesBody()
-                  : _isWarehouseRaw
-                      ? _buildProductionBody()
-                      : _isWarehouseFg
-                          ? _buildWarehouseBody()
-                          : _buildSalesBody(),
-            ),
-          ),
+          Expanded(child: RefreshIndicator(onRefresh: _refresh, child: child)),
         ],
       );
+
+  Widget _page(DashboardView v) => switch (v) {
+        DashboardView.standard => _withDateFilter(_isWarehouseFg ? _buildWarehouseBody() : _buildSalesBody()),
+        DashboardView.chart => const InsightsView(),
+        DashboardView.feed => const FeedView(),
+        DashboardView.raw => _withDateFilter(_buildProductionBody()),
+        DashboardView.rawChart => const RawInsightsView(),
+      };
+
+  /// Кнопка внизу: на страницах продаж — новый заказ, на страницах сырья — новая заявка на сырьё.
+  Widget? _bottomAction(DashboardView v) {
+    final raw = v == DashboardView.raw || v == DashboardView.rawChart;
+    if (raw && _canCreateRequest) {
+      return FilledButton.icon(
+        onPressed: () async {
+          await Navigator.of(context).pushNamed('/production-requests/new');
+          _refresh();
+        },
+        icon: const Icon(Icons.science_outlined),
+        label: const Text('Новая заявка на сырьё'),
+      );
+    }
+    if (!raw && v != DashboardView.feed && _canCreateOrder) {
+      return FilledButton.icon(
+        onPressed: () async {
+          await Navigator.of(context).pushNamed('/orders/new');
+          _refresh();
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Новый заказ'),
+      );
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = context.pal;
-    final current = _pages.indexOf(LayoutController.dashboard.value);
+    final pages = _pages;
+    final current = _current;
+    final action = _bottomAction(pages[current]);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Дашборд · ${_pageNames[current]}'),
+        title: Text('Дашборд · ${_pageNames[pages[current]]}'),
         actions: const [ThemeToggleButton(), SizedBox(width: 4)],
       ),
       drawer: const AppDrawer(currentRoute: '/'),
@@ -130,115 +185,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: PageView(
               controller: _pageController,
-              onPageChanged: (i) => LayoutController.setDashboard(_pages[i]),
-              children: [
-                _standardOrTiles(tiles: false),
-                const InsightsView(),
-                const FeedView(),
-                _standardOrTiles(tiles: true),
-              ],
+              onPageChanged: (i) => LayoutController.setDashboard(pages[i]),
+              children: [for (final v in pages) _page(v)],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < _pages.length; i++)
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: i == current ? 18 : 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: i == current ? p.accent : p.line,
-                      borderRadius: BorderRadius.circular(3),
+          if (action != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+              child: SizedBox(width: double.infinity, child: action),
+            ),
+          if (pages.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < pages.length; i++)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: i == current ? 18 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: i == current ? p.accent : p.line,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
   }
-
-  static String _todayTitle() {
-    final now = DateTime.now();
-    const wd = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
-    return '${wd[now.weekday - 1]}, ${formatDate(now)}';
-  }
-
-  /// Компоновка «Крупные плитки» — те же данные, что у обычного дашборда роли.
-  Widget _buildTilesBody() {
-    final p = context.pal;
-    Widget wrap<T>(Future<T> future, BigTilesView Function(T) build) => FutureBuilder<T>(
-          future: future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
-            }
-            return build(snapshot.data as T);
-          },
-        );
-    if (_isWarehouseRaw) {
-      return wrap<ProductionDashboard>(_prodFuture, (d) => BigTilesView(
-            subtitle: _todayTitle(),
-            title: 'Склад сырья',
-            tiles: [
-              BigTile(label: 'Ждут сборки', value: '${d.pending}', dot: p.warn,
-                  onTap: () => Navigator.of(context).pushNamed('/production-requests')),
-              BigTile(label: 'Собраны, ждут склад ГП', value: '${d.awaitingReceipt}', dot: p.info),
-              BigTile(label: 'Собрано за период', value: '${d.collectedInRange}', dot: p.success),
-              BigTile(label: 'Мало сырья', value: '${d.lowStock.length}', dot: p.danger,
-                  onTap: () => Navigator.of(context).pushNamed('/ingredients-warehouse')),
-              BigTile(label: 'Закупки', value: 'Открыть', onTap: () => Navigator.of(context).pushNamed('/purchases')),
-            ],
-          ));
-    }
-    if (_isWarehouseFg) {
-      return wrap<WarehouseDashboard>(_fgFuture, (d) {
-        final oldest = d.activeOrders.where((o) => o.status == 'NEW').toList();
-        return BigTilesView(
-          subtitle: _todayTitle(),
-          title: 'Склад ГП',
-          tiles: [
-            BigTile(
-              label: 'Собрать заказы',
-              value: '${d.toAssemble}',
-              dot: p.warn,
-              hint: oldest.isEmpty ? null : 'старший — №${oldest.first.id}',
-              onTap: () => _openOrdersStatus('NEW', d.from, d.to),
-            ),
-            BigTile(label: 'Отгрузить', value: '${d.readyToShip}', dot: p.info, onTap: () => _openOrdersStatus('READY', d.from, d.to)),
-            BigTile(label: 'Принять из цеха', value: '${d.awaitingReceipt}', dot: p.success,
-                onTap: () => Navigator.of(context).pushNamed('/production-requests')),
-            BigTile(label: 'Возвраты', value: 'Оформить', onTap: () => Navigator.of(context).pushNamed('/returns')),
-            BigTile(label: 'Остатки ГП', value: 'Открыть', onTap: () => Navigator.of(context).pushNamed('/warehouse')),
-          ],
-        );
-      });
-    }
-    return wrap<Dashboard>(_future, (d) => BigTilesView(
-          subtitle: _todayTitle(),
-          title: 'Продажа ${_rangeLabel(d.from, d.to)}',
-          tiles: [
-            BigTile(label: 'Фактическая продажа', value: formatMoney(d.todaySalesTotal)),
-            BigTile(label: 'Новых заказов', value: '${d.newOrders}', dot: p.warn, onTap: () => _openOrders(context, 'NEW', d)),
-            BigTile(label: 'Готовы к отгрузке', value: '${d.readyOrders}', dot: p.info, onTap: () => _openOrders(context, 'READY', d)),
-            BigTile(label: 'Возвраты', value: formatMoney(d.returnsTotal), dot: p.danger),
-            BigTile(label: 'Мало сырья', value: '${d.lowStock.length}', dot: p.danger),
-          ],
-        ));
-  }
-
-  void _openOrdersStatus(String status, DateTime from, DateTime to) => Navigator.of(context).pushNamed(
-        '/orders',
-        arguments: OrdersFilterArgs(status: status, from: from, to: to),
-      );
 
   Widget _buildSalesBody() {
     return FutureBuilder<Dashboard>(
@@ -455,6 +434,8 @@ class _LowStockCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Всё в норме — блок не показываем вовсе; только если что-то ниже нормы или ушло в минус.
+    if (items.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

@@ -50,14 +50,15 @@ class ThemeSettingsScreen extends StatelessWidget {
               ),
               header('Компоновка'),
               _ChoiceGroup<DashboardView>(
-                title: 'Дашборд',
+                title: 'Дашборд (стартовая страница, листается свайпом)',
                 value: LayoutController.dashboard.value,
                 onChanged: LayoutController.setDashboard,
                 options: const [
-                  (DashboardView.standard, 'Обычный', 'Карточки с суммой и остатками'),
-                  (DashboardView.tiles, 'Крупные плитки', 'Большие цифры и кнопки — удобно на складе'),
-                  (DashboardView.chart, 'График и «Требует внимания»', 'Продажи за неделю по дням и предупреждения'),
+                  (DashboardView.standard, 'Обычный', 'Продажа, заказы, последние заказы'),
+                  (DashboardView.chart, 'График', 'Продажи за неделю по дням и «Требует внимания»'),
                   (DashboardView.feed, 'Лента дня', 'Все события дня по времени'),
+                  (DashboardView.raw, 'Сырьё', 'Заявки на сырьё и низкие остатки'),
+                  (DashboardView.rawChart, 'Сырьё · график', 'Замесы по дням и «Требует внимания» по сырью'),
                 ],
               ),
               _ChoiceGroup<OrdersView>(

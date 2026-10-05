@@ -233,3 +233,62 @@ class FeedEvent {
     requestId: json['requestId'] as int?,
   );
 }
+
+/// Дашборд «Сырьё · график».
+class RawInsights {
+  final List<RawDay> days;
+  final double weekBatches;
+  final double prevWeekBatches;
+  final int pending;
+  final int awaitingReceipt;
+  final List<RawAlert> alerts;
+
+  RawInsights({
+    required this.days,
+    required this.weekBatches,
+    required this.prevWeekBatches,
+    required this.pending,
+    required this.awaitingReceipt,
+    required this.alerts,
+  });
+
+  factory RawInsights.fromJson(Map<String, dynamic> json) => RawInsights(
+    days: (json['days'] as List).map((e) => RawDay.fromJson(e as Map<String, dynamic>)).toList(),
+    weekBatches: (json['weekBatches'] as num).toDouble(),
+    prevWeekBatches: (json['prevWeekBatches'] as num).toDouble(),
+    pending: json['pending'] as int,
+    awaitingReceipt: json['awaitingReceipt'] as int,
+    alerts: (json['alerts'] as List).map((e) => RawAlert.fromJson(e as Map<String, dynamic>)).toList(),
+  );
+}
+
+class RawDay {
+  final DateTime date;
+  final double batches;
+  final int requests;
+
+  RawDay({required this.date, required this.batches, required this.requests});
+
+  factory RawDay.fromJson(Map<String, dynamic> json) => RawDay(
+    date: DateTime.parse(json['date'] as String),
+    batches: (json['batches'] as num).toDouble(),
+    requests: json['requests'] as int,
+  );
+}
+
+class RawAlert {
+  /// LOW_STOCK | STUCK_REQUEST | AWAITING_RECEIPT
+  final String kind;
+  final String title;
+  final String meta;
+  final int? requestId;
+
+  RawAlert({required this.kind, required this.title, required this.meta, this.requestId});
+
+  factory RawAlert.fromJson(Map<String, dynamic> json) => RawAlert(
+    kind: json['kind'] as String,
+    title: json['title'] as String,
+    meta: json['meta'] as String,
+    requestId: json['requestId'] as int?,
+  );
+}

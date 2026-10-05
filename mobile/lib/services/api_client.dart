@@ -305,6 +305,11 @@ class ApiClient {
     return DashboardInsights.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
+  Future<RawInsights> getRawInsights() async {
+    final res = await http.get(await _uri('/dashboard/raw-insights'), headers: await _authHeaders());
+    return RawInsights.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
   Future<DayFeed> getDayFeed({DateTime? date}) async {
     final res = await http.get(
       await _uri('/dashboard/feed', date == null ? null : {'date': _isoDate(date)}),

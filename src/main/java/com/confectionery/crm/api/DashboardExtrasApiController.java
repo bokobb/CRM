@@ -2,6 +2,9 @@ package com.confectionery.crm.api;
 
 import com.confectionery.crm.api.dto.DashboardInsightsDto;
 import com.confectionery.crm.api.dto.DayFeedDto;
+import com.confectionery.crm.api.dto.RawInsightsDto;
+import com.confectionery.crm.domain.ProductionRequestLine;
+import com.confectionery.crm.domain.ProductionRequestStatus;
 import com.confectionery.crm.domain.Ingredient;
 import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderStatus;
@@ -83,6 +86,65 @@ public class DashboardExtrasApiController {
                     o.getClient().getName() + " · " + money(o.getTotalPrice()), o.getId()));
         }
         return new DashboardInsightsDto(days, week, prevWeek, alerts);
+    }
+
+    /** Замесы заявок, собранных складом сырья в [from, to]. */
+    private static BigDecimal batches(List<ProductionRequest> all, LocalDate from, LocalDate to) {
+        return all.stream()
+                .filter(r -> r.getCollectedAt() != null && r.getStatus() != ProductionRequestStatus.CANCELLED)
+                .filter(r -> !r.getCollectedAt().toLocalDate().isBefore(from) && !r.getCollectedAt().toLocalDate().isAfter(to))
+                .flatMap(r -> r.getLines().stream())
+                .map(ProductionRequestLine::getBatches)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    @GetMapping("/raw-insights")
+    @Transactional(readOnly = true)
+    public RawInsightsDto rawInsights(@RequestParam(required = false) LocalDate to) {
+        LocalDate end = to != null ? to : LocalDate.now();
+        LocalDate start = end.minusDays(6);
+        List<ProductionRequest> all = productionRequestService.findAll();
+        List<RawInsightsDto.Day> days = new ArrayList<>();
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            final LocalDate day = d;
+            long count = all.stream()
+                    .filter(r -> r.getCollectedAt() != null && r.getStatus() != ProductionRequestStatus.CANCELLED
+                            && r.getCollectedAt().toLocalDate().isEqual(day))
+                    .count();
+            days.add(new RawInsightsDto.Day(d, batches(all, d, d), count));
+        }
+        BigDecimal week = batches(all, start, end);
+        BigDecimal prevWeek = batches(all, start.minusDays(7), start.minusDays(1));
+
+        List<RawInsightsDto.Alert> alerts = new ArrayList<>();
+        for (Ingredient i : ingredientService.findLowStock()) {
+            boolean minus = i.getQuantityInStock() != null && i.getQuantityInStock().signum() < 0;
+            alerts.add(new RawInsightsDto.Alert("LOW_STOCK",
+                    i.getName() + " — " + qty(i.getQuantityInStock()) + " из " + qty(i.getMinThreshold()) + " " + i.getUnit(),
+                    minus ? "ушло в минус" : "ниже нормы, нужна закупка", null));
+        }
+        LocalDate today = LocalDate.now();
+        long pending = 0;
+        long awaiting = 0;
+        for (ProductionRequest r : all) {
+            if (r.getStatus() == ProductionRequestStatus.NEW) {
+                pending++;
+                if (r.getCreatedAt().toLocalDate().isBefore(today)) {
+                    long dayNo = ChronoUnit.DAYS.between(r.getCreatedAt().toLocalDate(), today) + 1;
+                    alerts.add(new RawInsightsDto.Alert("STUCK_REQUEST",
+                            "Заявка №" + r.getId() + " не собрана " + dayNo + "-й день", title(r), r.getId()));
+                }
+            } else if (r.getStatus() == ProductionRequestStatus.COLLECTED) {
+                awaiting++;
+                if (r.getCollectedAt() != null && r.getCollectedAt().toLocalDate().isBefore(today)) {
+                    alerts.add(new RawInsightsDto.Alert("AWAITING_RECEIPT",
+                            "Заявка №" + r.getId() + " ждёт приёма на склад ГП",
+                            "собрана " + r.getCollectedAt().format(DAY), r.getId()));
+                }
+            }
+        }
+        return new RawInsightsDto(days, week, prevWeek, pending, awaiting, alerts);
     }
 
     @GetMapping("/feed")
