@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/report.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
@@ -45,6 +46,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Отчёты')),
       drawer: const AppDrawer(currentRoute: '/reports'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/reports'),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder<List<ReportInfo>>(

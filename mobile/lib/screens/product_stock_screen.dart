@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/product.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
@@ -128,6 +129,7 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
         ],
       ),
       drawer: const AppDrawer(currentRoute: '/warehouse'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/warehouse'),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder<List<Product>>(

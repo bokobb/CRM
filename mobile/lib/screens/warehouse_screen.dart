@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../theme/app_theme.dart';
@@ -12,6 +13,7 @@ class WarehouseScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Склад')),
       drawer: const AppDrawer(currentRoute: '/warehouse'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/warehouse'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         children: [

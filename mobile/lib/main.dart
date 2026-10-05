@@ -46,6 +46,7 @@ import 'screens/whatsapp_inbox_screen.dart';
 import 'screens/whatsapp_session_screen.dart';
 import 'services/api_client.dart';
 import 'services/push_service.dart';
+import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
 
 const accent = Color(0xFFB8324A);
@@ -58,6 +59,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ru');
   await ThemeController.load();
+  await LayoutController.load();
   final firebaseReady = await _initFirebase();
   await ApiClient.loadSession();
   if (firebaseReady) {

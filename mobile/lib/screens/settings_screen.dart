@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/connection_sheet.dart';
 import 'theme_settings_screen.dart';
@@ -20,6 +21,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Настройки')),
       drawer: const AppDrawer(currentRoute: '/settings'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/settings'),
       body: ListView(
         children: [
           ListTile(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/counterparty.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/error_view.dart';
 import '../theme/app_theme.dart';
@@ -79,6 +80,7 @@ class _CounterpartiesScreenState extends State<CounterpartiesScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Контрагенты')),
       drawer: const AppDrawer(currentRoute: '/settings'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/settings'),
       floatingActionButton: FloatingActionButton(
         onPressed: _saving ? null : _addCounterparty,
         child: _saving

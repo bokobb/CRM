@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/company_profile.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../theme/app_theme.dart';
 
@@ -65,6 +66,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Профиль компании')),
       drawer: const AppDrawer(currentRoute: '/settings'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/settings'),
       body: _initialLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

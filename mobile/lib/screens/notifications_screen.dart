@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/notification.dart';
 import '../services/api_client.dart';
 import '../services/push_service.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
@@ -48,6 +49,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Уведомления')),
       drawer: const AppDrawer(currentRoute: '/notifications'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/notifications'),
       body: Column(
         children: [
           DateFilterBar(range: _range, onChanged: _onRangeChanged),

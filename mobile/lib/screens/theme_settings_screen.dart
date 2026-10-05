@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_layout.dart';
 import '../theme/app_theme.dart';
 
 /// «Настройки › Оформление»: режим (авто / день / ночь), дневная и ночная тема. Выбор сразу
@@ -10,7 +11,7 @@ class ThemeSettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: ThemeController.listenable,
+      listenable: Listenable.merge([ThemeController.listenable, LayoutController.listenable]),
       builder: (context, _) {
         final p = context.pal;
         Widget header(String text) => Padding(
@@ -45,6 +46,40 @@ class ThemeSettingsScreen extends StatelessWidget {
                   'Авто — как в настройках телефона. Солнце/луна в шапке дашборда и «Ночная тема» в меню '
                   'переключают между выбранными ниже темами.',
                   style: TextStyle(fontSize: 12.5, color: p.muted),
+                ),
+              ),
+              header('Компоновка'),
+              _ChoiceGroup<DashboardView>(
+                title: 'Дашборд',
+                value: LayoutController.dashboard.value,
+                onChanged: LayoutController.setDashboard,
+                options: const [
+                  (DashboardView.standard, 'Обычный', 'Карточки с суммой и остатками'),
+                  (DashboardView.tiles, 'Крупные плитки', 'Большие цифры и кнопки — удобно на складе'),
+                  (DashboardView.chart, 'График и «Требует внимания»', 'Продажи за неделю по дням и предупреждения'),
+                  (DashboardView.feed, 'Лента дня', 'Все события дня по времени'),
+                ],
+              ),
+              _ChoiceGroup<OrdersView>(
+                title: 'Заказы',
+                value: LayoutController.orders.value,
+                onChanged: LayoutController.setOrders,
+                options: const [
+                  (OrdersView.list, 'Список', 'Карточки заказов'),
+                  (OrdersView.table, 'Таблица', 'Плотные строки и «Итого» — для офиса'),
+                  (OrdersView.board, 'Доска по статусам', 'Колонки «Сборка → К отгрузке → Отгружен»'),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  child: SwitchListTile(
+                    title: const Text('Нижнее меню'),
+                    subtitle: const Text('Главные разделы — вкладками внизу экрана'),
+                    value: LayoutController.bottomNav.value,
+                    onChanged: LayoutController.setBottomNav,
+                  ),
                 ),
               ),
               header('Дневная тема'),
@@ -155,6 +190,53 @@ class _ThemeTile extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Группа вариантов одной компоновки — карточка с радиокнопками.
+class _ChoiceGroup<T> extends StatelessWidget {
+  final String title;
+  final T value;
+  final ValueChanged<T> onChanged;
+  final List<(T, String, String)> options;
+
+  const _ChoiceGroup({required this.title, required this.value, required this.onChanged, required this.options});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+            RadioGroup<T>(
+              groupValue: value,
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+              child: Column(
+                children: [
+                  for (final o in options)
+                    RadioListTile<T>(
+                      value: o.$1,
+                      title: Text(o.$2),
+                      subtitle: Text(o.$3, style: TextStyle(fontSize: 12.5, color: p.muted)),
+                      activeColor: p.accent,
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

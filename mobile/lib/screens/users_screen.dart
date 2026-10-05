@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/error_view.dart';
 
@@ -34,6 +35,7 @@ class _UsersScreenState extends State<UsersScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Пользователи')),
       drawer: const AppDrawer(currentRoute: '/settings'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/settings'),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.of(context).pushNamed('/settings/users/new');

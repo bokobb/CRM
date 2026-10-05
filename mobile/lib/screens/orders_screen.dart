@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import '../models/order.dart';
 import '../services/api_client.dart';
 import '../widgets/app_choice_chip.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/hidden_search.dart';
+import '../widgets/orders_views.dart';
+import '../theme/app_layout.dart';
 import '../widgets/order_returns_sheets.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/swipe_cancel_delete.dart';
@@ -43,8 +46,23 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   @override
   void dispose() {
+    LayoutController.orders.removeListener(_onLayoutChanged);
     _search.dispose();
     super.dispose();
+  }
+
+  bool get _isBoard => LayoutController.orders.value == OrdersView.board;
+
+  /// Доска показывает все статусы колонками — фильтр по статусу к ней не применяется.
+  String? get _queryStatus => _isBoard ? null : _status;
+
+  void _onLayoutChanged() {
+    if (mounted) _refresh();
+  }
+
+  Future<void> _openOrder(OrderSummary o) async {
+    await Navigator.of(context).pushNamed('/orders/detail', arguments: o.id);
+    _refresh();
   }
 
   @override
@@ -65,12 +83,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
       }
       _range = todayRange();
     }
-    _future = _api.getOrders(status: _status, from: _range.start, to: _range.end);
+    _future = _api.getOrders(status: _queryStatus, from: _range.start, to: _range.end);
+    LayoutController.orders.addListener(_onLayoutChanged);
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _future = _api.getOrders(status: _status, from: _range.start, to: _range.end);
+      _future = _api.getOrders(status: _queryStatus, from: _range.start, to: _range.end);
     });
     await _future;
   }
@@ -88,11 +107,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Заказы'),
-        actions: [_search.button(setState), const SizedBox(width: 4)],
-      ),
+      appBar: AppBar(title: const Text('Заказы'), actions: [_search.button(setState), const SizedBox(width: 4)]),
       drawer: const AppDrawer(currentRoute: '/orders'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/orders'),
       floatingActionButton: _canCreate()
           ? FloatingActionButton(
               onPressed: () async {
@@ -106,32 +123,33 @@ class _OrdersScreenState extends State<OrdersScreen> {
         children: [
           _search.field(setState),
           DateFilterBar(range: _range, onChanged: _onRangeChanged),
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              children: [
-                AppChoiceChip(
-                  label: 'Все',
-                  selected: _status == null,
-                  onTap: () {
-                    setState(() => _status = null);
-                    _refresh();
-                  },
-                ),
-                for (final s in orderStatuses)
+          if (!_isBoard)
+            SizedBox(
+              height: 48,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                children: [
                   AppChoiceChip(
-                    label: orderStatusLabels[s]!,
-                    selected: _status == s,
+                    label: 'Все',
+                    selected: _status == null,
                     onTap: () {
-                      setState(() => _status = s);
+                      setState(() => _status = null);
                       _refresh();
                     },
                   ),
-              ],
+                  for (final s in orderStatuses)
+                    AppChoiceChip(
+                      label: orderStatusLabels[s]!,
+                      selected: _status == s,
+                      onTap: () {
+                        setState(() => _status = s);
+                        _refresh();
+                      },
+                    ),
+                ],
+              ),
             ),
-          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
@@ -144,18 +162,31 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   if (snapshot.hasError) {
                     return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
                   }
-                  final orders = snapshot.data!
-                      .where((o) => _search.matches('#${o.id} · ${o.clientName}'))
-                      .toList();
+                  final orders = snapshot.data!.where((o) => _search.matches('#${o.id} · ${o.clientName}')).toList();
                   if (orders.isEmpty) {
                     return ListView(
                       children: [
                         Padding(
                           padding: EdgeInsets.all(32),
-                          child: Center(child: Text('Заказов не найдено', style: TextStyle(color: context.pal.muted))),
+                          child: Center(
+                            child: Text('Заказов не найдено', style: TextStyle(color: context.pal.muted)),
+                          ),
                         ),
                       ],
                     );
+                  }
+                  switch (LayoutController.orders.value) {
+                    case OrdersView.table:
+                      return OrdersTableView(orders: orders, query: _search.query, onOpen: _openOrder);
+                    case OrdersView.board:
+                      return OrdersBoardView(
+                        orders: orders,
+                        query: _search.query,
+                        onOpen: _openOrder,
+                        onChanged: _refresh,
+                      );
+                    case OrdersView.list:
+                      break;
                   }
                   return ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -168,8 +199,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       // Отгруженный заказ относится ко дню отгрузки (как продажа на дашборде и
                       // реализация в 1С), неотгруженный — ко дню создания.
                       final day = o.shippedAt ?? o.createdAt;
-                      final isOutOfRange = day.isBefore(_range.start) ||
-                          day.isAfter(_range.end.add(const Duration(days: 1)));
+                      final isOutOfRange =
+                          day.isBefore(_range.start) || day.isAfter(_range.end.add(const Duration(days: 1)));
                       final tile = AppListTile(
                         leadingIcon: isOutOfRange
                             ? Icons.history_outlined
@@ -179,7 +210,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             : (o.fromWhatsapp ? const Color(0xFF25D366) : null),
                         title: '#${o.id} · ${o.clientName}',
                         highlight: _search.query,
-                        subtitle: '${o.shippedAt != null ? 'отгружен ${formatDate(o.shippedAt!)}' : formatDate(o.createdAt)}'
+                        subtitle:
+                            '${o.shippedAt != null ? 'отгружен ${formatDate(o.shippedAt!)}' : formatDate(o.createdAt)}'
                             ' · ${formatMoney(o.totalPrice)}'
                             '${o.returnsCount > 0 ? ' · возврат −${formatMoney(o.returnTotal)}' : ''}',
                         trailing: StatusBadge(status: o.status, label: o.statusLabel),
@@ -188,8 +220,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           _refresh();
                         },
                         onLongPress: () async {
-                          await showOrderReturnsCalculation(context,
-                              orderId: o.id, clientId: o.clientId, clientName: o.clientName, orderTotal: o.totalPrice);
+                          await showOrderReturnsCalculation(
+                            context,
+                            orderId: o.id,
+                            clientId: o.clientId,
+                            clientName: o.clientName,
+                            orderTotal: o.totalPrice,
+                          );
                           _refresh();
                         },
                       );

@@ -297,6 +297,22 @@ class ApiClient {
     return WarehouseDashboard.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
+  Future<DashboardInsights> getDashboardInsights({DateTime? to}) async {
+    final res = await http.get(
+      await _uri('/dashboard/insights', to == null ? null : {'to': _isoDate(to)}),
+      headers: await _authHeaders(),
+    );
+    return DashboardInsights.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
+  Future<DayFeed> getDayFeed({DateTime? date}) async {
+    final res = await http.get(
+      await _uri('/dashboard/feed', date == null ? null : {'date': _isoDate(date)}),
+      headers: await _authHeaders(),
+    );
+    return DayFeed.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
   static String _isoDate(DateTime d) => d.toIso8601String().split('T').first;
 
   static Map<String, String>? _rangeQuery(DateTime? from, DateTime? to) {

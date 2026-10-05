@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/client.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
@@ -74,6 +75,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
         onQueryChanged: (v) => setState(() => _query = v),
       ),
       drawer: const AppDrawer(currentRoute: '/clients'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/clients'),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.of(context).pushNamed('/clients/new');

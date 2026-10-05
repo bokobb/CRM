@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/ingredient.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
@@ -150,6 +151,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
         ],
       ),
       drawer: const AppDrawer(currentRoute: '/ingredients-warehouse'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/ingredients-warehouse'),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.of(context).pushNamed('/ingredients/new');

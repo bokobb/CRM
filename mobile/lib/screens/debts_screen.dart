@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/order.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
@@ -42,6 +43,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Долги')),
       drawer: const AppDrawer(currentRoute: '/debts'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/debts'),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder<List<OrderSummary>>(

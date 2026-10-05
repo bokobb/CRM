@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/product_return.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
@@ -104,6 +105,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
         onQueryChanged: (v) => setState(() => _query = v),
       ),
       drawer: const AppDrawer(currentRoute: '/returns'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/returns'),
       floatingActionButton: FloatingActionButton(onPressed: _openForm, child: const Icon(Icons.add)),
       body: Column(
         children: [

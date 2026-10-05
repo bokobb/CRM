@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/tech_card.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
@@ -55,6 +56,7 @@ class _TechCardsScreenState extends State<TechCardsScreen> {
       child: Scaffold(
         appBar: AppBar(title: const Text('Техкарта')),
         drawer: const AppDrawer(currentRoute: '/tech-cards'),
+        bottomNavigationBar: const AppBottomNav(currentRoute: '/tech-cards'),
         body: RefreshIndicator(
           onRefresh: _refresh,
           child: FutureBuilder<List<TechCardSummary>>(

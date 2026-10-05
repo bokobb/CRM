@@ -4,7 +4,7 @@ import '../services/api_client.dart';
 import '../services/push_service.dart';
 import '../theme/app_theme.dart';
 
-typedef _Item = (String route, String label, IconData icon);
+typedef AppMenuItem = (String route, String label, IconData icon);
 
 const _dashboard = ('/', 'Дашборд', Icons.dashboard_outlined);
 const _orders = ('/orders', 'Заказы', Icons.receipt_long_outlined);
@@ -33,7 +33,10 @@ class AppDrawer extends StatelessWidget {
 
   const AppDrawer({super.key, required this.currentRoute});
 
-  static List<_Item> _itemsForRole(String? role) {
+  /// Пункты меню роли — их же первые три показывает нижнее меню (см. AppBottomNav).
+  static List<AppMenuItem> menuForRole(String? role) => _itemsForRole(role);
+
+  static List<AppMenuItem> _itemsForRole(String? role) {
     switch (role) {
       case 'ADMIN':
       case 'ACCOUNTANT':

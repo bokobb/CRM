@@ -150,3 +150,86 @@ class StockLine {
     quantityInStock: (json['quantityInStock'] as num).toDouble(),
   );
 }
+
+/// Дашборд «График + Требует внимания».
+class DashboardInsights {
+  final List<DaySales> days;
+  final double weekTotal;
+  final double prevWeekTotal;
+  final List<DashboardAlert> alerts;
+
+  DashboardInsights({required this.days, required this.weekTotal, required this.prevWeekTotal, required this.alerts});
+
+  factory DashboardInsights.fromJson(Map<String, dynamic> json) => DashboardInsights(
+    days: (json['days'] as List).map((e) => DaySales.fromJson(e as Map<String, dynamic>)).toList(),
+    weekTotal: (json['weekTotal'] as num).toDouble(),
+    prevWeekTotal: (json['prevWeekTotal'] as num).toDouble(),
+    alerts: (json['alerts'] as List).map((e) => DashboardAlert.fromJson(e as Map<String, dynamic>)).toList(),
+  );
+}
+
+class DaySales {
+  final DateTime date;
+  final double amount;
+
+  DaySales({required this.date, required this.amount});
+
+  factory DaySales.fromJson(Map<String, dynamic> json) =>
+      DaySales(date: DateTime.parse(json['date'] as String), amount: (json['amount'] as num).toDouble());
+}
+
+class DashboardAlert {
+  /// LOW_STOCK | OVERDUE_DEBT | STUCK_ORDER
+  final String kind;
+  final String title;
+  final String meta;
+  final int? orderId;
+
+  DashboardAlert({required this.kind, required this.title, required this.meta, this.orderId});
+
+  factory DashboardAlert.fromJson(Map<String, dynamic> json) => DashboardAlert(
+    kind: json['kind'] as String,
+    title: json['title'] as String,
+    meta: json['meta'] as String,
+    orderId: json['orderId'] as int?,
+  );
+}
+
+/// Лента дня.
+class DayFeed {
+  final DateTime date;
+  final double salesTotal;
+  final int ordersCreated;
+  final List<FeedEvent> events;
+
+  DayFeed({required this.date, required this.salesTotal, required this.ordersCreated, required this.events});
+
+  factory DayFeed.fromJson(Map<String, dynamic> json) => DayFeed(
+    date: DateTime.parse(json['date'] as String),
+    salesTotal: (json['salesTotal'] as num).toDouble(),
+    ordersCreated: json['ordersCreated'] as int,
+    events: (json['events'] as List).map((e) => FeedEvent.fromJson(e as Map<String, dynamic>)).toList(),
+  );
+}
+
+class FeedEvent {
+  final DateTime time;
+
+  /// ORDER_NEW | ORDER_SHIPPED | RETURN | REQUEST_NEW | REQUEST_COLLECTED
+  final String kind;
+  final String title;
+  final String meta;
+  final int? orderId;
+  final int? requestId;
+
+  FeedEvent({required this.time, required this.kind, required this.title, required this.meta, this.orderId, this.requestId});
+
+  factory FeedEvent.fromJson(Map<String, dynamic> json) => FeedEvent(
+    time: DateTime.parse(json['time'] as String),
+    kind: json['kind'] as String,
+    title: json['title'] as String,
+    meta: json['meta'] as String,
+    orderId: json['orderId'] as int?,
+    requestId: json['requestId'] as int?,
+  );
+}

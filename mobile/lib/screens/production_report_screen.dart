@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 
 import '../models/production_request.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
@@ -79,6 +80,7 @@ class _ProductionReportScreenState extends State<ProductionReportScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Отчёт по производству')),
       drawer: const AppDrawer(currentRoute: '/production-requests/report'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/production-requests/report'),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: Column(

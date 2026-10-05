@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/dashboard.dart';
 import '../models/ingredient.dart';
 import '../services/api_client.dart';
+import '../theme/app_layout.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/dashboard_views.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
@@ -73,26 +76,117 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Дашборд'), actions: const [ThemeToggleButton(), SizedBox(width: 4)]),
-      drawer: const AppDrawer(currentRoute: '/'),
-      body: Column(
-        children: [
-          DateFilterBar(range: _range, onChanged: _onRangeChanged),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refresh,
-              child: _isWarehouseRaw
-                  ? _buildProductionBody()
-                  : _isWarehouseFg
-                      ? _buildWarehouseBody()
-                      : _buildSalesBody(),
+    return ListenableBuilder(
+      listenable: LayoutController.dashboard,
+      builder: (context, _) {
+        final view = LayoutController.dashboard.value;
+        final Widget body = switch (view) {
+          DashboardView.chart => const InsightsView(),
+          DashboardView.feed => const FeedView(),
+          _ => Column(
+              children: [
+                DateFilterBar(range: _range, onChanged: _onRangeChanged),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _refresh,
+                    child: view == DashboardView.tiles
+                        ? _buildTilesBody()
+                        : _isWarehouseRaw
+                            ? _buildProductionBody()
+                            : _isWarehouseFg
+                                ? _buildWarehouseBody()
+                                : _buildSalesBody(),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
+        };
+        return Scaffold(
+          appBar: AppBar(title: const Text('Дашборд'), actions: const [ThemeToggleButton(), SizedBox(width: 4)]),
+          drawer: const AppDrawer(currentRoute: '/'),
+          bottomNavigationBar: const AppBottomNav(currentRoute: '/'),
+          body: body,
+        );
+      },
     );
   }
+
+  static String _todayTitle() {
+    final now = DateTime.now();
+    const wd = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+    return '${wd[now.weekday - 1]}, ${formatDate(now)}';
+  }
+
+  /// Компоновка «Крупные плитки» — те же данные, что у обычного дашборда роли.
+  Widget _buildTilesBody() {
+    final p = context.pal;
+    Widget wrap<T>(Future<T> future, BigTilesView Function(T) build) => FutureBuilder<T>(
+          future: future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
+            }
+            return build(snapshot.data as T);
+          },
+        );
+    if (_isWarehouseRaw) {
+      return wrap<ProductionDashboard>(_prodFuture, (d) => BigTilesView(
+            subtitle: _todayTitle(),
+            title: 'Склад сырья',
+            tiles: [
+              BigTile(label: 'Ждут сборки', value: '${d.pending}', dot: p.warn,
+                  onTap: () => Navigator.of(context).pushNamed('/production-requests')),
+              BigTile(label: 'Собраны, ждут склад ГП', value: '${d.awaitingReceipt}', dot: p.info),
+              BigTile(label: 'Собрано за период', value: '${d.collectedInRange}', dot: p.success),
+              BigTile(label: 'Мало сырья', value: '${d.lowStock.length}', dot: p.danger,
+                  onTap: () => Navigator.of(context).pushNamed('/ingredients-warehouse')),
+              BigTile(label: 'Закупки', value: 'Открыть', onTap: () => Navigator.of(context).pushNamed('/purchases')),
+            ],
+          ));
+    }
+    if (_isWarehouseFg) {
+      return wrap<WarehouseDashboard>(_fgFuture, (d) {
+        final oldest = d.activeOrders.where((o) => o.status == 'NEW').toList();
+        return BigTilesView(
+          subtitle: _todayTitle(),
+          title: 'Склад ГП',
+          tiles: [
+            BigTile(
+              label: 'Собрать заказы',
+              value: '${d.toAssemble}',
+              dot: p.warn,
+              hint: oldest.isEmpty ? null : 'старший — №${oldest.first.id}',
+              onTap: () => _openOrdersStatus('NEW', d.from, d.to),
+            ),
+            BigTile(label: 'Отгрузить', value: '${d.readyToShip}', dot: p.info, onTap: () => _openOrdersStatus('READY', d.from, d.to)),
+            BigTile(label: 'Принять из цеха', value: '${d.awaitingReceipt}', dot: p.success,
+                onTap: () => Navigator.of(context).pushNamed('/production-requests')),
+            BigTile(label: 'Возвраты', value: 'Оформить', onTap: () => Navigator.of(context).pushNamed('/returns')),
+            BigTile(label: 'Остатки ГП', value: 'Открыть', onTap: () => Navigator.of(context).pushNamed('/warehouse')),
+          ],
+        );
+      });
+    }
+    return wrap<Dashboard>(_future, (d) => BigTilesView(
+          subtitle: _todayTitle(),
+          title: 'Продажа ${_rangeLabel(d.from, d.to)}',
+          tiles: [
+            BigTile(label: 'Фактическая продажа', value: formatMoney(d.todaySalesTotal)),
+            BigTile(label: 'Новых заказов', value: '${d.newOrders}', dot: p.warn, onTap: () => _openOrders(context, 'NEW', d)),
+            BigTile(label: 'Готовы к отгрузке', value: '${d.readyOrders}', dot: p.info, onTap: () => _openOrders(context, 'READY', d)),
+            BigTile(label: 'Возвраты', value: formatMoney(d.returnsTotal), dot: p.danger),
+            BigTile(label: 'Мало сырья', value: '${d.lowStock.length}', dot: p.danger),
+          ],
+        ));
+  }
+
+  void _openOrdersStatus(String status, DateTime from, DateTime to) => Navigator.of(context).pushNamed(
+        '/orders',
+        arguments: OrdersFilterArgs(status: status, from: from, to: to),
+      );
 
   Widget _buildSalesBody() {
     return FutureBuilder<Dashboard>(

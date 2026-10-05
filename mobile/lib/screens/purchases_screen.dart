@@ -7,6 +7,7 @@ import '../models/counterparty.dart';
 import '../models/ingredient.dart';
 import '../models/purchase.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
@@ -126,6 +127,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
         onQueryChanged: (v) => setState(() => _query = v),
       ),
       drawer: const AppDrawer(currentRoute: '/purchases'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/purchases'),
       floatingActionButton: FloatingActionButton(onPressed: _openForm, child: const Icon(Icons.add)),
       body: Column(
         children: [

@@ -58,6 +58,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                   @Param("end") LocalDateTime end,
                                   @Param("finalStatuses") List<OrderStatus> finalStatuses);
 
+    List<Order> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByShippedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByStatusInAndCreatedAtBefore(java.util.Collection<OrderStatus> statuses, LocalDateTime before);
+
     long countByStatusInAndShippedAtBetween(java.util.Collection<OrderStatus> statuses, LocalDateTime start, LocalDateTime end);
 
     List<Order> findByStatusInOrderByCreatedAtAsc(java.util.Collection<OrderStatus> statuses);

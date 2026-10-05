@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/employee.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
@@ -88,6 +89,7 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
         ],
       ),
       drawer: const AppDrawer(currentRoute: '/employees'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/employees'),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _edit(null),
         tooltip: 'Добавить сотрудника',

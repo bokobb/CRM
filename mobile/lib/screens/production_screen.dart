@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/production_cost.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/brigade_sheet.dart';
 import '../widgets/error_view.dart';
@@ -77,6 +78,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
       child: Scaffold(
         appBar: AppBar(title: const Text('Производство')),
         drawer: const AppDrawer(currentRoute: '/production'),
+        bottomNavigationBar: const AppBottomNav(currentRoute: '/production'),
         body: RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(

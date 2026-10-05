@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/production_request.dart';
 import '../services/api_client.dart';
 import '../widgets/app_choice_chip.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
@@ -97,6 +98,7 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Заявки на сырьё')),
       drawer: const AppDrawer(currentRoute: '/production-requests'),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/production-requests'),
       floatingActionButton: _canCreate
           ? FloatingActionButton(onPressed: _openNew, child: const Icon(Icons.add))
           : null,

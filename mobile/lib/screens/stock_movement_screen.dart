@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/ingredient.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
@@ -148,6 +149,7 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
         ],
       ),
       drawer: AppDrawer(currentRoute: widget.isProduct ? '/warehouse' : '/ingredients-warehouse'),
+      bottomNavigationBar: AppBottomNav(currentRoute: widget.isProduct ? '/warehouse' : '/ingredients-warehouse'),
       floatingActionButton: FloatingActionButton(onPressed: _openForm, child: const Icon(Icons.add)),
       body: RefreshIndicator(
         onRefresh: _refresh,
