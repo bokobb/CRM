@@ -95,6 +95,16 @@ class CrmApp extends StatelessWidget {
         theme: buildAppTheme(ThemeController.day.value),
         darkTheme: buildAppTheme(ThemeController.night.value),
         themeMode: ThemeController.mode.value,
+        // Тема может увеличивать текст (см. AppPalette.textScale) — поверх настройки телефона.
+        builder: (context, child) {
+          final scale = context.pal.textScale;
+          if (scale == 1.0) return child!;
+          final mq = MediaQuery.of(context);
+          return MediaQuery(
+            data: mq.copyWith(textScaler: TextScaler.linear(mq.textScaler.scale(1.0) * scale)),
+            child: child!,
+          );
+        },
         initialRoute: ApiClient.currentSession == null ? '/login' : homeRouteForRole(ApiClient.currentSession!.role),
         onGenerateRoute: (settings) {
           switch (settings.name) {

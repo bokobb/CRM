@@ -17,6 +17,14 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final bool bordered;
   final double radius;
 
+  /// Множитель размера текста (тема «Склад» — крупнее) и плотные строки (тема «Офис»).
+  final double textScale;
+  final bool compact;
+
+  /// Цвет шапки экрана; null — как фон (у «Корпоративного синего» шапка тёмно-синяя).
+  final Color? header;
+  final Color? onHeader;
+
   final Color bg;
   final Color card;
   final Color ink;
@@ -38,6 +46,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
     this.font = appFont,
     this.bordered = true,
     this.radius = 14,
+    this.textScale = 1.0,
+    this.compact = false,
+    this.header,
+    this.onHeader,
     required this.bg,
     required this.card,
     required this.ink,
@@ -200,7 +212,185 @@ class AppPalette extends ThemeExtension<AppPalette> {
     info: Color(0xFFA9BCCB),
   );
 
-  static const all = [classic, light, paper, sage, dark, dusk, sepia];
+  /// Корпоративный синий: тёмно-синяя шапка, светло-серый фон, белые карточки.
+  static const navy = AppPalette(
+    id: 'navy',
+    name: 'Корпоративный синий',
+    isDark: false,
+    bordered: false,
+    radius: 16,
+    header: Color(0xFF22364F),
+    onHeader: Color(0xFFE6ECF3),
+    bg: Color(0xFFEEF1F5),
+    card: Color(0xFFFFFFFF),
+    ink: Color(0xFF22303F),
+    muted: Color(0xFF6A7889),
+    line: Color(0xFFE3E8EE),
+    seg: Color(0xFFE1E6EC),
+    track: Color(0xFFE1E6EC),
+    accent: Color(0xFF2F4867),
+    onAccent: Color(0xFFE6ECF3),
+    danger: Color(0xFFB0503F),
+    warn: Color(0xFF9A6A1E),
+    success: Color(0xFF3E7457),
+    info: Color(0xFF2F5E8E),
+  );
+
+  /// Офис: нейтральный тёплый серый, плотные строки — больше заказов на экране.
+  static const office = AppPalette(
+    id: 'office',
+    name: 'Офис (компактно)',
+    isDark: false,
+    radius: 10,
+    compact: true,
+    bg: Color(0xFFF2F1EE),
+    card: Color(0xFFFAF9F7),
+    ink: Color(0xFF2D2B28),
+    muted: Color(0xFF77726B),
+    line: Color(0xFFE2DFD9),
+    seg: Color(0xFFE8E6E1),
+    track: Color(0xFFE8E6E1),
+    accent: Color(0xFF4A5568),
+    danger: Color(0xFFA5453A),
+    warn: Color(0xFFA8741F),
+    success: Color(0xFF4A7A55),
+    info: Color(0xFF3F6A93),
+  );
+
+  /// Склад: песочный, крупный текст и большие скругления — видно издалека.
+  static const warehouse = AppPalette(
+    id: 'warehouse',
+    name: 'Склад (крупно)',
+    isDark: false,
+    bordered: false,
+    radius: 22,
+    textScale: 1.15,
+    bg: Color(0xFFEAE5DC),
+    card: Color(0xFFF4F0E8),
+    ink: Color(0xFF35302A),
+    muted: Color(0xFF7A7167),
+    line: Color(0xFFE0D9CD),
+    seg: Color(0xFFE0D9CD),
+    track: Color(0xFFE0D9CD),
+    accent: Color(0xFF6E4A3A),
+    onAccent: Color(0xFFF7F1E8),
+    danger: Color(0xFFA5453A),
+    warn: Color(0xFFA87A2A),
+    success: Color(0xFF557C5E),
+    info: Color(0xFF45698C),
+  );
+
+  /// Лента: тёплый бежевый, коричневый акцент.
+  static const ribbon = AppPalette(
+    id: 'ribbon',
+    name: 'Лента',
+    isDark: false,
+    bordered: false,
+    bg: Color(0xFFF1EEE8),
+    card: Color(0xFFF9F7F3),
+    ink: Color(0xFF33302B),
+    muted: Color(0xFF7D766C),
+    line: Color(0xFFDDD7CD),
+    seg: Color(0xFFE7E2D9),
+    track: Color(0xFFE7E2D9),
+    accent: Color(0xFF5E4636),
+    onAccent: Color(0xFFF7F1E8),
+    danger: Color(0xFFA5453A),
+    warn: Color(0xFFA87A2A),
+    success: Color(0xFF557C5E),
+    info: Color(0xFF45698C),
+  );
+
+  /// Доска: холодный светло-серый, синий акцент.
+  static const board = AppPalette(
+    id: 'board',
+    name: 'Доска',
+    isDark: false,
+    bordered: false,
+    radius: 16,
+    bg: Color(0xFFE9ECEF),
+    card: Color(0xFFF5F7F9),
+    ink: Color(0xFF2A3038),
+    muted: Color(0xFF6B7480),
+    line: Color(0xFFDFE3E8),
+    seg: Color(0xFFDFE3E8),
+    track: Color(0xFFDFE3E8),
+    accent: Color(0xFF3D5A80),
+    danger: Color(0xFFA44B42),
+    warn: Color(0xFFA87A2A),
+    success: Color(0xFF557C5E),
+    info: Color(0xFF45698C),
+  );
+
+  /// Минимализм: карточки сливаются с фоном, только тонкие линии; тёмные кнопки.
+  static const minimal = AppPalette(
+    id: 'minimal',
+    name: 'Минимализм',
+    isDark: false,
+    radius: 4,
+    bg: Color(0xFFF3F0EA),
+    card: Color(0xFFF3F0EA),
+    ink: Color(0xFF3A3631),
+    muted: Color(0xFF8A8278),
+    line: Color(0xFFDCD6CC),
+    seg: Color(0xFFE9E4DB),
+    track: Color(0xFFE4DFD6),
+    accent: Color(0xFF3A3631),
+    onAccent: Color(0xFFF3F0EA),
+    danger: Color(0xFFA5453A),
+    warn: Color(0xFF9A6A1E),
+    success: Color(0xFF557C5E),
+    info: Color(0xFF45698C),
+  );
+
+  /// Графит: тёмно-серый с янтарным акцентом.
+  static const graphite = AppPalette(
+    id: 'graphite',
+    name: 'Графит',
+    isDark: true,
+    bordered: false,
+    radius: 18,
+    bg: Color(0xFF303236),
+    card: Color(0xFF3A3D42),
+    ink: Color(0xFFDCD9D3),
+    muted: Color(0xFFA3A09A),
+    line: Color(0xFF46494F),
+    seg: Color(0xFF44474D),
+    track: Color(0xFF46494F),
+    accent: Color(0xFFE0A667),
+    onAccent: Color(0xFF303236),
+    danger: Color(0xFFE3A08F),
+    warn: Color(0xFFD9B26B),
+    success: Color(0xFF9FC4A8),
+    info: Color(0xFF93B3D3),
+  );
+
+  /// Тёмно-синий: мягкая синяя ночь, не чёрная.
+  static const navyNight = AppPalette(
+    id: 'navy_night',
+    name: 'Тёмно-синий',
+    isDark: true,
+    bordered: false,
+    radius: 18,
+    bg: Color(0xFF1F2A38),
+    card: Color(0xFF283546),
+    ink: Color(0xFFD5DCE4),
+    muted: Color(0xFF8E9CAD),
+    line: Color(0xFF34445A),
+    seg: Color(0xFF2C3A4C),
+    track: Color(0xFF34445A),
+    accent: Color(0xFF7FA3C8),
+    onAccent: Color(0xFF1F2A38),
+    danger: Color(0xFFD9A193),
+    warn: Color(0xFFE0BE7E),
+    success: Color(0xFF9CC0A6),
+    info: Color(0xFF9DBCDB),
+  );
+
+  static const all = [
+    classic, light, paper, sage, navy, office, warehouse, ribbon, board, minimal,
+    dark, dusk, sepia, graphite, navyNight,
+  ];
   static List<AppPalette> get lightThemes => all.where((p) => !p.isDark).toList();
   static List<AppPalette> get darkThemes => all.where((p) => p.isDark).toList();
 
@@ -244,7 +434,13 @@ ThemeData buildAppTheme(AppPalette p) {
     surfaceContainerHigh: p.card,
     surfaceContainerHighest: p.seg,
   );
-  final base = ThemeData(useMaterial3: true, brightness: brightness, colorScheme: scheme, fontFamily: p.font);
+  final base = ThemeData(
+    useMaterial3: true,
+    brightness: brightness,
+    colorScheme: scheme,
+    fontFamily: p.font,
+    visualDensity: p.compact ? VisualDensity.compact : VisualDensity.standard,
+  );
   const radius12 = BorderRadius.all(Radius.circular(12));
   return base.copyWith(
     extensions: [p],
@@ -253,13 +449,13 @@ ThemeData buildAppTheme(AppPalette p) {
     dividerColor: p.line,
     textTheme: base.textTheme.apply(bodyColor: p.ink, displayColor: p.ink),
     appBarTheme: AppBarTheme(
-      backgroundColor: p.bg,
-      foregroundColor: p.ink,
+      backgroundColor: p.header ?? p.bg,
+      foregroundColor: p.onHeader ?? p.ink,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: TextStyle(fontFamily: p.font, fontSize: 20, fontWeight: FontWeight.w600, color: p.ink, letterSpacing: -0.2),
+      titleTextStyle: TextStyle(fontFamily: p.font, fontSize: 20, fontWeight: FontWeight.w600, color: p.onHeader ?? p.ink, letterSpacing: -0.2),
     ),
     cardTheme: CardThemeData(
       color: p.card,
@@ -272,7 +468,13 @@ ThemeData buildAppTheme(AppPalette p) {
       ),
     ),
     dividerTheme: DividerThemeData(color: p.line, thickness: 1, space: 1),
-    listTileTheme: ListTileThemeData(iconColor: p.muted, textColor: p.ink, selectedColor: p.ink, selectedTileColor: p.seg),
+    listTileTheme: ListTileThemeData(
+      iconColor: p.muted,
+      textColor: p.ink,
+      selectedColor: p.ink,
+      selectedTileColor: p.seg,
+      dense: p.compact,
+    ),
     drawerTheme: DrawerThemeData(backgroundColor: p.bg, surfaceTintColor: Colors.transparent),
     dialogTheme: DialogThemeData(backgroundColor: p.card, surfaceTintColor: Colors.transparent),
     bottomSheetTheme: BottomSheetThemeData(backgroundColor: p.card, surfaceTintColor: Colors.transparent, modalBackgroundColor: p.card),

@@ -114,6 +114,10 @@ class _ThemeTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (t.header != null) ...[
+                        Container(height: 8, decoration: BoxDecoration(color: t.header, borderRadius: BorderRadius.circular(3))),
+                        const SizedBox(height: 4),
+                      ],
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.all(6),
