@@ -39,6 +39,12 @@ class StockMovement {
   final String createdBy;
   final DateTime createdAt;
 
+  /// Номер документа 1С (оприходование/списание), null — ещё не выгружено.
+  final String? oneCDocumentNumber;
+
+  /// Ошибка выгрузки в 1С — показываем в списке, чтобы не потерялась.
+  final String? oneCSyncError;
+
   bool get isProduct => kind == 'PRODUCT';
 
   StockMovement({
@@ -53,6 +59,8 @@ class StockMovement {
     this.reason,
     required this.createdBy,
     required this.createdAt,
+    this.oneCDocumentNumber,
+    this.oneCSyncError,
   });
 
   factory StockMovement.fromJson(Map<String, dynamic> json) => StockMovement(
@@ -67,5 +75,7 @@ class StockMovement {
         reason: json['reason'] as String?,
         createdBy: json['createdBy'] as String,
         createdAt: DateTime.parse(json['createdAt'] as String),
+        oneCDocumentNumber: json['oneCDocumentNumber'] as String?,
+        oneCSyncError: json['oneCSyncError'] as String?,
       );
 }

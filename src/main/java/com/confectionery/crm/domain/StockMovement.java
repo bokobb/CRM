@@ -62,10 +62,18 @@ public class StockMovement {
      * Когда это поступление товара (RECEIPT + product) попало в сводный документ
      * "Оприходование товаров" в 1С — см. OneCReceiptSyncService. Null — ещё не выгружено,
      * попадёт в следующий прогон (по кнопке "Общее оприходование" или автоматически в 20:00).
-     * У сырья и списаний это поле всегда пустое — 1С сейчас забирает только приход товара.
+     * У движений с {@link #document} заполняется, когда документ проведён в 1С.
      */
     private LocalDateTime oneCSyncedAt;
 
     /** Номер документа "Оприходование товаров" в 1С, в который попало это движение. */
     private String oneCDocumentNumber;
+
+    /**
+     * Документ формы «Поступление»/«Списание», к которому относится строка (с 06.10) — он и
+     * уходит в 1С, см. StockDocument. У старых движений и у автоматических — null.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id")
+    private StockDocument document;
 }

@@ -79,7 +79,7 @@ public class OneCReceiptSyncService {
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = start.plusDays(1);
         List<StockMovement> pending = stockMovementRepository
-                .findByTypeAndManualAndProductIsNotNullAndOneCSyncedAtIsNullAndCreatedAtBetween(
+                .findByTypeAndManualAndProductIsNotNullAndDocumentIsNullAndOneCSyncedAtIsNullAndCreatedAtBetween(
                         StockMovementType.RECEIPT, true, start, end);
         if (pending.isEmpty()) {
             return new PostReceiptsResult(0, null, List.of());

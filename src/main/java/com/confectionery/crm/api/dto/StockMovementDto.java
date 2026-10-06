@@ -17,7 +17,11 @@ public record StockMovementDto(
         BigDecimal quantity,
         String reason,
         String createdBy,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        /** Номер документа 1С, в который попала строка; null — ещё не выгружена. */
+        String oneCDocumentNumber,
+        /** Ошибка выгрузки документа формы в 1С (см. StockDocument), null — всё в порядке. */
+        String oneCSyncError
 ) {
     public static StockMovementDto from(StockMovement m) {
         boolean isProduct = m.getProduct() != null;
@@ -32,7 +36,9 @@ public record StockMovementDto(
                 m.getQuantity(),
                 m.getReason(),
                 m.getCreatedBy(),
-                m.getCreatedAt()
+                m.getCreatedAt(),
+                m.getOneCSyncedAt() != null ? m.getOneCDocumentNumber() : null,
+                m.getDocument() != null ? m.getDocument().getOneCSyncError() : null
         );
     }
 }

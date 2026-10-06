@@ -4,11 +4,13 @@ import com.confectionery.crm.domain.Ingredient;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.Recipe;
 import com.confectionery.crm.domain.RecipeItem;
+import com.confectionery.crm.domain.StockDocument;
 import com.confectionery.crm.domain.StockMovement;
 import com.confectionery.crm.domain.StockMovementType;
 import com.confectionery.crm.repository.IngredientRepository;
 import com.confectionery.crm.repository.ProductRepository;
 import com.confectionery.crm.repository.RecipeRepository;
+import com.confectionery.crm.repository.StockDocumentRepository;
 import com.confectionery.crm.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,8 @@ public class StockService {
     private final ProductRepository productRepository;
     private final StockMovementRepository stockMovementRepository;
     private final NotificationService notificationService;
+    private final StockDocumentRepository stockDocumentRepository;
+    private final OneCQueue oneCQueue;
 
     public void deductForProduction(Product product, BigDecimal producedQuantity) {
         recipeRepository.findByProductId(product.getId()).ifPresentOrElse(
@@ -68,10 +72,14 @@ public class StockService {
 
     @Transactional
     public StockMovement receive(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
+        return receive(ingredient, quantity, reason, by, null);
+    }
+
+    private StockMovement receive(Ingredient ingredient, BigDecimal quantity, String reason, String by, LocalDateTime at) {
         requirePositive(quantity, "поступления");
         ingredient.setQuantityInStock(ingredient.getQuantityInStock().add(quantity));
         ingredientRepository.save(ingredient);
-        return logMovement(ingredient, null, StockMovementType.RECEIPT, quantity, reason, by);
+        return logMovement(ingredient, null, StockMovementType.RECEIPT, quantity, reason, by, true, at);
     }
 
     /**
@@ -107,10 +115,14 @@ public class StockService {
     /** То же самое, но для готовой продукции (см. также автосписание при отгрузке — OrderService.ship). */
     @Transactional
     public StockMovement receiveProduct(Product product, BigDecimal quantity, String reason, String by) {
+        return receiveProduct(product, quantity, reason, by, null);
+    }
+
+    private StockMovement receiveProduct(Product product, BigDecimal quantity, String reason, String by, LocalDateTime at) {
         requirePositive(quantity, "поступления");
         product.setQuantityInStock(product.getQuantityInStock().add(quantity));
         productRepository.save(product);
-        return logMovement(null, product, StockMovementType.RECEIPT, quantity, reason, by);
+        return logMovement(null, product, StockMovementType.RECEIPT, quantity, reason, by, true, at);
     }
 
     @Transactional
@@ -131,36 +143,61 @@ public class StockService {
         return logMovement(null, product, StockMovementType.WRITE_OFF, quantity, reason, by, true, at);
     }
 
-    /** Строка {@link #writeOffBatch}: ровно одно из ingredient/product. */
-    public record WriteOffLine(Ingredient ingredient, Product product, BigDecimal quantity) {
+    /** Строка {@link #createDocument}: ровно одно из ingredient/product. */
+    public record DocumentLine(Ingredient ingredient, Product product, BigDecimal quantity) {
     }
 
     /**
-     * Списание нескольких позиций разом (форма «Списание» в приложении): всё или ничего — если
-     * хоть одной позиции не хватает на складе, не списывается ни одна. Причина обязательна.
-     * {@code date} — дата списания (не в будущем); время — текущее, чтобы порядок в журнале
-     * за день сохранялся.
+     * Поступление или списание нескольких позиций одной формой (см. StockDocument): всё или
+     * ничего — если при списании хоть одной позиции не хватает, не проводится ни одна. У
+     * списания причина обязательна. {@code date} — дата документа (не в будущем); время
+     * движений — текущее, чтобы порядок в журнале за день сохранялся. После коммита документ
+     * уходит в 1С и проводится (фоновая очередь, см. OneCStockDocumentSyncService).
      */
     @Transactional
-    public List<StockMovement> writeOffBatch(LocalDate date, String reason, List<WriteOffLine> lines, String by) {
-        if (reason == null || reason.isBlank()) {
+    public StockDocument createDocument(StockMovementType type, boolean isProduct, LocalDate date, String reason,
+                                        List<DocumentLine> lines, String by) {
+        boolean writeOff = type == StockMovementType.WRITE_OFF;
+        if (writeOff && (reason == null || reason.isBlank())) {
             throw new IllegalArgumentException("Укажите причину списания");
         }
         if (lines == null || lines.isEmpty()) {
             throw new IllegalArgumentException("Добавьте хотя бы одну позицию");
         }
+        for (DocumentLine line : lines) {
+            if ((line.product() != null) != isProduct || (line.product() == null && line.ingredient() == null)) {
+                throw new IllegalArgumentException(isProduct ? "В документе могут быть только товары" : "В документе может быть только сырьё");
+            }
+        }
         LocalDate day = date != null ? date : LocalDate.now();
         if (day.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("Дата списания не может быть в будущем");
+            throw new IllegalArgumentException("Дата документа не может быть в будущем");
         }
+        String text = reason == null || reason.isBlank() ? null : reason.trim();
         LocalDateTime at = LocalDateTime.of(day, LocalTime.now());
-        List<StockMovement> result = new ArrayList<>();
-        for (WriteOffLine line : lines) {
-            result.add(line.product() != null
-                    ? writeOffProduct(line.product(), line.quantity(), reason.trim(), by, at)
-                    : writeOff(line.ingredient(), line.quantity(), reason.trim(), by, at));
+
+        StockDocument doc = new StockDocument();
+        doc.setType(type);
+        doc.setProduct(isProduct);
+        doc.setDocumentDate(day);
+        doc.setReason(text);
+        doc.setCreatedBy(by);
+        doc = stockDocumentRepository.save(doc);
+
+        for (DocumentLine line : lines) {
+            StockMovement m;
+            if (writeOff) {
+                m = isProduct ? writeOffProduct(line.product(), line.quantity(), text, by, at)
+                        : writeOff(line.ingredient(), line.quantity(), text, by, at);
+            } else {
+                m = isProduct ? receiveProduct(line.product(), line.quantity(), text, by, at)
+                        : receive(line.ingredient(), line.quantity(), text, by, at);
+            }
+            m.setDocument(doc);
+            doc.getMovements().add(stockMovementRepository.save(m));
         }
-        return result;
+        oneCQueue.stockDocument(doc);
+        return stockDocumentRepository.save(doc);
     }
 
     /**
@@ -286,9 +323,17 @@ public class StockService {
         if (!movement.isManual()) {
             throw new IllegalStateException("Нельзя удалить движение, созданное автоматически заявкой на производство");
         }
-        if (movement.getOneCSyncedAt() != null) {
+        // Старое «Общее оприходование» (без документа формы) само себя в 1С не исправит. Строку
+        // документа формы удалить можно: документ перепроводится в 1С без неё (см. OneCQueue).
+        if (movement.getDocument() == null && movement.getOneCSyncedAt() != null) {
             throw new IllegalStateException("Уже выгружено в 1С документом №" + movement.getOneCDocumentNumber()
                     + " — сначала удалите его там");
+        }
+        StockDocument document = movement.getDocument();
+        if (document != null) {
+            document.getMovements().remove(movement);
+            oneCQueue.stockDocument(document);
+            stockDocumentRepository.save(document);
         }
         BigDecimal delta = movement.getType() == StockMovementType.RECEIPT
                 ? movement.getQuantity().negate()

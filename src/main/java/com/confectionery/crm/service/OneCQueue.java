@@ -4,10 +4,12 @@ import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.domain.ProductionRequest;
 import com.confectionery.crm.domain.Purchase;
+import com.confectionery.crm.domain.StockDocument;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductReturnRepository;
 import com.confectionery.crm.repository.ProductionRequestRepository;
 import com.confectionery.crm.repository.PurchaseRepository;
+import com.confectionery.crm.repository.StockDocumentRepository;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +31,7 @@ import java.util.function.Supplier;
 /**
  * Фоновая отправка в 1С: 1cFresh часто отвечает минутами, поэтому CRM больше не ждёт её в
  * момент нажатия кнопки. Изменяющий метод только помечает запись (заказ, заявку, закупку,
- * возврат) флагом {@code oneCPending} — пользователь сразу получает ответ, а после коммита
+ * возврат, документ склада) флагом {@code oneCPending} — пользователь сразу получает ответ, а после коммита
  * один фоновый поток приводит документы 1С к тому, что сейчас в CRM (см. {@code reconcile} в
  * OneC*SyncService). Несколько правок подряд сливаются в одну отправку.
  *
@@ -49,10 +51,12 @@ public class OneCQueue {
     private final ProductionRequestRepository requestRepository;
     private final PurchaseRepository purchaseRepository;
     private final ProductReturnRepository returnRepository;
+    private final StockDocumentRepository stockDocumentRepository;
     private final OneCOrderSyncService orderSync;
     private final OneCProductionSyncService productionSync;
     private final OneCPurchaseSyncService purchaseSync;
     private final OneCReturnSyncService returnSync;
+    private final OneCStockDocumentSyncService stockDocumentSync;
     private final OneCOrderImportService orderImport;
     private final ApplicationEventPublisher events;
 
@@ -84,6 +88,11 @@ public class OneCQueue {
 
     public void productReturn(ProductReturn productReturn) {
         productReturn.setOneCPending(true);
+        kickAfterCommit();
+    }
+
+    public void stockDocument(StockDocument document) {
+        document.setOneCPending(true);
         kickAfterCommit();
     }
 
@@ -133,6 +142,7 @@ public class OneCQueue {
         process("заявка", requestRepository::findOneCPendingIds, requestRepository::clearOneCPending, productionSync::reconcile);
         process("закупка", purchaseRepository::findOneCPendingIds, purchaseRepository::clearOneCPending, purchaseSync::reconcile);
         process("возврат", returnRepository::findOneCPendingIds, returnRepository::clearOneCPending, returnSync::reconcile);
+        process("документ склада", stockDocumentRepository::findOneCPendingIds, stockDocumentRepository::clearOneCPending, stockDocumentSync::reconcile);
     }
 
     private void process(String what, Supplier<List<Long>> pending, Function<Long, Integer> clear, Consumer<Long> reconcile) {

@@ -26,14 +26,16 @@ class _Row {
   _Row(this.item, this.quantity);
 }
 
-/// Списание товара или сырья — устроено как «Новый заказ»: сверху дата (по умолчанию сегодня),
-/// «Выбрать товар/сырьё» → поиск по списку → количество, «Добавить позицию», обязательная
-/// причина и внизу «Списать». Все позиции уходят одним запросом: если чего-то не хватает на
-/// складе, не списывается ничего (см. StockService.writeOffBatch на бэкенде).
+/// Поступление или списание товара/сырья — устроено как «Новый заказ»: сверху дата (по умолчанию
+/// сегодня), «Выбрать товар/сырьё» → поиск по списку → количество, «Добавить позицию»,
+/// комментарий (у списания — обязательная причина) и внизу «Оприходовать»/«Списать». Все позиции
+/// уходят одним документом: если при списании чего-то не хватает, не списывается ничего; в 1С
+/// документ создаётся и проводится в фоне (см. StockService.createDocument на бэкенде).
 class WriteOffFormScreen extends StatefulWidget {
   final bool isProduct;
+  final bool isReceipt;
 
-  const WriteOffFormScreen({super.key, required this.isProduct});
+  const WriteOffFormScreen({super.key, required this.isProduct, this.isReceipt = false});
 
   @override
   State<WriteOffFormScreen> createState() => _WriteOffFormScreenState();
@@ -49,7 +51,6 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
   bool _saving = false;
   String? _error;
 
-  String get _what => widget.isProduct ? 'товар' : 'сырьё';
 
   @override
   void initState() {
@@ -157,13 +158,15 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
     setState(() => row.quantity = next < step ? step : double.parse(next.toStringAsFixed(3)));
   }
 
+  bool get _reasonRequired => !widget.isReceipt;
+
   Future<void> _save() async {
     final reason = _reason.text.trim();
     if (_rows.isEmpty) {
       setState(() => _error = 'Добавьте хотя бы одну позицию');
       return;
     }
-    if (reason.isEmpty) {
+    if (reason.isEmpty && _reasonRequired) {
       setState(() => _error = 'Напишите причину списания');
       return;
     }
@@ -172,9 +175,14 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
       _error = null;
     });
     try {
-      await _api.writeOffBatch(_date, reason, [
-        for (final r in _rows) {widget.isProduct ? 'productId' : 'ingredientId': r.item.id, 'quantity': r.quantity},
-      ]);
+      await _api.createStockDocument(
+        isReceipt: widget.isReceipt,
+        date: _date,
+        reason: reason.isEmpty ? null : reason,
+        items: [
+          for (final r in _rows) {widget.isProduct ? 'productId' : 'ingredientId': r.item.id, 'quantity': r.quantity},
+        ],
+      );
       if (mounted) await playSuccessFeedback(context);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -216,7 +224,7 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
   }
 
   Widget _buildRow(_Row row, List<_Item> items) {
-    final over = row.quantity > row.item.stock;
+    final over = !widget.isReceipt && row.quantity > row.item.stock;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(10),
@@ -286,7 +294,11 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.isProduct ? 'Списание товара' : 'Списание сырья')),
+      appBar: AppBar(
+        title: Text(widget.isReceipt
+            ? (widget.isProduct ? 'Поступление товара' : 'Поступление сырья')
+            : (widget.isProduct ? 'Списание товара' : 'Списание сырья')),
+      ),
       body: FutureBuilder<List<_Item>>(
         future: _future,
         builder: (context, snapshot) {
@@ -297,7 +309,9 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
             return ErrorView(error: snapshot.error.toString(), onRetry: () => setState(() => _future = _load()));
           }
           final items = snapshot.data!;
-          final canSave = !_saving && _rows.isNotEmpty && _reason.text.trim().isNotEmpty;
+          final canSave = !_saving && _rows.isNotEmpty && (!_reasonRequired || _reason.text.trim().isNotEmpty);
+          final buttonColor = widget.isReceipt ? context.pal.success : context.pal.danger;
+          final verb = widget.isReceipt ? 'Оприходовать' : 'Списать';
           return Column(
             children: [
               Expanded(
@@ -324,7 +338,8 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
                         children: [
                           Icon(Icons.event_outlined, color: context.pal.muted),
                           const SizedBox(width: 10),
-                          Text('Дата списания', style: TextStyle(color: context.pal.muted)),
+                          Text(widget.isReceipt ? 'Дата поступления' : 'Дата списания',
+                              style: TextStyle(color: context.pal.muted)),
                           const Spacer(),
                           Text(
                             DateUtils.isSameDay(_date, DateTime.now()) ? 'Сегодня, ${formatDate(_date)}' : formatDate(_date),
@@ -372,9 +387,9 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: _reason,
-                      decoration: const InputDecoration(
-                        labelText: 'Причина списания *',
-                        hintText: 'Порча, брак, недостача...',
+                      decoration: InputDecoration(
+                        labelText: widget.isReceipt ? 'Комментарий' : 'Причина списания *',
+                        hintText: widget.isReceipt ? 'Откуда поступило, излишки...' : 'Порча, брак, недостача...',
                       ),
                       maxLines: 3,
                       textCapitalization: TextCapitalization.sentences,
@@ -391,8 +406,8 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
                     height: 52,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: context.pal.danger,
-                        disabledBackgroundColor: context.pal.danger.withValues(alpha: 0.35),
+                        backgroundColor: buttonColor,
+                        disabledBackgroundColor: buttonColor.withValues(alpha: 0.35),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       ),
                       onPressed: canSave ? _save : null,
@@ -400,7 +415,7 @@ class _WriteOffFormScreenState extends State<WriteOffFormScreen> {
                           ? const SizedBox(
                               height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : Text(
-                              _rows.isEmpty ? 'Списать' : 'Списать ${_rows.length} поз.',
+                              _rows.isEmpty ? verb : '$verb ${_rows.length} поз.',
                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
                             ),
                     ),

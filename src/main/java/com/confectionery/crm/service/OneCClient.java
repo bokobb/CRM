@@ -1057,6 +1057,18 @@ class OneCClient {
         return new CreatedDocument(response.path("Ref_Key").asText(""), response.path("Number").asText(""));
     }
 
+    /** Создаёт документ любого типа (тело с "Posted": false — проводится следом через {@link #postDocument}). */
+    CreatedDocument createDocument(String entitySet, Map<String, Object> body) {
+        JsonNode response = restClient.post()
+                .uri(b -> b.path("/" + entitySet)
+                        .queryParam("$format", "json")
+                        .build())
+                .body(body)
+                .retrieve()
+                .body(JsonNode.class);
+        return new CreatedDocument(response.path("Ref_Key").asText(""), response.path("Number").asText(""));
+    }
+
     /** Создаёт и сразу проводит (Posted:true) документ "Оприходование товаров" — см. OneCReceiptSyncService. */
     CreatedDocument createReceiptDocument(Map<String, Object> body) {
         JsonNode response = restClient.post()

@@ -727,11 +727,12 @@ class ApiClient {
     return StockMovement.fromJson(_decode(res));
   }
 
-  /// Списание нескольких позиций разом (всё или ничего), см. StockService.writeOffBatch.
-  /// [items] — {'productId' | 'ingredientId', 'quantity'}.
-  Future<void> writeOffBatch(DateTime date, String reason, List<Map<String, dynamic>> items) async {
+  /// Поступление или списание нескольких позиций одним документом (всё или ничего), уходит в
+  /// 1С проведённым — см. StockService.createDocument. [items] — {'productId' | 'ingredientId', 'quantity'}.
+  Future<void> createStockDocument(
+      {required bool isReceipt, required DateTime date, String? reason, required List<Map<String, dynamic>> items}) async {
     final res = await _http.post(
-      await _uri('/stock/writeoffs/batch'),
+      await _uri(isReceipt ? '/stock/receipts/batch' : '/stock/writeoffs/batch'),
       headers: await _authHeaders(),
       body: jsonEncode({'date': _isoDate(date), 'reason': reason, 'items': items}),
     );

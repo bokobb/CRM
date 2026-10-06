@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.time.LocalDate;
 
 /**
@@ -183,31 +184,24 @@ public class WarehouseMovementController {
         return "redirect:" + redirectTo;
     }
 
+    /** Одна позиция с веба — тот же документ формы, что и в приложении (уходит в 1С, см. StockService.createDocument). */
     private void submit(StockMovementType type, String kind, Long productId, Long ingredientId, BigDecimal quantity,
                          String reason, Authentication authentication, RedirectAttributes redirectAttributes) {
         try {
             String by = authentication.getName();
+            StockService.DocumentLine line;
             if (PRODUCT.equals(kind)) {
                 if (productId == null) {
                     throw new IllegalArgumentException("Выберите товар");
                 }
-                Product product = productService.findById(productId);
-                if (type == StockMovementType.RECEIPT) {
-                    stockService.receiveProduct(product, quantity, reason, by);
-                } else {
-                    stockService.writeOffProduct(product, quantity, reason, by);
-                }
+                line = new StockService.DocumentLine(null, productService.findById(productId), quantity);
             } else {
                 if (ingredientId == null) {
                     throw new IllegalArgumentException("Выберите сырьё");
                 }
-                Ingredient ingredient = ingredientService.findById(ingredientId);
-                if (type == StockMovementType.RECEIPT) {
-                    stockService.receive(ingredient, quantity, reason, by);
-                } else {
-                    stockService.writeOff(ingredient, quantity, reason, by);
-                }
+                line = new StockService.DocumentLine(ingredientService.findById(ingredientId), null, quantity);
             }
+            stockService.createDocument(type, PRODUCT.equals(kind), null, reason, List.of(line), by);
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }

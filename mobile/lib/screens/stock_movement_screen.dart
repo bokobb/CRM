@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../models/ingredient.dart';
-import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
@@ -33,11 +32,13 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
   late Future<List<StockMovement>> _future;
   final _search = TextEditingController();
   DateTimeRange _range = todayRange();
-  bool _postInProgress = false;
 
   /// id движения, для которого сейчас показана корзинка вместо количества — появляется по
   /// долгому нажатию на строку, обычное нажатие по строке в этом состоянии её убирает обратно.
   int? _deleteModeId;
+
+  /// «00000000014» → «14».
+  static String _shortNumber(String n) => n.replaceFirst(RegExp(r'^0+(?=.)'), '');
 
   String get _type => widget.isReceipt ? 'RECEIPT' : 'WRITE_OFF';
   String get _title {
@@ -84,78 +85,20 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
     }
   }
 
+  /// Форма документа (как «Новый заказ») — и для поступлений, и для списаний; в 1С документ
+  /// создаётся и проводится сам, отдельная кнопка «Общее оприходование» больше не нужна.
   Future<void> _openForm() async {
-    if (!widget.isReceipt) {
-      final saved = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => WriteOffFormScreen(isProduct: widget.isProduct)),
-      );
-      if (saved == true) _refresh();
-      return;
-    }
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => _StockMovementForm(isReceipt: widget.isReceipt, isProduct: widget.isProduct),
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+          builder: (_) => WriteOffFormScreen(isProduct: widget.isProduct, isReceipt: widget.isReceipt)),
     );
     if (saved == true) _refresh();
   }
 
-  /// "Общее оприходование" — собирает все ещё не выгруженные в 1С ручные поступления товара
-  /// за сегодня в один документ и сразу проводит его на 06:00 (приход от заявок на
-  /// производство сюда не относится — тот выгружается сам). Если забыть — то же самое
-  /// произойдёт автоматически в 20:00.
-  Future<void> _postOneC() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Общее оприходование'),
-        content: const Text(
-          'Собрать все сегодняшние ручные поступления товара в один документ и провести в 1С на 06:00?',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Провести')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    setState(() => _postInProgress = true);
-    try {
-      final result = await _api.postDailyReceiptsOneC();
-      if (!mounted) return;
-      final message = result.documentNumber == null
-          ? 'Оприходовывать нечего — всё уже выгружено в 1С'
-          : 'Оприходовано в 1С: позиций ${result.movementsCount}, документ №${result.documentNumber}'
-              '${result.unresolved.isEmpty ? '' : '. Не сопоставлено: ${result.unresolved.join(', ')}'}';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-      }
-    } finally {
-      if (mounted) setState(() => _postInProgress = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final role = ApiClient.currentSession?.role;
-    final canPostOneC = widget.isReceipt && widget.isProduct && (role == 'ADMIN' || role == 'WAREHOUSE_FG');
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_title),
-        actions: [
-          if (canPostOneC)
-            IconButton(
-              onPressed: _postInProgress ? null : _postOneC,
-              icon: _postInProgress
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.cloud_upload_outlined),
-              tooltip: 'Общее оприходование в 1С',
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(_title)),
       drawer: AppDrawer(currentRoute: widget.isProduct ? '/warehouse' : '/ingredients-warehouse'),
       bottomNavigationBar: AppBottomNav(currentRoute: widget.isProduct ? '/warehouse' : '/ingredients-warehouse'),
       floatingActionButton: FloatingActionButton(onPressed: _openForm, child: const Icon(Icons.add)),
@@ -209,8 +152,9 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
                         leadingIcon: m.isProduct ? Icons.cake_outlined : Icons.grain_outlined,
                         leadingColor: m.isProduct ? context.pal.accent : context.pal.warn,
                         title: m.itemName,
-                        subtitle:
-                            '${m.reason?.isNotEmpty == true ? '${m.reason} · ' : ''}${m.createdBy} · ${formatDateTime(m.createdAt)}',
+                        subtitle: '${m.reason?.isNotEmpty == true ? '${m.reason} · ' : ''}${m.createdBy} · '
+                            '${formatDateTime(m.createdAt)}'
+                            '${m.oneCSyncError != null ? '\n1С: ошибка — ${m.oneCSyncError}' : m.oneCDocumentNumber != null ? ' · 1С №${_shortNumber(m.oneCDocumentNumber!)}' : ''}',
                         trailing: deleteMode
                             ? IconButton(
                                 icon: Icon(Icons.delete_outline, color: context.pal.danger),
@@ -231,151 +175,6 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
                   );
                 },
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StockMovementForm extends StatefulWidget {
-  final bool isReceipt;
-  final bool isProduct;
-
-  const _StockMovementForm({required this.isReceipt, required this.isProduct});
-
-  @override
-  State<_StockMovementForm> createState() => _StockMovementFormState();
-}
-
-class _StockMovementFormState extends State<_StockMovementForm> {
-  final _api = ApiClient();
-  final _formKey = GlobalKey<FormState>();
-  final _quantity = TextEditingController();
-  final _reason = TextEditingController();
-  int? _itemId;
-  List<Ingredient> _ingredients = [];
-  List<Product> _products = [];
-  bool _loading = false;
-  bool _loadingItems = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadItems();
-  }
-
-  Future<void> _loadItems() async {
-    setState(() => _loadingItems = true);
-    if (widget.isProduct) {
-      _products = await _api.getProducts();
-    } else {
-      _ingredients = await _api.getIngredients();
-    }
-    if (mounted) setState(() => _loadingItems = false);
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _itemId == null) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final qty = double.parse(_quantity.text.replaceAll(',', '.'));
-      final reason = _reason.text.trim();
-      if (widget.isProduct) {
-        if (widget.isReceipt) {
-          await _api.receiveProductStock(_itemId!, qty, reason);
-        } else {
-          await _api.writeOffProductStock(_itemId!, qty, reason);
-        }
-      } else {
-        if (widget.isReceipt) {
-          await _api.receiveStock(_itemId!, qty, reason);
-        } else {
-          await _api.writeOffStock(_itemId!, qty, reason);
-        }
-      }
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(widget.isReceipt ? 'Новое поступление' : 'Новое списание',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 16),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_error!, style: TextStyle(color: context.pal.danger)),
-              ),
-            if (_loadingItems)
-              const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
-            else if (widget.isProduct)
-              DropdownButtonFormField<int>(
-                initialValue: _itemId,
-                decoration: const InputDecoration(labelText: 'Товар'),
-                items: [
-                  for (final p in _products)
-                    DropdownMenuItem(value: p.id, child: Text('${p.name} (${formatQty(p.quantityInStock)} ${p.unit ?? "шт"})')),
-                ],
-                onChanged: (v) => setState(() => _itemId = v),
-                validator: (v) => v == null ? 'Выберите товар' : null,
-              )
-            else
-              DropdownButtonFormField<int>(
-                initialValue: _itemId,
-                decoration: const InputDecoration(labelText: 'Сырьё'),
-                items: [
-                  for (final i in _ingredients)
-                    DropdownMenuItem(value: i.id, child: Text('${i.name} (${formatQty(i.quantityInStock)} ${i.unit})')),
-                ],
-                onChanged: (v) => setState(() => _itemId = v),
-                validator: (v) => v == null ? 'Выберите сырьё' : null,
-              ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _quantity,
-              decoration: const InputDecoration(labelText: 'Количество'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              validator: (v) =>
-                  (v == null || double.tryParse(v.replaceAll(',', '.')) == null) ? 'Введите число' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _reason,
-              decoration: InputDecoration(
-                labelText: widget.isReceipt ? 'Причина (поставщик и т.п.)' : 'Причина (порча, недостача...)',
-              ),
-            ),
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _loading ? null : _save,
-              child: _loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Сохранить'),
             ),
           ],
         ),

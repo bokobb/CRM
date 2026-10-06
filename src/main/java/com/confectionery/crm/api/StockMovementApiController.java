@@ -71,24 +71,40 @@ public class StockMovementApiController {
         return StockMovementDto.from(stockService.writeOff(ingredient, req.quantity(), req.reason(), authentication.getName()));
     }
 
-    /** Ручное списание нескольких позиций разом с датой и обязательной причиной — см. StockService.writeOffBatch. */
-    public record WriteOffBatchRequest(LocalDate date, String reason, List<StockMovementRequest> items) {
+    /**
+     * Документ формы «Поступление»/«Списание»: несколько позиций одного вида (только товар или
+     * только сырьё) с датой; у списания причина обязательна. Уходит в 1С проведённым документом
+     * в фоне — см. StockService.createDocument.
+     */
+    public record StockDocumentRequest(LocalDate date, String reason, List<StockMovementRequest> items) {
+    }
+
+    @PostMapping("/receipts/batch")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','ACCOUNTANT')")
+    public List<StockMovementDto> receiveBatch(@RequestBody StockDocumentRequest req, Authentication authentication) {
+        return createDocument(StockMovementType.RECEIPT, req, authentication);
     }
 
     @PostMapping("/writeoffs/batch")
-    public List<StockMovementDto> writeOffBatch(@RequestBody WriteOffBatchRequest req, Authentication authentication) {
-        List<StockService.WriteOffLine> lines = (req.items() == null ? List.<StockMovementRequest>of() : req.items()).stream()
+    public List<StockMovementDto> writeOffBatch(@RequestBody StockDocumentRequest req, Authentication authentication) {
+        return createDocument(StockMovementType.WRITE_OFF, req, authentication);
+    }
+
+    private List<StockMovementDto> createDocument(StockMovementType type, StockDocumentRequest req, Authentication authentication) {
+        List<StockMovementRequest> items = req.items() == null ? List.of() : req.items();
+        List<StockService.DocumentLine> lines = items.stream()
                 .map(i -> {
                     if (i.quantity() == null) {
                         throw new IllegalArgumentException("Укажите количество");
                     }
                     return i.productId() != null
-                            ? new StockService.WriteOffLine(null, productService.findById(i.productId()), i.quantity())
-                            : new StockService.WriteOffLine(ingredientService.findById(requireIngredientId(i)), null, i.quantity());
+                            ? new StockService.DocumentLine(null, productService.findById(i.productId()), i.quantity())
+                            : new StockService.DocumentLine(ingredientService.findById(requireIngredientId(i)), null, i.quantity());
                 })
                 .toList();
-        return stockService.writeOffBatch(req.date(), req.reason(), lines, authentication.getName())
-                .stream().map(StockMovementDto::from).toList();
+        boolean isProduct = !items.isEmpty() && items.get(0).productId() != null;
+        return stockService.createDocument(type, isProduct, req.date(), req.reason(), lines, authentication.getName())
+                .getMovements().stream().map(StockMovementDto::from).toList();
     }
 
     /** Удаление ошибочно созданного ручного поступления/списания — откатывает остаток (см. StockService.deleteMovement). */

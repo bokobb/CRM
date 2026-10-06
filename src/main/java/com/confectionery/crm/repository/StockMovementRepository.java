@@ -36,6 +36,6 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
      * есть свой правильный документ ("Отчёт производства за смену" + "Требование-накладная",
      * см. OneCProductionSyncService), "Оприходование товаров" для него не подходит.
      */
-    List<StockMovement> findByTypeAndManualAndProductIsNotNullAndOneCSyncedAtIsNullAndCreatedAtBetween(
+    List<StockMovement> findByTypeAndManualAndProductIsNotNullAndDocumentIsNullAndOneCSyncedAtIsNullAndCreatedAtBetween(
             StockMovementType type, boolean manual, LocalDateTime from, LocalDateTime to);
 }
