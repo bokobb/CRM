@@ -16,6 +16,11 @@ public record ProductRequest(
         boolean semiFinished,
         String oneCDepartmentKey,
         BigDecimal netWeightGrams,
-        boolean massReferenceProduct
+        boolean massReferenceProduct,
+        BigDecimal unitWeightKg,
+        BigDecimal unitsPerBox,
+        BigDecimal boxVolumeM3,
+        BigDecimal unitsPerBox2,
+        BigDecimal boxVolume2M3
 ) {
 }

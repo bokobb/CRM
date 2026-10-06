@@ -67,6 +67,33 @@ public class Product {
      */
     private Boolean massReferenceProduct = false;
 
+    /**
+     * Упаковка для отгрузки — по ним считается «Объём и масса» заказа (свайп заказа вправо в
+     * приложении): коробок = ⌈кол-во / в коробке⌉, объём = коробок × объём коробки, масса =
+     * кол-во × вес единицы. Штуки в коробке, если пусто, берутся из названия (ProductPacking). Вес — брутто одной единицы товара (шт или кг), кг; это не
+     * {@link #netWeightGrams} (тот только для сверки массы в производстве). Все три необязательны.
+     */
+    @Column(precision = 12, scale = 3)
+    private BigDecimal unitWeightKg;
+
+    /** Сколько единиц товара (шт/кг) уходит в одну коробку. */
+    @Column(precision = 12, scale = 3)
+    private BigDecimal unitsPerBox;
+
+    /** Объём одной коробки, м³. */
+    @Column(precision = 12, scale = 5)
+    private BigDecimal boxVolumeM3;
+
+    /**
+     * Вторая упаковка (необязательно) — когда клиент выбирает, например, по 12 или по 24 в коробке
+     * («Коржики (12/24 шт)»): своё количество и свой объём коробки. См. ProductPacking.
+     */
+    @Column(precision = 12, scale = 3)
+    private BigDecimal unitsPerBox2;
+
+    @Column(precision = 12, scale = 5)
+    private BigDecimal boxVolume2M3;
+
     public boolean isMassReferenceProduct() {
         return Boolean.TRUE.equals(massReferenceProduct);
     }

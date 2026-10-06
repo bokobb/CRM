@@ -1,6 +1,8 @@
 package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Order;
+import com.confectionery.crm.domain.OrderItem;
+import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.Purchase;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -21,8 +23,10 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Накладная клиенту в PDF — повторяет печатную форму 1С "Расходная накладная": все координаты,
@@ -101,6 +105,17 @@ public class InvoicePdfService {
             18.36f, 8f, px(45.84f), false, 12.6f, 9f, px(46.32f));
 
     private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00", new DecimalFormatSymbols(Locale.US));
+    private static final DecimalFormat VOLUME = new DecimalFormat("#,##0.000", new DecimalFormatSymbols(Locale.US));
+    private static final DecimalFormat MASS = new DecimalFormat("#,##0.00", new DecimalFormatSymbols(Locale.US));
+
+    /**
+     * «Объём и масса» — та же расходная накладная, вместо «Цена»/«Сумма» — коробки, объём и масса
+     * строки; «Товар» сужен ровно на колонку «Коробок», остальная геометрия — из образца.
+     */
+    private static final Layout PACKING = SALE.withColumns(
+            new float[]{sx(36.48f), sx(66.72f), sx(123.00f), sx(238.00f), sx(283.36f), sx(298.36f), sx(337.00f),
+                    sx(400.00f), RIGHT},
+            new String[]{"№ п/п", "Код", "Товар", "Количество", null, "Коробок", "Объём, м³", "Масса, кг"});
 
     private final OneCInvoiceService oneCInvoiceService;
     public InvoicePdfService(OneCInvoiceService oneCInvoiceService) {
@@ -109,6 +124,76 @@ public class InvoicePdfService {
 
     public byte[] generate(Order order) {
         return render(oneCInvoiceService.load(order));
+    }
+
+    /**
+     * «Объём и масса» по заказу (свайп заказа вправо в приложении): бланк расходной накладной один
+     * в один — заголовок, шапка, коды 1С, подписи, — но в последних колонках объём (м³) и масса
+     * (кг) по упаковке из карточки товара (Product.unitWeightKg/unitsPerBox/boxVolumeM3), в итоге —
+     * коробки, объём и масса. Возвраты сюда не входят — это про то, что грузится в машину.
+     * Коробок = ⌈кол-во / в коробке⌉; у весового товара (кг) без веса масса = количество.
+     */
+    public byte[] generatePacking(Order order, Map<Long, BigDecimal> chosenUnitsPerBox) {
+        OneCInvoiceService.Invoice invoice = oneCInvoiceService.load(order);
+        OneCInvoiceService.Document sale = invoice.sale();
+        Map<String, Product> byName = new HashMap<>();
+        for (OrderItem item : order.getItems()) {
+            byName.putIfAbsent(normalize(item.getProduct().getName()), item.getProduct());
+        }
+        List<String[]> tails = new ArrayList<>();
+        List<String> missing = new ArrayList<>();
+        long boxes = 0;
+        BigDecimal volume = BigDecimal.ZERO;
+        BigDecimal mass = BigDecimal.ZERO;
+        for (OneCInvoiceService.Line line : sale.lines()) {
+            Product p = byName.get(normalize(line.name()));
+            BigDecimal qty = line.quantity();
+            ProductPacking.Option pack = p == null ? null
+                    : ProductPacking.choose(p, chosenUnitsPerBox == null ? null : chosenUnitsPerBox.get(p.getId()));
+            Long lineBoxes = pack != null ? qty.divide(pack.unitsPerBox(), 0, RoundingMode.CEILING).longValue() : null;
+            BigDecimal lineVolume = lineBoxes != null && pack.boxVolumeM3() != null
+                    ? pack.boxVolumeM3().multiply(BigDecimal.valueOf(lineBoxes)) : null;
+            BigDecimal lineMass = p != null && p.getUnitWeightKg() != null ? qty.multiply(p.getUnitWeightKg())
+                    : "кг".equalsIgnoreCase(line.unit().trim()) ? qty : null;
+            if (lineBoxes != null) boxes += lineBoxes;
+            if (lineVolume != null) volume = volume.add(lineVolume);
+            if (lineMass != null) mass = mass.add(lineMass);
+            if (lineBoxes == null || lineVolume == null || lineMass == null) missing.add(line.name());
+            tails.add(new String[]{
+                    lineBoxes == null ? "—" : String.valueOf(lineBoxes),
+                    lineVolume == null ? "—" : VOLUME.format(lineVolume),
+                    lineMass == null ? "—" : MASS.format(lineMass)});
+        }
+        Packing packing = new Packing(tails, boxes, volume, mass);
+        try (PDDocument document = new PDDocument()) {
+            Canvas canvas = new Canvas(document,
+                    loadFont(document, "LiberationSans-Regular.ttf"),
+                    loadFont(document, "LiberationSans-Bold.ttf"));
+            canvas.newPage();
+            canvas.y = 792.36f;
+            drawDocument(canvas, PACKING, "Расходная накладная № " + sale.number() + " от " + formatDate(sale.date()),
+                    headerRows(sale, "Поставщик", "Покупатель"), sale.lines(), packing);
+            if (!missing.isEmpty()) {
+                canvas.y -= 14;
+                canvas.text(canvas.regular, 7.68f, 38.28f, canvas.y,
+                        "Не заданы параметры упаковки (в итог вошло не всё): " + String.join(", ", missing));
+            }
+            drawSignatures(canvas, invoice.warehouseManager(), invoice.clientName());
+            canvas.close();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            document.save(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Не удалось сгенерировать «Объём и масса»", e);
+        }
+    }
+
+    /** Бланк «Объём и масса»: последние колонки строк (коробки/объём/масса) и итоги. */
+    private record Packing(List<String[]> tails, long boxes, BigDecimal volume, BigDecimal mass) {
+    }
+
+    private static String normalize(String name) {
+        return name == null ? "" : name.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
     /** Приходная накладная по закупке (кнопка "Поделиться" при свайпе закупки в приложении). */
@@ -203,6 +288,12 @@ public class InvoicePdfService {
      */
     private void drawDocument(Canvas c, Layout l, String title, List<String[]> header,
                               List<OneCInvoiceService.Line> lines) throws IOException {
+        drawDocument(c, l, title, header, lines, null);
+    }
+
+    /** {@code packing} не null — бланк «Объём и масса»: вместо цены/суммы коробки, объём и масса, итог без суммы прописью. */
+    private void drawDocument(Canvas c, Layout l, String title, List<String[]> header,
+                              List<OneCInvoiceService.Line> lines, Packing packing) throws IOException {
         // заголовок + шапка + шапка таблицы + хотя бы одна строка должны оказаться на одной странице
         float headBlock = l.ruleGap + l.labelFirstGap + (header.size() - 1) * l.labelStep + l.tableGap
                 + l.headerHeight + l.rowHeight + l.titleSize;
@@ -222,7 +313,11 @@ public class InvoicePdfService {
             c.text(c.bold, l.labelSize, l.valueX, y - 0.12f, header.get(i)[1]);
         }
         c.y = y - l.tableGap;
-        drawTable(c, l, lines);
+        drawTable(c, l, lines, packing == null ? null : packing.tails());
+        if (packing != null) {
+            drawPackingTotals(c, l, lines.size(), packing);
+            return;
+        }
 
         BigDecimal total = lines.stream().map(OneCInvoiceService.Line::sum).reduce(BigDecimal.ZERO, BigDecimal::add);
         float footer = l.totalGap + l.countGap + l.wordsGap;
@@ -244,7 +339,36 @@ public class InvoicePdfService {
         c.text(c.bold, l.wordsSize, l.wordsX, c.y, NumberToWordsRu.amountInWords(total));
     }
 
+    private void drawPackingTotals(Canvas c, Layout l, int count, Packing p) throws IOException {
+        float footer = l.totalGap + l.countGap;
+        if (c.y - footer < PAGE_BOTTOM) {
+            c.newPage();
+            c.y = PAGE_TOP + l.totalGap - l.totalSize;
+        }
+        c.y -= l.totalGap;
+        c.rightText(c.bold, l.totalSize, l.cols[5] - 6, c.y, "Итого:");
+        c.rightText(c.bold, l.totalSize, l.cols[6] - l.totalRightPad, c.y, String.valueOf(p.boxes()));
+        c.rightText(c.bold, l.totalSize, l.cols[7] - l.totalRightPad, c.y, VOLUME.format(p.volume()));
+        c.rightText(c.bold, l.totalSize, l.cols[8] - l.totalRightPad, c.y, MASS.format(p.mass()));
+
+        c.y -= l.countGap;
+        String text = "Всего наименований " + count + ", коробок " + p.boxes() + ", объём "
+                + VOLUME.format(p.volume()) + " м³, масса " + MASS.format(p.mass()) + " кг";
+        c.text(c.regular, l.countSize, l.countX, c.y, text);
+        if (l.countUnderline) {
+            c.hline(l.countX, l.countX + c.width(c.regular, l.countSize, text), c.y - 0.84f, 0.6f, 0f);
+        }
+    }
+
     private void drawTable(Canvas c, Layout l, List<OneCInvoiceService.Line> lines) throws IOException {
+        drawTable(c, l, lines, null);
+    }
+
+    /**
+     * {@code tails} — свои значения последних колонок строки (бланк «Объём и масса»); null — цена и
+     * сумма. Последние колонки выравниваются по правым краям последних границ таблицы.
+     */
+    private void drawTable(Canvas c, Layout l, List<OneCInvoiceService.Line> lines, List<String[]> tails) throws IOException {
         float[] cols = l.cols;
         float nameWidth = cols[3] - cols[2] - 2 * l.pad;
         float segmentTop = c.y;
@@ -252,7 +376,9 @@ public class InvoicePdfService {
         float y = c.y - l.headerHeight;
 
         int number = 1;
-        for (OneCInvoiceService.Line line : lines) {
+        int last = cols.length - 1;
+        for (int index = 0; index < lines.size(); index++) {
+            OneCInvoiceService.Line line = lines.get(index);
             List<String> nameLines = c.wrap(c.regular, l.rowSize, line.name(), nameWidth);
             float rowHeight = l.rowHeight + (nameLines.size() - 1) * (l.rowSize * 1.15f);
             if (y - rowHeight < PAGE_BOTTOM) {
@@ -278,10 +404,12 @@ public class InvoicePdfService {
             }
             c.rightText(c.regular, l.rowSize, cols[4] - l.rightPad, baseline, l.qtyFormat.format(line.quantity()));
             c.text(c.regular, l.rowSize, cols[4] + l.unitPad, baseline, line.unit());
-            c.rightText(c.regular, l.rowSize, cols[6] - l.rightPad, baseline, money(line.price()));
-            c.rightText(c.regular, l.rowSize, cols[7] - l.rightPad, baseline, money(line.sum()));
+            String[] tail = tails != null ? tails.get(index) : new String[]{money(line.price()), money(line.sum())};
+            for (int k = 0; k < tail.length; k++) {
+                c.rightText(c.regular, l.rowSize, cols[last - tail.length + 1 + k] - l.rightPad, baseline, tail[k]);
+            }
             y -= rowHeight;
-            c.hline(cols[0], cols[7], y, l.thin, LINE_GRAY);
+            c.hline(cols[0], cols[last], y, l.thin, LINE_GRAY);
         }
         closeTableSegment(c, l, segmentTop, y);
         c.y = y - l.thin / 2;
@@ -291,8 +419,8 @@ public class InvoicePdfService {
         float[] cols = l.cols;
         float top = c.y;
         float bottom = top - l.headerHeight;
-        c.hline(cols[0], cols[7], top, l.thick, LINE_GRAY);
-        c.hline(cols[0], cols[7], bottom, l.thin, LINE_GRAY);
+        c.hline(cols[0], cols[cols.length - 1], top, l.thick, LINE_GRAY);
+        c.hline(cols[0], cols[cols.length - 1], bottom, l.thin, LINE_GRAY);
         float baseline = top - l.headerBaseline;
         for (int i = 0; i < l.headers.length; i++) {
             if (l.headers[i] == null) continue;
@@ -307,9 +435,9 @@ public class InvoicePdfService {
         float[] cols = l.cols;
         float headerBottom = segmentTop - l.headerHeight;
         float lineBottom = bottom - l.thin / 2;
-        c.hline(cols[0], cols[7], lineBottom, l.thick, LINE_GRAY);
+        c.hline(cols[0], cols[cols.length - 1], lineBottom, l.thick, LINE_GRAY);
         c.vline(cols[0] + l.thick / 2, lineBottom, segmentTop, l.thick);
-        c.vline(cols[7] + l.thick / 2, lineBottom, segmentTop, l.thick);
+        c.vline(cols[cols.length - 1] + l.thick / 2, lineBottom, segmentTop, l.thick);
         for (int i = 1; i < cols.length - 1; i++) {
             boolean merged = l.headers[i] == null;
             c.vline(cols[i] + l.thin / 2, lineBottom, merged ? headerBottom : segmentTop, l.thin);
@@ -420,6 +548,15 @@ public class InvoicePdfService {
             float totalGap, float totalSize, float totalLabelX, float totalRightPad,
             float countGap, float countSize, float countX, boolean countUnderline,
             float wordsGap, float wordsSize, float wordsX) {
+
+        Layout withColumns(float[] newCols, String[] newHeaders) {
+            return new Layout(newCols, newHeaders, titleSize, titleX, ruleGap, ruleRight, ruleWidth,
+                    labelSize, labelX, valueX, labelSuffix, labelFirstGap, labelStep, tableGap,
+                    thick, thin, headerHeight, headerSize, headerBaseline,
+                    rowHeight, rowSize, rowBaseline, pad, unitPad, rightPad, centerNumber, qtyFormat,
+                    totalGap, totalSize, totalLabelX, totalRightPad,
+                    countGap, countSize, countX, countUnderline, wordsGap, wordsSize, wordsX);
+        }
     }
 
     /** Текущая страница и позиция на ней (y — в координатах PDF, снизу вверх). */

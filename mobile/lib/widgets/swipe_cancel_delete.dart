@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../theme/app_theme.dart';
 
 /// Свайп карточки влево: первый раз — «Отменить» (всё откатывается, документы в 1С
 /// распроводятся и остаются черновиками), у уже отменённой — корзина «Удалить» (документы в 1С
 /// помечаются на удаление). Действие подтверждается диалогом; карточка сама не исчезает —
-/// после действия список обновляется ([onDone]).
+/// после действия список обновляется ([onDone]). Необязательный свайп вправо — [onSwipeRight]
+/// (например, «Объём и масса» у заказа): без подтверждения, карточка тоже остаётся на месте.
 class SwipeCancelDelete extends StatelessWidget {
   final Object itemKey;
   final bool cancelled;
@@ -17,6 +19,9 @@ class SwipeCancelDelete extends StatelessWidget {
   final Future<void> Function() onDelete;
   final VoidCallback onDone;
   final Widget child;
+  final VoidCallback? onSwipeRight;
+  final String? swipeRightLabel;
+  final IconData? swipeRightIcon;
 
   const SwipeCancelDelete({
     super.key,
@@ -29,6 +34,9 @@ class SwipeCancelDelete extends StatelessWidget {
     required this.onDelete,
     required this.onDone,
     required this.child,
+    this.onSwipeRight,
+    this.swipeRightLabel,
+    this.swipeRightIcon,
   });
 
   static Color _red(BuildContext context) => context.pal.danger;
@@ -36,28 +44,59 @@ class SwipeCancelDelete extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final deleting = cancelled;
-    if (deleting ? !canDelete : !canCancel) return child;
-    return Dismissible(
-      key: ValueKey(('swipe', itemKey, deleting)),
-      direction: DismissDirection.endToStart,
-      dismissThresholds: const {DismissDirection.endToStart: 0.35},
-      background: Padding(
-        // Карточка (AppListTile) сама отступает снизу на 10 — фон повторяет её форму.
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.symmetric(horizontal: 22),
-          decoration: BoxDecoration(color: _red(context), borderRadius: BorderRadius.circular(12)),
-          child: deleting
-              ? const Icon(Icons.delete_outline, color: Colors.white, size: 28)
-              : const Text(
-                  'Отменить',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-                ),
+    final left = deleting ? canDelete : canCancel;
+    final right = onSwipeRight != null;
+    if (!left && !right) return child;
+    final leftBackground = Padding(
+      // Карточка (AppListTile) сама отступает снизу на 10 — фон повторяет её форму.
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        decoration: BoxDecoration(color: _red(context), borderRadius: BorderRadius.circular(12)),
+        child: deleting
+            ? const Icon(Icons.delete_outline, color: Colors.white, size: 28)
+            : const Text(
+                'Отменить',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+      ),
+    );
+    final rightBackground = Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        decoration: BoxDecoration(color: context.pal.accent, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(swipeRightIcon ?? Icons.description_outlined, color: Colors.white, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              swipeRightLabel ?? '',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+          ],
         ),
       ),
-      confirmDismiss: (_) async {
-        await _run(context, deleting);
+    );
+    return Dismissible(
+      key: ValueKey(('swipe', itemKey, deleting)),
+      direction: left && right
+          ? DismissDirection.horizontal
+          : right
+          ? DismissDirection.startToEnd
+          : DismissDirection.endToStart,
+      dismissThresholds: const {DismissDirection.endToStart: 0.35, DismissDirection.startToEnd: 0.35},
+      background: right ? rightBackground : leftBackground,
+      secondaryBackground: right && left ? leftBackground : null,
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          onSwipeRight!();
+        } else {
+          await _run(context, deleting);
+        }
         return false;
       },
       child: child,

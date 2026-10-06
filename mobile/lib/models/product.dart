@@ -46,6 +46,32 @@ class Product {
   /// Видят ли товар клиенты сегодня (считает backend с учётом даты «скрыт до»).
   final bool visibleToClients;
 
+  /// Упаковка для отгрузки — по ней считается «Объём и масса» заказа (свайп заказа вправо):
+  /// вес одной единицы (шт/кг) брутто, кг; сколько единиц в коробке; объём коробки, м³.
+  final double? unitWeightKg;
+  final double? unitsPerBox;
+  final double? boxVolumeM3;
+
+  /// Вторая упаковка (например, «по 24» у «Коржики (12/24 шт)») — выбирает клиент при отгрузке.
+  final double? unitsPerBox2;
+  final double? boxVolume2M3;
+
+  /// Штуки в коробке из названия: «(15 шт)» → [15], «(12/24 шт)» → [12, 24] — как на бэкенде
+  /// (ProductPacking), когда в карточке не заполнено.
+  static List<double> unitsFromName(String name) {
+    final m = RegExp(r'\((\d+)(?:\s*/\s*(\d+))?\s*шт\.?\)').firstMatch(name);
+    if (m == null) return [];
+    return [double.parse(m.group(1)!), if (m.group(2) != null) double.parse(m.group(2)!)];
+  }
+
+  /// Варианты «штук в коробке» для выбора упаковки (0, 1 или 2).
+  List<double> get packingUnits {
+    final fromName = unitsFromName(name);
+    final first = (unitsPerBox ?? 0) > 0 ? unitsPerBox : (fromName.isNotEmpty ? fromName[0] : null);
+    final second = (unitsPerBox2 ?? 0) > 0 ? unitsPerBox2 : (fromName.length > 1 ? fromName[1] : null);
+    return [if (first != null) first, if (second != null) second];
+  }
+
   Product({
     required this.id,
     required this.name,
@@ -63,6 +89,11 @@ class Product {
     this.hiddenFromClients = false,
     this.hiddenFromClientsUntil,
     this.visibleToClients = true,
+    this.unitWeightKg,
+    this.unitsPerBox,
+    this.boxVolumeM3,
+    this.unitsPerBox2,
+    this.boxVolume2M3,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -84,6 +115,11 @@ class Product {
             ? null
             : DateTime.parse(json['hiddenFromClientsUntil'] as String),
         visibleToClients: json['visibleToClients'] as bool? ?? true,
+        unitWeightKg: (json['unitWeightKg'] as num?)?.toDouble(),
+        unitsPerBox: (json['unitsPerBox'] as num?)?.toDouble(),
+        boxVolumeM3: (json['boxVolumeM3'] as num?)?.toDouble(),
+        unitsPerBox2: (json['unitsPerBox2'] as num?)?.toDouble(),
+        boxVolume2M3: (json['boxVolume2M3'] as num?)?.toDouble(),
       );
 
   /// Копия с другим imageUrl — используется, чтобы превратить относительный путь
@@ -105,6 +141,11 @@ class Product {
         hiddenFromClients: hiddenFromClients,
         hiddenFromClientsUntil: hiddenFromClientsUntil,
         visibleToClients: visibleToClients,
+        unitWeightKg: unitWeightKg,
+        unitsPerBox: unitsPerBox,
+        boxVolumeM3: boxVolumeM3,
+        unitsPerBox2: unitsPerBox2,
+        boxVolume2M3: boxVolume2M3,
       );
 }
 

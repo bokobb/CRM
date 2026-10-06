@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -107,12 +108,21 @@ public class ProductApiController {
         product.setSemiFinished(req.semiFinished());
         product.setNetWeightGrams(req.netWeightGrams());
         product.setMassReferenceProduct(req.massReferenceProduct());
+        product.setUnitWeightKg(positiveOrNull(req.unitWeightKg()));
+        product.setUnitsPerBox(positiveOrNull(req.unitsPerBox()));
+        product.setBoxVolumeM3(positiveOrNull(req.boxVolumeM3()));
+        product.setUnitsPerBox2(positiveOrNull(req.unitsPerBox2()));
+        product.setBoxVolume2M3(positiveOrNull(req.boxVolume2M3()));
         // "" из выпадающего списка ("Не задано") означает то же самое, что и отсутствие поля —
         // нормализуем в null, иначе в 1С ушёл бы невалидный GUID вместо запасного варианта по
         // умолчанию (см. OneCProductionSyncService).
         String departmentKey = req.oneCDepartmentKey();
         product.setOneCDepartmentKey(departmentKey == null || departmentKey.isBlank() ? null : departmentKey);
         return product;
+    }
+
+    private static BigDecimal positiveOrNull(BigDecimal v) {
+        return v == null || v.signum() <= 0 ? null : v;
     }
 
     /** Только ADMIN — то же самое, что кнопка "Импортировать подразделения из 1С" в веб-версии. */

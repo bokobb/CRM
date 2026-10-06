@@ -15,6 +15,7 @@ import '../theme/app_layout.dart';
 import '../widgets/order_returns_sheets.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/swipe_cancel_delete.dart';
+import 'packing_list_screen.dart';
 import '../theme/app_theme.dart';
 
 /// Аргументы навигации на экран заказов с предустановленным фильтром — используется,
@@ -243,6 +244,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         onCancel: () => _api.cancelOrder(o.id),
                         onDelete: () => _api.deleteOrder(o.id),
                         onDone: _refresh,
+                        onSwipeRight: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(builder: (_) => PackingListScreen(orderId: o.id))),
+                        swipeRightLabel: 'Объём и масса',
+                        swipeRightIcon: Icons.inventory_2_outlined,
                         child: tile,
                       );
                     },

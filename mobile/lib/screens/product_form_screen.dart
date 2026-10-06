@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
+import '../widgets/format.dart';
 import '../widgets/timeout_cache_manager.dart';
 
 class ProductFormScreen extends StatefulWidget {
@@ -29,6 +30,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _unit = TextEditingController();
   final _imageUrl = TextEditingController();
   final _netWeightGrams = TextEditingController();
+  final _unitWeightKg = TextEditingController();
+  final _unitsPerBox = TextEditingController();
+  final _boxVolumeM3 = TextEditingController();
+  final _unitsPerBox2 = TextEditingController();
+  final _boxVolume2M3 = TextEditingController();
   bool _semiFinished = false;
   bool _massReferenceProduct = false;
   String? _departmentKey;
@@ -56,6 +62,15 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _imageUrl.text = p.imageUrl ?? '';
         _existingImageUrl = p.imageUrl;
         _netWeightGrams.text = p.netWeightGrams?.toString() ?? '';
+        _unitWeightKg.text = p.unitWeightKg == null ? '' : formatQty(p.unitWeightKg!);
+        _unitsPerBox.text = p.unitsPerBox == null ? '' : formatQty(p.unitsPerBox!);
+        _boxVolumeM3.text = p.boxVolumeM3 == null ? '' : p.boxVolumeM3!.toString();
+        _unitsPerBox2.text = p.unitsPerBox2 == null ? '' : formatQty(p.unitsPerBox2!);
+        _boxVolume2M3.text = p.boxVolume2M3 == null ? '' : p.boxVolume2M3!.toString();
+        // Не заполнено — подставляем штуки из названия («(12/24 шт)» → 12 и 24).
+        final fromName = Product.unitsFromName(p.name);
+        if (_unitsPerBox.text.isEmpty && fromName.isNotEmpty) _unitsPerBox.text = formatQty(fromName[0]);
+        if (_unitsPerBox2.text.isEmpty && fromName.length > 1) _unitsPerBox2.text = formatQty(fromName[1]);
         _semiFinished = p.semiFinished;
         _massReferenceProduct = p.massReferenceProduct;
         _departmentKey = p.oneCDepartmentKey;
@@ -118,6 +133,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           : double.tryParse(_netWeightGrams.text.replaceAll(',', '.')),
       'semiFinished': _semiFinished,
       'massReferenceProduct': _massReferenceProduct,
+      'unitWeightKg': _num(_unitWeightKg),
+      'unitsPerBox': _num(_unitsPerBox),
+      'boxVolumeM3': _num(_boxVolumeM3),
+      'unitsPerBox2': _num(_unitsPerBox2),
+      'boxVolume2M3': _num(_boxVolume2M3),
       'oneCDepartmentKey': _departmentKey,
     };
     try {
@@ -139,6 +159,20 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       });
     }
   }
+
+  String _unitLabel() => _unit.text.trim().isEmpty ? 'шт' : _unit.text.trim();
+
+  static double? _num(TextEditingController c) =>
+      c.text.trim().isEmpty ? null : double.tryParse(c.text.trim().replaceAll(',', '.'));
+
+  Widget _numberField(TextEditingController c, String label, String hint) => TextFormField(
+        controller: c,
+        decoration: InputDecoration(labelText: label, hintText: hint),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        validator: (v) => (v != null && v.trim().isNotEmpty && double.tryParse(v.trim().replaceAll(',', '.')) == null)
+            ? 'Введите число'
+            : null,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -194,12 +228,29 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   TextFormField(
                     controller: _unit,
                     decoration: const InputDecoration(labelText: 'Ед. изм.', hintText: 'шт, кг...'),
+                    onChanged: (_) => setState(() {}),
                   ),
+                  const SizedBox(height: 16),
+                  Text('Упаковка (для объёма и массы заказа)', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  _numberField(_unitWeightKg, 'Вес 1 ${_unitLabel()}, кг', 'С упаковкой, например 0,45'),
                   const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: _numberField(_unitsPerBox, 'Упаковка 1: ${_unitLabel()} в коробке', 'Например 12')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _numberField(_boxVolumeM3, 'Объём коробки, м³', '0,4×0,3×0,2 = 0,024')),
+                  ]),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: _numberField(_unitsPerBox2, 'Упаковка 2: ${_unitLabel()} в коробке', 'Необязательно')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _numberField(_boxVolume2M3, 'Объём коробки, м³', 'Необязательно')),
+                  ]),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _netWeightGrams,
                     decoration: const InputDecoration(
-                      labelText: 'Вес 1 шт, г',
+                      labelText: 'Вес 1 шт для сверки производства, г',
                       hintText: 'Необязательно',
                       helperText: 'Только если норму при оприходовании нужно сверять по общей массе '
                           'группы (разные фасовки одного замеса), а не по штукам',

@@ -1331,6 +1331,23 @@ class ApiClient {
   /// Накладная, приложенная к документу заказа прямо в 1С — null, если её там ещё нет
   /// (заказ не выгружен, 1С недоступна или файл не приложили); тогда экран заказа сам
   /// строит свою локальную PDF-накладную вместо этого.
+  /// «Объём и масса» по заказу — бланк расходной накладной с коробками/объёмом/массой (backend,
+  /// OrderApiController.packing). [pack] — выбранная упаковка: productId → штук в коробке.
+  Future<InvoiceFile> getPackingFile(int orderId, Map<int, double> pack) async {
+    final uri = await _uri('/orders/$orderId/packing', pack.isEmpty
+        ? null
+        : {'pack': pack.entries.map((e) => '${e.key}:${e.value % 1 == 0 ? e.value.toInt() : e.value}').join(',')});
+    final res = await http.get(uri, headers: await _authHeaders());
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException('Не удалось получить «Объём и масса» (${res.statusCode})');
+    }
+    return InvoiceFile(
+      bytes: res.bodyBytes,
+      filename: _dispositionFilename(res.headers['content-disposition']) ?? 'Объём_и_масса_$orderId.pdf',
+      mimeType: 'application/pdf',
+    );
+  }
+
   Future<InvoiceFile?> getInvoiceFile(int orderId) async {
     final res = await http.get(
       await _uri('/orders/$orderId/invoice'),
