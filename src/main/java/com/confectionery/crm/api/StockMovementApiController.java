@@ -71,6 +71,26 @@ public class StockMovementApiController {
         return StockMovementDto.from(stockService.writeOff(ingredient, req.quantity(), req.reason(), authentication.getName()));
     }
 
+    /** Ручное списание нескольких позиций разом с датой и обязательной причиной — см. StockService.writeOffBatch. */
+    public record WriteOffBatchRequest(LocalDate date, String reason, List<StockMovementRequest> items) {
+    }
+
+    @PostMapping("/writeoffs/batch")
+    public List<StockMovementDto> writeOffBatch(@RequestBody WriteOffBatchRequest req, Authentication authentication) {
+        List<StockService.WriteOffLine> lines = (req.items() == null ? List.<StockMovementRequest>of() : req.items()).stream()
+                .map(i -> {
+                    if (i.quantity() == null) {
+                        throw new IllegalArgumentException("Укажите количество");
+                    }
+                    return i.productId() != null
+                            ? new StockService.WriteOffLine(null, productService.findById(i.productId()), i.quantity())
+                            : new StockService.WriteOffLine(ingredientService.findById(requireIngredientId(i)), null, i.quantity());
+                })
+                .toList();
+        return stockService.writeOffBatch(req.date(), req.reason(), lines, authentication.getName())
+                .stream().map(StockMovementDto::from).toList();
+    }
+
     /** Удаление ошибочно созданного ручного поступления/списания — откатывает остаток (см. StockService.deleteMovement). */
     @DeleteMapping("/movements/{id}")
     public void deleteMovement(@PathVariable Long id) {

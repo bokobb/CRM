@@ -727,6 +727,17 @@ class ApiClient {
     return StockMovement.fromJson(_decode(res));
   }
 
+  /// Списание нескольких позиций разом (всё или ничего), см. StockService.writeOffBatch.
+  /// [items] — {'productId' | 'ingredientId', 'quantity'}.
+  Future<void> writeOffBatch(DateTime date, String reason, List<Map<String, dynamic>> items) async {
+    final res = await _http.post(
+      await _uri('/stock/writeoffs/batch'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'date': _isoDate(date), 'reason': reason, 'items': items}),
+    );
+    _decode(res);
+  }
+
   Future<StockMovement> receiveProductStock(
     int productId,
     double quantity,

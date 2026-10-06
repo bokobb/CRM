@@ -54,6 +54,7 @@ public class StockMovement {
     @Column(nullable = false)
     private String createdBy;
 
+    /** Обычно момент создания; у списания из формы — выбранная дата (см. StockService.writeOffBatch). */
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 

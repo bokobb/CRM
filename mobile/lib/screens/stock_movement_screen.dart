@@ -9,6 +9,7 @@ import '../widgets/app_list_tile.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import 'write_off_form_screen.dart';
 import '../theme/app_theme.dart';
 
 /// Общий экран для "Поступления" и "Списание" — товара и сырья (см. [isProduct]) — отличаются
@@ -84,6 +85,13 @@ class _StockMovementScreenState extends State<StockMovementScreen> {
   }
 
   Future<void> _openForm() async {
+    if (!widget.isReceipt) {
+      final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => WriteOffFormScreen(isProduct: widget.isProduct)),
+      );
+      if (saved == true) _refresh();
+      return;
+    }
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,

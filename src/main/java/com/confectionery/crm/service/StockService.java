@@ -17,7 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -86,6 +89,10 @@ public class StockService {
 
     @Transactional
     public StockMovement writeOff(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
+        return writeOff(ingredient, quantity, reason, by, null);
+    }
+
+    private StockMovement writeOff(Ingredient ingredient, BigDecimal quantity, String reason, String by, LocalDateTime at) {
         requirePositive(quantity, "списания");
         if (ingredient.getQuantityInStock().compareTo(quantity) < 0) {
             throw new IllegalArgumentException("На складе «" + ingredient.getName() + "» меньше ("
@@ -94,7 +101,7 @@ public class StockService {
         }
         ingredient.setQuantityInStock(ingredient.getQuantityInStock().subtract(quantity));
         ingredientRepository.save(ingredient);
-        return logMovement(ingredient, null, StockMovementType.WRITE_OFF, quantity, reason, by);
+        return logMovement(ingredient, null, StockMovementType.WRITE_OFF, quantity, reason, by, true, at);
     }
 
     /** То же самое, но для готовой продукции (см. также автосписание при отгрузке — OrderService.ship). */
@@ -108,6 +115,10 @@ public class StockService {
 
     @Transactional
     public StockMovement writeOffProduct(Product product, BigDecimal quantity, String reason, String by) {
+        return writeOffProduct(product, quantity, reason, by, null);
+    }
+
+    private StockMovement writeOffProduct(Product product, BigDecimal quantity, String reason, String by, LocalDateTime at) {
         requirePositive(quantity, "списания");
         if (product.getQuantityInStock().compareTo(quantity) < 0) {
             String unit = product.getUnit() == null || product.getUnit().isBlank() ? "шт" : product.getUnit();
@@ -117,7 +128,39 @@ public class StockService {
         }
         product.setQuantityInStock(product.getQuantityInStock().subtract(quantity));
         productRepository.save(product);
-        return logMovement(null, product, StockMovementType.WRITE_OFF, quantity, reason, by);
+        return logMovement(null, product, StockMovementType.WRITE_OFF, quantity, reason, by, true, at);
+    }
+
+    /** Строка {@link #writeOffBatch}: ровно одно из ingredient/product. */
+    public record WriteOffLine(Ingredient ingredient, Product product, BigDecimal quantity) {
+    }
+
+    /**
+     * Списание нескольких позиций разом (форма «Списание» в приложении): всё или ничего — если
+     * хоть одной позиции не хватает на складе, не списывается ни одна. Причина обязательна.
+     * {@code date} — дата списания (не в будущем); время — текущее, чтобы порядок в журнале
+     * за день сохранялся.
+     */
+    @Transactional
+    public List<StockMovement> writeOffBatch(LocalDate date, String reason, List<WriteOffLine> lines, String by) {
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Укажите причину списания");
+        }
+        if (lines == null || lines.isEmpty()) {
+            throw new IllegalArgumentException("Добавьте хотя бы одну позицию");
+        }
+        LocalDate day = date != null ? date : LocalDate.now();
+        if (day.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("Дата списания не может быть в будущем");
+        }
+        LocalDateTime at = LocalDateTime.of(day, LocalTime.now());
+        List<StockMovement> result = new ArrayList<>();
+        for (WriteOffLine line : lines) {
+            result.add(line.product() != null
+                    ? writeOffProduct(line.product(), line.quantity(), reason.trim(), by, at)
+                    : writeOff(line.ingredient(), line.quantity(), reason.trim(), by, at));
+        }
+        return result;
     }
 
     /**
@@ -208,7 +251,16 @@ public class StockService {
 
     private StockMovement logMovement(Ingredient ingredient, Product product, StockMovementType type,
                                        BigDecimal quantity, String reason, String by, boolean manual) {
+        return logMovement(ingredient, product, type, quantity, reason, by, manual, null);
+    }
+
+    /** {@code at} — время движения, если не «сейчас» (createdAt не обновляется после вставки). */
+    private StockMovement logMovement(Ingredient ingredient, Product product, StockMovementType type,
+                                       BigDecimal quantity, String reason, String by, boolean manual, LocalDateTime at) {
         StockMovement movement = new StockMovement();
+        if (at != null) {
+            movement.setCreatedAt(at);
+        }
         movement.setIngredient(ingredient);
         movement.setProduct(product);
         movement.setType(type);
