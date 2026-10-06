@@ -165,7 +165,7 @@ public class OneCInvoiceService {
      * Зав. складом — ФИО активного пользователя CRM с ролью "Кладовщик (склад ГП)" (самого раннего,
      * если их несколько): переименовали в CRM — меняется и в накладной. Нет такого — из настройки.
      */
-    private String warehouseManager() {
+    public String warehouseManager() {
         return userRepository.findFirstByRoleAndEnabledTrueOrderByIdAsc(Role.WAREHOUSE_FG)
                 .map(User::getFullName)
                 .filter(name -> !name.isBlank())

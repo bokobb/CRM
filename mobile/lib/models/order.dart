@@ -198,6 +198,9 @@ class Order {
   final double netTotal;
   final int returnsCount;
 
+  /// Номер накладной — номер «Реализации» в 1С без нулей, до выгрузки — номер заказа.
+  final String? invoiceNumber;
+
   bool get hasUnpaidDebt => debtDueDate != null && !debtPaid;
 
   Order({
@@ -221,6 +224,7 @@ class Order {
     this.returnTotal = 0,
     required this.netTotal,
     this.returnsCount = 0,
+    this.invoiceNumber,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) => Order(
@@ -254,6 +258,7 @@ class Order {
     returnTotal: (json['returnTotal'] as num?)?.toDouble() ?? 0,
     netTotal: (json['netTotal'] as num? ?? json['totalPrice'] as num).toDouble(),
     returnsCount: json['returnsCount'] as int? ?? 0,
+    invoiceNumber: json['invoiceNumber'] as String?,
   );
 
   /// Копия с другим списком позиций — см. ApiClient._withAbsoluteOrderImages.
@@ -278,5 +283,6 @@ class Order {
     returnTotal: returnTotal,
     netTotal: netTotal,
     returnsCount: returnsCount,
+    invoiceNumber: invoiceNumber,
   );
 }

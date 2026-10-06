@@ -12,10 +12,16 @@ import org.springframework.web.bind.annotation.*;
 public class CompanyProfileApiController {
 
     private final CompanyProfileService companyProfileService;
+    private final com.confectionery.crm.service.OneCInvoiceService oneCInvoiceService;
+
+    /** Склад в шапке «Реализации» 1С — так он назван в самой 1С. */
+    @org.springframework.beans.factory.annotation.Value("${crm.invoice.warehouse-name:Гатовая Продукция}")
+    private String warehouseName;
 
     @GetMapping
     public CompanyProfileDto get() {
-        return CompanyProfileDto.from(companyProfileService.get());
+        return CompanyProfileDto.from(companyProfileService.get())
+                .withPrintInfo(warehouseName, oneCInvoiceService.warehouseManager());
     }
 
     @PutMapping

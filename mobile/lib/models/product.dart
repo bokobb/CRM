@@ -56,6 +56,9 @@ class Product {
   final double? unitsPerBox2;
   final double? boxVolume2M3;
 
+  /// Код номенклатуры в 1С (сверяется с 1С раз в сутки) — колонка «Код» в «Объём и масса».
+  final String? oneCCode;
+
   /// Штуки в коробке из названия: «(15 шт)» → [15], «(12/24 шт)» → [12, 24] — как на бэкенде
   /// (ProductPacking), когда в карточке не заполнено.
   static List<double> unitsFromName(String name) {
@@ -94,6 +97,7 @@ class Product {
     this.boxVolumeM3,
     this.unitsPerBox2,
     this.boxVolume2M3,
+    this.oneCCode,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -120,6 +124,7 @@ class Product {
         boxVolumeM3: (json['boxVolumeM3'] as num?)?.toDouble(),
         unitsPerBox2: (json['unitsPerBox2'] as num?)?.toDouble(),
         boxVolume2M3: (json['boxVolume2M3'] as num?)?.toDouble(),
+        oneCCode: json['oneCCode'] as String?,
       );
 
   /// Копия с другим imageUrl — используется, чтобы превратить относительный путь
@@ -146,6 +151,7 @@ class Product {
         boxVolumeM3: boxVolumeM3,
         unitsPerBox2: unitsPerBox2,
         boxVolume2M3: boxVolume2M3,
+        oneCCode: oneCCode,
       );
 }
 

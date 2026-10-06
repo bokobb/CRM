@@ -73,36 +73,6 @@ public class OrderApiController {
                 .body(pdf);
     }
 
-    /**
-     * «Объём и масса» по заказу — бланк расходной накладной с коробками, объёмом и массой (см.
-     * InvoicePdfService.generatePacking). {@code pack} — выбранная клиентом упаковка у товаров с
-     * двумя вариантами: «productId:штук в коробке», через запятую, например {@code 27:24,14:30}.
-     */
-    @GetMapping("/{id}/packing")
-    public ResponseEntity<byte[]> packing(@PathVariable Long id, @RequestParam(required = false) String pack) {
-        Order order = orderService.findById(id);
-        java.util.Map<Long, java.math.BigDecimal> chosen = new java.util.HashMap<>();
-        if (pack != null) {
-            for (String pair : pack.split(",")) {
-                String[] kv = pair.trim().split(":");
-                if (kv.length == 2) {
-                    try {
-                        chosen.put(Long.parseLong(kv[0].trim()), new java.math.BigDecimal(kv[1].trim()));
-                    } catch (NumberFormatException ignored) {
-                        // кривой параметр — считаем по умолчанию
-                    }
-                }
-            }
-        }
-        byte[] pdf = invoicePdfService.generatePacking(order, chosen);
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename("Объём и масса " + OrderService.invoiceFileName(order), StandardCharsets.UTF_8)
-                        .build().toString())
-                .body(pdf);
-    }
-
     @PostMapping
     @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT')")
     public OrderDto create(@Valid @RequestBody OrderRequest req) {

@@ -222,6 +222,8 @@ class _ProductionRequestsScreenState extends State<ProductionRequestsScreen> {
                         onCancel: () => _api.cancelProductionRequest(r.id),
                         onDelete: () => _api.deleteProductionRequest(r.id),
                         onDone: _refresh,
+                        cancelHint: 'Все действия откатываются, документы в 1С распроводятся и помечаются на удаление.',
+                        deleteHint: 'Заявка удалится только из CRM, в 1С ничего не отправляется.',
                         child: tile,
                       );
                     },

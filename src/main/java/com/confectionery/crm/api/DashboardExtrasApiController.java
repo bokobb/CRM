@@ -61,7 +61,8 @@ public class DashboardExtrasApiController {
     @GetMapping("/insights")
     @Transactional(readOnly = true)
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','SALES','WAREHOUSE_FG')")
-    public DashboardInsightsDto insights(@RequestParam(required = false) LocalDate to) {
+    public DashboardInsightsDto insights(@RequestParam(required = false) LocalDate to,
+                                         org.springframework.security.core.Authentication authentication) {
         LocalDate end = to != null ? to : LocalDate.now();
         LocalDate start = end.minusDays(6);
         List<DashboardInsightsDto.DaySales> days = new ArrayList<>();
@@ -72,7 +73,9 @@ public class DashboardExtrasApiController {
         BigDecimal prevWeek = netSales(start.minusDays(7), start.minusDays(1));
 
         List<DashboardInsightsDto.Alert> alerts = new ArrayList<>();
-        for (Ingredient i : ingredientService.findLowStock()) {
+        // Низкий остаток сырья складу ГП не показываем — это зона склада сырья (админ/бухгалтер видят всё).
+        boolean fg = authentication.getAuthorities().stream().anyMatch(a -> "ROLE_WAREHOUSE_FG".equals(a.getAuthority()));
+        for (Ingredient i : fg ? List.<Ingredient>of() : ingredientService.findLowStock()) {
             alerts.add(new DashboardInsightsDto.Alert("LOW_STOCK",
                     i.getName() + " — " + qty(i.getQuantityInStock()) + " из " + qty(i.getMinThreshold()) + " " + i.getUnit(),
                     "ниже нормы, нужна закупка", null));
@@ -105,6 +108,7 @@ public class DashboardExtrasApiController {
     }
 
     @GetMapping("/raw-insights")
+    @org.springframework.security.access.prepost.PreAuthorize("!hasRole('WAREHOUSE_FG')")
     @Transactional(readOnly = true)
     public RawInsightsDto rawInsights(@RequestParam(required = false) LocalDate to) {
         LocalDate end = to != null ? to : LocalDate.now();

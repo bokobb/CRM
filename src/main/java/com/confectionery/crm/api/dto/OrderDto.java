@@ -27,7 +27,9 @@ public record OrderDto(
         List<ProductionTaskDto> productionTasks,
         BigDecimal returnTotal,
         BigDecimal netTotal,
-        int returnsCount
+        int returnsCount,
+        /** Номер накладной — номер «Реализации» в 1С без нулей, до выгрузки — номер заказа. */
+        String invoiceNumber
 ) {
     public static OrderDto from(Order o) {
         return new OrderDto(
@@ -38,7 +40,8 @@ public record OrderDto(
                 o.getDebtDueDate(), Boolean.TRUE.equals(o.getDebtPaid()), Boolean.TRUE.equals(o.getFromWhatsapp()),
                 o.getItems().stream().map(OrderItemDto::from).toList(),
                 o.getProductionTasks().stream().map(ProductionTaskDto::from).toList(),
-                o.getReturnTotal(), o.getNetTotal(), o.getReturns().size()
+                o.getReturnTotal(), o.getNetTotal(), o.getReturns().size(),
+                com.confectionery.crm.service.OrderService.invoiceNumber(o)
         );
     }
 

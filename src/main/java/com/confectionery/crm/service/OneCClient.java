@@ -138,6 +138,31 @@ class OneCClient {
         return rows;
     }
 
+    /** Коды номенклатуры целиком: Ref_Key -> Code (без пробелов по краям). */
+    Map<String, String> fetchNomenclatureCodes() {
+        Map<String, String> codes = new HashMap<>();
+        int skip = 0;
+        while (true) {
+            final int currentSkip = skip;
+            JsonNode response = restClient.get()
+                    .uri(b -> b.path("/Catalog_Номенклатура")
+                            .queryParam("$format", "json")
+                            .queryParam("$select", "Ref_Key,Code")
+                            .queryParam("$top", PAGE_SIZE)
+                            .queryParam("$skip", currentSkip)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode values = response.path("value");
+            for (JsonNode item : values) {
+                codes.put(item.path("Ref_Key").asText(""), item.path("Code").asText("").trim());
+            }
+            if (values.size() < PAGE_SIZE) break;
+            skip += PAGE_SIZE;
+        }
+        return codes;
+    }
+
     /** Справочник номенклатуры целиком: Ref_Key -> Description. */
     Map<String, String> fetchNomenclatureNames() {
         Map<String, String> names = new HashMap<>();

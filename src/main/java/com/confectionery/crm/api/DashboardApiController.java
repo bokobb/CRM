@@ -1,5 +1,7 @@
 package com.confectionery.crm.api;
 
+import com.confectionery.crm.domain.Role;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.confectionery.crm.api.dto.DashboardDto;
 import com.confectionery.crm.api.dto.IngredientDto;
 import com.confectionery.crm.api.dto.ProductionDashboardDto;
@@ -56,7 +58,8 @@ public class DashboardApiController {
         LocalDateTime start = rangeFrom.atStartOfDay();
         LocalDateTime end = rangeTo.plusDays(1).atStartOfDay();
 
-        var grouped = notificationService.grouped(8, 8, start, end, userService.roleOf(authentication.getName()));
+        var viewerRole = userService.roleOf(authentication.getName());
+        var grouped = notificationService.grouped(8, 8, start, end, viewerRole);
         BigDecimal grossSales = orderRepository.sumSalesBetween(start, end);
         BigDecimal returns = productReturnRepository.sumForSalesBetween(start, end);
         DashboardDto.SalaryCosts salaryCosts = null;
@@ -71,15 +74,18 @@ public class DashboardApiController {
                 grossSales.subtract(returns),
                 grossSales,
                 returns,
-                ingredientService.findLowStock().stream().map(IngredientDto::from).toList(),
+                // Низкий остаток сырья — не дело склада ГП (у него свой блок по готовой продукции).
+                viewerRole == Role.WAREHOUSE_FG ? List.of()
+                        : ingredientService.findLowStock().stream().map(IngredientDto::from).toList(),
                 grouped.orderGroups(),
                 grouped.general(),
                 salaryCosts
         );
     }
 
-    /** Дашборд для роли WAREHOUSE_RAW — про заявки на сырьё, не про заказы клиентов. */
+    /** Дашборд для роли WAREHOUSE_RAW — про заявки на сырьё, не про заказы клиентов. Склад ГП сюда не пускаем. */
     @GetMapping("/production")
+    @PreAuthorize("!hasRole('WAREHOUSE_FG')")
     public ProductionDashboardDto getProduction(@RequestParam(required = false) LocalDate from,
                                                  @RequestParam(required = false) LocalDate to) {
         LocalDate rangeFrom = from != null ? from : LocalDate.now();
@@ -103,6 +109,7 @@ public class DashboardApiController {
      * остатком (порога для готовой продукции нет — показываем самые "тонкие" позиции).
      */
     @GetMapping("/warehouse")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','ACCOUNTANT')")
     public WarehouseDashboardDto getWarehouse(@RequestParam(required = false) LocalDate from,
                                               @RequestParam(required = false) LocalDate to) {
         LocalDate rangeFrom = from != null ? from : LocalDate.now();

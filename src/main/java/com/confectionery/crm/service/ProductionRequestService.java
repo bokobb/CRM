@@ -729,8 +729,8 @@ public class ProductionRequestService {
      * Отмена заявки в ЛЮБОМ статусе, кроме уже отменённой (в т.ч. завершённой — завершение
      * снимается тут же). Откатывает всё, что заявка успела сделать со складом (возвращает
      * списанное сырьё, вычитает оприходованную продукцию обратно), а документы в 1С (см.
-     * OneCProductionSyncService) распроводит — они остаются там черновиками. Заявка остаётся
-     * записью в статусе CANCELLED; удалить её вместе с документами 1С — {@link #delete}.
+     * OneCProductionSyncService) распроводит и помечает на удаление. Заявка остаётся записью в
+     * статусе CANCELLED; убрать её из CRM — {@link #delete}.
      */
     @Transactional
     public ProductionRequest cancel(Long requestId, String by) {
@@ -770,8 +770,9 @@ public class ProductionRequestService {
     }
 
     /**
-     * Удаление отменённой заявки: документы в 1С помечаются на удаление (сначала — там же; если
-     * 1С не ответила, заявка в CRM остаётся), затем заявка стирается из CRM вместе с позициями.
+     * Удаление отменённой заявки — только из CRM, в 1С ничего не отправляется: документы там уже
+     * помечены на удаление при отмене. Пока отмена ещё не ушла в 1С (очередь), удалять нельзя —
+     * иначе пропадут ссылки на документы и пометить их будет нечем.
      */
     @Transactional
     public void delete(Long requestId) {
@@ -779,7 +780,16 @@ public class ProductionRequestService {
         if (request.getStatus() != ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Удалить можно только отменённую заявку — сначала отмените её");
         }
-        oneCProductionSyncService.deleteOrThrow(request);
+        boolean hasDocs = request.getOneCReportKey() != null || request.getOneCRequisitionKey() != null;
+        if (hasDocs && request.isOneCPending()) {
+            throw new IllegalStateException("Отмена ещё отправляется в 1С — попробуйте удалить через минуту");
+        }
+        if (hasDocs && request.getOneCSyncError() != null) {
+            notificationService.notifyRole(Role.ADMIN, "Заявка №" + request.getId() + " удалена из CRM, но её документы в 1С "
+                    + "могли остаться не помеченными на удаление (" + request.getOneCSyncError() + ") — проверьте в 1С: "
+                    + "отчёт производства №" + request.getOneCReportNumber() + ", требование-накладная №"
+                    + request.getOneCRequisitionNumber(), null);
+        }
         requestRepository.delete(request);
     }
 

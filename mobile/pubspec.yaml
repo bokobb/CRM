@@ -80,6 +80,9 @@ flutter:
     - assets/images/logo.png
     - assets/images/logo-full.png
     - assets/animations/check_success.json
+    # Шрифт накладной 1С (метрически как Arial) — для бланка «Объём и масса» в приложении.
+    - assets/fonts/LiberationSans-Regular.ttf
+    - assets/fonts/LiberationSans-Bold.ttf
 
   fonts:
     # Основной шрифт приложения (строгий деловой стиль), кириллица, вшит для офлайна.

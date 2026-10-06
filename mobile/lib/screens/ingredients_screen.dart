@@ -118,6 +118,9 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
     }
   }
 
+  /// Низкий остаток сырья — зона склада сырья (и админа/бухгалтера); складу ГП не подсвечиваем.
+  bool get _showLowStock => ApiClient.currentSession?.role != 'WAREHOUSE_FG';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,11 +129,12 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
         hintText: 'Название сырья...',
         onQueryChanged: (v) => setState(() => _query = v),
         extraActions: [
-          IconButton(
-            icon: Icon(_lowStockOnly ? Icons.filter_alt : Icons.filter_alt_outlined),
-            tooltip: 'Только дефицит',
-            onPressed: () => setState(() => _lowStockOnly = !_lowStockOnly),
-          ),
+          if (_showLowStock)
+            IconButton(
+              icon: Icon(_lowStockOnly ? Icons.filter_alt : Icons.filter_alt_outlined),
+              tooltip: 'Только дефицит',
+              onPressed: () => setState(() => _lowStockOnly = !_lowStockOnly),
+            ),
           IconButton(
             icon: Icon(_sortMode.icon),
             tooltip: 'Сортировка: ${_sortMode.label}',
@@ -199,16 +203,17 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
               itemCount: ingredients.length,
               itemBuilder: (context, index) {
                 final i = ingredients[index];
+                final low = _showLowStock && i.lowStock;
                 return AppListTile(
-                  leadingIcon: i.lowStock ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
-                  leadingColor: i.lowStock ? context.pal.danger : context.pal.muted,
+                  leadingIcon: low ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
+                  leadingColor: low ? context.pal.danger : context.pal.muted,
                   title: i.name,
                   subtitle: 'минимум ${formatQty(i.minThreshold)} ${i.unit}',
                   trailing: Text(
                     '${formatQty(i.quantityInStock)} ${i.unit}',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: i.lowStock ? context.pal.danger : null,
+                      color: low ? context.pal.danger : null,
                     ),
                   ),
                   onLongPress: () => _delete(i),

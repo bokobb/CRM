@@ -168,7 +168,7 @@ public class OneCProductionSyncService {
     /**
      * Заявки, которые не ушли в 1С из-за её недоступности (1cFresh перегружена — см.
      * OneCClient.UnavailableException): каждые 10 минут в рабочее время дотолкнуть правку —
-     * записать документы, провести то, что должно быть проведено, у отменённой — распровести.
+     * записать документы, провести то, что должно быть проведено, у отменённой — распровести и пометить на удаление.
      */
     @Transactional
     public void retryUnavailable() {
@@ -178,7 +178,7 @@ public class OneCProductionSyncService {
             quiet.set(true);
             try {
                 if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
-                    tryUnpostAll(request);
+                    tryCancelAll(request);
                     continue;
                 }
                 sync(request);
@@ -209,7 +209,7 @@ public class OneCProductionSyncService {
         ProductionRequest request = requestRepository.findById(requestId).orElse(null);
         if (request == null) return;
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
-            tryUnpostAll(request);
+            tryCancelAll(request);
             return;
         }
         trySyncRequest(request);
@@ -237,11 +237,12 @@ public class OneCProductionSyncService {
     }
 
     /**
-     * Отмена заявки (см. ProductionRequestService.cancel): распроводит оба документа — они
-     * остаются в 1С черновиками, движения по складу снимаются. Best-effort: неудача в 1С не
-     * блокирует отмену в CRM, причина — в oneCSyncError и уведомлением админу.
+     * Отмена заявки (см. ProductionRequestService.cancel): оба документа распроводятся и
+     * помечаются на удаление (правило пользователя с 06.10; раньше оставались черновиками).
+     * Best-effort: неудача в 1С не блокирует отмену в CRM, причина — в oneCSyncError и
+     * уведомлением админу. Удаление заявки из CRM в 1С уже ничего не отправляет.
      */
-    public void tryUnpostAll(ProductionRequest request) {
+    public void tryCancelAll(ProductionRequest request) {
         if (!oneCClient.isConfigured()) {
             return;
         }
@@ -249,43 +250,23 @@ public class OneCProductionSyncService {
         for (Doc doc : docsOf(request)) {
             try {
                 unpostIfPosted(doc);
+                oneCClient.markForDeletion(doc.entitySet(), doc.ref(), true);
             } catch (Exception e) {
                 errors.add(doc.what() + ": " + e.getMessage());
             }
         }
         if (errors.isEmpty()) {
             request.setOneCSyncError(null);
+            if (!docsOf(request).isEmpty()) {
+                log.info("Заявка №{} отменена — документы в 1С распроведены и помечены на удаление", request.getId());
+            }
         } else {
-            String message = "не удалось распровести в 1С — " + String.join("; ", errors);
+            String message = "не удалось пометить на удаление в 1С — " + String.join("; ", errors);
             log.warn("Заявка №{} — {}", request.getId(), message);
             request.setOneCSyncError(message.length() > 500 ? message.substring(0, 500) : message);
             notifyAdmin("Заявка №" + request.getId() + " — " + message);
         }
         requestRepository.save(request);
-    }
-
-    /**
-     * Удаление отменённой заявки (см. ProductionRequestService.delete): распровести (если вдруг
-     * проведены) и пометить оба документа на удаление. Бросает исключение, если 1С не ответила —
-     * тогда заявка в CRM не удаляется, чтобы не остались документы без заявки.
-     */
-    public void deleteOrThrow(ProductionRequest request) {
-        List<Doc> docs = docsOf(request);
-        if (docs.isEmpty()) {
-            return;
-        }
-        if (!oneCClient.isConfigured()) {
-            throw new IllegalStateException("Заявка выгружена в 1С, а подключение к 1С не настроено — удалить нельзя");
-        }
-        for (Doc doc : docs) {
-            try {
-                unpostIfPosted(doc);
-                oneCClient.markForDeletion(doc.entitySet(), doc.ref(), true);
-            } catch (Exception e) {
-                throw new IllegalStateException("Не удалось пометить на удаление " + doc.what() + " в 1С: " + e.getMessage(), e);
-            }
-        }
-        log.info("Заявка №{} удалена — документы в 1С помечены на удаление", request.getId());
     }
 
     private record Doc(String entitySet, String ref, String what) {

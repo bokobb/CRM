@@ -20,6 +20,11 @@ class SwipeCancelDelete extends StatelessWidget {
   final VoidCallback onDone;
   final Widget child;
   final VoidCallback? onSwipeRight;
+
+  /// Свой текст диалога (что будет в 1С), если правило отличается от заказов — у заявок
+  /// отмена помечает документы на удаление, а удаление в 1С ничего не отправляет.
+  final String? cancelHint;
+  final String? deleteHint;
   final String? swipeRightLabel;
   final IconData? swipeRightIcon;
 
@@ -35,6 +40,8 @@ class SwipeCancelDelete extends StatelessWidget {
     required this.onDone,
     required this.child,
     this.onSwipeRight,
+    this.cancelHint,
+    this.deleteHint,
     this.swipeRightLabel,
     this.swipeRightIcon,
   });
@@ -110,8 +117,8 @@ class SwipeCancelDelete extends StatelessWidget {
         title: Text(deleting ? 'Удалить $subject?' : 'Отменить $subject?'),
         content: Text(
           deleting
-              ? 'Будет удалено из CRM, документы в 1С помечаются на удаление.'
-              : 'Все действия откатываются, документы в 1С будут распроведены и останутся черновиками.',
+              ? (deleteHint ?? 'Будет удалено из CRM, документы в 1С помечаются на удаление.')
+              : (cancelHint ?? 'Все действия откатываются, документы в 1С будут распроведены и останутся черновиками.'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Нет')),

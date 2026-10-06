@@ -1,17 +1,22 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/company_profile.dart';
 import '../models/order.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
+import '../services/packing_pdf.dart';
 import '../theme/app_theme.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 
 /// «Объём и масса» по заказу (свайп заказа вправо на «Заказах»): предпросмотр бланка расходной
-/// накладной с коробками, объёмом и массой (PDF строит backend) и «Поделиться» сверху. У товаров
+/// накладной с коробками, объёмом и массой (собирается в приложении, без 1С — см. packing_pdf.dart)
+/// и «Поделиться» сверху. У товаров
 /// с двумя упаковками («Коржики (12/24 шт)») сверху переключатель «по 12 | по 24» — это решает
 /// клиент; выбор запоминается для клиента на этом устройстве.
 class PackingListScreen extends StatefulWidget {
@@ -26,11 +31,13 @@ class PackingListScreen extends StatefulWidget {
 class _PackingListScreenState extends State<PackingListScreen> {
   final _api = ApiClient();
   Order? _order;
+  Map<int, Product> _products = {};
+  CompanyProfile? _profile;
 
   /// Товары заказа с двумя упаковками: productId → [товар, варианты].
   final Map<int, (String, List<double>)> _choices = {};
   final Map<int, double> _pack = {};
-  Future<InvoiceFile>? _file;
+  Future<Uint8List>? _file;
   Object? _loadError;
 
   @override
@@ -44,8 +51,14 @@ class _PackingListScreenState extends State<PackingListScreen> {
   Future<void> _load() async {
     setState(() => _loadError = null);
     try {
-      final order = await _api.getOrder(widget.orderId);
-      final products = {for (final p in await _api.getProducts()) p.id: p};
+      final results = await Future.wait([
+        _api.getOrder(widget.orderId),
+        _api.getProducts(),
+        _api.getCompanyProfile().then<CompanyProfile?>((p) => p).catchError((_) => null),
+      ]);
+      final order = results[0] as Order;
+      final products = {for (final p in results[1] as List<Product>) p.id: p};
+      _profile = results[2] as CompanyProfile?;
       final prefs = await SharedPreferences.getInstance();
       _choices.clear();
       _pack.clear();
@@ -59,7 +72,8 @@ class _PackingListScreenState extends State<PackingListScreen> {
       }
       setState(() {
         _order = order;
-        _file = _api.getPackingFile(widget.orderId, Map.of(_pack));
+        _products = products;
+        _file = _build();
       });
     } catch (e) {
       setState(() => _loadError = e);
@@ -71,14 +85,18 @@ class _PackingListScreenState extends State<PackingListScreen> {
     await prefs.setDouble(_prefKey(_order!.clientId, productId), units);
     setState(() {
       _pack[productId] = units;
-      _file = _api.getPackingFile(widget.orderId, Map.of(_pack));
+      _file = _build();
     });
   }
 
-  Future<void> _share(InvoiceFile file) async {
+  Future<Uint8List> _build() => buildPackingPdf(_order!, _products, _profile, Map.of(_pack));
+
+  String get _filename => packingFileName(_order!);
+
+  Future<void> _share(Uint8List bytes) async {
     await Share.shareXFiles(
-      [XFile.fromData(file.bytes, mimeType: file.mimeType, name: file.filename)],
-      fileNameOverrides: [file.filename],
+      [XFile.fromData(bytes, mimeType: 'application/pdf', name: _filename)],
+      fileNameOverrides: [_filename],
     );
   }
 
@@ -113,7 +131,7 @@ class _PackingListScreenState extends State<PackingListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<InvoiceFile>(
+    return FutureBuilder<Uint8List>(
       future: _file,
       builder: (context, snapshot) {
         final file = snapshot.connectionState == ConnectionState.done ? snapshot.data : null;
@@ -140,14 +158,14 @@ class _PackingListScreenState extends State<PackingListScreen> {
                           ? const Center(child: CircularProgressIndicator())
                           : PdfPreview(
                               key: ValueKey(_pack.toString()),
-                              build: (_) async => file.bytes,
+                              build: (_) async => file,
                               useActions: false,
                               allowPrinting: false,
                               allowSharing: false,
                               canChangePageFormat: false,
                               canChangeOrientation: false,
                               canDebug: false,
-                              pdfFileName: file.filename,
+                              pdfFileName: _filename,
                             ),
                     ),
                   ],
