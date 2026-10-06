@@ -368,18 +368,22 @@ public class ShopController {
 
     /**
      * История заказов клиента — все каналы (сама витрина, WhatsApp, ручной ввод), не только /shop.
-     * Показывается по календарным неделям (пн–вс) по дате заказа: {@code week} — сколько недель
-     * назад, 0 — текущая. У каждого заказа — закреплённые за ним возвраты (кнопка «Показать возврат»).
+     * По умолчанию (без {@code week}) — последние 7 дней, включая сегодня. Стрелкой назад —
+     * календарные недели (пн–вс) по дате заказа: {@code week} — сколько недель назад, 0 — текущая.
+     * У каждого заказа — закреплённые за ним возвраты (кнопка «Показать возврат»).
      */
     @GetMapping("/orders")
-    public String orders(@RequestParam(defaultValue = "0") int week, HttpSession session, Model model) {
+    public String orders(@RequestParam(required = false) Integer week, HttpSession session, Model model) {
         Client client = currentClient(session);
         if (client == null) {
             return "redirect:/shop";
         }
-        int weeksAgo = Math.max(week, 0);
-        LocalDate from = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(weeksAgo);
-        LocalDate to = from.plusDays(6);
+        boolean last7Days = week == null || week < 0;
+        int weeksAgo = last7Days ? -1 : week;
+        LocalDate today = LocalDate.now();
+        LocalDate from = last7Days ? today.minusDays(6)
+                : today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(weeksAgo);
+        LocalDate to = last7Days ? today : from.plusDays(6);
         List<OrderHistoryRow> rows = orderService.findByClient(client.getId()).stream()
                 .filter(o -> {
                     LocalDate d = o.getCreatedAt().toLocalDate();
@@ -390,7 +394,7 @@ public class ShopController {
         model.addAttribute("clientName", client.getName());
         model.addAttribute("rows", rows);
         model.addAttribute("week", weeksAgo);
-        model.addAttribute("weekLabel", weeksAgo == 0 ? "Эта неделя" : weeksAgo == 1 ? "Прошлая неделя"
+        model.addAttribute("weekLabel", last7Days ? "Последние 7 дней" : weeksAgo == 0 ? "Эта неделя" : weeksAgo == 1 ? "Прошлая неделя"
                 : WEEK_FORMAT.format(from) + " – " + WEEK_FORMAT.format(to));
         model.addAttribute("weekRange", WEEK_FORMAT.format(from) + " – " + WEEK_FORMAT.format(to));
         model.addAttribute("cartCount", cart(session).size());

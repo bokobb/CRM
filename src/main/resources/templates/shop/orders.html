@@ -24,7 +24,8 @@
                 <small th:if="${week < 2}" th:text="${weekRange}"></small>
             </div>
             <a class="shop-week-arrow" th:if="${week > 0}" th:href="@{/shop/orders(week=${week - 1})}" aria-label="Следующая неделя">›</a>
-            <span class="shop-week-arrow disabled" th:unless="${week > 0}">›</span>
+            <a class="shop-week-arrow" th:if="${week == 0}" th:href="@{/shop/orders}" aria-label="Последние 7 дней">›</a>
+            <span class="shop-week-arrow disabled" th:if="${week < 0}">›</span>
         </div>
 
         <div class="alert error" th:if="${error}" th:text="${error}"></div>
