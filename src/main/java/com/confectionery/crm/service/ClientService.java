@@ -43,7 +43,7 @@ public class ClientService {
                 .findFirst();
     }
 
-    private static String phoneSuffix(String phone) {
+    static String phoneSuffix(String phone) {
         if (phone == null) return "";
         String digits = phone.replaceAll("\\D", "");
         return digits.length() >= 10 ? digits.substring(digits.length() - 10) : digits;

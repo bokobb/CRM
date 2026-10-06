@@ -16,10 +16,10 @@
     <form th:action="@{/shop/start}" method="post" data-turbo="false">
         <div class="field">
             <label for="phone">Ваш номер телефона</label>
-            <input type="tel" id="phone" name="phone" placeholder="+7 700 000 00 00" autofocus required>
+            <input type="tel" id="phone" name="phone" placeholder="+7 700 000 00 00" th:value="${phone}" autofocus required>
         </div>
         <div class="field">
-            <label for="name">Ваше имя (если заказываете впервые)</label>
+            <label for="name">Ваше имя (если входите впервые)</label>
             <input type="text" id="name" name="name" placeholder="Как к вам обращаться">
         </div>
         <button class="btn primary" type="submit">Продолжить</button>

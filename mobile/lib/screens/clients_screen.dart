@@ -21,17 +21,73 @@ class _ClientsScreenState extends State<ClientsScreen> {
   late Future<List<Client>> _future;
   String _query = '';
 
+  /// Заявки на доступ к сайту клиентов с новых номеров — только у ADMIN.
+  List<Map<String, dynamic>> _requests = [];
+
+  bool get _isAdmin => ApiClient.currentSession?.role == 'ADMIN';
+
   @override
   void initState() {
     super.initState();
     _future = _api.getClients();
+    _loadRequests();
   }
 
   Future<void> _refresh() async {
     setState(() {
       _future = _api.getClients();
     });
+    _loadRequests();
     await _future;
+  }
+
+  Future<void> _loadRequests() async {
+    if (!_isAdmin) return;
+    try {
+      final list = await _api.getShopAccessRequests();
+      if (mounted) setState(() => _requests = list);
+    } catch (_) {
+      // не мешаем списку клиентов, если заявки не загрузились
+    }
+  }
+
+  Future<void> _decide(Map<String, dynamic> r, bool approve) async {
+    try {
+      await _api.decideShopAccessRequest(r['id'] as int, approve);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(approve ? '«${r['name']}» может входить на сайт' : 'Заявка «${r['name']}» отклонена')));
+      }
+      _refresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Widget _requestCard(Map<String, dynamic> r) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Просит доступ к сайту', style: TextStyle(color: context.pal.muted, fontSize: 12)),
+            const SizedBox(height: 2),
+            Text('${r['name']}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+            Text('${r['phone']}'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: () => _decide(r, false), child: const Text('Отклонить')),
+                const SizedBox(width: 8),
+                FilledButton(onPressed: () => _decide(r, true), child: const Text('Разрешить')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   List<Client> _filter(List<Client> clients) {
@@ -67,7 +123,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = ApiClient.currentSession?.role == 'ADMIN';
+    final isAdmin = _isAdmin;
     return Scaffold(
       appBar: SearchableAppBar(
         title: 'Клиенты',
@@ -96,7 +152,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
             }
             final clients = _filter(snapshot.data!);
             if (clients.isEmpty) {
-              return ListView(children: [
+              return ListView(padding: const EdgeInsets.fromLTRB(12, 10, 12, 12), children: [
+                for (final r in _requests) _requestCard(r),
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Center(
@@ -108,9 +165,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
             }
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              itemCount: clients.length,
+              itemCount: _requests.length + clients.length,
               itemBuilder: (context, i) {
-                final c = clients[i];
+                if (i < _requests.length) return _requestCard(_requests[i]);
+                final c = clients[i - _requests.length];
                 return AppListTile(
                   leading: InitialAvatar(text: c.name),
                   title: c.name,

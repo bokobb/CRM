@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Доступ к заказам — Юг Сладости</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <script th:src="@{/js/turbo.min.js}"></script>
+    <script th:src="@{/js/btn-animate.js}"></script>
+</head>
+<body class="login-page">
+<div class="login-card">
+    <div class="brand"><img th:src="@{/images/logo.png}" alt="Логотип"> Юг Сладости</div>
+    <th:block th:unless="${rejected}">
+        <p class="subtitle">Заявка отправлена администратору</p>
+        <p>Номер <b th:text="${phone}"></b> ещё не подключён. Как только администратор разрешит доступ,
+            обновите страницу — вход откроется сам.</p>
+        <a class="btn primary" th:href="@{/shop}">Проверить</a>
+    </th:block>
+    <th:block th:if="${rejected}">
+        <p class="subtitle">В доступе отказано</p>
+        <p>Для номера <b th:text="${phone}"></b> доступ к заказам не разрешён. Свяжитесь с нами по телефону.</p>
+    </th:block>
+    <form th:action="@{/shop/reset}" method="post" data-turbo="false" style="margin-top:12px">
+        <button class="btn" type="submit">Другой номер</button>
+    </form>
+</div>
+</body>
+</html>

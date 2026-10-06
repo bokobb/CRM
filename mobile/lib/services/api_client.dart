@@ -370,6 +370,23 @@ class ApiClient {
     return Client.fromJson(_decode(res));
   }
 
+  /// Заявки на доступ к сайту клиентов с новых номеров (только ADMIN, см. ShopAccessApiController).
+  Future<List<Map<String, dynamic>>> getShopAccessRequests() async {
+    final res = await http.get(
+      await _uri('/shop-access-requests'),
+      headers: await _authHeaders(),
+    );
+    return (_decode(res) as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> decideShopAccessRequest(int id, bool approve) async {
+    final res = await _http.post(
+      await _uri('/shop-access-requests/$id/${approve ? 'approve' : 'reject'}'),
+      headers: await _authHeaders(),
+    );
+    _decode(res);
+  }
+
   Future<void> deleteClient(int id) async {
     final res = await _http.delete(
       await _uri('/clients/$id'),

@@ -10,6 +10,7 @@ import com.confectionery.crm.service.ClientService;
 import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.service.ProductReturnService;
 import com.confectionery.crm.service.ProductService;
+import com.confectionery.crm.service.ShopAccessService;
 import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -96,6 +97,7 @@ public class ShopController {
     private final ClientPriceService clientPriceService;
     private final OrderService orderService;
     private final ProductReturnService productReturnService;
+    private final ShopAccessService shopAccessService;
 
     @GetMapping
     public String phoneForm(HttpSession session, HttpServletRequest request) {
@@ -110,8 +112,34 @@ public class ShopController {
                 session.setAttribute(SESSION_CLIENT_NAME, client.getName());
                 return "redirect:/shop/products";
             }
+            if (shopAccessService.findOpen(rememberedPhone).isPresent()) {
+                return "redirect:/shop/access";
+            }
         }
         return "shop/phone";
+    }
+
+    /**
+     * Номера нет среди клиентов — вместо входа заявка админу (см. ShopAccessService). Номер
+     * всё равно запоминается в cookie: как только админ разрешит, следующее открытие /shop
+     * впустит клиента само, без повторного ввода.
+     */
+    @GetMapping("/access")
+    public String access(HttpServletRequest request, Model model) {
+        String phone = readPhoneCookie(request);
+        if (phone == null) {
+            return "redirect:/shop";
+        }
+        if (clientService.findByPhone(phone).isPresent()) {
+            return "redirect:/shop";
+        }
+        var open = shopAccessService.findOpen(phone);
+        if (open.isEmpty()) {
+            return "redirect:/shop";
+        }
+        model.addAttribute("phone", open.get().getPhone());
+        model.addAttribute("rejected", "REJECTED".equals(open.get().getStatus()));
+        return "shop/access";
     }
 
     @PostMapping("/start")
@@ -121,12 +149,19 @@ public class ShopController {
             redirectAttributes.addFlashAttribute("error", "Укажите номер телефона");
             return "redirect:/shop";
         }
-        Client client = clientService.findByPhone(phone).orElseGet(() -> {
-            Client c = new Client();
-            c.setPhone(phone.trim());
-            c.setName((name == null || name.isBlank()) ? "Клиент " + phone.trim() : name.trim());
-            return clientService.save(c);
-        });
+        Client client = clientService.findByPhone(phone).orElse(null);
+        if (client == null) {
+            if (shopAccessService.findOpen(phone).isEmpty()) {
+                if (name == null || name.isBlank()) {
+                    redirectAttributes.addFlashAttribute("error", "Номер новый — укажите имя, заявка уйдёт администратору");
+                    redirectAttributes.addFlashAttribute("phone", phone.trim());
+                    return "redirect:/shop";
+                }
+                shopAccessService.request(phone, name);
+            }
+            writePhoneCookie(response, phone.trim());
+            return "redirect:/shop/access";
+        }
         session.setAttribute(SESSION_CLIENT_ID, client.getId());
         session.setAttribute(SESSION_CLIENT_NAME, client.getName());
         writePhoneCookie(response, client.getPhone());
