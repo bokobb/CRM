@@ -187,14 +187,6 @@ public class Product {
     private String oneCLineTemplate;
 
     /**
-     * То же самое, что oneCLineTemplate, но для табличной части документа "Оприходование
-     * товаров" (см. OneCReceiptSyncService) — поля счетов учёта там называются иначе
-     * (КорСчетОприходованияБУ_Key и т.п.), поэтому кэш отдельный.
-     */
-    @Column(length = 4000)
-    private String oneCReceiptTemplate;
-
-    /**
      * GUID "верхней" спецификации номенклатуры в 1С (Catalog_СпецификацииНоменклатуры.Ref_Key) —
      * запоминается при последнем импорте рецепта (см. OneCRecipeImportService.importAll/
      * pickTopSpec) и подставляется в поле "Спецификация_Key" табличной части "Продукция"

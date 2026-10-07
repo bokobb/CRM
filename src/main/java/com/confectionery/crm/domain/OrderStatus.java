@@ -1,10 +1,10 @@
 package com.confectionery.crm.domain;
 
 /**
- * CONFIRMED и IN_PRODUCTION остаются в перечислении ради модуля цехового производства
- * (ProductionTask), но в основном потоке дистрибьюторских заказов больше не используются:
- * готовая продукция всегда есть на складе, поэтому OrderService.confirm() ведёт сразу
- * NEW -> READY, без цеховых задач. DELIVERED = "отгружено со склада ГП" (см. OrderService.ship).
+ * CONFIRMED и IN_PRODUCTION в основном потоке заказов не используются: готовая продукция
+ * всегда есть на складе, поэтому OrderService.confirm() ведёт сразу NEW -> READY. Значения
+ * оставлены, потому что хранятся в orders.status (CHECK-ограничение в БД) и могут встретиться
+ * у старых заказов. DELIVERED = "отгружено со склада ГП" (см. OrderService.ship).
  */
 public enum OrderStatus {
     NEW("В процессе сборки"),

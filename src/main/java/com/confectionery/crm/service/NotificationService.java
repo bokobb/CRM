@@ -144,10 +144,6 @@ public class NotificationService {
         return notificationRepository.findTop50ByOrderByCreatedAtDesc();
     }
 
-    public List<Notification> recent(Role viewerRole) {
-        return filterForRole(recent(), viewerRole);
-    }
-
     /**
      * Уведомления, сгруппированные по заказу (одна карточка — один заказ, полная история —
      * по нажатию, см. дашборд и экран "Уведомления"). Один и тот же текст, отправленный сразу

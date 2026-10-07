@@ -30,9 +30,8 @@ import java.util.Set;
  * {@link #createDraftSale}/{@link #updateDraftSale} для документа "Реализация товаров и услуг"
  * по заказу CRM (см. OneCOrderSyncService) — живёт непроведённым черновиком, пока заказ не
  * отгружен, и проводится через {@link #postDocument} по кнопке "Отгружен";
- * {@link #createReceiptDocument} для документа "Оприходование товаров" по сводному РУЧНОМУ
- * приходу готовой продукции за день (см. OneCReceiptSyncService — этот, в отличие от
- * "Реализации", создаётся сразу проведённым); {@link #createProductionReport}/
+ * {@link #createDocument} для "Оприходования"/"Списания товаров" по документам формы склада
+ * (см. OneCStockDocumentSyncService); {@link #createProductionReport}/
  * {@link #createMaterialsRequisition} для пары "Отчёт производства за смену"/"Требование-
  * накладная" по заявке на производство (см. OneCProductionSyncService, тоже черновики, но эти
  * CRM сама и проводит через {@link #postDocument}); {@link #createContragent} для нового
@@ -841,28 +840,6 @@ class OneCClient {
     }
 
     /**
-     * Шаблон-заготовка для табличной части документа "Оприходование товаров" — та же идея,
-     * что и {@link #findAnyLineTemplate()} для "Реализации": счета учёта (СчетУчетаБУ/НУ,
-     * КорСчетОприходованияБУ/НУ, ЕдиницаИзмерения) одинаковы для всех номенклатур в этой
-     * базе, различается только субконто по номенклатурной группе/номенклатуре (см.
-     * OneCReceiptSyncService — подставляет их поверх заготовки). Null, если в 1С вообще нет
-     * ни одного такого документа.
-     */
-    Map<String, Object> findAnyReceiptLineTemplate() {
-        JsonNode response = restClient.get()
-                .uri(b -> b.path("/Document_ОприходованиеТоваров_Товары")
-                        .queryParam("$format", "json")
-                        .queryParam("$top", 1)
-                        .build())
-                .retrieve()
-                .body(JsonNode.class);
-        JsonNode values = response.path("value");
-        if (values.isEmpty()) return null;
-        return extractTemplate(values.get(0),
-                List.of("Ref_Key", "LineNumber", "Номенклатура_Key", "Количество", "Цена", "Сумма"));
-    }
-
-    /**
      * Шаблон-заготовка шапки документа "Поступление товаров и услуг" — счета учёта расчётов с
      * контрагентом и валютные реквизиты, снятые с ЛЮБОГО существующего документа этого типа в
      * базе, по той же идее, что {@link #findAnyLineTemplate()}: не гадаем GUID-ы констант руками,
@@ -1086,18 +1063,6 @@ class OneCClient {
     CreatedDocument createDocument(String entitySet, Map<String, Object> body) {
         JsonNode response = restClient.post()
                 .uri(b -> b.path("/" + entitySet)
-                        .queryParam("$format", "json")
-                        .build())
-                .body(body)
-                .retrieve()
-                .body(JsonNode.class);
-        return new CreatedDocument(response.path("Ref_Key").asText(""), response.path("Number").asText(""));
-    }
-
-    /** Создаёт и сразу проводит (Posted:true) документ "Оприходование товаров" — см. OneCReceiptSyncService. */
-    CreatedDocument createReceiptDocument(Map<String, Object> body) {
-        JsonNode response = restClient.post()
-                .uri(b -> b.path("/Document_ОприходованиеТоваров")
                         .queryParam("$format", "json")
                         .build())
                 .body(body)

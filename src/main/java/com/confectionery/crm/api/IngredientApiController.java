@@ -22,11 +22,6 @@ public class IngredientApiController {
         return ingredientService.findAllActive().stream().map(IngredientDto::from).toList();
     }
 
-    @GetMapping("/low-stock")
-    public List<IngredientDto> lowStock() {
-        return ingredientService.findLowStock().stream().map(IngredientDto::from).toList();
-    }
-
     @GetMapping("/{id}")
     public IngredientDto get(@PathVariable Long id) {
         return IngredientDto.from(ingredientService.findById(id));

@@ -86,9 +86,6 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProductionTask> productionTasks = new ArrayList<>();
-
     /** Возвраты, закреплённые за заказом (см. ProductReturn.order) — без каскада, возврат живёт сам по себе. */
     @OneToMany(mappedBy = "order")
     private List<ProductReturn> returns = new ArrayList<>();

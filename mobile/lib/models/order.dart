@@ -68,47 +68,6 @@ class OrderItem {
   );
 }
 
-class ProductionTask {
-  final int id;
-  final int orderId;
-  final int productId;
-  final String productName;
-  final double quantity;
-  final String status;
-  final String statusLabel;
-  final String? assignedTo;
-  final DateTime createdAt;
-  final DateTime? completedAt;
-
-  ProductionTask({
-    required this.id,
-    required this.orderId,
-    required this.productId,
-    required this.productName,
-    required this.quantity,
-    required this.status,
-    required this.statusLabel,
-    this.assignedTo,
-    required this.createdAt,
-    this.completedAt,
-  });
-
-  factory ProductionTask.fromJson(Map<String, dynamic> json) => ProductionTask(
-    id: json['id'] as int,
-    orderId: json['orderId'] as int,
-    productId: json['productId'] as int,
-    productName: json['productName'] as String,
-    quantity: (json['quantity'] as num).toDouble(),
-    status: json['status'] as String,
-    statusLabel: json['statusLabel'] as String,
-    assignedTo: json['assignedTo'] as String?,
-    createdAt: DateTime.parse(json['createdAt'] as String),
-    completedAt: json['completedAt'] != null
-        ? DateTime.parse(json['completedAt'] as String)
-        : null,
-  );
-}
-
 class OrderSummary {
   final int id;
   final int clientId;
@@ -193,7 +152,6 @@ class Order {
   final bool debtPaid;
   final bool fromWhatsapp;
   final List<OrderItem> items;
-  final List<ProductionTask> productionTasks;
   final double returnTotal;
   final double netTotal;
   final int returnsCount;
@@ -220,7 +178,6 @@ class Order {
     this.debtPaid = false,
     this.fromWhatsapp = false,
     required this.items,
-    required this.productionTasks,
     this.returnTotal = 0,
     required this.netTotal,
     this.returnsCount = 0,
@@ -252,9 +209,6 @@ class Order {
     items: (json['items'] as List)
         .map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
         .toList(),
-    productionTasks: (json['productionTasks'] as List)
-        .map((e) => ProductionTask.fromJson(e as Map<String, dynamic>))
-        .toList(),
     returnTotal: (json['returnTotal'] as num?)?.toDouble() ?? 0,
     netTotal: (json['netTotal'] as num? ?? json['totalPrice'] as num).toDouble(),
     returnsCount: json['returnsCount'] as int? ?? 0,
@@ -279,7 +233,6 @@ class Order {
     debtPaid: debtPaid,
     fromWhatsapp: fromWhatsapp,
     items: items,
-    productionTasks: productionTasks,
     returnTotal: returnTotal,
     netTotal: netTotal,
     returnsCount: returnsCount,

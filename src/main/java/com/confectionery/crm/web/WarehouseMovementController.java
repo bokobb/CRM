@@ -5,11 +5,9 @@ import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.StockMovementType;
 import com.confectionery.crm.repository.StockMovementRepository;
 import com.confectionery.crm.service.IngredientService;
-import com.confectionery.crm.service.OneCReceiptSyncService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.service.StockService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -48,7 +46,6 @@ public class WarehouseMovementController {
     private final StockService stockService;
     private final ProductService productService;
     private final IngredientService ingredientService;
-    private final OneCReceiptSyncService oneCReceiptSyncService;
     private final StockMovementRepository stockMovementRepository;
 
     @GetMapping("/warehouse/receipts")
@@ -105,32 +102,6 @@ public class WarehouseMovementController {
                                         @RequestParam(required = false) String reason,
                                         Authentication authentication, RedirectAttributes redirectAttributes) {
         submit(StockMovementType.RECEIPT, PRODUCT, productId, null, quantity, reason, authentication, redirectAttributes);
-        return "redirect:/warehouse/receipts";
-    }
-
-    /**
-     * "Общее оприходование" — собирает все ещё не выгруженные в 1С РУЧНЫЕ поступления товара
-     * за день в один документ "Оприходование товаров" и сразу проводит его в 1С на 06:00 (см.
-     * OneCReceiptSyncService). Приход от заявок на производство сюда не относится — тот
-     * выгружается сам, отдельным документом на каждую заявку.
-     */
-    @PostMapping("/warehouse/receipts/post-1c")
-    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_FG')")
-    public String postReceiptsOneC(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-                                    RedirectAttributes redirectAttributes) {
-        LocalDate d = date != null ? date : LocalDate.now();
-        try {
-            var result = oneCReceiptSyncService.postDailyReceipts(d);
-            String message = result.documentNumber() == null
-                    ? "Оприходовывать нечего — все сегодняшние ручные поступления уже выгружены в 1С"
-                    : "Оприходовано в 1С: позиций " + result.movementsCount() + ", документ №" + result.documentNumber();
-            if (!result.unresolved().isEmpty()) {
-                message += ". Не сопоставлено с 1С: " + String.join(", ", result.unresolved());
-            }
-            redirectAttributes.addFlashAttribute("success", message);
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("error", "Не удалось оприходовать в 1С: " + e.getMessage());
-        }
         return "redirect:/warehouse/receipts";
     }
 

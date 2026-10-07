@@ -24,7 +24,11 @@ public record OrderDto(
         boolean debtPaid,
         boolean fromWhatsapp,
         List<OrderItemDto> items,
-        List<ProductionTaskDto> productionTasks,
+        /**
+         * Всегда пустой: цеховые задачи удалены 07.10. Поле оставлено только для старых версий
+         * приложения (они без него не открывают заказ) — убрать, когда все телефоны обновятся.
+         */
+        List<Object> productionTasks,
         BigDecimal returnTotal,
         BigDecimal netTotal,
         int returnsCount,
@@ -39,7 +43,7 @@ public record OrderDto(
                 o.getVehicleNumber(), o.getShippedAt(), o.getShippedByName(),
                 o.getDebtDueDate(), Boolean.TRUE.equals(o.getDebtPaid()), Boolean.TRUE.equals(o.getFromWhatsapp()),
                 o.getItems().stream().map(OrderItemDto::from).toList(),
-                o.getProductionTasks().stream().map(ProductionTaskDto::from).toList(),
+                List.of(),
                 o.getReturnTotal(), o.getNetTotal(), o.getReturns().size(),
                 com.confectionery.crm.service.OrderService.invoiceNumber(o)
         );

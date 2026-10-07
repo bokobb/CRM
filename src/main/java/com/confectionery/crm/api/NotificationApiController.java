@@ -1,6 +1,5 @@
 package com.confectionery.crm.api;
 
-import com.confectionery.crm.api.dto.NotificationDto;
 import com.confectionery.crm.service.NotificationService;
 import com.confectionery.crm.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -11,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -20,12 +18,6 @@ public class NotificationApiController {
 
     private final NotificationService notificationService;
     private final UserService userService;
-
-    @GetMapping
-    public List<NotificationDto> list(Authentication authentication) {
-        return notificationService.recent(userService.roleOf(authentication.getName()))
-                .stream().map(NotificationDto::from).toList();
-    }
 
     /**
      * Та же группировка "один заказ — одна карточка", что и на дашборде, но без ограничения в 8 записей.

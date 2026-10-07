@@ -29,13 +29,4 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
     List<StockMovement> findManual(@Param("type") StockMovementType type,
                                     @Param("from") LocalDateTime from,
                                     @Param("to") LocalDateTime to);
-
-    /**
-     * Ещё не выгруженные в 1С РУЧНЫЕ поступления товара за период (см. OneCReceiptSyncService) —
-     * только manual=true. Приход от заявок на производство сюда не попадает — для него в 1С
-     * есть свой правильный документ ("Отчёт производства за смену" + "Требование-накладная",
-     * см. OneCProductionSyncService), "Оприходование товаров" для него не подходит.
-     */
-    List<StockMovement> findByTypeAndManualAndProductIsNotNullAndDocumentIsNullAndOneCSyncedAtIsNullAndCreatedAtBetween(
-            StockMovementType type, boolean manual, LocalDateTime from, LocalDateTime to);
 }

@@ -17,11 +17,6 @@
                         ? (isReceipt ? 'Приход готовой продукции на склад' : 'Списание порчи, недостачи и т.п. готовой продукции')
                         : (isReceipt ? 'Приход сырья на склад' : 'Списание порчи, недостачи и т.п. сырья')}"></p>
             </div>
-            <form th:if="${isReceipt and kind == 'PRODUCT'}" method="post" th:action="@{/warehouse/receipts/post-1c}"
-                  sec:authorize="hasAnyRole('ADMIN','WAREHOUSE_FG')"
-                  onsubmit="return confirm('Собрать все сегодняшние ручные поступления товара в один документ и провести в 1С на 06:00? (приход от заявок на производство сюда не входит — он выгружается сам)');">
-                <button type="submit" class="btn">Общее оприходование</button>
-            </form>
         </div>
 
         <div class="alert error" th:if="${error}" th:text="${error}"></div>

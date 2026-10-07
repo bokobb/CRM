@@ -64,20 +64,6 @@ class InvoiceFile {
   InvoiceFile({required this.bytes, required this.filename, required this.mimeType});
 }
 
-/// Результат "Общего оприходования" в 1С (см. ApiClient.postDailyReceiptsOneC).
-class OneCReceiptResult {
-  final int movementsCount;
-  final String? documentNumber;
-  final List<String> unresolved;
-  OneCReceiptResult({required this.movementsCount, required this.documentNumber, required this.unresolved});
-
-  factory OneCReceiptResult.fromJson(Map<String, dynamic> json) => OneCReceiptResult(
-        movementsCount: json['movementsCount'] as int,
-        documentNumber: json['documentNumber'] as String?,
-        unresolved: (json['unresolved'] as List).cast<String>(),
-      );
-}
-
 /// Тонкий HTTP-клиент к REST API кондитерской CRM (см. com.confectionery.crm.api.*
 /// на бэкенде). Базовый URL настраивается в приложении и хранится в SharedPreferences —
 /// по умолчанию подставляется адрес, подходящий для Android-эмулятора/веба.
@@ -693,40 +679,6 @@ class ApiClient {
         .toList();
   }
 
-  Future<StockMovement> receiveStock(
-    int ingredientId,
-    double quantity,
-    String? reason,
-  ) async {
-    final res = await _http.post(
-      await _uri('/stock/receipts'),
-      headers: await _authHeaders(),
-      body: jsonEncode({
-        'ingredientId': ingredientId,
-        'quantity': quantity,
-        'reason': reason,
-      }),
-    );
-    return StockMovement.fromJson(_decode(res));
-  }
-
-  Future<StockMovement> writeOffStock(
-    int ingredientId,
-    double quantity,
-    String? reason,
-  ) async {
-    final res = await _http.post(
-      await _uri('/stock/writeoffs'),
-      headers: await _authHeaders(),
-      body: jsonEncode({
-        'ingredientId': ingredientId,
-        'quantity': quantity,
-        'reason': reason,
-      }),
-    );
-    return StockMovement.fromJson(_decode(res));
-  }
-
   /// Поступление или списание нескольких позиций одним документом (всё или ничего), уходит в
   /// 1С проведённым — см. StockService.createDocument. [items] — {'productId' | 'ingredientId', 'quantity'}.
   Future<void> createStockDocument(
@@ -737,40 +689,6 @@ class ApiClient {
       body: jsonEncode({'date': _isoDate(date), 'reason': reason, 'items': items}),
     );
     _decode(res);
-  }
-
-  Future<StockMovement> receiveProductStock(
-    int productId,
-    double quantity,
-    String? reason,
-  ) async {
-    final res = await _http.post(
-      await _uri('/stock/receipts'),
-      headers: await _authHeaders(),
-      body: jsonEncode({
-        'productId': productId,
-        'quantity': quantity,
-        'reason': reason,
-      }),
-    );
-    return StockMovement.fromJson(_decode(res));
-  }
-
-  Future<StockMovement> writeOffProductStock(
-    int productId,
-    double quantity,
-    String? reason,
-  ) async {
-    final res = await _http.post(
-      await _uri('/stock/writeoffs'),
-      headers: await _authHeaders(),
-      body: jsonEncode({
-        'productId': productId,
-        'quantity': quantity,
-        'reason': reason,
-      }),
-    );
-    return StockMovement.fromJson(_decode(res));
   }
 
   /// Удаляет ошибочно созданное ручное поступление/списание — остаток на складе
@@ -1075,17 +993,6 @@ class ApiClient {
     );
     if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
     throw ApiException('Не удалось получить PDF-отчёт (${res.statusCode})');
-  }
-
-  /// "Общее оприходование" — собирает все ещё не выгруженные в 1С РУЧНЫЕ поступления товара
-  /// за день (форма "Поступления", без учёта заявок на производство — те выгружаются сами)
-  /// в один документ и сразу проводит его на 06:00.
-  Future<OneCReceiptResult> postDailyReceiptsOneC({DateTime? date}) async {
-    final res = await _http.post(
-      await _uri('/stock/receipts/post-1c', date != null ? {'date': _isoDate(date)} : null),
-      headers: await _authHeaders(),
-    );
-    return OneCReceiptResult.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
   // ---- Purchases (закупки сырья) ----
@@ -1471,14 +1378,6 @@ class ApiClient {
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
-  Future<Order> markOrderDebtPaid(int id) async {
-    final res = await _http.post(
-      await _uri('/orders/$id/debt/paid'),
-      headers: await _authHeaders(),
-    );
-    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
-  }
-
   /// quantities: itemId -> новое количество (0 или меньше — убрать позицию из заказа).
   /// [productIdByItemId] — новый товар для позиции (только для тех itemId, где ИИ
   /// распознал товар неверно), остальные позиции меняют только количество.
@@ -1572,52 +1471,7 @@ class ApiClient {
     _decode(res);
   }
 
-  // ---- Production tasks ----
-  Future<List<ProductionTask>> getProductionTasks({String? status}) async {
-    final res = await http.get(
-      await _uri(
-        '/production-tasks',
-        status != null ? {'status': status} : null,
-      ),
-      headers: await _authHeaders(),
-    );
-    return (_decode(res) as List)
-        .map((e) => ProductionTask.fromJson(e))
-        .toList();
-  }
-
-  Future<ProductionTask> startTask(int id, {String? assignedTo}) async {
-    final res = await _http.post(
-      await _uri(
-        '/production-tasks/$id/start',
-        assignedTo != null && assignedTo.isNotEmpty
-            ? {'assignedTo': assignedTo}
-            : null,
-      ),
-      headers: await _authHeaders(),
-    );
-    return ProductionTask.fromJson(_decode(res));
-  }
-
-  Future<ProductionTask> completeTask(int id) async {
-    final res = await _http.post(
-      await _uri('/production-tasks/$id/complete'),
-      headers: await _authHeaders(),
-    );
-    return ProductionTask.fromJson(_decode(res));
-  }
-
   // ---- Notifications ----
-  Future<List<AppNotification>> getNotifications() async {
-    final res = await http.get(
-      await _uri('/notifications'),
-      headers: await _authHeaders(),
-    );
-    return (_decode(res) as List)
-        .map((e) => AppNotification.fromJson(e))
-        .toList();
-  }
-
   /// Уведомления, сгруппированные по заказу (то же, что использует дашборд), без лимита в 8 штук.
   /// from/to не заданы — все даты; экран уведомлений по умолчанию передаёт сегодняшний день.
   Future<(List<OrderNotificationGroup>, List<AppNotification>)>

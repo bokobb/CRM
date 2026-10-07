@@ -2,13 +2,11 @@ package com.confectionery.crm.web;
 
 import com.confectionery.crm.api.dto.ProductionRequestSummaryDto;
 import com.confectionery.crm.domain.OrderStatus;
-import com.confectionery.crm.domain.ProductionTaskStatus;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductReturnRepository;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.NotificationService;
 import com.confectionery.crm.service.ProductionRequestService;
-import com.confectionery.crm.service.ProductionTaskService;
 import com.confectionery.crm.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -28,7 +26,6 @@ public class DashboardController {
     private final ProductReturnRepository productReturnRepository;
     private final IngredientService ingredientService;
     private final NotificationService notificationService;
-    private final ProductionTaskService productionTaskService;
     private final ProductionRequestService productionRequestService;
     private final UserService userService;
 
@@ -58,7 +55,6 @@ public class DashboardController {
         model.addAttribute("newOrders", orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.NEW, start, end));
         model.addAttribute("inProduction", orderRepository.countByStatus(OrderStatus.IN_PRODUCTION));
         model.addAttribute("readyOrders", orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.READY, start, end));
-        model.addAttribute("pendingTasks", productionTaskService.findByStatus(ProductionTaskStatus.PENDING).size());
         // Фактическая продажа — за вычетом возвратов за тот же период (как в мобильном дашборде).
         model.addAttribute("salesTotal", orderRepository.sumSalesBetween(start, end)
                 .subtract(productReturnRepository.sumForSalesBetween(start, end)));

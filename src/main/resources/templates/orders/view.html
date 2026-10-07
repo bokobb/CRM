@@ -77,7 +77,7 @@
             Не выгружен в 1С: <span th:text="${order.oneCSyncError}"></span>
         </div>
 
-        <div class="grid cols-2">
+        <div class="grid">
             <div class="panel">
                 <h2>Состав заказа</h2>
                 <p class="subtitle" th:if="${order.status.name() == 'NEW'}" style="margin:0 0 12px">
@@ -144,20 +144,6 @@
                     · <span th:text="${#temporals.format(order.shippedAt, 'dd.MM.yyyy HH:mm')}"></span>
                     · <span th:text="${order.shippedByName}"></span>
                 </p>
-            </div>
-
-            <div class="panel">
-                <h2>Задачи цеха</h2>
-                <table th:if="${not #lists.isEmpty(order.productionTasks)}">
-                    <tr><th>Товар</th><th>Кол-во</th><th>Статус</th></tr>
-                    <tr th:each="t : ${order.productionTasks}">
-                        <td th:text="${t.product.name}"></td>
-                        <td th:text="${t.quantity}"></td>
-                        <td><span class="badge" th:classappend="${t.status}" th:text="${t.status.label}"></span></td>
-                    </tr>
-                </table>
-                <p class="empty" th:if="${#lists.isEmpty(order.productionTasks)}">Задачи появятся после подтверждения заказа</p>
-                <a class="btn small" th:if="${not #lists.isEmpty(order.productionTasks)}" th:href="@{/production}">Открыть доску производства</a>
             </div>
         </div>
     </main>

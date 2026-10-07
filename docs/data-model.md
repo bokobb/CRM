@@ -22,7 +22,7 @@
 | `production_request_revision_items` | 14528 | `revision_id`, `ingredient_id`, `ingredient_name`, `quantity`, `unit`, `item_order` |
 | `production_request_revisions` | 762 | `id`, `created_at`, `created_by`, `issued`, `note`, `request_id` |
 | `production_requests` | 190 | `id`, `collected_at`, `collected_by`, `created_at`, `created_by`, `status`, `title`, `onecreport_key`, `onecreport_number`, `onecrequisition_key`, `onecrequisition_number`, `onecsync_error`, `document_date`, `requisition_completed`, `composition_diff_pending`, `onec_pending` |
-| `production_tasks` | 0 | `id`, `assigned_to`, `completed_at`, `created_at`, `quantity`, `status`, `order_id`, `product_id` |
+| `production_tasks` (не используется — цеховые задачи удалены из кода 07.10, таблица пустая) | 0 | `id`, `assigned_to`, `completed_at`, `created_at`, `quantity`, `status`, `order_id`, `product_id` |
 | `products` | 62 | `id`, `category`, `description`, `name`, `price`, `unit`, `quantity_in_stock`, `image_url`, `active`, `product_group`, `onecline_template`, `onecnomenclature_key`, `onecreceipt_template`, `semi_finished`, `onecspecification_key`, `onecdepartment_key`, `net_weight_grams`, `mass_reference_product`, `hidden_from_clients`, `hidden_from_clients_until` |
 | `purchase_items` | 362 | `id`, `purchase_id`, `ingredient_id`, `quantity`, `total_price`, `stock_movement_id` |
 | `purchases` | 182 | `id`, `created_at`, `created_by`, `purchase_date`, `image_url`, `counterparty_id`, `one_c_document_key`, `one_c_document_number`, `one_c_sync_error`, `onecdocument_key`, `onecdocument_number`, `onecsync_error`, `onec_pending` |

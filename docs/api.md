@@ -10,7 +10,6 @@
 | Метод | Адрес | Роли | Назначение |
 |---|---|---|---|
 | `POST` | `/api/auth/login` |  |  |
-| `GET` | `/api/auth/me` |  |  |
 
 ## ClientApiController
 
@@ -75,7 +74,6 @@
 | Метод | Адрес | Роли | Назначение |
 |---|---|---|---|
 | `GET` | `/api/ingredients` |  |  |
-| `GET` | `/api/ingredients/low-stock` |  |  |
 | `GET` | `/api/ingredients/{id}` |  |  |
 | `POST` | `/api/ingredients` |  |  |
 | `PUT` | `/api/ingredients/{id}` |  |  |
@@ -85,7 +83,6 @@
 
 | Метод | Адрес | Роли | Назначение |
 |---|---|---|---|
-| `GET` | `/api/notifications` |  |  |
 | `GET` | `/api/notifications/grouped` |  | Та же группировка "один заказ — одна карточка", что и на дашборде, но без ограничения в 8 записей. from/to не заданы — все даты; мобильное приложение по умолчанию передаё… |
 
 ## OrderApiController
@@ -106,7 +103,6 @@
 | `POST` | `/api/orders/{id}/complete` | ACCOUNTANT, ADMIN |  |
 | `GET` | `/api/orders/debts` | ACCOUNTANT, ADMIN | Список неоплаченных долгов (см. также ScheduledJobs.checkOverdueDebts). |
 | `POST` | `/api/orders/{id}/debt` | ACCOUNTANT, ADMIN |  |
-| `POST` | `/api/orders/{id}/debt/paid` | ACCOUNTANT, ADMIN |  |
 
 ## ProductApiController
 
@@ -172,14 +168,6 @@
 | `GET` | `/api/production-requests/report` |  | Дневной отчёт "сколько сегодня изготовили" — date не задан = сегодня. |
 | `GET` | `/api/production-requests/report/pdf` |  |  |
 
-## ProductionTaskApiController
-
-| Метод | Адрес | Роли | Назначение |
-|---|---|---|---|
-| `GET` | `/api/production-tasks` |  |  |
-| `POST` | `/api/production-tasks/{id}/start` |  |  |
-| `POST` | `/api/production-tasks/{id}/complete` |  |  |
-
 ## PurchaseApiController
 
 | Метод | Адрес | Роли | Назначение |
@@ -203,11 +191,10 @@
 | Метод | Адрес | Роли | Назначение |
 |---|---|---|---|
 | `GET` | `/api/stock/movements` | WAREHOUSE_FG, WAREHOUSE_RAW, ADMIN, ACCOUNTANT | Только ручные движения — см. StockMovement.manual/StockService.findMovements. |
-| `POST` | `/api/stock/receipts` | WAREHOUSE_FG, ADMIN, ACCOUNTANT |  |
-| `POST` | `/api/stock/writeoffs` | WAREHOUSE_FG, WAREHOUSE_RAW, ADMIN, ACCOUNTANT |  |
+| `POST` | `/api/stock/receipts/batch` | WAREHOUSE_FG, ADMIN, ACCOUNTANT | Документ формы «Поступление»: несколько позиций с датой, уходит в 1С проведённым (фоновая очередь). |
+| `POST` | `/api/stock/writeoffs/batch` | WAREHOUSE_FG, WAREHOUSE_RAW, ADMIN, ACCOUNTANT | То же для «Списания», причина обязательна. |
 | `DELETE` | `/api/stock/movements/{id}` | WAREHOUSE_FG, WAREHOUSE_RAW, ADMIN, ACCOUNTANT | Удаление ошибочно созданного ручного поступления/списания — откатывает остаток (см. StockService.deleteMovement). |
 | `POST` | `/api/stock/sync-1c` | ADMIN | Ручной запуск синхронизации остатков с 1С (обычно она идёт по расписанию) — только ADMIN. |
-| `POST` | `/api/stock/receipts/post-1c` | ADMIN, WAREHOUSE_FG | "Общее оприходование" — собирает все ещё не выгруженные в 1С РУЧНЫЕ поступления товара за день в один документ "Оприходование товаров" и сразу проводит его в 1С на 06:00 … |
 
 ## TechCardApiController
 

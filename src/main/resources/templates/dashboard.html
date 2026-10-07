@@ -29,7 +29,7 @@
             <div class="label">Фактическая продажа за период (за вычетом возвратов)</div>
         </div>
 
-        <div class="grid cols-4">
+        <div class="grid cols-3">
             <a class="stat-card" th:href="@{/orders(status='NEW', from=${rangeFrom}, to=${rangeTo})}">
                 <div class="value" th:text="${newOrders}">0</div>
                 <div class="label">Новых заказов</div>
@@ -42,10 +42,6 @@
                 <div class="value" th:text="${readyOrders}">0</div>
                 <div class="label">Готовы к отгрузке</div>
             </a>
-            <div class="stat-card">
-                <div class="value" th:text="${pendingTasks}">0</div>
-                <div class="label">Задач в очереди цеха</div>
-            </div>
         </div>
 
         <div class="grid cols-2">

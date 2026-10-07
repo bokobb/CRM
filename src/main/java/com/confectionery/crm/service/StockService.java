@@ -2,23 +2,18 @@ package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Ingredient;
 import com.confectionery.crm.domain.Product;
-import com.confectionery.crm.domain.Recipe;
-import com.confectionery.crm.domain.RecipeItem;
 import com.confectionery.crm.domain.StockDocument;
 import com.confectionery.crm.domain.StockMovement;
 import com.confectionery.crm.domain.StockMovementType;
 import com.confectionery.crm.repository.IngredientRepository;
 import com.confectionery.crm.repository.ProductRepository;
-import com.confectionery.crm.repository.RecipeRepository;
 import com.confectionery.crm.repository.StockDocumentRepository;
 import com.confectionery.crm.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -26,49 +21,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Списание сырья со склада по рецептуре товара (автоматически, при завершении цеховой
- * задачи — см. ProductionTaskService) плюс ручные поступления/списания с журналом
- * (StockMovement), которые ведёт зав. складом через раздел "Склад" в приложении.
+ * Ручные поступления/списания с журналом (StockMovement), которые ведёт зав. складом через
+ * раздел "Склад" в приложении, плюс приход сырья по закупкам (см. PurchaseService).
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StockService {
 
-    private final RecipeRepository recipeRepository;
     private final IngredientRepository ingredientRepository;
     private final ProductRepository productRepository;
     private final StockMovementRepository stockMovementRepository;
-    private final NotificationService notificationService;
     private final StockDocumentRepository stockDocumentRepository;
     private final OneCQueue oneCQueue;
-
-    public void deductForProduction(Product product, BigDecimal producedQuantity) {
-        recipeRepository.findByProductId(product.getId()).ifPresentOrElse(
-                recipe -> deduct(recipe, producedQuantity),
-                () -> log.info("У товара '{}' нет рецептуры — списание сырья пропущено", product.getName())
-        );
-    }
-
-    private void deduct(Recipe recipe, BigDecimal producedQuantity) {
-        BigDecimal ratio = producedQuantity.divide(recipe.getYieldQuantity(), MathContext.DECIMAL64);
-
-        for (RecipeItem item : recipe.getItems()) {
-            Ingredient ingredient = item.getIngredient();
-            BigDecimal toDeduct = item.getQuantity().multiply(ratio);
-            BigDecimal updated = ingredient.getQuantityInStock().subtract(toDeduct);
-            ingredient.setQuantityInStock(updated);
-            ingredientRepository.save(ingredient);
-
-            if (ingredient.isLowStock()) {
-                String prefix = "Низкий остаток: " + ingredient.getName();
-                if (!notificationService.wasNotifiedRecently("склад", prefix)) {
-                    notificationService.notify("склад", prefix + " — остаток " + updated + " " + ingredient.getUnit()
-                            + ", минимум " + ingredient.getMinThreshold() + " " + ingredient.getUnit(), null);
-                }
-            }
-        }
-    }
 
     @Transactional
     public StockMovement receive(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
@@ -95,11 +59,6 @@ public class StockService {
         stockMovementRepository.delete(movement);
     }
 
-    @Transactional
-    public StockMovement writeOff(Ingredient ingredient, BigDecimal quantity, String reason, String by) {
-        return writeOff(ingredient, quantity, reason, by, null);
-    }
-
     private StockMovement writeOff(Ingredient ingredient, BigDecimal quantity, String reason, String by, LocalDateTime at) {
         requirePositive(quantity, "списания");
         if (ingredient.getQuantityInStock().compareTo(quantity) < 0) {
@@ -113,21 +72,11 @@ public class StockService {
     }
 
     /** То же самое, но для готовой продукции (см. также автосписание при отгрузке — OrderService.ship). */
-    @Transactional
-    public StockMovement receiveProduct(Product product, BigDecimal quantity, String reason, String by) {
-        return receiveProduct(product, quantity, reason, by, null);
-    }
-
     private StockMovement receiveProduct(Product product, BigDecimal quantity, String reason, String by, LocalDateTime at) {
         requirePositive(quantity, "поступления");
         product.setQuantityInStock(product.getQuantityInStock().add(quantity));
         productRepository.save(product);
         return logMovement(null, product, StockMovementType.RECEIPT, quantity, reason, by, true, at);
-    }
-
-    @Transactional
-    public StockMovement writeOffProduct(Product product, BigDecimal quantity, String reason, String by) {
-        return writeOffProduct(product, quantity, reason, by, null);
     }
 
     private StockMovement writeOffProduct(Product product, BigDecimal quantity, String reason, String by, LocalDateTime at) {
@@ -312,8 +261,8 @@ public class StockService {
      * Удаляет ошибочно созданное РУЧНОЕ движение и откатывает его влияние на остаток (приход —
      * вычитаем обратно, списание — возвращаем обратно). Автоматические движения (заявки на
      * производство, см. StockMovement.manual) удалить так нельзя — их отменяют через саму
-     * заявку. Уже выгруженные в 1С (см. StockMovement.oneCSyncedAt/OneCReceiptSyncService)
-     * тоже нельзя — иначе CRM молча разойдётся с документом, который уже есть в 1С; такое
+     * заявку. Выгруженные в 1С без документа формы (см. StockMovement.oneCSyncedAt) тоже
+     * нельзя — иначе CRM молча разойдётся с документом, который уже есть в 1С; такое
      * движение сначала нужно удалить/исправить в самой 1С.
      */
     @Transactional
@@ -323,8 +272,9 @@ public class StockService {
         if (!movement.isManual()) {
             throw new IllegalStateException("Нельзя удалить движение, созданное автоматически заявкой на производство");
         }
-        // Старое «Общее оприходование» (без документа формы) само себя в 1С не исправит. Строку
-        // документа формы удалить можно: документ перепроводится в 1С без неё (см. OneCQueue).
+        // Движения старого «Общего оприходования» (без документа формы, функция удалена 07.10)
+        // сами себя в 1С не исправят. Строку документа формы удалить можно: документ
+        // перепроводится в 1С без неё (см. OneCQueue).
         if (movement.getDocument() == null && movement.getOneCSyncedAt() != null) {
             throw new IllegalStateException("Уже выгружено в 1С документом №" + movement.getOneCDocumentNumber()
                     + " — сначала удалите его там");

@@ -688,39 +688,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   const SizedBox(height: 12),
                   Text(o.notes!, style: TextStyle(color: context.pal.muted)),
                 ],
-                if (role != 'ACCOUNTANT' && role != 'WAREHOUSE_FG') ...[
-                  const SizedBox(height: 20),
-                  Text(
-                    'Задачи цеха',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  if (o.productionTasks.isEmpty)
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        'Для этого заказа цеховых задач нет',
-                        style: TextStyle(color: context.pal.muted),
-                      ),
-                    )
-                  else
-                    Card(
-                      child: Column(
-                        children: [
-                          for (final t in o.productionTasks)
-                            ListTile(
-                              title: Text(
-                                '${t.productName} × ${formatQty(t.quantity)}',
-                              ),
-                              trailing: StatusBadge(
-                                status: t.status,
-                                label: t.statusLabel,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                ],
                 if (isAdmin && _previousStatusLabel.containsKey(o.status)) ...[
                   const SizedBox(height: 20),
                   SizedBox(

@@ -157,10 +157,4 @@ public class OrderApiController {
     public OrderDto setDebt(@PathVariable Long id, @Valid @RequestBody DebtRequest req) {
         return OrderDto.from(orderService.setDebt(id, req.dueDate()));
     }
-
-    @PostMapping("/{id}/debt/paid")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN')")
-    public OrderDto markDebtPaid(@PathVariable Long id) {
-        return OrderDto.from(orderService.markDebtPaid(id));
-    }
 }

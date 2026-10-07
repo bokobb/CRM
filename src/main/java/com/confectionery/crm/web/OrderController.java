@@ -5,7 +5,6 @@ import com.confectionery.crm.domain.OrderStatus;
 import com.confectionery.crm.service.ClientService;
 import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.service.ProductService;
-import com.confectionery.crm.service.ProductionTaskService;
 import com.confectionery.crm.web.dto.OrderForm;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,7 +25,6 @@ public class OrderController {
     private final OrderService orderService;
     private final ClientService clientService;
     private final ProductService productService;
-    private final ProductionTaskService productionTaskService;
 
     /** from/to не заданы — все даты; ссылки с дашборда передают диапазон явно. */
     @GetMapping
