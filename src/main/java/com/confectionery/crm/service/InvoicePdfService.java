@@ -1,6 +1,7 @@
 package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Order;
+import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.domain.Purchase;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -114,6 +115,48 @@ public class InvoicePdfService {
     /** Приходная накладная по закупке (кнопка "Поделиться" при свайпе закупки в приложении). */
     public byte[] generatePurchase(Purchase purchase) {
         return renderPurchase(oneCInvoiceService.loadPurchase(purchase));
+    }
+
+    /**
+     * Накладная по одному возврату (свайп возврата вправо в приложении) — тот же блок
+     * "Возврат от покупателя", что печатается под продажей в накладной заказа, но отдельным файлом.
+     */
+    public byte[] generateReturn(ProductReturn productReturn) {
+        return renderReturn(oneCInvoiceService.loadReturn(productReturn),
+                productReturn.getClient().getName().trim(), oneCInvoiceService.warehouseManager());
+    }
+
+    byte[] renderReturn(OneCInvoiceService.Document doc, String clientName, String warehouseManager) {
+        try (PDDocument document = new PDDocument()) {
+            Canvas canvas = new Canvas(document,
+                    loadFont(document, "LiberationSans-Regular.ttf"),
+                    loadFont(document, "LiberationSans-Bold.ttf"));
+            canvas.newPage();
+            canvas.y = 792.36f;
+            drawDocument(canvas, SALE, "Возврат от покупателя № " + doc.number() + " от " + formatDate(doc.date()),
+                    headerRows(doc, "Поставщик", "Покупатель"), doc.lines());
+            // в возврате товар отпускает клиент, получает наш склад
+            drawSignatures(canvas, clientName, warehouseManager);
+            canvas.close();
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            document.save(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Не удалось сгенерировать накладную возврата", e);
+        }
+    }
+
+    /** "Возврат_Покупатель_дд.мм.гггг.pdf" — дата возврата. */
+    public static String returnFileName(ProductReturn productReturn) {
+        StringBuilder name = new StringBuilder("Возврат");
+        String client = productReturn.getClient() != null ? productReturn.getClient().getName() : null;
+        if (client != null && !client.isBlank()) {
+            name.append('_').append(client.replaceAll("[\\\\/:*?\"<>|\\s]+", " ").trim());
+        }
+        LocalDate date = productReturn.getReturnDate();
+        name.append('_').append(String.format("%02d.%02d.%d", date.getDayOfMonth(), date.getMonthValue(), date.getYear()));
+        return name.append(".pdf").toString();
     }
 
     byte[] renderPurchase(OneCInvoiceService.Document doc) {

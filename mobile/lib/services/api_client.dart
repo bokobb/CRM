@@ -1348,6 +1348,23 @@ class ApiClient {
     );
   }
 
+  /// Накладная по возврату — PDF строит backend по макету 1С (см. ProductReturnApiController.invoice):
+  /// данные из документа 1С, если она ответила быстро, иначе из CRM.
+  Future<InvoiceFile> getReturnInvoiceFile(int returnId) async {
+    final res = await http.get(
+      await _uri('/returns/$returnId/invoice'),
+      headers: await _authHeaders(),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException('Не удалось получить накладную возврата (${res.statusCode})');
+    }
+    return InvoiceFile(
+      bytes: res.bodyBytes,
+      filename: _dispositionFilename(res.headers['content-disposition']) ?? 'Возврат_$returnId.pdf',
+      mimeType: res.headers['content-type'] ?? 'application/pdf',
+    );
+  }
+
   /// Приходная накладная по закупке — PDF строит backend по макету печатной формы 1С (см.
   /// PurchaseApiController.invoice).
   Future<InvoiceFile> getPurchaseInvoiceFile(int purchaseId) async {

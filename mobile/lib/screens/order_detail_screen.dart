@@ -113,11 +113,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   /// Накладную строит backend — по макету печатной формы 1С, с данными из документов 1С и
-  /// закреплёнными за заказом возвратами. Локальный PDF — только если сервер недоступен.
+  /// закреплёнными за заказом возвратами. Локальный PDF — если сервер недоступен или не ответил за 20 с.
   Future<InvoiceFile> _invoice(Order o) async {
     InvoiceFile? remote;
     try {
-      remote = await _api.getInvoiceFile(o.id);
+      // сервер сам ждёт 1С не дольше 8 с; не ответил вовсе — не держим человека, печатаем у себя
+      remote = await _api.getInvoiceFile(o.id).timeout(const Duration(seconds: 20));
     } catch (_) {
       remote = null;
     }

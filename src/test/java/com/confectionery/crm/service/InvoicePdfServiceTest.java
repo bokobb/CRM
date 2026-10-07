@@ -47,4 +47,29 @@ class InvoicePdfServiceTest {
                     .contains("Отпустил", "Получил");
         }
     }
+
+    @Test
+    void returnInvoiceIsSeparateDocument() throws IOException {
+        OneCInvoiceService.Document doc = new OneCInvoiceService.Document("57", LocalDate.of(2026, 10, 7),
+                "ИП Ахметов", "Юг Сладости", "Без договора", null, List.of(
+                new OneCInvoiceService.Line("00000000045", "Коржик молочный", new BigDecimal("12"), "шт",
+                        new BigDecimal("150.00"), new BigDecimal("1800.00"))));
+
+        byte[] pdf = service.renderReturn(doc, "ИП Ахметов", "Пайзахматов Бехруз");
+
+        Path out = Path.of("build", "test-output", "return-invoice.pdf");
+        Files.createDirectories(out.getParent());
+        Files.write(out, pdf);
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            assertThat(document.getNumberOfPages()).isEqualTo(1);
+            String text = new PDFTextStripper().getText(document);
+            assertThat(text)
+                    .contains("Возврат от покупателя № 57 от 7 октября 2026 г.")
+                    .contains("Поставщик", "ИП Ахметов", "Покупатель", "Юг Сладости")
+                    .contains("00000000045", "Коржик молочный", "1,800.00")
+                    .contains("Всего наименований 1, на сумму 1,800.00 теңге")
+                    .contains("Отпустил", "Получил", "Пайзахматов Бехруз")
+                    .doesNotContain("Расходная накладная");
+        }
+    }
 }

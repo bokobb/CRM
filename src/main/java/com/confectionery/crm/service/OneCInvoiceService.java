@@ -2,6 +2,7 @@ package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderItem;
+import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.domain.ProductReturnItem;
 import com.confectionery.crm.domain.Purchase;
@@ -22,6 +23,11 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Данные для накладной клиенту — берутся из самих документов 1С ("Реализация" заказа и
@@ -31,6 +37,10 @@ import java.util.Map;
  * ни печати через стандартные веб-сервисы), поэтому саму вёрстку повторяет InvoicePdfService.
  * Если документа в 1С ещё нет или 1С недоступна — этот документ собирается из данных CRM,
  * чтобы накладная уходила клиенту в любом случае.
+ *
+ * <p>1С:Fresh бывает отвечает минутами — ждём её не дольше crm.invoice.onec-timeout-seconds
+ * (по умолчанию 8 с), дальше печатаем из данных CRM (решение пользователя 07.10: "1С шустрая —
+ * берём из 1С, медленная — не ждём"). Это только чтение документа — повторный запрос ничего не задвоит.
  */
 @Slf4j
 @Service
@@ -48,6 +58,15 @@ public class OneCInvoiceService {
     private final UserRepository userRepository;
     @Value("${crm.invoice.warehouse-manager:Пайзахматов Бехруз}")
     private String defaultWarehouseManager;
+    @Value("${crm.invoice.onec-timeout-seconds:8}")
+    private long oneCTimeoutSeconds;
+
+    /** Чтение документов 1С для накладных — в отдельных потоках, чтобы их можно было не ждать. */
+    private static final ExecutorService ONEC_READS = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "onec-invoice-read");
+        t.setDaemon(true);
+        return t;
+    });
 
     public Invoice load(Order order) {
         Document sale = fromOneC(SALE, order.getOneCDocumentKey(), "заказу №" + order.getId(), false, true);
@@ -62,6 +81,13 @@ public class OneCInvoiceService {
                     returns.add(doc != null ? doc : returnFromCrm(r));
                 });
         return new Invoice(sale, returns, order.getClient().getName().trim(), warehouseManager());
+    }
+
+    /** Отдельная накладная по одному возврату (свайп возврата вправо в приложении). */
+    public Document loadReturn(ProductReturn productReturn) {
+        Document doc = fromOneC(RETURN, productReturn.getOneCDocumentKey(), "возврату №" + productReturn.getId(),
+                true, false);
+        return doc != null ? doc : returnFromCrm(productReturn);
     }
 
     /**
@@ -83,7 +109,9 @@ public class OneCInvoiceService {
             return null;
         }
         try {
-            OneCClient.PrintableDocument doc = oneCClient.fetchPrintableDocument(entitySet, ref);
+            OneCClient.PrintableDocument doc = CompletableFuture
+                    .supplyAsync(() -> oneCClient.fetchPrintableDocument(entitySet, ref), ONEC_READS)
+                    .get(oneCTimeoutSeconds, TimeUnit.SECONDS);
             List<Line> lines = merge(doc.lines().stream()
                     .map(l -> new Line(l.code(), l.name(), l.quantity(), unitOrDefault(l.unit()), l.price(), l.sum()))
                     .toList());
@@ -94,6 +122,12 @@ public class OneCInvoiceService {
                             contract, warehouse, lines)
                     : new Document(printNumber(doc.number()), doc.date(), doc.organization(), doc.contragent(),
                             contract, warehouse, lines);
+        } catch (TimeoutException e) {
+            log.warn("1С не ответила за {} с по накладной по {} — печатаем из данных CRM", oneCTimeoutSeconds, what);
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
         } catch (Exception e) {
             log.warn("Не удалось получить из 1С документ для накладной по {}: {}", what, e.getMessage());
             return null;
@@ -103,7 +137,7 @@ public class OneCInvoiceService {
     private Document saleFromCrm(Order order) {
         List<Line> lines = new ArrayList<>();
         for (OrderItem item : order.getItems()) {
-            lines.add(new Line("", item.getProduct().getName(), item.getQuantity(),
+            lines.add(new Line(codeOf(item.getProduct()), item.getProduct().getName(), item.getQuantity(),
                     unitOrDefault(item.getProduct().getUnit()), item.getPrice(),
                     item.getPrice().multiply(item.getQuantity())));
         }
@@ -136,7 +170,7 @@ public class OneCInvoiceService {
     private Document returnFromCrm(ProductReturn productReturn) {
         List<Line> lines = new ArrayList<>();
         for (ProductReturnItem item : productReturn.getItems()) {
-            lines.add(new Line("", item.getProduct().getName(), item.getQuantity(),
+            lines.add(new Line(codeOf(item.getProduct()), item.getProduct().getName(), item.getQuantity(),
                     unitOrDefault(item.getProduct().getUnit()), item.getPrice(),
                     item.getPrice().multiply(item.getQuantity())));
         }
@@ -176,6 +210,11 @@ public class OneCInvoiceService {
     private String supplierName() {
         String name = companyProfileService.get().getName();
         return name == null || name.isBlank() ? DEFAULT_SUPPLIER : name;
+    }
+
+    /** Код номенклатуры 1С, сохранённый в CRM (OneCProductCodeSyncService) — чтобы и без 1С был код. */
+    private static String codeOf(Product product) {
+        return product.getOneCCode() == null ? "" : product.getOneCCode();
     }
 
     private static String unitOrDefault(String unit) {

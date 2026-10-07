@@ -10,6 +10,8 @@ import '../widgets/error_view.dart';
 import '../widgets/format.dart';
 import '../widgets/returns_receipt.dart';
 import '../widgets/searchable_app_bar.dart';
+import '../widgets/swipe_cancel_delete.dart';
+import 'return_invoice_screen.dart';
 import 'return_form_screen.dart';
 import '../theme/app_theme.dart';
 
@@ -154,7 +156,21 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                       }
                       final r = returns[index - 1];
                       final syncing = _syncingIds.contains(r.id);
-                      return AppListTile(
+                      // свайп вправо — накладная возврата (предпросмотр + «Поделиться»)
+                      return SwipeCancelDelete(
+                        itemKey: r.id,
+                        cancelled: false,
+                        canCancel: false,
+                        canDelete: false,
+                        subject: 'возврат',
+                        onCancel: () async {},
+                        onDelete: () async {},
+                        onDone: () {},
+                        swipeRightLabel: 'Накладная',
+                        swipeRightIcon: Icons.receipt_long_outlined,
+                        onSwipeRight: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                            builder: (_) => ReturnInvoiceScreen(productReturn: r))),
+                        child: AppListTile(
                         leadingIcon: Icons.assignment_return_outlined,
                         leadingColor: returnColor(context),
                         title: r.clientName,
@@ -175,6 +191,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           ],
                         ),
                         onTap: () => showReturnDetails(context, r, onChanged: _refresh),
+                        ),
                       );
                     },
                   );
