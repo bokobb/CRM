@@ -1,0 +1,620 @@
+<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><head><meta charset="utf-8"><title th:text="${(page.company.name ?: 'Юг Сладости') + ' — выпечка к чаю оптом'}">Юг Сладости — выпечка к чаю оптом</title><meta name="description" content="Коржики, пряники, кексы, булочки, чак-чак и песочное печенье оптом с производства. Онлайн-заказ по номеру телефона."><link rel="icon" href="/promo/img/logo.svg"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,500;1,600&family=Golos+Text:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: the printed catalogue brought to the web — yolk-yellow fields over white, photos in taped cream frames, spec strips with hairlines.
+   One light theme by design: these are the brand's own printed colours. */
+:root{
+  --yolk:#FFC646; --yolk-deep:#EDAE25; --crimson:#B9203C; --crimson-deep:#96172E;
+  --cream:#FFF6DA; --paper:#F3F2E9; --white:#FFFFFF; --ink:#2A1712; --ink-soft:#6B564B;
+  --line:rgba(42,23,18,.14); --line-strong:rgba(42,23,18,.34);
+  --font-display:"Vollkorn","PT Serif",Georgia,"Times New Roman",serif;
+  --font-body:"Golos Text","Segoe UI",system-ui,-apple-system,sans-serif;
+  --gutter:clamp(16px,4vw,40px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:100px}
+body{margin:0;background:var(--white);color:var(--ink);font:400 17px/1.55 var(--font-body);-webkit-font-smoothing:antialiased;overflow-x:clip}
+img{max-width:100%;height:auto;display:block}
+[hidden]{display:none!important}
+a{color:inherit}
+h1,h2,h3{font-family:var(--font-display);font-variant-numeric:lining-nums;margin:0;text-wrap:balance;letter-spacing:-.01em}
+main,.foot{overflow-x:clip}
+p{margin:0}
+:focus-visible{outline:3px solid var(--ink);outline-offset:3px;border-radius:6px}
+.wrap{max-width:calc(1200px + 2*var(--gutter));margin-inline:auto;padding-inline:var(--gutter)}
+.skip{position:absolute;left:-999px;top:8px;z-index:99;background:var(--white);padding:10px 16px;border-radius:10px}
+.skip:focus{left:12px}
+.eyebrow{font:italic 600 19px/1.2 var(--font-display);color:var(--crimson-deep)}
+.ph{border-bottom:1.5px dashed currentColor;font-style:normal}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:54px;padding:0 26px;border:2px solid transparent;border-radius:999px;font:600 16px/1 var(--font-body);text-decoration:none;white-space:nowrap;cursor:pointer;transition:transform .15s,box-shadow .15s,background-color .15s}
+.btn svg{flex:none}
+.btn-primary{background:var(--crimson);color:#fff;box-shadow:0 5px 0 var(--crimson-deep)}
+.btn-light{background:var(--white);color:var(--ink);box-shadow:0 5px 0 rgba(42,23,18,.22)}
+.btn-yolk{background:var(--yolk);color:var(--ink);box-shadow:0 5px 0 var(--yolk-deep)}
+.btn-line{background:transparent;border-color:var(--ink);color:var(--ink)}
+.btn-primary:hover,.btn-light:hover,.btn-yolk:hover{transform:translateY(2px);box-shadow:0 3px 0 var(--crimson-deep)}
+.btn-light:hover{box-shadow:0 3px 0 rgba(42,23,18,.22)}
+.btn-yolk:hover{box-shadow:0 3px 0 var(--yolk-deep)}
+.btn-line:hover{background:var(--ink);color:#fff}
+.btn-sm{min-height:46px;padding:0 20px;font-size:15px}
+
+/* spec strip — the catalogue's own table: small label over value, hairlines between */
+.spec{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);margin:0}
+.spec>div{padding-left:14px;border-left:1px solid var(--line-strong)}
+.spec>div:first-child{padding-left:0;border-left:0}
+.spec dt{font-size:12px;line-height:1.25;font-weight:600;color:var(--crimson-deep)}
+.spec dd{margin:3px 0 0;font-size:15.5px;line-height:1.25;font-weight:600;font-variant-numeric:tabular-nums}
+
+/* taped photo frame */
+.frame{position:relative;background:var(--cream);padding:10px;box-shadow:0 22px 30px -22px rgba(80,40,0,.55)}
+.frame img{width:100%;aspect-ratio:3/4;object-fit:cover}
+.frame img.noimg{object-fit:contain;padding:22%;opacity:.35}
+.frame::before,.frame::after{content:"";position:absolute;width:34%;height:8%;background:rgba(255,241,196,.78);box-shadow:0 1px 2px rgba(80,40,0,.14);transform:rotate(-38deg)}
+.frame::before{left:-12%;top:-1%}
+.frame::after{right:-12%;bottom:-1%}
+.wheat{position:absolute;aspect-ratio:.9;background:currentColor;-webkit-mask:url(/promo/img/wheat.webp) center/contain no-repeat;mask:url(/promo/img/wheat.webp) center/contain no-repeat;pointer-events:none}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:var(--yolk);border-bottom:1px solid rgba(42,23,18,.12)}
+.top-in{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:84px}
+.brand{display:block;flex:none}
+.brand img{height:68px;width:auto}
+.nav{display:flex;gap:4px}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;font-weight:500;font-size:16px;text-decoration:none}
+.nav a:hover{background:rgba(255,255,255,.55)}
+.top-actions{display:flex;align-items:center;gap:12px}
+.burger{display:none;flex:none;width:48px;height:48px;padding:0;border-radius:50%;border:2px solid var(--ink);background:transparent;color:var(--ink);align-items:center;justify-content:center;cursor:pointer}
+.mnav{border-top:1px solid rgba(42,23,18,.12)}
+.mnav a{display:flex;align-items:center;min-height:54px;padding:0 var(--gutter);font-weight:600;text-decoration:none;border-bottom:1px solid rgba(42,23,18,.1)}
+
+/* hero */
+.hero{position:relative;background:var(--yolk);overflow:clip}
+.hero-in{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);align-items:center;gap:clamp(28px,4vw,56px);padding-block:clamp(28px,4.5vw,60px) clamp(104px,12vw,168px)}
+.hero-copy{display:grid;gap:22px;justify-items:start;min-width:0}
+.hero h1{font-weight:800;font-size:clamp(38px,5.5vw,74px);line-height:1.02}
+.hero h1 em{font-style:normal;color:var(--crimson-deep)}
+.lead{font-size:clamp(17px,1.5vw,20px);line-height:1.5;max-width:33em}
+.cta{display:flex;flex-wrap:wrap;gap:14px}
+.hero-note{font-size:14.5px}
+.hero .spec{width:100%;max-width:580px;margin-top:6px;padding-top:18px;border-top:1px solid var(--line-strong)}
+.hero-art{position:relative;width:min(100%,540px);aspect-ratio:1/1.04;margin-inline:auto}
+.hero-art .wheat{right:-10%;top:-7%;width:64%;color:var(--ink);opacity:.2;transform:rotate(8deg)}
+.hero-frame{position:absolute;left:21%;top:3%;width:58%;transform:rotate(-3deg)}
+.hero-cut{position:absolute;height:auto;filter:drop-shadow(0 14px 12px rgba(80,40,0,.32))}
+.hero-cut.c1{right:-7%;bottom:0;width:60%}
+.hero-cut.c2{left:-8%;bottom:11%;width:43%}
+.hero-cut.c3{left:0;top:4%;width:33%;rotate:-8deg}
+.sticker{position:absolute;right:5%;top:-1%;width:108px;aspect-ratio:1;display:grid;place-content:center;border-radius:50%;background:var(--crimson);color:#fff;text-align:center;font:italic 600 17px/1.05 var(--font-display);font-variant-numeric:lining-nums;rotate:10deg;box-shadow:0 5px 0 var(--crimson-deep)}
+.sticker b{display:block;font:800 28px/1 var(--font-display)}
+
+/* category tray */
+.cats{position:relative;z-index:2;margin-top:clamp(-96px,-7vw,-60px)}
+.cats-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:clamp(4px,1.1vw,14px);padding:clamp(16px,2.4vw,28px) clamp(10px,2.2vw,28px);border-radius:28px;background:var(--white);box-shadow:0 26px 40px -30px rgba(80,40,0,.45),0 0 0 1px rgba(42,23,18,.07)}
+.cat{display:grid;justify-items:center;align-content:start;gap:6px;padding:8px 4px 10px;border-radius:18px;text-align:center;text-decoration:none}
+.cat:hover{background:var(--cream)}
+.cat-pic{display:grid;place-items:center;width:min(100%,104px);aspect-ratio:1;border-radius:50%;background:var(--cream)}
+.cat:hover .cat-pic{background:var(--white)}
+.cat-pic img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:50%;filter:drop-shadow(0 6px 5px rgba(80,40,0,.26));transition:transform .2s}
+.cat:hover .cat-pic img{transform:scale(1.08) rotate(-3deg)}
+.cat-name{font-weight:600;font-size:15px;line-height:1.2}
+.cat-n{font-size:12.5px;line-height:1.2;color:var(--ink-soft)}
+
+/* sections */
+.section{padding-block:clamp(56px,8vw,112px)}
+.sec-head{display:grid;gap:10px;max-width:46rem;margin-bottom:clamp(24px,3.4vw,40px)}
+.sec-head h2,.about-copy h2,.contact h2{font-weight:800;font-size:clamp(30px,4vw,52px);line-height:1.05}
+.sec-note{color:var(--ink-soft);max-width:40rem}
+
+/* catalogue */
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 13px;border-radius:999px;border:1.5px solid var(--line-strong);background:var(--white);color:var(--ink);font:500 14.5px/1 var(--font-body);white-space:nowrap;cursor:pointer}
+.tab span{font-size:12.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.tab:hover{border-color:var(--ink)}
+.tab[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.tab[aria-pressed="true"] span{color:rgba(255,255,255,.75)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(30px,3.2vw,44px) clamp(18px,2.4vw,32px);margin-top:clamp(28px,3vw,40px)}
+.card{display:grid;align-content:start;gap:10px;min-width:0}
+.shot{position:relative;margin-bottom:8px}
+.shot .frame{padding:7px}
+.shot .frame img{aspect-ratio:1/1}
+.shot .frame::after{width:30%;right:-9%}
+.shot .frame::before{width:30%;left:-9%}
+.shot-cut{position:absolute;right:-6%;bottom:-6%;width:60%;height:auto;filter:drop-shadow(0 8px 7px rgba(80,40,0,.3));transition:transform .25s}
+.card:hover .shot-cut{transform:translate(-3%,-4%) rotate(-3deg)}
+.card h3{font-weight:700;font-size:clamp(17px,1.5vw,21px);line-height:1.15;color:var(--crimson)}
+.card-note{font-size:14px;line-height:1.3;color:var(--ink-soft)}
+.card .spec{grid-auto-flow:row;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 0}
+.card .spec>div{padding-left:12px;border-left:1px solid var(--line)}
+.card .spec>div:nth-child(odd){padding-left:0;border-left:0}
+.card .spec dd{font-size:15px}
+.more{display:flex;justify-content:center;margin-top:clamp(32px,4vw,48px)}
+.strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 28px;margin-top:clamp(36px,4.5vw,56px);padding:clamp(20px,2.6vw,30px) clamp(20px,3vw,36px);border-radius:26px;background:var(--cream)}
+.strip p{font:700 clamp(21px,2.2vw,28px)/1.15 var(--font-display);font-variant-numeric:lining-nums;min-width:0}
+
+/* why us */
+.perks-sec{position:relative;overflow:clip;background:var(--paper)}
+/* Каталог: два больших колоска-гравюры на фоне всего раздела, оба смотрят слева направо (картинка
+   отзеркалена): нижний у левого края, верхний у правого — линия из левого нижнего угла в правый
+   верхний. .cat-bg растянут на весь раздел, внутри — липкий слой высотой в экран: пока листаешь
+   45 карточек, колоски стоят на месте и чуть качаются. */
+#catalog{position:relative;isolation:isolate}
+.cat-bg{position:absolute;inset:0;z-index:-1;overflow:clip;pointer-events:none}
+.cat-bg-in{position:sticky;top:0;height:100vh;height:100svh}
+.cat-bg .wheat{color:#C9962A;opacity:.32;transform-origin:50% 100%}
+.cat-bg .w1{left:-6%;bottom:-8%;width:min(52vw,600px);transform:rotate(20deg) scaleX(-1)}
+.cat-bg .w2{right:-4%;top:6%;width:min(40vw,460px);transform:rotate(14deg) scaleX(-1)}
+@media (prefers-reduced-motion:no-preference){
+  .cat-bg .wheat{animation:sway 7s ease-in-out infinite alternate}
+  .cat-bg .w2{animation-duration:9s;animation-delay:-4s}
+  @keyframes sway{from{rotate:-3deg}to{rotate:3deg}}
+}
+.perks-sec .wheat{right:-4%;bottom:-18%;width:min(34%,360px);color:#C9962A;opacity:.5;transform:rotate(-14deg)}
+.perks{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(22px,2.6vw,36px)}
+.perk{display:grid;align-content:start;gap:10px;min-width:0}
+.perk-ic{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--white);color:var(--crimson);box-shadow:0 0 0 1px var(--line)}
+.perk h3{font-weight:700;font-size:22px;line-height:1.15}
+.perk p{font-size:16px;color:var(--ink-soft)}
+
+/* how to order */
+.how{position:relative;overflow:clip;background:var(--crimson);color:#fff}
+.how .eyebrow{color:var(--yolk)}
+.how .wheat{left:-5%;top:-22%;width:min(36%,380px);color:var(--yolk);opacity:.28;transform:rotate(168deg)}
+.steps{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(22px,2.6vw,36px);margin:0;padding:0;list-style:none;counter-reset:step}
+.steps li{display:grid;align-content:start;gap:8px;min-width:0;padding-top:18px;border-top:2px solid rgba(255,255,255,.38);counter-increment:step}
+.steps li::before{content:counter(step);font:800 64px/.9 var(--font-display);font-variant-numeric:lining-nums;color:var(--yolk)}
+.steps h3{font-weight:700;font-size:22px;line-height:1.15}
+.steps p{font-size:16px;color:rgba(255,255,255,.9)}
+.how-cta{position:relative;margin-top:clamp(32px,4vw,48px)}
+
+/* about */
+.about{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);align-items:center;gap:clamp(32px,5vw,76px)}
+.about-pic{padding-inline:4%}
+.about .frame{transform:rotate(-2deg)}
+.about .frame img{aspect-ratio:auto}
+.about-copy{display:grid;gap:18px;min-width:0}
+.about-copy .spec{margin-top:8px;padding-top:18px;border-top:1px solid var(--line-strong)}
+
+/* contacts */
+.contact{position:relative;overflow:clip;background:var(--yolk)}
+.contact .wheat{left:-6%;bottom:-20%;width:min(34%,360px);color:var(--ink);opacity:.16;transform:rotate(18deg)}
+.contact-in{position:relative;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);align-items:start;gap:clamp(28px,5vw,72px)}
+.contact-copy{display:grid;gap:20px;justify-items:start;min-width:0}
+.contact-list{width:100%;margin:6px 0 0;padding:0;list-style:none}
+.contact-list li{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line-strong)}
+.contact-list li:last-child{border-bottom:1px solid var(--line-strong)}
+.c-ic{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:50%;background:var(--ink);color:#fff}
+.c-l{display:block;font-size:13.5px;line-height:1.3}
+.c-v{display:block;font-weight:600;overflow-wrap:anywhere}
+.form{display:grid;gap:16px;padding:clamp(20px,3vw,34px);border-radius:28px;background:var(--white);box-shadow:0 26px 40px -30px rgba(80,40,0,.5)}
+.form h3{font-weight:700;font-size:24px;line-height:1.15}
+.field{display:grid;gap:6px}
+.field label{font-size:14px;font-weight:600}
+.field input,.field select{width:100%;height:54px;padding:0 16px;border-radius:14px;border:1.5px solid #8A776C;background:var(--white);color:var(--ink);font:400 16px/1.2 var(--font-body)}
+.field input:focus-visible,.field select:focus-visible{outline:3px solid var(--crimson);outline-offset:2px;border-radius:14px}
+.form .btn{width:100%}
+.form-note{font-size:13px;line-height:1.4;color:var(--ink-soft)}
+.form-status{padding:12px 14px;border-radius:12px;background:var(--cream);font-size:14.5px;line-height:1.4}
+
+/* footer */
+.foot{position:relative;overflow:clip;background:var(--crimson-deep);color:#fff}
+.foot .wheat{right:-3%;top:-30%;width:min(30%,320px);color:var(--yolk);opacity:.3;transform:rotate(12deg)}
+.foot-in{position:relative;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr) minmax(0,1fr);gap:28px 48px;padding-block:clamp(40px,5vw,60px) 24px}
+.foot-brand{display:grid;gap:14px;justify-items:start;align-content:start}
+.foot-brand img{height:84px;width:auto}
+.foot-brand p{max-width:24em;font-size:15px;color:rgba(255,255,255,.88)}
+.foot nav{display:grid;align-content:start}
+.foot nav a,.foot-info a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}
+.foot nav a:hover,.foot-info a:hover{text-decoration:underline}
+.foot-info{display:grid;align-content:start;gap:8px;font-size:15px;color:rgba(255,255,255,.9)}
+.foot-info a{font-weight:600;color:var(--yolk)}
+.foot-info>*{justify-self:start}
+.foot-end{position:relative;padding-block:18px 26px;border-top:1px solid rgba(255,255,255,.24);font-size:13.5px;color:rgba(255,255,255,.8)}
+
+/* phone order bar */
+.mbar{display:none}
+
+@media (max-width:1080px){
+  .grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .perks,.steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:900px){
+  .nav{display:none}
+  .burger{display:inline-flex}
+  .hero-in{grid-template-columns:minmax(0,1fr)}
+  .hero-art{width:min(100%,440px)}
+  .cats-in{grid-template-columns:repeat(auto-fit,minmax(78px,1fr))}
+  .about,.contact-in{grid-template-columns:minmax(0,1fr)}
+  .about-pic{max-width:520px}
+  .foot-in{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:760px){
+  html{scroll-padding-top:84px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;margin-inline:calc(-1*var(--gutter));padding:2px var(--gutter) 8px;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.96);border-top:1px solid var(--line)}
+  .mbar .btn{flex:1}
+  .foot-end{padding-bottom:96px}
+}
+@media (max-width:560px){
+  .cat-bg .w1{width:82vw;left:-18%}
+  .cat-bg .w2{width:66vw;right:-14%}
+  body{font-size:16px}
+  .top-in{min-height:68px}
+  .brand img{height:52px}
+  .top .btn{display:none}
+  .hero .spec,.about-copy .spec{grid-auto-flow:row;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 0}
+  .hero .spec>div:nth-child(odd),.about-copy .spec>div:nth-child(odd){padding-left:0;border-left:0}
+  .cta .btn{flex:1 1 100%}
+  .sticker{width:86px;font-size:14px}
+  .sticker b{font-size:22px}
+  .cat-name{font-size:12.5px}
+  .cat-n{display:none}
+  .card .spec dt{font-size:11.5px}
+  .card .spec dd{font-size:14px}
+  .perks,.steps{grid-template-columns:minmax(0,1fr)}
+  .strip .btn{width:100%}
+  .foot-in{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:no-preference){
+  .hero-cut{animation:bob 6s ease-in-out infinite alternate}
+  .hero-cut.c2{animation-delay:-2s}
+  .hero-cut.c3{animation-delay:-4s}
+  @keyframes bob{to{translate:0 -9px}}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .btn,.shot-cut,.cat-pic img{transition:none}
+}
+</style>
+
+<a class="skip" href="#catalog">Перейти к каталогу</a>
+
+<header class="top" id="top">
+  <div class="wrap top-in">
+    <a class="brand" href="#top" aria-label="Юг Сладости — в начало страницы"><img src="/promo/img/logo.svg" alt="Юг Сладости. Кондитерская" width="384" height="223"></a>
+    <nav class="nav" aria-label="Разделы">
+      <a href="#catalog">Каталог</a>
+      <a href="#how">Как заказать</a>
+      <a href="#about">О кондитерской</a>
+      <a href="#contacts">Контакты</a>
+    </nav>
+    <div class="top-actions">
+      <a class="btn btn-primary btn-sm" href="/shop">Заказать онлайн</a>
+      <button class="burger" type="button" id="burger" aria-label="Открыть меню" aria-expanded="false" aria-controls="mnav">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+      </button>
+    </div>
+  </div>
+  <nav class="mnav" id="mnav" aria-label="Разделы" hidden>
+    <a href="#catalog">Каталог</a>
+    <a href="#how">Как заказать</a>
+    <a href="#about">О кондитерской</a>
+    <a href="#contacts">Контакты</a>
+  </nav>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap hero-in">
+    <div class="hero-copy">
+      <p class="eyebrow" th:text="${'Кондитерская «' + (page.company.name ?: 'Юг Сладости') + '»'}">Кондитерская «Юг Сладости»</p>
+      <h1>Выпечка к чаю <em>оптом</em>&nbsp;— прямо с&nbsp;производства</h1>
+      <p class="lead"><th:block th:if="${!page.groupList().isEmpty()}" th:text="${#strings.capitalize(page.groupList()) + ' в фирменной упаковке'}">Коржики, пряники и кексы в фирменной упаковке</th:block><th:block th:if="${page.groupList().isEmpty()}">Выпечка в фирменной упаковке</th:block>&nbsp;— для магазинов, кафе, столовых и оптовых компаний.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="/shop">Заказать онлайн
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        </a>
+        <a class="btn btn-light" href="#catalog">Смотреть каталог</a>
+      </div>
+      <p class="hero-note">Вход в онлайн-заказ — по номеру телефона.</p>
+      <dl class="spec">
+        <div><dt>в каталоге</dt><dd th:text="${page.positions(page.productCount)}">43 позиции</dd></div>
+        <div th:if="${page.weightRange}"><dt>фасовка</dt><dd th:text="${page.weightRange}">200 г – 1,75 кг</dd></div>
+        <div><dt>групп выпечки</dt><dd th:text="${page.groups.size()}">8</dd></div>
+        <div><dt>заказ</dt><dd>онлайн</dd></div>
+        <!--/* Выбор времени выдачи и оплаты в магазине временно отключён (09.10, shop/app.html) — вернуть вместе с ним:
+        <div><dt>выдача</dt><dd>по времени</dd></div>
+        <div><dt>оплата</dt><dd>Kaspi, безнал</dd></div>
+        */-->
+      </dl>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <span class="wheat"></span>
+      <div class="frame hero-frame"><img src="/promo/img/p-korzhiki.webp" alt="" width="660" height="880"></div>
+      <span class="sticker">каталог<b th:text="${page.year}">2026</b></span>
+      <img class="hero-cut c3" src="/promo/img/h-keks-izyum.webp" alt="" width="900" height="483">
+      <img class="hero-cut c2" src="/promo/img/h-pryaniki.webp" alt="" width="900" height="546">
+      <img class="hero-cut c1" src="/promo/img/h-korzhiki.webp" alt="" width="818" height="657">
+    </div>
+  </div>
+</section>
+
+<div class="wrap cats">
+  <nav class="cats-in" aria-label="Группы выпечки">
+    <a class="cat" href="#catalog" th:each="g : ${page.groups}" th:attr="data-cat-link=${g.key}"><span class="cat-pic"><img th:src="${g.imageUrl ?: '/promo/img/logo.svg'}" alt="" width="104" height="104" loading="lazy"></span><span class="cat-name" th:text="${g.name}">Группа</span><span class="cat-n" th:text="${page.positions(g.count)}">5 позиций</span></a>
+  </nav>
+</div>
+
+<section class="section" id="catalog">
+  <div class="cat-bg" aria-hidden="true"><div class="cat-bg-in"><span class="wheat w1"></span><span class="wheat w2"></span></div></div>
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="eyebrow" th:text="${'Каталог ' + page.year}">Каталог 2026</p>
+      <h2>Что печём</h2>
+      <p class="sec-note">Вес и количество в коробке по каждой позиции. Цены — в онлайн-заказе.</p>
+    </header>
+    <div class="tabs" id="tabs" role="group" aria-label="Фильтр по группам">
+      <button class="tab" type="button" data-filter="all" aria-pressed="true">Все <span th:text="${page.productCount}">43</span></button>
+      <button class="tab" type="button" th:each="g : ${page.groups}" th:attr="data-filter=${g.key}" aria-pressed="false"><th:block th:text="${g.name}">Группа</th:block> <span th:text="${g.count}">5</span></button>
+    </div>
+    <div class="grid" id="grid">
+      <article class="card" th:each="c, it : ${page.cards}" th:attr="data-cat=${c.groupKey}" th:hidden="${it.index >= 12}">
+        <div class="shot">
+          <div class="frame"><img th:if="${c.imageUrl}" th:src="${c.imageUrl}" th:alt="${c.name}" width="660" height="880" loading="lazy"><img th:unless="${c.imageUrl}" class="noimg" src="/promo/img/logo.svg" alt="" width="660" height="880" loading="lazy"></div>
+        </div>
+        <h3 th:text="${c.name}">Товар</h3>
+        <dl class="spec" th:if="${c.weight != null or c.perBox != null}">
+          <div th:if="${c.weight}"><dt>вес</dt><dd th:text="${c.weight}">550 г</dd></div>
+          <div th:if="${c.perBox}"><dt>в коробке</dt><dd th:text="${c.perBox}">12 шт</dd></div>
+          <div th:if="${c.boxWeight}"><dt>вес коробки</dt><dd th:text="${c.boxWeight}">6,6 кг</dd></div>
+        </dl>
+      </article>
+    </div>
+    <div class="more" th:if="${page.productCount > 12}"><button class="btn btn-line" type="button" id="showAll" th:text="${'Показать все ' + page.positions(page.productCount)}">Показать все</button></div>
+    <div class="strip">
+      <p>Цены и оформление — в онлайн-заказе</p>
+      <a class="btn btn-primary" href="/shop">Заказать онлайн
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="section perks-sec">
+  <span class="wheat" aria-hidden="true"></span>
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="eyebrow">Почему с нами удобно</p>
+      <h2>Всё готово к вашей полке</h2>
+    </header>
+    <div class="perks">
+      <div class="perk">
+        <span class="perk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 17.5V14a4 4 0 1 1 2.2-7.4 3.6 3.6 0 0 1 4.6 0A4 4 0 1 1 16.5 14v3.5Z"></path><path d="M7.5 20.5h9"></path></svg></span>
+        <h3>Своё производство</h3>
+        <p>Каждую группу выпечки печёт отдельная бригада.</p>
+      </div>
+      <div class="perk">
+        <span class="perk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.5V4.5h8l9 9-8 8-9-9Z"></path><circle cx="8" cy="9" r="1.4"></circle></svg></span>
+        <h3>Фирменная упаковка</h3>
+        <p>Этикетка со штрих-кодом и знаком ЕАС: товар сразу идёт на полку.</p>
+      </div>
+      <div class="perk">
+        <span class="perk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg></span>
+        <h3>Свои цены онлайн</h3>
+        <p>Вход по номеру телефона — в каталоге сразу ваши цены, корзина и история заказов.</p>
+      </div>
+      <div class="perk">
+        <span class="perk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 11a7.5 7.5 0 0 1 13-4.6L19.5 8.5"></path><path d="M19.5 4v4.5H15"></path><path d="M19.5 13a7.5 7.5 0 0 1-13 4.6L4.5 15.5"></path><path d="M4.5 20v-4.5H9"></path></svg></span>
+        <h3>Повтор заказа</h3>
+        <p>Любой прошлый заказ можно повторить из истории — товары сразу попадут в корзину.</p>
+      </div>
+      <!--/* Выбор времени выдачи и оплаты в магазине временно отключён (09.10, shop/app.html) — вернуть вместе с ним:
+      <div class="perk">
+        <span class="perk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg></span>
+        <h3>Выдача по времени</h3>
+        <p>Собираем партию к вашему окну — без ожидания на погрузке.</p>
+      </div>
+      <div class="perk">
+        <span class="perk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2v-17Z"></path><path d="M9 8.5h6M9 12.5h6"></path></svg></span>
+        <h3>Kaspi и безнал</h3>
+        <p>Накладная и ЭСФ — вместе с партией.</p>
+      </div>
+      */-->
+    </div>
+  </div>
+</section>
+
+<section class="section how" id="how">
+  <span class="wheat" aria-hidden="true"></span>
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="eyebrow">Как заказать</p>
+      <h2>Заказ за четыре шага</h2>
+    </header>
+    <ol class="steps">
+      <li><h3>Войдите по номеру телефона</h3><p>Откройте онлайн-заказ. В первый раз укажите ещё и имя.</p></li>
+      <li><h3>Выберите товары</h3><p>Отметьте позиции и количество, целую коробку — одной кнопкой.</p></li>
+      <li><h3>Оформите заказ</h3><p>Проверьте корзину и при необходимости оставьте комментарий.</p></li>
+      <li><h3>Заберите заказ</h3><p>Соберём партию на производстве, статус видно в истории заказов.</p></li>
+      <!--/* Выбор времени выдачи и оплаты в магазине временно отключён (09.10, shop/app.html) — вернуть вместе с ним:
+      <li><h3>Выберите товары</h3><p>Отметьте позиции и количество.</p></li>
+      <li><h3>Выберите время выдачи</h3><p>Подготовим партию к вашему приезду.</p></li>
+      <li><h3>Заберите заказ</h3><p>Оплата через Kaspi или по счёту, документы — сразу.</p></li>
+      */-->
+    </ol>
+    <div class="how-cta">
+      <a class="btn btn-yolk" href="/shop">Перейти к онлайн-заказу
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="about">
+  <div class="wrap about">
+    <div class="about-pic">
+      <div class="frame"><img src="/promo/img/mill.webp" alt="Гравюра из каталога: мельница среди пшеничного поля" width="1280" height="1011" loading="lazy"></div>
+    </div>
+    <div class="about-copy">
+      <p class="eyebrow">О кондитерской</p>
+      <h2>Печём то, что берут к чаю каждый день</h2>
+      <p>«<th:block th:text="${page.company.name ?: 'Юг Сладости'}">Юг Сладости</th:block>» — кондитерская с собственным производством. В каталоге <th:block th:text="${page.positions(page.productCount)}">43 позиции</th:block>: <th:block th:text="${page.groupList()}">группы</th:block>.</p>
+      <p th:if="${page.company.about}" th:text="${page.company.about}" style="white-space:pre-line">О нас</p>
+      <dl class="spec">
+        <div><dt>в каталоге</dt><dd th:text="${page.positions(page.productCount)}">43 позиции</dd></div>
+        <div><dt>групп выпечки</dt><dd th:text="${page.groups.size()}">8</dd></div>
+        <div th:if="${page.weightRange}"><dt>фасовка</dt><dd th:text="${page.weightRange}">200 г – 1,75 кг</dd></div>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section class="section contact" id="contacts">
+  <span class="wheat" aria-hidden="true"></span>
+  <div class="wrap contact-in">
+    <div class="contact-copy">
+      <p class="eyebrow">Контакты</p>
+      <h2>Закажите онлайн или оставьте номер</h2>
+      <p class="lead">Быстрее всего — оформить заказ онлайн. Хотите сначала обсудить условия — оставьте номер, мы перезвоним.</p>
+      <a class="btn btn-primary" href="/shop">Заказать онлайн
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+      </a>
+      <ul class="contact-list">
+        <li th:if="${page.company.phone}">
+          <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"></path></svg></span>
+          <span><span class="c-l">Телефон и WhatsApp</span><a class="c-v" th:href="${'tel:' + #strings.replace(page.company.phone, ' ', '')}" th:text="${page.company.phone}" style="text-decoration:none">+7</a></span>
+        </li>
+        <li th:if="${page.company.address}">
+          <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg></span>
+          <span><span class="c-l">Адрес производства</span><span class="c-v" th:text="${page.company.address}">адрес</span></span>
+        </li>
+        <li th:if="${page.company.pickupHours}">
+          <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
+          <span><span class="c-l">Выдача заказов</span><span class="c-v" th:text="${page.company.pickupHours}">часы</span></span>
+        </li>
+        <li th:if="${page.company.email}">
+          <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg></span>
+          <span><span class="c-l">Почта</span><a class="c-v" th:href="${'mailto:' + page.company.email}" th:text="${page.company.email}" style="text-decoration:none">почта</a></span>
+        </li>
+      </ul>
+    </div>
+    <form class="form" id="lead" novalidate>
+      <h3>Перезвоните мне</h3>
+      <div class="field">
+        <label for="lead-name">Как к вам обращаться</label>
+        <input id="lead-name" name="name" type="text" autocomplete="name" placeholder="Имя">
+      </div>
+      <div class="field">
+        <label for="lead-phone">Телефон или WhatsApp</label>
+        <input id="lead-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+7" required>
+      </div>
+      <div class="field">
+        <label for="lead-type">Ваш бизнес</label>
+        <select id="lead-type" name="type">
+          <option>Магазин или минимаркет</option>
+          <option>Кафе или кофейня</option>
+          <option>Столовая или буфет</option>
+          <option>Оптовая компания</option>
+          <option>Другое</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Жду звонка</button>
+      <p class="form-status" id="lead-status" role="status" hidden></p>
+      <p class="form-note">Нажимая кнопку, вы соглашаетесь на обработку персональных данных.</p>
+    </form>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <span class="wheat" aria-hidden="true"></span>
+  <div class="wrap foot-in">
+    <div class="foot-brand">
+      <img src="/promo/img/logo.svg" alt="Юг Сладости. Кондитерская" width="384" height="223" loading="lazy">
+      <p>Кондитерская с собственным производством. Выпечка к чаю оптом.</p>
+    </div>
+    <nav aria-label="Разделы в подвале">
+      <a href="#catalog">Каталог</a>
+      <a href="#how">Как заказать</a>
+      <a href="#about">О кондитерской</a>
+      <a href="#contacts">Контакты</a>
+    </nav>
+    <div class="foot-info">
+      <a href="/shop">Онлайн-заказ →</a>
+      <span th:if="${page.company.phone}" th:text="${page.company.phone}">телефон</span>
+      <span th:if="${page.company.address}" th:text="${page.company.address}">адрес</span>
+      <span th:if="${page.company.legalInfo}" th:text="${page.company.legalInfo}">реквизиты</span>
+    </div>
+  </div>
+  <div class="wrap"><p class="foot-end">© <th:block th:text="${page.year + ' ' + (page.company.name ?: 'Юг Сладости')}">2026 Юг Сладости</th:block> · <a href="/login" style="color:inherit">Вход для сотрудников</a></p></div>
+</footer>
+
+<div class="mbar">
+  <a class="btn btn-primary" href="/shop">Заказать онлайн</a>
+</div>
+
+<script>
+(function () {
+  var FIRST = 12;
+  var grid = document.getElementById('grid');
+  var cards = Array.prototype.slice.call(grid.children);
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-filter]'));
+  var more = document.getElementById('showAll') || document.createElement('button');
+  var cat = 'all';
+  var expanded = false;
+
+  function render() {
+    var shown = 0;
+    cards.forEach(function (card) {
+      var match = cat === 'all' || card.getAttribute('data-cat') === cat;
+      var visible = match && (cat !== 'all' || expanded || shown < FIRST);
+      if (match) shown += 1;
+      card.hidden = !visible;
+    });
+    tabs.forEach(function (tab) {
+      tab.setAttribute('aria-pressed', String(tab.getAttribute('data-filter') === cat));
+    });
+    more.hidden = !(cat === 'all' && !expanded);
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () { cat = tab.getAttribute('data-filter'); render(); });
+  });
+  more.addEventListener('click', function () { expanded = true; render(); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-cat-link]'), function (link) {
+    link.addEventListener('click', function () { cat = link.getAttribute('data-cat-link'); render(); });
+  });
+
+  var burger = document.getElementById('burger');
+  var mnav = document.getElementById('mnav');
+  function setMenu(open) {
+    mnav.hidden = !open;
+    burger.setAttribute('aria-expanded', String(open));
+    burger.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+  }
+  burger.addEventListener('click', function () { setMenu(mnav.hidden); });
+  mnav.addEventListener('click', function (e) { if (e.target.closest('a')) setMenu(false); });
+
+  var form = document.getElementById('lead');
+  var status = document.getElementById('lead-status');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var phone = document.getElementById('lead-phone');
+    status.hidden = false;
+    if (phone.value.replace(/\D/g, '').length < 10) {
+      status.textContent = 'Укажите номер телефона полностью, чтобы мы могли перезвонить.';
+      phone.focus();
+      return;
+    }
+    var btn = form.querySelector('button[type=submit]');
+    btn.disabled = true;
+    status.textContent = 'Отправляем…';
+    fetch('/shop/callback', {method: 'POST', body: new URLSearchParams(new FormData(form))})
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        status.textContent = 'Спасибо! Мы перезвоним в ближайшее рабочее время.';
+        form.reset();
+      })
+      .catch(function () {
+        status.textContent = 'Не получилось отправить. Попробуйте ещё раз или оформите заказ онлайн.';
+      })
+      .finally(function () { btn.disabled = false; });
+  });
+})();
+</script>
+
+</body></html>

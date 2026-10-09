@@ -19,6 +19,9 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   final _address = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
+  final _pickupHours = TextEditingController();
+  final _about = TextEditingController();
+  final _legalInfo = TextEditingController();
   bool _initialLoading = true;
   bool _loading = false;
   bool _saved = false;
@@ -32,6 +35,9 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
       _address.text = p.address ?? '';
       _phone.text = p.phone ?? '';
       _email.text = p.email ?? '';
+      _pickupHours.text = p.pickupHours ?? '';
+      _about.text = p.about ?? '';
+      _legalInfo.text = p.legalInfo ?? '';
       setState(() => _initialLoading = false);
     });
   }
@@ -48,6 +54,9 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         address: _address.text.trim(),
         phone: _phone.text.trim(),
         email: _email.text.trim(),
+        pickupHours: _pickupHours.text.trim(),
+        about: _about.text.trim(),
+        legalInfo: _legalInfo.text.trim(),
       ));
       setState(() {
         _loading = false;
@@ -84,6 +93,26 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                 TextField(controller: _phone, decoration: const InputDecoration(labelText: 'Телефон')),
                 const SizedBox(height: 12),
                 TextField(controller: _email, decoration: const InputDecoration(labelText: 'Email')),
+                const SizedBox(height: 24),
+                Text('Сайт для клиентов (главная страница)', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text('Название, адрес, телефон и email выше тоже показываются на сайте. Пустое поле на сайте не выводится.',
+                    style: TextStyle(color: context.pal.muted, fontSize: 13)),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _pickupHours,
+                    decoration: const InputDecoration(labelText: 'Выдача заказов', hintText: 'Пн–Сб, 7:00–16:00')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _about,
+                    minLines: 2,
+                    maxLines: 6,
+                    decoration: const InputDecoration(
+                        labelText: 'О компании', hintText: 'С какого года работаете, город, команда')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _legalInfo,
+                    decoration: const InputDecoration(labelText: 'Юр. лицо и БИН', hintText: 'ТОО «…» · БИН …')),
                 const SizedBox(height: 20),
                 FilledButton(
                   onPressed: _loading ? null : _save,

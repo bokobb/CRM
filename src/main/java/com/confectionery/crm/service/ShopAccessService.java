@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,6 +57,31 @@ public class ShopAccessService {
                             + ". Разрешить или отклонить — в приложении, «Клиенты».", null);
         }
         return r;
+    }
+
+    /** Заявки «Перезвоните мне» с рекламной страницы: сколько в час ещё доходит до админа. */
+    private static final int CALLBACK_LIMIT_PER_HOUR = 20;
+    private final Deque<LocalDateTime> recentCallbacks = new ArrayDeque<>();
+
+    /**
+     * Форма «Перезвоните мне» на рекламной странице (static/promo) — не заявка на доступ к
+     * сайту, а просьба позвонить: уведомление админу (журнал + push), отдельной таблицы нет.
+     * Сверх лимита в час запросы молча отбрасываются (false) — защита от спама с открытой формы.
+     */
+    public synchronized boolean requestCallback(String phone, String name, String business) {
+        LocalDateTime hourAgo = LocalDateTime.now().minusHours(1);
+        while (!recentCallbacks.isEmpty() && recentCallbacks.peekFirst().isBefore(hourAgo)) {
+            recentCallbacks.pollFirst();
+        }
+        if (recentCallbacks.size() >= CALLBACK_LIMIT_PER_HOUR) {
+            return false;
+        }
+        recentCallbacks.addLast(LocalDateTime.now());
+        String who = name == null || name.isBlank() ? "без имени" : name.trim();
+        String kind = business == null || business.isBlank() ? "" : " (" + business.trim() + ")";
+        notificationService.notifyRole(Role.ADMIN,
+                "Перезвонить с сайта: " + who + kind + ", " + phone.trim(), null);
+        return true;
     }
 
     public List<ShopAccessRequest> pending() {

@@ -27,6 +27,7 @@ public class CompanyProfileApiController {
     @PutMapping
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public CompanyProfileDto update(@RequestBody CompanyProfileDto req) {
-        return CompanyProfileDto.from(companyProfileService.save(req.name(), req.address(), req.phone(), req.email()));
+        return CompanyProfileDto.from(companyProfileService.save(req.name(), req.address(), req.phone(), req.email(),
+                req.pickupHours(), req.about(), req.legalInfo()));
     }
 }

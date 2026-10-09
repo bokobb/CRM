@@ -15,12 +15,16 @@ public class CompanyProfileService {
         return companyProfileRepository.findById(1L).orElseGet(CompanyProfile::new);
     }
 
-    public CompanyProfile save(String name, String address, String phone, String email) {
+    public CompanyProfile save(String name, String address, String phone, String email,
+                               String pickupHours, String about, String legalInfo) {
         CompanyProfile profile = get();
         profile.setName(name);
         profile.setAddress(address);
         profile.setPhone(phone);
         profile.setEmail(email);
+        profile.setPickupHours(pickupHours);
+        profile.setAbout(about);
+        profile.setLegalInfo(legalInfo);
         return companyProfileRepository.save(profile);
     }
 }

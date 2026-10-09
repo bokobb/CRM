@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<!--/* Вход в магазин по номеру (state = phone) и ожидание допуска нового номера (state = pending /
+     rejected, см. ShopController.access и ShopAccessService). */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{shop/fragments/frame :: head(title=${state == 'phone'} ? 'Онлайн-заказ' : 'Доступ к заказам')}"></head>
+<body>
+<div class="page">
+    <header th:replace="~{shop/fragments/frame :: top(signedIn=false, active='', cartCount=0, clientName='')}"></header>
+    <main>
+        <section class="signin">
+            <div class="wrap signin-in">
+                <div class="panel">
+                    <th:block th:if="${state == 'phone'}">
+                        <p class="eyebrow">Заказ онлайн</p>
+                        <h1>Выберите товары и оформите заказ онлайн</h1>
+                        <p class="alert" th:if="${error}" th:text="${error}" role="alert"></p>
+                        <form action="/shop/start" method="post" id="signin" novalidate>
+                            <div class="field">
+                                <label for="f-phone">Ваш номер телефона</label>
+                                <input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 700 000 00 00"
+                                       th:value="${phone} ?: '+7 '" aria-describedby="e-phone" autofocus>
+                                <p class="field-err" id="e-phone" role="alert" hidden></p>
+                            </div>
+                            <div class="field">
+                                <label for="f-name">Ваше имя (если входите впервые)</label>
+                                <input id="f-name" name="name" type="text" autocomplete="name">
+                            </div>
+                            <button class="btn btn-primary" type="submit">Продолжить
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                            </button>
+                        </form>
+                        <p class="hint">Пароль не нужен: узнаём вас по номеру телефона. Новый номер администратор подключает вручную.</p>
+                    </th:block>
+
+                    <th:block th:if="${state == 'pending'}">
+                        <p class="eyebrow">Заявка отправлена</p>
+                        <h1>Ждём подтверждения администратора</h1>
+                        <p>Номер <span class="access-phone" th:text="${phone}">+7</span> ещё не подключён. Как только администратор
+                            разрешит доступ, нажмите «Проверить» — вход откроется сам.</p>
+                        <a class="btn btn-primary" href="/shop">Проверить</a>
+                    </th:block>
+
+                    <th:block th:if="${state == 'rejected'}">
+                        <p class="eyebrow">Доступ к заказам</p>
+                        <h1>В доступе отказано</h1>
+                        <p>Для номера <span class="access-phone" th:text="${phone}">+7</span> онлайн-заказ не разрешён.
+                            <th:block th:if="${company.phone}">Позвоните нам: <b th:text="${company.phone}"></b>.</th:block></p>
+                    </th:block>
+
+                    <form action="/shop/reset" method="post" th:if="${state != 'phone'}">
+                        <button class="btn btn-line" type="submit">Другой номер</button>
+                    </form>
+                </div>
+                <div class="art" aria-hidden="true">
+                    <span class="wheat"></span>
+                    <div class="frame"><img src="/promo/img/p-korzhiki.webp" alt="" width="660" height="880"></div>
+                    <img class="art-cut c3" src="/promo/img/h-keks-izyum.webp" alt="" width="900" height="483">
+                    <img class="art-cut c2" src="/promo/img/h-pryaniki.webp" alt="" width="900" height="546">
+                    <img class="art-cut c1" src="/promo/img/h-korzhiki.webp" alt="" width="818" height="657">
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer th:replace="~{shop/fragments/frame :: foot}"></footer>
+</div>
+<script>
+(function () {
+  var form = document.getElementById('signin');
+  if (!form) return;
+  var phone = document.getElementById('f-phone'), err = document.getElementById('e-phone');
+  var PREFIX = '+7 ';
+  /* 10 цифр номера без кода страны: «+7 700…», «8 700…», «+7 8 700…» (8 по привычке) — всё равно 700… */
+  function local(v) {
+    var d = v.replace(/\D/g, '');
+    if (/^\s*\+7/.test(v) || (d.length === 11 && (d.charAt(0) === '7' || d.charAt(0) === '8'))) d = d.slice(1);
+    if (d.length === 11 && d.charAt(0) === '8') d = d.slice(1);
+    return d.slice(0, 10);
+  }
+  function pretty(d) { return PREFIX + [d.slice(0, 3), d.slice(3, 6), d.slice(6, 8), d.slice(8, 10)].filter(Boolean).join(' '); }
+  function toEnd() { var n = phone.value.length; try { phone.setSelectionRange(n, n); } catch (e) {} }
+  if (!/^\+7/.test(phone.value)) phone.value = pretty(local(phone.value));
+  phone.addEventListener('focus', function () { setTimeout(toEnd, 0); });
+  phone.addEventListener('keydown', function (e) {
+    var start = phone.selectionStart, end = phone.selectionEnd;
+    if ((e.key === 'Backspace' && end <= PREFIX.length) || (e.key === 'Delete' && start < PREFIX.length && end <= PREFIX.length)) e.preventDefault();
+  });
+  phone.addEventListener('input', function () {
+    if (!/^\+7 /.test(phone.value)) { phone.value = pretty(local(phone.value)); toEnd(); }
+  });
+  phone.addEventListener('blur', function () { phone.value = pretty(local(phone.value)); });
+  form.addEventListener('submit', function (e) {
+    var d = local(phone.value);
+    if (d.length < 10) {
+      e.preventDefault();
+      err.textContent = 'Укажите номер полностью — по нему мы найдём вас в базе.';
+      err.hidden = false;
+      phone.focus();
+      return;
+    }
+    phone.value = pretty(d);
+  });
+})();
+</script>
+</body>
+</html>

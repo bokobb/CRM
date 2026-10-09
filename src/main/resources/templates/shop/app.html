@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<!--/* Магазин для вошедшего клиента: view = products (каталог с ценами и «+ коробка»), cart (состав,
+     день/время выдачи, оплата, комментарий), orders (история). Товары/корзина приходят из
+     ShopController.shopData() одним JSON, корзина живёт в сессии — каждое изменение сразу уходит
+     на /shop/cart/item/{id}/set|remove. Количество — в единицах товара (шт/кг), коробки считаются
+     как ⌈кол-во / в коробке⌉ по карточке товара. */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{shop/fragments/frame :: head(title=${view == 'orders'} ? 'История заказов' : (${view == 'cart'} ? 'Корзина' : 'Товары'))}"></head>
+<body>
+<div class="page" id="page">
+    <header th:replace="~{shop/fragments/frame :: top(signedIn=true, active=${view}, cartCount=${cartCount}, clientName=${clientName})}"></header>
+
+    <main id="main">
+        <div class="wrap flow" id="shell" th:classappend="${view == 'cart' and cartCount == 0} ? 'is-solo' : ''">
+            <div class="flow-main">
+                <p class="alert" th:if="${error}" th:text="${error}" role="alert"></p>
+
+                <!-- товары -->
+                <section th:if="${view == 'products'}" aria-labelledby="h-products">
+                    <header class="step-head">
+                        <p class="eyebrow" th:text="'Здравствуйте, ' + ${clientName} + '!'">Товары</p>
+                        <h1 id="h-products" tabindex="-1">Выберите товары</h1>
+                        <p class="lead">Цена за штуку. Кнопка «+ коробка» добавляет сразу целую коробку.</p>
+                    </header>
+                    <div class="tools">
+                        <div class="search">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
+                            <input id="f-search" type="search" placeholder="Найти товар" aria-label="Найти товар" autocomplete="off">
+                        </div>
+                        <div class="chips" id="chips" role="group" aria-label="Группы товаров"></div>
+                    </div>
+                    <ul class="items" id="items"></ul>
+                    <div class="none" id="none" hidden>
+                        <p>Ничего не нашлось. Проверьте название или сбросьте фильтр.</p>
+                        <button class="link" type="button" id="reset">Показать все товары</button>
+                    </div>
+                </section>
+
+                <!-- корзина -->
+                <section th:if="${view == 'cart'}" aria-labelledby="h-cart">
+                    <header class="step-head">
+                        <p class="eyebrow">Корзина</p>
+                        <h1 id="h-cart" tabindex="-1">Ваша корзина</h1>
+                        <p class="lead" id="cart-sub">Проверьте состав и оформите заказ.</p>
+                    </header>
+                    <div class="empty" id="cart-none" hidden>
+                        <h2>В корзине пока пусто</h2>
+                        <p>Добавьте товары из каталога или повторите один из прошлых заказов.</p>
+                        <div class="actions">
+                            <a class="btn btn-primary btn-sm" href="/shop/products">Выбрать товары</a>
+                            <a class="btn btn-line btn-sm" href="/shop/orders">История заказов</a>
+                        </div>
+                    </div>
+                    <form id="cart-body" action="/shop/cart/submit" method="post">
+                        <div class="block">
+                            <h2>Состав заказа</h2>
+                            <ul class="items" id="cart-items"></ul>
+                            <p><a class="link" href="/shop/products">+ Добавить товары</a></p>
+                        </div>
+                        <!--/* Выбор дня/времени выдачи и способа оплаты временно отключены (09.10, пока не нужны).
+                             Чтобы вернуть — снять комментарий с этих двух блоков и со строки «выдача» в боковой
+                             панели: скрипт ниже (PICKUP) и ShopController.submit подхватят их сами.
+                        <div class="block" id="pick">
+                            <h2 id="h-pick" tabindex="-1">Время выдачи</h2>
+                            <p class="hint">Самовывоз с производства<th:block th:if="${company.address}" th:text="', ' + ${company.address}"></th:block>. Соберём партию к выбранному времени.</p>
+                            <div class="field">
+                                <span class="field-label" id="l-day">День</span>
+                                <div class="days" id="days" role="group" aria-labelledby="l-day"></div>
+                            </div>
+                            <div class="field">
+                                <span class="field-label" id="l-slot">Время</span>
+                                <div class="slots" id="slots" role="group" aria-labelledby="l-slot"></div>
+                            </div>
+                            <input type="hidden" name="day" id="f-day">
+                            <input type="hidden" name="slot" id="f-slot">
+                        </div>
+                        <div class="block">
+                            <h2>Оплата</h2>
+                            <div class="choices" role="radiogroup" aria-label="Способ оплаты">
+                                <label class="choice"><input type="radio" name="pay" value="Kaspi" checked> Kaspi</label>
+                                <label class="choice"><input type="radio" name="pay" value="По счёту"> По счёту (безнал)</label>
+                            </div>
+                        </div>
+                        */-->
+                        <div class="block">
+                            <div class="field">
+                                <label for="f-note">Комментарий к заказу</label>
+                                <textarea id="f-note" name="note" rows="3" maxlength="500" placeholder="Например: за заказом приедет другой водитель"></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- история -->
+                <section th:if="${view == 'orders'}" aria-labelledby="h-orders">
+                    <header class="step-head">
+                        <p class="eyebrow">История заказов</p>
+                        <h1 id="h-orders" tabindex="-1">Ваши заказы</h1>
+                        <p class="lead">Статус и состав каждого заказа. Любой можно повторить — товары сразу попадут в корзину.</p>
+                    </header>
+                    <div class="weeknav">
+                        <a th:href="@{/shop/orders(week=${week + 1})}" aria-label="Раньше">‹</a>
+                        <div><span th:text="${weekLabel}">Последние 7 дней</span><small th:if="${week < 2}" th:text="${weekRange}"></small></div>
+                        <a th:if="${week > 0}" th:href="@{/shop/orders(week=${week - 1})}" aria-label="Позже">›</a>
+                        <a th:if="${week == 0}" href="/shop/orders" aria-label="Последние 7 дней">›</a>
+                        <span class="off" th:if="${week < 0}">›</span>
+                    </div>
+                    <div class="chips" id="order-chips" role="group" aria-label="Фильтр заказов">
+                        <button type="button" class="chip" data-key="all" aria-pressed="true">Все</button>
+                        <button type="button" class="chip" data-key="active" aria-pressed="false">В работе</button>
+                        <button type="button" class="chip" data-key="closed" aria-pressed="false">Завершённые</button>
+                    </div>
+                    <ul class="orders" id="orders">
+                        <li class="order" th:each="o : ${orders}" th:attr="data-active=${o.active}">
+                            <div class="order-top">
+                                <div>
+                                    <h2 th:text="'Заказ № ' + ${o.number}">Заказ № 1</h2>
+                                    <p class="order-when" th:text="${o.whenLabel}">Оформлен</p>
+                                </div>
+                                <span class="status" th:classappend="'status--' + ${o.statusKey}" th:text="${o.statusLabel}">Принят</span>
+                            </div>
+                            <div class="totals">
+                                <dl class="totals-left">
+                                    <div><dt>позиций</dt><dd th:text="${o.positions}">0</dd></div>
+                                    <div><dt>коробок</dt><dd th:text="${o.boxes} ?: '—'">0</dd></div>
+                                    <div><dt>вес</dt><dd th:text="${o.weight} ?: '—'">0 кг</dd></div>
+                                </dl>
+                                <dl class="totals-right">
+                                    <div><dt>сумма</dt><dd th:text="${o.total}">0 ₸</dd></div>
+                                </dl>
+                            </div>
+                            <p class="total-line" th:if="${o.returnTotal}"><span>Возврат</span><b th:text="${o.returnTotal}">−0 ₸</b></p>
+                            <p class="sum"><span>Итого</span><b th:text="${o.netTotal} ?: ${o.total}">0 ₸</b></p>
+                            <details>
+                                <summary>Состав заказа</summary>
+                                <ul class="order-lines">
+                                    <li th:each="it : ${o.lines}"><span th:text="${it.name} + ' — ' + ${it.qtyLabel}">Товар</span><b th:text="${it.sumLabel}">0 ₸</b></li>
+                                </ul>
+                                <p class="hint order-note" th:if="${o.notes}" th:text="${o.notes}" style="white-space:pre-line"></p>
+                            </details>
+                            <div class="order-returns-wrap" th:if="${!#lists.isEmpty(o.returns)}" hidden>
+                                <div class="order-returns" th:each="ret : ${o.returns}">
+                                    <h3><span th:text="'Возврат от ' + ${ret.dateLabel} + (${ret.documentNumber} != null ? ' · №' + ${ret.documentNumber} : '')"></span><b th:text="'−' + ${ret.totalLabel}"></b></h3>
+                                    <p class="hint" th:if="${ret.reason}" th:text="${ret.reason}"></p>
+                                    <ul class="order-lines">
+                                        <li th:each="it : ${ret.items}"><span th:text="${it.name} + ' — ' + ${it.qtyLabel}"></span><b th:text="${it.sumLabel}"></b></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="actions">
+                                <form th:action="@{/shop/orders/{id}/repeat(id=${o.id})}" method="post">
+                                    <button class="btn btn-line btn-sm" type="submit">Повторить заказ</button>
+                                </form>
+                                <button class="btn btn-line btn-sm returns-toggle" type="button" th:if="${!#lists.isEmpty(o.returns)}"
+                                        th:attr="data-count=${#lists.size(o.returns)}"
+                                        th:text="'Показать возврат (' + ${#lists.size(o.returns)} + ')'">Показать возврат</button>
+                            </div>
+                        </li>
+                    </ul>
+                    <p class="none" id="orders-none" th:hidden="${!#lists.isEmpty(orders)}">За этот период заказов нет.</p>
+                </section>
+            </div>
+
+            <aside class="side" id="aside" aria-labelledby="h-aside" th:if="${view != 'orders'}">
+                <h2 id="h-aside" th:text="${view == 'cart'} ? 'Ваш заказ' : 'Корзина'">Корзина</h2>
+                <p class="side-note" id="aside-empty">Добавьте товары кнопкой «+» — здесь появится состав заказа.</p>
+                <ul class="side-lines" id="aside-lines" tabindex="0" aria-label="Товары в корзине" hidden></ul>
+                <div class="totals" id="aside-totals" hidden>
+                    <dl class="totals-left">
+                        <div><dt>позиций</dt><dd id="t-pos">0</dd></div>
+                        <div><dt>коробок</dt><dd id="t-boxes">0</dd></div>
+                        <div><dt>вес</dt><dd id="t-kg">0 кг</dd></div>
+                    </dl>
+                    <dl class="totals-right">
+                        <div><dt>сумма</dt><dd id="t-sum">0 ₸</dd></div>
+                    </dl>
+                </div>
+                <!--/* выдача — отключена вместе с выбором времени (см. корзину выше)
+                <p class="side-when" id="aside-when" hidden><span>выдача</span><b id="t-when"></b></p>
+                */-->
+                <p class="sum"><span>Итого</span><b id="t-total" aria-live="polite">0 ₸</b></p>
+                <button class="btn btn-primary side-cta" type="button" id="next" disabled>Перейти в корзину</button>
+            </aside>
+
+            <aside class="side" aria-labelledby="h-help" th:if="${view == 'orders' and company.phone != null}">
+                <h2 id="h-help">Вопрос по заказу?</h2>
+                <p class="side-note">Напишите или позвоните и назовите номер заказа — подскажем по составу, оплате и времени выдачи.</p>
+                <a class="btn btn-primary" th:href="'https://wa.me/' + ${waPhone}" target="_blank" rel="noopener">Написать в WhatsApp</a>
+                <a class="btn btn-line" th:href="'tel:+' + ${waPhone}" th:text="${company.phone}">телефон</a>
+            </aside>
+        </div>
+    </main>
+
+    <footer th:replace="~{shop/fragments/frame :: foot}"></footer>
+</div>
+
+<div class="mbar" id="mbar" hidden th:if="${view != 'orders'}">
+    <p class="mbar-t"><span id="m-meta"></span><b id="m-sum">0 ₸</b></p>
+    <button class="btn btn-primary" type="button" id="m-next">В корзину</button>
+</div>
+
+<script th:if="${view == 'orders'}">
+(function () {
+  document.getElementById('orders').addEventListener('click', function (e) {
+    var b = e.target.closest('.returns-toggle');
+    if (!b) return;
+    var wrap = b.closest('.order').querySelector('.order-returns-wrap');
+    wrap.hidden = !wrap.hidden;
+    b.textContent = wrap.hidden ? 'Показать возврат (' + b.getAttribute('data-count') + ')' : 'Скрыть возврат';
+  });
+  var chips = document.getElementById('order-chips');
+  chips.addEventListener('click', function (e) {
+    var b = e.target.closest('.chip');
+    if (!b) return;
+    var key = b.getAttribute('data-key'), shown = 0;
+    Array.prototype.forEach.call(chips.children, function (c) { c.setAttribute('aria-pressed', String(c === b)); });
+    Array.prototype.forEach.call(document.querySelectorAll('#orders .order'), function (li) {
+      var active = li.getAttribute('data-active') === 'true';
+      var ok = key === 'all' || (key === 'active') === active;
+      li.hidden = !ok;
+      if (ok) shown += 1;
+    });
+    document.getElementById('orders-none').hidden = shown > 0;
+  });
+})();
+</script>
+
+<script th:if="${view != 'orders'}" th:inline="javascript">
+(function () {
+  'use strict';
+  var DATA = /*[[${shopData}]]*/ {};
+  var VIEW = /*[[${view}]]*/ 'products';
+  var PRODUCTS = DATA.products, BY_ID = {};
+  PRODUCTS.forEach(function (p) { BY_ID[p.id] = p; });
+  var state = { qty: {}, group: 'all', q: '', day: DATA.defaultDay, slot: null };
+  /* выбор времени выдачи есть, только если его блок не закомментирован в разметке */
+  var PICKUP = !!document.getElementById('pick');
+  Object.keys(DATA.cart).forEach(function (id) { if (BY_ID[id]) state.qty[id] = DATA.cart[id]; });
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, attrs, text) {
+    var node = document.createElement(tag), k;
+    for (k in attrs) { if (attrs[k] !== null && attrs[k] !== undefined) node.setAttribute(k, attrs[k]); }
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function icon(d) { return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="' + d + '"></path></svg>'; }
+  function num(n) { return String(Math.round(n * 100) / 100).replace('.', ','); }
+  function money(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₸'; }
+  function kilos(g) { return num(Math.round(g / 10) / 100) + ' кг'; }
+  function plural(n, one, few, many) {
+    var d = n % 10, h = n % 100;
+    if (d === 1 && h !== 11) return one;
+    if (d >= 2 && d <= 4 && (h < 12 || h > 14)) return few;
+    return many;
+  }
+  function boxesWord(n) { return n + ' ' + plural(n, 'коробка', 'коробки', 'коробок'); }
+  function boxesOf(p, q) { return p.box ? Math.ceil(q / p.box - 1e-9) : 0; }
+  function totals() {
+    var t = { pos: 0, boxes: 0, noBox: 0, g: 0, sum: 0, lines: [] };
+    PRODUCTS.forEach(function (p) {
+      var q = state.qty[p.id] || 0;
+      if (!q) return;
+      t.pos += 1; t.sum += q * p.price;
+      if (p.box) t.boxes += boxesOf(p, q); else t.noBox += 1;
+      if (p.weightG) t.g += q * p.weightG;
+      t.lines.push({ p: p, q: q, sum: q * p.price });
+    });
+    return t;
+  }
+  function boxesLabel(t) { return t.noBox && !t.boxes ? '—' : t.boxes + (t.noBox ? '+' : ''); }
+
+  /* ---- синхронизация с сервером: последнее значение по товару, без лишних запросов ---- */
+  var pending = {}, inflight = [];
+  function sync(p) {
+    clearTimeout(pending[p.id]);
+    pending[p.id] = setTimeout(function () {
+      delete pending[p.id];
+      var q = state.qty[p.id] || 0;
+      var url = '/shop/cart/item/' + p.id + (q ? '/set?qty=' + encodeURIComponent(q) : '/remove');
+      var req = fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+        .then(function (r) { if (r.redirected || r.status === 401) location.href = '/shop'; })
+        .catch(function () {});
+      inflight.push(req);
+    }, 250);
+  }
+  function flush() {
+    Object.keys(pending).forEach(function (id) { clearTimeout(pending[id]); delete pending[id]; sync(BY_ID[id]); });
+    return new Promise(function (res) { setTimeout(res, 300); }).then(function () { return Promise.all(inflight); });
+  }
+
+  /* ---- строки товаров ---- */
+  var rows = {};
+  function makeRow(p, inCart) {
+    var li = el('li', { 'class': inCart ? 'item item--cart' : 'item', 'data-on': 'false' });
+    var pic = el('div', { 'class': 'item-pic' });
+    pic.appendChild(p.img ? el('img', { src: p.img, alt: '', width: 240, height: 240, loading: 'lazy' })
+      : el('img', { src: '/promo/img/logo.svg', 'class': 'noimg', alt: '', width: 240, height: 240 }));
+    var body = el('div', { 'class': 'item-body' });
+    var info = el('div', { 'class': 'item-info' });
+    info.appendChild(el('h3', {}, p.name));
+    var meta = [p.weight, p.boxText ? 'в коробке ' + p.boxText : null].filter(Boolean).join(' · ');
+    if (meta) info.appendChild(el('p', { 'class': 'item-meta' }, meta));
+    /* коробки · вес · сумма по строке — только в корзине, в каталоге не показываем */
+    var line = null;
+    if (inCart) { line = el('p', { 'class': 'item-line', hidden: '' }); info.appendChild(line); }
+    var buy = el('div', { 'class': 'item-buy' });
+    var price = el('div', { 'class': 'price' });
+    price.appendChild(el('b', {}, money(p.price)));
+    price.appendChild(el('span', {}, 'за ' + p.unit));
+    var qty = el('div', { 'class': 'qty' });
+    var minus = el('button', { type: 'button', 'aria-label': 'Убрать: ' + p.name });
+    minus.innerHTML = icon('M6 12h12');
+    var input = el('input', { type: 'number', inputmode: p.step < 1 ? 'decimal' : 'numeric', min: '0', max: '99999', step: String(p.step), value: '0', 'aria-label': 'Количество, ' + p.unit + ': ' + p.name });
+    var plus = el('button', { type: 'button', 'aria-label': 'Добавить: ' + p.name });
+    plus.innerHTML = icon('M6 12h12M12 6v12');
+    qty.appendChild(minus); qty.appendChild(input); qty.appendChild(plus);
+    buy.appendChild(price); buy.appendChild(qty);
+    body.appendChild(info); body.appendChild(buy);
+    li.appendChild(pic); li.appendChild(body);
+    if (inCart) {
+      var rm = el('button', { type: 'button', 'class': 'rm', 'aria-label': 'Убрать из корзины: ' + p.name });
+      rm.innerHTML = icon('M7 7l10 10M17 7 7 17');
+      rm.addEventListener('click', function () { setQty(p, 0); });
+      li.appendChild(rm);
+    } else if (p.box) {
+      var box = el('button', { type: 'button', 'class': 'boxbtn', 'aria-label': 'Добавить коробку, ' + p.box + ' ' + p.unit + ': ' + p.name }, '+ коробка');
+      box.appendChild(el('span', { 'class': 'bx-n' }, ' · ' + num(p.box) + ' ' + p.unit));
+      box.addEventListener('click', function () { setQty(p, (state.qty[p.id] || 0) + p.box); });
+      buy.appendChild(box);
+    }
+    minus.addEventListener('click', function () { setQty(p, (state.qty[p.id] || 0) - p.step); });
+    plus.addEventListener('click', function () { setQty(p, (state.qty[p.id] || 0) + p.step); });
+    input.addEventListener('change', function () { setQty(p, parseFloat(String(input.value).replace(',', '.')) || 0); });
+    input.addEventListener('focus', function () { input.select(); });
+    return { li: li, input: input, minus: minus, line: line, inCart: inCart };
+  }
+  function syncRow(p) {
+    var q = state.qty[p.id] || 0, r = rows[p.id];
+    if (!r) return;
+    r.input.value = q ? num(q).replace(',', '.') : 0;
+    r.minus.disabled = !q;
+    r.li.setAttribute('data-on', q ? 'true' : 'false');
+    if (r.line) {
+      r.line.hidden = !q;
+      var parts = [];
+      if (q && p.box) parts.push(boxesWord(boxesOf(p, q)));
+      if (q && p.weightG) parts.push(kilos(q * p.weightG));
+      if (q) parts.push(money(q * p.price));
+      /* переносить только между частями, не внутри «54 000 ₸» */
+      r.line.textContent = parts.map(function (x) { return x.replace(/ /g, '\u00a0'); }).join(' · ');
+    }
+    if (r.inCart) r.li.hidden = !q;
+  }
+  function setQty(p, q) {
+    q = Math.round(Math.max(0, Math.min(99999, q)) * 1000) / 1000;
+    if (q) state.qty[p.id] = q; else delete state.qty[p.id];
+    syncRow(p);
+    sync(p);
+    render();
+  }
+
+  /* ---- каталог ---- */
+  function filterProducts() {
+    var q = state.q.trim().toLowerCase(), shown = 0;
+    PRODUCTS.forEach(function (p) {
+      var ok = (state.group === 'all' || p.groupKey === state.group) && (!q || p.name.toLowerCase().indexOf(q) !== -1);
+      rows[p.id].li.hidden = !ok;
+      if (ok) shown += 1;
+    });
+    $('none').hidden = shown > 0;
+  }
+  function buildCatalog() {
+    PRODUCTS.forEach(function (p) { rows[p.id] = makeRow(p, false); $('items').appendChild(rows[p.id].li); syncRow(p); });
+    var chips = $('chips');
+    [ ['all', 'Все', PRODUCTS.length] ].concat(DATA.groups).forEach(function (g) {
+      var b = el('button', { type: 'button', 'class': 'chip', 'data-key': g[0], 'aria-pressed': String(g[0] === 'all') });
+      b.appendChild(document.createTextNode(g[1] + ' '));
+      b.appendChild(el('span', {}, String(g[2])));
+      b.addEventListener('click', function () {
+        state.group = g[0];
+        Array.prototype.forEach.call(chips.children, function (c) { c.setAttribute('aria-pressed', String(c === b)); });
+        filterProducts();
+      });
+      chips.appendChild(b);
+    });
+    $('f-search').addEventListener('input', function (e) { state.q = e.target.value; filterProducts(); });
+    $('reset').addEventListener('click', function () {
+      state.q = ''; state.group = 'all'; $('f-search').value = '';
+      Array.prototype.forEach.call(chips.children, function (c) { c.setAttribute('aria-pressed', String(c.getAttribute('data-key') === 'all')); });
+      filterProducts();
+    });
+  }
+
+  /* ---- корзина: день и время выдачи ---- */
+  function slotsFor(day) {
+    var out = [], h;
+    for (h = 8; h < 18; h += 1) {
+      out.push({ id: day.date + '-' + h, label: (h < 10 ? '0' : '') + h + ':00–' + (h + 1 < 10 ? '0' : '') + (h + 1) + ':00', past: day.today && h <= DATA.hourNow });
+    }
+    return out;
+  }
+  function whenText() { var d = DATA.days[state.day]; return d.title + ', ' + d.sub + ' · ' + state.slot.label; }
+  function renderPick() {
+    var box = $('days'), sbox = $('slots');
+    box.textContent = '';
+    DATA.days.forEach(function (d, i) {
+      var b = el('button', { type: 'button', 'class': 'day', 'aria-pressed': String(i === state.day) }, d.title);
+      b.appendChild(el('small', {}, d.sub));
+      b.addEventListener('click', function () { if (state.day !== i) { state.day = i; state.slot = null; } renderPick(); render(); });
+      box.appendChild(b);
+    });
+    sbox.textContent = '';
+    slotsFor(DATA.days[state.day]).forEach(function (s) {
+      var b = el('button', { type: 'button', 'class': 'slot', 'aria-pressed': String(!!state.slot && state.slot.id === s.id) }, s.label);
+      if (s.past) { b.disabled = true; b.appendChild(el('small', {}, 'прошло')); }
+      b.addEventListener('click', function () { state.slot = s; renderPick(); render(); });
+      sbox.appendChild(b);
+    });
+    $('f-day').value = DATA.days[state.day].date;
+    $('f-slot').value = state.slot ? state.slot.label : '';
+  }
+  function buildCart() {
+    PRODUCTS.forEach(function (p) {
+      if (!state.qty[p.id]) return;
+      rows[p.id] = makeRow(p, true);
+      $('cart-items').appendChild(rows[p.id].li);
+      syncRow(p);
+    });
+    if (PICKUP) renderPick();
+  }
+
+  /* ---- боковая панель, нижняя полоса, бейдж ---- */
+  function render() {
+    var t = totals(), inCart = VIEW === 'cart', emptyCart = inCart && !t.pos, lines = $('aside-lines');
+    $('badge').hidden = !t.pos;
+    $('badge').textContent = t.pos;
+    $('aside').hidden = emptyCart;
+    $('shell').classList.toggle('is-solo', emptyCart);
+    lines.textContent = '';
+    t.lines.forEach(function (l) {
+      var li = el('li');
+      li.appendChild(el('span', {}, l.p.name));
+      li.appendChild(el('b', {}, money(l.sum)));
+      li.appendChild(el('small', {}, num(l.q) + ' ' + l.p.unit + ' × ' + money(l.p.price) + (l.p.box ? ' · ' + boxesWord(boxesOf(l.p, l.q)) : '')));
+      lines.appendChild(li);
+    });
+    $('aside-empty').hidden = t.pos > 0;
+    lines.hidden = !t.pos || inCart;
+    $('aside-totals').hidden = !t.pos;
+    $('t-pos').textContent = t.pos;
+    $('t-boxes').textContent = boxesLabel(t);
+    $('t-kg').textContent = t.g ? kilos(t.g) : '—';
+    $('t-sum').textContent = money(t.sum);
+    $('t-total').textContent = money(t.sum);
+    if (PICKUP && $('aside-when')) {
+      $('aside-when').hidden = !inCart;
+      $('t-when').textContent = state.slot ? whenText() : 'не выбрано';
+      $('t-when').classList.toggle('is-none', !state.slot);
+    }
+    var cta = !inCart ? ['Перейти в корзину', 'В корзину'] : PICKUP && !state.slot ? ['Выбрать время выдачи', 'Выбрать время'] : ['Оформить заказ', 'Оформить'];
+    $('next').textContent = cta[0];
+    $('next').disabled = !t.pos;
+    $('m-next').textContent = cta[1];
+    $('m-sum').textContent = money(t.sum);
+    $('m-meta').textContent = (t.boxes ? boxesWord(t.boxes) + (t.noBox ? '+' : '') : num(t.pos) + ' ' + plural(t.pos, 'позиция', 'позиции', 'позиций')) + (t.g ? ' · ' + kilos(t.g) : '');
+    if (inCart) {
+      $('cart-none').hidden = !emptyCart;
+      $('cart-body').hidden = emptyCart;
+      $('cart-sub').hidden = emptyCart;
+    }
+    var bar = t.pos > 0;
+    $('mbar').hidden = !bar;
+    $('page').classList.toggle('has-bar', bar);
+  }
+
+  var busy = false;
+  function next() {
+    var t = totals();
+    if (!t.pos || busy) return;
+    if (VIEW === 'products') { busy = true; flush().then(function () { location.href = '/shop/catalog'; }); return; }
+    if (PICKUP && !state.slot) {
+      var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      $('pick').scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+      $('h-pick').focus({ preventScroll: true });
+      return;
+    }
+    busy = true;
+    $('next').disabled = true; $('m-next').disabled = true;
+    flush().then(function () { $('cart-body').submit(); });
+  }
+
+  if (VIEW === 'products') buildCatalog(); else buildCart();
+  $('next').addEventListener('click', next);
+  $('m-next').addEventListener('click', next);
+  window.addEventListener('pagehide', function () { Object.keys(pending).length && flush(); });
+  render();
+})();
+</script>
+</body>
+</html>

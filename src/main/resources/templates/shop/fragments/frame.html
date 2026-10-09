@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<!--/* Общие куски магазина /shop (вёрстка из артефакта «Онлайн-заказ», 09.10): <head> со стилями,
+     шапка с разделами и подвал. Цвета и шрифты — как у рекламной страницы (templates/promo.html). */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <title th:text="${title} + ' — ' + (${company.name} ?: 'Юг Сладости')">Онлайн-заказ</title>
+    <link rel="icon" href="/promo/img/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,500;1,600&amp;family=Golos+Text:wght@400;500;600;700&amp;display=swap">
+    <style>
+        /* Layout: the promo site's catalogue look carried into the shop. A yolk header holds the three sections
+           (products, cart, order history); each section is a list on the left with a paper panel pinned on the right
+           (under the list on a phone, where the total moves into a bottom bar). One light theme by design: the brand's printed colours. */
+        :root{
+          --yolk:#FFC646; --yolk-deep:#EDAE25; --crimson:#B9203C; --crimson-deep:#96172E;
+          --cream:#FFF6DA; --paper:#F3F2E9; --white:#FFFFFF; --ink:#2A1712; --ink-soft:#6B564B;
+          --line:rgba(42,23,18,.14); --line-strong:rgba(42,23,18,.34); --field:#8A776C;
+          --ok-bg:#DDF0E3; --ok-fg:#14532D; --work-fg:#6A4A00; --work-line:#E3C36A; --closed-bg:#E7E3D8; --closed-fg:#4A3B33; --off-bg:#F9DEE3;
+          --font-display:"Vollkorn","PT Serif",Georgia,"Times New Roman",serif;
+          --font-body:"Golos Text","Segoe UI",system-ui,-apple-system,sans-serif;
+          --gutter:clamp(16px,4vw,40px);
+        }
+        *,*::before,*::after{box-sizing:border-box}
+        body{margin:0;background:var(--white);color:var(--ink);font:400 17px/1.5 var(--font-body);-webkit-font-smoothing:antialiased}
+        img{max-width:100%;height:auto;display:block}
+        [hidden]{display:none!important}
+        a{color:inherit}
+        h1,h2,h3{font-family:var(--font-display);font-variant-numeric:lining-nums;margin:0;text-wrap:balance;letter-spacing:-.01em}
+        p{margin:0}
+        button,input,select,textarea{font:inherit;color:inherit}
+        :focus-visible{outline:3px solid var(--ink);outline-offset:3px;border-radius:6px}
+        [tabindex="-1"]:focus{outline:none}
+        .wrap{max-width:calc(1200px + 2*var(--gutter));margin-inline:auto;padding-inline:var(--gutter)}
+        .eyebrow{font:italic 600 19px/1.2 var(--font-display);color:var(--crimson-deep)}
+        /* the footer stays at the bottom of the window on short screens */
+        .page{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+        main{flex:1 0 auto;display:flex;flex-direction:column;overflow-x:clip}
+        main>.wrap{width:100%}
+
+        /* buttons — same as the promo site */
+        .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:54px;padding:0 26px;border:2px solid transparent;border-radius:999px;font:600 16px/1 var(--font-body);text-decoration:none;white-space:nowrap;cursor:pointer;transition:transform .15s,box-shadow .15s,background-color .15s}
+        .btn svg{flex:none}
+        .btn-primary{background:var(--crimson);color:#fff;box-shadow:0 5px 0 var(--crimson-deep)}
+        .btn-primary:hover{transform:translateY(2px);box-shadow:0 3px 0 var(--crimson-deep)}
+        .btn-line{background:transparent;border-color:var(--ink);color:var(--ink)}
+        .btn-line:hover{background:var(--ink);color:#fff}
+        .btn-sm{min-height:46px;padding:0 20px;font-size:15px}
+        .btn:disabled{background:#D9D2C8;color:#6B564B;box-shadow:0 5px 0 #BFB6AA;cursor:not-allowed;transform:none}
+        .link{display:inline-flex;align-items:center;min-height:44px;padding:0;border:0;background:none;color:var(--crimson-deep);font:600 15px/1.2 var(--font-body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+
+        /* shared bits from the promo */
+        .spec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 0;margin:0}
+        .spec>div{padding-left:14px;border-left:1px solid var(--line-strong)}
+        .spec>div:nth-child(odd){padding-left:0;border-left:0}
+        .spec dt{font-size:12px;line-height:1.25;font-weight:600;color:var(--crimson-deep)}
+        .spec dd{margin:3px 0 0;font-size:15.5px;line-height:1.25;font-weight:600;font-variant-numeric:tabular-nums}
+        .frame{position:relative;background:var(--cream);padding:10px;box-shadow:0 22px 30px -22px rgba(80,40,0,.55)}
+        .frame img{width:100%;aspect-ratio:3/4;object-fit:cover}
+        .frame::before,.frame::after{content:"";position:absolute;width:34%;height:8%;background:rgba(255,241,196,.78);box-shadow:0 1px 2px rgba(80,40,0,.14);transform:rotate(-38deg)}
+        .frame::before{left:-12%;top:-1%}
+        .frame::after{right:-12%;bottom:-1%}
+        .wheat{position:absolute;aspect-ratio:.9;background:currentColor;-webkit-mask:url(/promo/img/wheat.webp) center/contain no-repeat;mask:url(/promo/img/wheat.webp) center/contain no-repeat;pointer-events:none}
+        .art-cut{position:absolute;height:auto;filter:drop-shadow(0 14px 12px rgba(80,40,0,.32))}
+        .field{display:grid;gap:6px}
+        .field label,.field-label{font-size:14px;font-weight:600}
+        .field input,.field textarea{width:100%;min-height:54px;padding:0 16px;border-radius:14px;border:1.5px solid var(--field);background:var(--white);color:var(--ink);font:400 16px/1.3 var(--font-body)}
+        .field textarea{padding:14px 16px;resize:vertical}
+        .field input:focus-visible,.field textarea:focus-visible,.search input:focus-visible{outline:3px solid var(--crimson);outline-offset:2px;border-radius:14px}
+        .field-err{font-size:14px;line-height:1.35;color:var(--crimson-deep);font-weight:600}
+        .hint{font-size:14px;line-height:1.4;color:var(--ink-soft)}
+
+        /* header with the three sections */
+        .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:var(--yolk);border-bottom:1px solid rgba(42,23,18,.12)}
+        .top-in{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:80px}
+        .brand{display:flex;align-items:center;gap:14px;min-width:0;text-decoration:none}
+        .brand img{flex:none;height:62px;width:auto}
+        .brand span{min-width:0;overflow:hidden;text-overflow:ellipsis;font:700 21px/1.4 var(--font-display);white-space:nowrap}
+        .tabs{display:flex;gap:4px}
+        .tabs button,.tabs .tab-link{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 16px;border:0;border-radius:999px;background:none;color:var(--ink);font:600 15.5px/1 var(--font-body);white-space:nowrap;cursor:pointer}
+        .tabs .tab-link:hover,.tabs button:hover{background:rgba(255,255,255,.55)}
+        .tabs .tab-link[aria-current="page"],.tabs button[aria-current="page"]{background:var(--ink);color:#fff}
+        .t-short{display:none}
+        .badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--crimson);color:#fff;font:700 12.5px/1 var(--font-body);font-variant-numeric:tabular-nums}
+        .tabs .tab-link[aria-current="page"] .badge,.tabs button[aria-current="page"] .badge{background:var(--white);color:var(--ink)}
+        .top-side{display:flex;align-items:center;gap:18px;font-size:15px}
+        .top-side a{display:inline-flex;align-items:center;min-height:44px;font-weight:500;text-decoration:none;white-space:nowrap}
+        .top-side a:hover{text-decoration:underline}
+        .help{white-space:nowrap}
+        .help b{font-weight:600}
+        .user{display:flex;align-items:center;gap:12px;white-space:nowrap}
+        .user b{max-width:14ch;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+        .user .link{color:var(--ink)}
+
+        /* sign-in */
+        .signin{flex:1 0 auto;position:relative;overflow:hidden;overflow:clip;background:var(--yolk)}
+        .signin-in{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);align-items:center;gap:clamp(28px,5vw,72px);padding-block:clamp(24px,4vw,56px) clamp(48px,7vw,96px)}
+        .panel{display:grid;gap:18px;padding:clamp(22px,3.4vw,40px);border-radius:28px;background:var(--white);box-shadow:0 26px 40px -30px rgba(80,40,0,.5)}
+        .panel h1{font-weight:800;font-size:clamp(30px,3.8vw,46px);line-height:1.06}
+        .panel .btn{width:100%}
+        .art{position:relative;width:min(100%,480px);aspect-ratio:1/1.04;margin-inline:auto}
+        .art .wheat{right:-10%;top:-7%;width:64%;color:var(--ink);opacity:.2;transform:rotate(8deg)}
+        .art .frame{position:absolute;left:21%;top:3%;width:58%;transform:rotate(-3deg)}
+        .art-cut.c1{right:-7%;bottom:0;width:60%}
+        .art-cut.c2{left:-8%;bottom:11%;width:43%}
+        .art-cut.c3{left:0;top:4%;width:33%;rotate:-8deg}
+
+        /* the three sections share one frame: list + side panel */
+        .flow{display:grid;grid-template-columns:minmax(0,1fr) 372px;align-items:start;gap:clamp(24px,3.5vw,52px);padding-block:clamp(24px,3.6vw,44px) clamp(56px,8vw,96px)}
+        .flow.is-solo{grid-template-columns:minmax(0,1fr)}
+        .flow-main{min-width:0;container:list / inline-size}
+        .step-head{display:grid;gap:8px;margin-bottom:22px}
+        .step-head h1{font-weight:800;font-size:clamp(30px,3.8vw,46px);line-height:1.06}
+        .lead{color:var(--ink-soft);max-width:38rem}
+        .tools{display:grid;gap:12px;margin-bottom:10px}
+        .search{position:relative}
+        .search svg{position:absolute;left:18px;top:50%;translate:0 -50%;color:var(--ink-soft);pointer-events:none}
+        .search input{width:100%;height:52px;padding:0 18px 0 48px;border-radius:999px;border:1.5px solid var(--field);background:var(--white);font:400 16px/1.2 var(--font-body)}
+        .chips{display:flex;flex-wrap:wrap;gap:6px}
+        .chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line-strong);background:var(--white);font:500 13.5px/1 var(--font-body);white-space:nowrap;cursor:pointer}
+        .chip span{font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+        .chip:hover{border-color:var(--ink)}
+        .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+        .chip[aria-pressed="true"] span{color:rgba(255,255,255,.75)}
+
+        /* a product row: wraps by itself when the column gets narrow, no breakpoints */
+        .items{margin:0;padding:0;list-style:none}
+        .item{position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:flex-start;gap:16px;padding:14px 12px;border-radius:18px}
+        /* колосок на фоне карточки — как на рекламной странице (templates/promo.html, .wheat) */
+        .item::after{content:"";position:absolute;z-index:-1;right:-12px;bottom:-30px;width:165px;aspect-ratio:.9;background:#C9962A;opacity:.34;-webkit-mask:url(/promo/img/wheat.webp) center/contain no-repeat;mask:url(/promo/img/wheat.webp) center/contain no-repeat;transform:rotate(-14deg);pointer-events:none}
+        .item::before{content:"";display:none;position:absolute;left:12px;right:12px;top:0;height:1px;background:var(--line)}
+        .item:not([hidden])~.item:not([hidden])::before{display:block}
+        #items .item[data-on="true"]{background:var(--cream)}
+        #items .item[data-on="true"]::before,#items .item[data-on="true"]+.item::before{display:none}
+        .item-pic{position:relative;flex:none;width:112px;padding:5px;background:var(--cream);box-shadow:0 12px 14px -12px rgba(80,40,0,.5)}
+        /* скотч на фото — левый верхний и правый нижний угол, как на карточках рекламной страницы */
+        .item-pic::before,.item-pic::after{content:"";position:absolute;width:40%;height:11%;background:rgba(255,241,196,.85);box-shadow:0 1px 2px rgba(80,40,0,.14);transform:rotate(-38deg);pointer-events:none}
+        .item-pic::before{left:-10%;top:1%}
+        .item-pic::after{right:-10%;bottom:1%}
+        #items .item[data-on="true"] .item-pic{background:var(--white)}
+        .item-pic img{width:100%;aspect-ratio:1/1;object-fit:cover}
+        .item-pic .noimg{object-fit:contain;padding:18%;opacity:.35}
+        .item-body{flex:1 1 0;min-width:0;align-self:center;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+        .item-info{flex:1 1 210px;min-width:0}
+        .item h3{font-weight:700;font-size:17px;line-height:1.15;color:var(--crimson)}
+        .item-meta{margin-top:4px;font-size:13px;line-height:1.3;color:var(--ink-soft)}
+        .item-line{margin-top:4px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+        .item-buy{flex:0 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+        .price{min-width:72px;margin-right:auto}
+        .price b{display:block;font-weight:700;font-size:16px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .price span{font-size:12px;color:var(--ink-soft);white-space:nowrap}
+        .qty{display:inline-flex;align-items:center;border:1.5px solid var(--line-strong);border-radius:999px;background:var(--white)}
+        .qty button{display:grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:none;color:var(--ink);cursor:pointer}
+        .qty button:last-child{background:var(--crimson);color:#fff}
+        .qty button:disabled{color:#A99C92;cursor:default}
+        .qty input{width:40px;height:38px;padding:0;border:0;background:none;text-align:center;font:600 15px/1 var(--font-body);font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+        .qty input::-webkit-outer-spin-button,.qty input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+        .boxbtn{min-height:38px;padding:0 12px;border-radius:999px;border:1.5px dashed var(--line-strong);background:rgba(255,255,255,.7);font:500 13px/1.1 var(--font-body);font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer}
+        .boxbtn:hover{border-style:solid;border-color:var(--ink)}
+        /* cart rows: the remove button sits in the corner; in a wide column it moves to the middle of the right edge.
+           When the controls drop to their own line they take its full width, so the stepper lines up under the remove button. */
+        .item--cart .item-info{flex-grow:999;padding-right:40px}
+        .item--cart .item-buy{flex-grow:1}
+        .rm{position:absolute;top:8px;right:6px;display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:none;color:var(--ink-soft);cursor:pointer}
+        .rm:hover{background:var(--cream);color:var(--crimson)}
+        @container list (min-width:640px){
+          .item--cart{padding-right:66px}
+          .item--cart .item-info{padding-right:0}
+          .item--cart .rm{top:50%;right:8px;translate:0 -50%}
+        }
+        .none{display:grid;gap:10px;justify-items:start;padding:28px 0;color:var(--ink-soft)}
+        .empty{display:grid;gap:14px;justify-items:start;padding:clamp(22px,3vw,34px);border-radius:26px;background:var(--cream)}
+        .empty h2{font-weight:800;font-size:26px;line-height:1.1}
+        .actions{display:flex;flex-wrap:wrap;gap:10px}
+
+        /* cart: composition, pickup time, payment */
+        .block{display:grid;gap:12px;padding:22px 0;border-top:1px solid var(--line)}
+        .block:first-child{border-top:0;padding-top:0}
+        .block h2{font-weight:700;font-size:22px;line-height:1.15}
+        #pick{scroll-margin-top:96px}
+        .days{display:flex;flex-wrap:wrap;gap:8px}
+        .day{display:grid;align-content:center;gap:2px;min-width:104px;min-height:58px;padding:6px 16px;border-radius:16px;border:1.5px solid var(--line-strong);background:var(--white);font:600 15px/1.2 var(--font-body);text-align:left;cursor:pointer}
+        .day small{font-weight:400;font-size:12.5px;color:var(--ink-soft)}
+        .day:hover{border-color:var(--ink)}
+        .day[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+        .day[aria-pressed="true"] small{color:rgba(255,255,255,.78)}
+        .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:8px}
+        .slot{display:grid;align-content:center;gap:1px;min-height:54px;padding:4px 10px;border-radius:14px;border:1.5px solid var(--line-strong);background:var(--white);font:600 15px/1.2 var(--font-body);font-variant-numeric:tabular-nums;cursor:pointer}
+        .slot small{font-weight:400;font-size:12px}
+        .slot:hover{border-color:var(--ink)}
+        .slot[aria-pressed="true"]{background:var(--crimson);border-color:var(--crimson);color:#fff}
+        .slot:disabled{border-style:dashed;background:var(--paper);color:var(--ink-soft);cursor:not-allowed}
+        .choices{display:flex;flex-wrap:wrap;gap:8px}
+        .choice{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 18px 0 14px;border-radius:16px;border:1.5px solid var(--line-strong);background:var(--white);font-weight:500;cursor:pointer}
+        .choice input{width:20px;height:20px;margin:0;accent-color:var(--crimson)}
+        .choice:has(input:checked){border-color:var(--crimson);background:var(--cream)}
+
+        /* side panel: cart summary, or help on the history page */
+        .side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 100px);display:grid;gap:14px;padding:22px;border-radius:26px;background:var(--paper)}
+        .side h2{font-weight:800;font-size:26px;line-height:1.1}
+        .side-note{font-size:15px;line-height:1.45;color:var(--ink-soft)}
+        .side-lines{display:grid;gap:10px;max-height:264px;margin:0;padding:0;overflow:auto;list-style:none}
+        .side-lines li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 12px;font-size:15px;line-height:1.3}
+        .side-lines b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .side-lines small{grid-column:1/-1;font-size:13px;color:var(--ink-soft)}
+        /* Итоги (корзина и история): слева позиций/коробок/вес, справа сумма; ниже возврат (если есть) и «Итого». */
+        .totals{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 18px;padding-top:14px;border-top:1px solid var(--line-strong)}
+        .totals dl{margin:0}
+        .totals-left{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:baseline;gap:6px 14px}
+        .totals-left div{display:contents}
+        .totals dt{font-size:12.5px;line-height:1.3;font-weight:600;color:var(--crimson-deep)}
+        .totals dd{margin:0;font-size:15.5px;line-height:1.3;font-weight:600;font-variant-numeric:tabular-nums}
+        .totals-right{align-self:start;padding-left:18px;border-left:1px solid var(--line-strong);text-align:right}
+        .totals-right dd{margin-top:3px;font-size:18px;white-space:nowrap}
+        .total-line{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0;padding-top:12px;border-top:1px solid var(--line-strong);font-size:15px}
+        .total-line b{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--crimson-deep)}
+        .total-line + .sum{border-top:0;padding-top:4px}
+        .side-when{display:grid;gap:2px;padding-top:12px;border-top:1px solid var(--line-strong);font-size:15px}
+        .side-when span{font-size:12px;font-weight:600;color:var(--crimson-deep)}
+        .side-when b{font-weight:600}
+        .side-when b.is-none{font-weight:400;color:var(--ink-soft)}
+        .sum{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--line-strong)}
+        .sum span{font-size:15px}
+        .sum b{font:800 30px/1 var(--font-display);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+        .side .btn{width:100%}
+
+        /* order history */
+        .orders{display:grid;gap:16px;margin:18px 0 0;padding:0;list-style:none}
+        .order{display:grid;gap:14px;padding:clamp(18px,2.4vw,24px);border-radius:24px;background:var(--paper)}
+        .order-top{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 16px}
+        .order h2{font-weight:800;font-size:24px;line-height:1.1}
+        .order-when{margin-top:4px;font-size:14.5px;line-height:1.35;color:var(--ink-soft)}
+        .status{display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:0 12px;border-radius:999px;font:600 13.5px/1 var(--font-body);white-space:nowrap}
+        .status::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+        .status--new{background:var(--yolk);color:var(--ink)}
+        .status--work{background:var(--cream);color:var(--work-fg);box-shadow:inset 0 0 0 1.5px var(--work-line)}
+        .status--ready{background:var(--ok-bg);color:var(--ok-fg)}
+        .status--done{background:var(--closed-bg);color:var(--closed-fg)}
+        .status--off{background:var(--off-bg);color:var(--crimson-deep)}
+        .order .sum b{font-size:24px}
+        .order details{border-top:1px solid var(--line)}
+        .order summary{display:inline-flex;align-items:center;gap:10px;min-height:48px;font-weight:600;color:var(--crimson-deep);list-style:none;cursor:pointer}
+        .order summary::-webkit-details-marker{display:none}
+        .order summary::after{content:"";width:9px;height:9px;margin-top:-5px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+        .order details[open] summary::after{margin-top:5px;transform:rotate(-135deg)}
+        .order-lines{display:grid;gap:6px;margin:0 0 8px;padding:0;list-style:none;font-size:15px}
+        .order-lines li{display:flex;justify-content:space-between;gap:16px}
+        .order-lines b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .order-note{margin-bottom:8px}
+
+        /* order placed */
+        .done{flex:1 0 auto;position:relative;overflow:hidden;overflow:clip;background:var(--yolk)}
+        .done-in{display:grid;grid-template-columns:minmax(0,640px) minmax(0,1fr);align-items:center;gap:clamp(28px,5vw,72px);padding-block:clamp(32px,6vw,72px) clamp(56px,8vw,104px)}
+        .done-ic{display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:var(--crimson);color:#fff}
+        .done .spec{padding-block:16px;border-block:1px solid var(--line-strong)}
+        .done-actions{display:grid;gap:12px}
+        .done-art{position:relative;width:min(100%,400px);aspect-ratio:1/.9;margin-inline:auto}
+        .done-art .wheat{left:8%;top:-8%;width:84%;color:var(--ink);opacity:.2;transform:rotate(8deg)}
+        .art-cut.d1{right:0;bottom:0;width:76%}
+        .art-cut.d2{left:0;top:10%;width:44%;rotate:-8deg}
+
+        .foot{background:var(--crimson-deep);color:rgba(255,255,255,.9);font-size:14px}
+        .foot-in{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 24px;padding-block:20px 24px}
+        .mbar{display:none}
+
+        @media (max-width:1100px){
+          .user b{display:none}
+        }
+        @media (max-width:1000px){
+          /* two rows: logo and sign-out, then the sections; once signed in only the sections stay pinned while scrolling */
+          .top-in{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand side" "tabs tabs";gap:0 12px;min-height:0;padding-block:8px}
+          .top:not(.signed-out){top:calc(env(safe-area-inset-top,0px) - 60px)}
+          .brand{grid-area:brand}
+          .brand img{height:52px}
+          .top-side{grid-area:side}
+          .top-side .back{display:none}
+          .tabs{grid-area:tabs;gap:6px;margin-top:8px}
+          .tabs button,.tabs .tab-link{flex:1 1 auto;min-height:44px;padding:0 8px;background:rgba(255,255,255,.5);font-size:14.5px}
+          .t-long{display:none}
+          .t-short{display:inline}
+          .flow{grid-template-columns:minmax(0,1fr)}
+          .side{position:static}
+          .side-cta{display:none}
+          #pick{scroll-margin-top:76px}
+          .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;align-items:center;gap:12px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--white);border-top:1px solid var(--line);box-shadow:0 -10px 24px -18px rgba(42,23,18,.45)}
+          .mbar-t{flex:1 1 auto;min-width:0;font-size:13px;line-height:1.25;color:var(--ink-soft)}
+          .mbar-t b{display:block;font:800 21px/1.1 var(--font-display);font-variant-numeric:lining-nums tabular-nums;color:var(--ink)}
+          .mbar .btn{flex:none;min-height:52px;padding:0 20px}
+          .has-bar .foot-in{padding-bottom:calc(98px + env(safe-area-inset-bottom,0px))}
+        }
+        @media (max-width:900px){
+          .signin-in,.done-in{grid-template-columns:minmax(0,1fr)}
+          .art{width:min(86%,360px)}
+          .done-art{display:none}
+        }
+        @media (max-width:560px){
+          body{font-size:16px}
+          .brand span{font-size:18px}
+          .help span{display:none}
+          .help{font-size:14px}
+          .item{gap:12px;padding:14px 8px}
+          .item::before{left:8px;right:8px}
+          .item-pic{width:96px}
+          .item h3{font-size:15.5px}
+          .price b{font-size:15px}
+          .item::after{width:130px;right:-14px;bottom:-26px}
+          /* группы — одной строкой с прокруткой вбок, а не 3–4 ряда кнопок */
+          .tools .chips{flex-wrap:nowrap;overflow-x:auto;margin-inline:calc(-1*var(--gutter));padding:2px var(--gutter) 6px;scrollbar-width:none}
+          .tools .chips::-webkit-scrollbar{display:none}
+          .day{flex:1 1 104px}
+          .actions .btn{width:100%}
+        }
+        @media (max-width:440px){.signed-out .brand span{display:none}}
+        @media (max-width:370px){.brand span{display:none}}
+        @media (prefers-reduced-motion:no-preference){
+          .art-cut{animation:bob 6s ease-in-out infinite alternate}
+          .art-cut.c2,.art-cut.d2{animation-delay:-2s}
+          .art-cut.c3{animation-delay:-4s}
+          @keyframes bob{to{translate:0 -9px}}
+        }
+        @media (prefers-reduced-motion:reduce){.btn{transition:none}}
+
+        /* Узкая колонка (телефон): строка 1 — название и цена справа, строка 2 — «+ коробка» и −/+.
+           .item-buy растворяется (display:contents), его кнопки становятся ячейками сетки. */
+        @container list (max-width:560px){
+          .item-body{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 12px}
+          .item-info{grid-column:1;grid-row:1;align-self:start}
+          .item-buy{display:contents}
+          .price{grid-column:2;grid-row:1;align-self:start;min-width:0;margin:0;text-align:right}
+          .boxbtn{grid-column:1;grid-row:2;justify-self:start;padding:0 12px}
+          .boxbtn .bx-n{display:none}
+          .qty{grid-column:2;grid-row:2;justify-self:end}
+          .item--cart .item-info{padding-right:0}
+          .item--cart .qty{grid-column:1;justify-self:start}
+          .item--cart .rm{top:auto;bottom:14px;right:4px;translate:none}
+        }
+
+        /* CRM: сообщения, недели истории, возвраты */
+        .alert{margin:0 0 18px;padding:12px 16px;border-radius:14px;background:var(--off-bg);color:var(--crimson-deep);font-weight:600;font-size:15px;line-height:1.4}
+        .alert--ok{background:var(--ok-bg);color:var(--ok-fg)}
+        .weeknav{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+        .weeknav a,.weeknav span.off{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;border:1.5px solid var(--line-strong);text-decoration:none;font-size:20px;line-height:1}
+        .weeknav span.off{opacity:.35}
+        .weeknav div{display:grid;font-weight:600}
+        .weeknav small{font-weight:400;font-size:13px;color:var(--ink-soft)}
+        .order-returns-wrap{display:grid;gap:10px}
+        .order-returns{display:grid;gap:10px;margin:0;padding:12px 14px;border-radius:16px;background:var(--off-bg)}
+        .order-returns h3{font:600 15px/1.3 var(--font-body);color:var(--crimson-deep);display:flex;justify-content:space-between;gap:12px}
+        .panel form{display:grid;gap:18px}
+        .access-phone{font-weight:700;white-space:nowrap}
+    </style>
+</head>
+<body>
+
+<!--/* signedIn — показывать разделы и «Выйти»; active — products/cart/orders; cartCount — бейдж корзины. */-->
+<header th:fragment="top(signedIn, active, cartCount, clientName)" class="top" th:classappend="${signedIn} ? '' : 'signed-out'" id="top">
+    <div class="wrap top-in">
+        <a class="brand" th:href="${signedIn} ? '/shop/products' : '/'" aria-label="На главную">
+            <img src="/promo/img/logo.svg" alt="Юг Сладости. Кондитерская" width="384" height="223">
+            <span>Онлайн-заказ</span>
+        </a>
+        <nav class="tabs" aria-label="Разделы магазина" th:if="${signedIn}">
+            <a class="tab-link" href="/shop/products" th:attr="aria-current=${active == 'products'} ? 'page' : null">Товары</a>
+            <a class="tab-link" href="/shop/catalog" id="tab-cart" th:attr="aria-current=${active == 'cart'} ? 'page' : null">Корзина <span class="badge" id="badge" th:hidden="${cartCount == 0}" th:text="${cartCount}">0</span></a>
+            <a class="tab-link" href="/shop/orders" th:attr="aria-current=${active == 'orders'} ? 'page' : null"><span class="t-long">История заказов</span><span class="t-short">История</span></a>
+        </nav>
+        <div class="top-side">
+            <a class="back" href="/" th:unless="${signedIn}">← На сайт</a>
+            <span class="help" th:if="${!signedIn and company.phone != null}"><span>Помощь: </span><b th:text="${company.phone}">телефон</b></span>
+            <span class="user" th:if="${signedIn}"><b th:text="${clientName}">Клиент</b>
+                <form action="/shop/reset" method="post" style="display:inline"><button class="link" type="submit">Выйти</button></form>
+            </span>
+        </div>
+    </div>
+</header>
+
+<footer th:fragment="foot" class="foot">
+    <div class="wrap foot-in">
+        <span>© <th:block th:text="${#temporals.year(#temporals.createNow())} + ' ' + (${company.name} ?: 'Юг Сладости')">2026 Юг Сладости</th:block><th:block th:if="${company.address}" th:text="' · ' + ${company.address}"></th:block></span>
+        <span th:if="${company.phone}" th:text="'Телефон и WhatsApp: ' + ${company.phone}">телефон</span>
+    </div>
+</footer>
+
+</body>
+</html>

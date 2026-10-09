@@ -1,15 +1,18 @@
 package com.confectionery.crm.web;
 
 import com.confectionery.crm.domain.Client;
+import com.confectionery.crm.domain.CompanyProfile;
 import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderItem;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.service.ClientPriceService;
 import com.confectionery.crm.service.ClientService;
+import com.confectionery.crm.service.CompanyProfileService;
 import com.confectionery.crm.service.OrderService;
 import com.confectionery.crm.service.ProductReturnService;
 import com.confectionery.crm.service.ProductService;
+import com.confectionery.crm.service.PromoPageService;
 import com.confectionery.crm.service.ShopAccessService;
 import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.servlet.http.Cookie;
@@ -66,7 +69,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class ShopController {
 
-    private static final String SESSION_CLIENT_ID = "shopClientId";
+    /** Публичные — по ним DashboardController узнаёт вошедшего клиента и ведёт с "/" сразу в магазин. */
+    public static final String SESSION_CLIENT_ID = "shopClientId";
     private static final String SESSION_CLIENT_NAME = "shopClientName";
     private static final String SESSION_CART = "shopCart";
     private static final String AJAX_MARKER = "fetch";
@@ -77,7 +81,7 @@ public class ShopController {
      * backend сессии вообще пропадают). Так клиенту не нужно вводить номер заново при
      * каждом визите — только один раз, дальше сессия на /shop поднимается автоматически.
      */
-    private static final String PHONE_COOKIE = "shop_phone";
+    public static final String PHONE_COOKIE = "shop_phone";
     private static final int PHONE_COOKIE_MAX_AGE = 60 * 60 * 24 * 180; // 180 дней
 
     private static final Set<String> FRACTIONAL_UNITS = Set.of("кг", "л", "г");
@@ -98,9 +102,19 @@ public class ShopController {
     private final OrderService orderService;
     private final ProductReturnService productReturnService;
     private final ShopAccessService shopAccessService;
+    private final PromoPageService promoPageService;
+    private final CompanyProfileService companyProfileService;
+
+    /** Контакты в шапке/подвале магазина (shop/fragments/frame.html) и номер для wa.me / tel:. */
+    @ModelAttribute
+    public void companyInfo(Model model) {
+        CompanyProfile company = companyProfileService.get();
+        model.addAttribute("company", company);
+        model.addAttribute("waPhone", company.getPhone() == null ? "" : company.getPhone().replaceAll("\\D", ""));
+    }
 
     @GetMapping
-    public String phoneForm(HttpSession session, HttpServletRequest request) {
+    public String phoneForm(HttpSession session, HttpServletRequest request, HttpServletResponse response, Model model) {
         if (session.getAttribute(SESSION_CLIENT_ID) != null) {
             return "redirect:/shop/products";
         }
@@ -110,13 +124,16 @@ public class ShopController {
             if (client != null) {
                 session.setAttribute(SESSION_CLIENT_ID, client.getId());
                 session.setAttribute(SESSION_CLIENT_NAME, client.getName());
+                // переписать cookie на путь "/" (раньше была на /shop) — чтобы "/" тоже узнавал клиента
+                writePhoneCookie(response, client.getPhone());
                 return "redirect:/shop/products";
             }
             if (shopAccessService.findOpen(rememberedPhone).isPresent()) {
                 return "redirect:/shop/access";
             }
         }
-        return "shop/phone";
+        model.addAttribute("state", "phone");
+        return "shop/enter";
     }
 
     /**
@@ -138,15 +155,15 @@ public class ShopController {
             return "redirect:/shop";
         }
         model.addAttribute("phone", open.get().getPhone());
-        model.addAttribute("rejected", "REJECTED".equals(open.get().getStatus()));
-        return "shop/access";
+        model.addAttribute("state", "REJECTED".equals(open.get().getStatus()) ? "rejected" : "pending");
+        return "shop/enter";
     }
 
     @PostMapping("/start")
     public String start(@RequestParam String phone, @RequestParam(required = false) String name,
                          HttpSession session, HttpServletResponse response, RedirectAttributes redirectAttributes) {
-        if (phone == null || phone.replaceAll("\\D", "").isEmpty()) {
-            redirectAttributes.addFlashAttribute("error", "Укажите номер телефона");
+        if (phone == null || phone.replaceAll("\\D", "").length() < 10) {
+            redirectAttributes.addFlashAttribute("error", "Укажите номер телефона полностью");
             return "redirect:/shop";
         }
         Client client = clientService.findByPhone(phone).orElse(null);
@@ -166,6 +183,19 @@ public class ShopController {
         session.setAttribute(SESSION_CLIENT_NAME, client.getName());
         writePhoneCookie(response, client.getPhone());
         return "redirect:/shop/products";
+    }
+
+    /** Форма «Перезвоните мне» с рекламной страницы (fetch из static/promo/index.html). */
+    @PostMapping("/callback")
+    public ResponseEntity<Void> callback(@RequestParam String phone,
+                                         @RequestParam(required = false) String name,
+                                         @RequestParam(required = false) String type) {
+        if (phone.replaceAll("\\D", "").length() < 10 || phone.length() > 40
+                || (name != null && name.length() > 100) || (type != null && type.length() > 100)) {
+            return ResponseEntity.badRequest().build();
+        }
+        shopAccessService.requestCallback(phone, name, type);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/reset")
@@ -192,21 +222,24 @@ public class ShopController {
 
     private void writePhoneCookie(HttpServletResponse response, String phone) {
         Cookie cookie = new Cookie(PHONE_COOKIE, URLEncoder.encode(phone, StandardCharsets.UTF_8));
-        cookie.setPath("/shop");
+        cookie.setPath("/");
         cookie.setMaxAge(PHONE_COOKIE_MAX_AGE);
         cookie.setHttpOnly(true);
         response.addCookie(cookie);
     }
 
+    /** Стираем на обоих путях: до 09.10 cookie ставилась на /shop, теперь на "/". */
     private void clearPhoneCookie(HttpServletResponse response) {
-        Cookie cookie = new Cookie(PHONE_COOKIE, "");
-        cookie.setPath("/shop");
-        cookie.setMaxAge(0);
-        cookie.setHttpOnly(true);
-        response.addCookie(cookie);
+        for (String path : List.of("/", "/shop")) {
+            Cookie cookie = new Cookie(PHONE_COOKIE, "");
+            cookie.setPath(path);
+            cookie.setMaxAge(0);
+            cookie.setHttpOnly(true);
+            response.addCookie(cookie);
+        }
     }
 
-    /** Экран заказа — аналог order_form_screen.dart: позиции корзины + степпер + итог. */
+    /** Корзина: состав, день/время выдачи, оплата, комментарий (shop/app.html, view = cart). */
     @GetMapping("/catalog")
     public String orderBuilder(HttpSession session, Model model) {
         Client client = currentClient(session);
@@ -217,14 +250,7 @@ public class ShopController {
         if (!removed.isEmpty()) {
             model.addAttribute("error", "Временно недоступно и убрано из корзины: " + String.join(", ", removed));
         }
-        CartSummary summary = summarize(client, cart(session));
-        model.addAttribute("clientName", client.getName());
-        model.addAttribute("rows", summary.rows());
-        model.addAttribute("canOrder", summary.canOrder());
-        model.addAttribute("headerLabel", summary.headerLabel());
-        model.addAttribute("bottomButtonLabel", summary.bottomButtonLabel());
-        model.addAttribute("cartCount", cart(session).size());
-        return "shop/catalog";
+        return app("cart", client, session, model);
     }
 
     @PostMapping("/cart/item/{productId}/inc")
@@ -294,93 +320,150 @@ public class ShopController {
         return respond(client, session, productId, ajax);
     }
 
-    /** Главный экран витрины — карточки товаров по категориям, тап по карточке открывает товар крупным планом. */
+    /** Главный экран вошедшего клиента — каталог с ценами и добавлением в корзину (shop/app.html). */
     @GetMapping("/products")
     public String products(HttpSession session, Model model) {
         Client client = currentClient(session);
         if (client == null) {
             return "redirect:/shop";
         }
-        Map<String, List<Product>> byCategory = productService.groupByCategory(productService.findVisibleToClients());
-        Map<String, List<ProductRow>> rowsByCategory = new LinkedHashMap<>();
-        // Внутри категории — строго по алфавиту (русская сортировка, без учёта регистра), чтобы
-        // «Кекс классический» и «Кекс с изюмом» стояли рядом, а не в разных концах списка.
-        java.text.Collator collator = java.text.Collator.getInstance(new java.util.Locale("ru", "RU"));
-        collator.setStrength(java.text.Collator.SECONDARY);
-        Map<Long, BigDecimal> cart = cart(session);
-        for (Map.Entry<String, List<Product>> entry : byCategory.entrySet()) {
-            rowsByCategory.put(entry.getKey(), entry.getValue().stream()
-                    .sorted((a, b) -> collator.compare(a.getName().trim(), b.getName().trim()))
-                    .map(p -> {
-                        BigDecimal price = clientPriceService.resolvePrice(client, p);
-                        BigDecimal inCart = cart.get(p.getId());
-                        return new ProductRow(p, priceUnitLabel(price, p.getUnit()), price.toPlainString(),
-                                step(p).toPlainString(), p.getUnit() == null || p.getUnit().isBlank() ? "шт" : p.getUnit(),
-                                inCart == null ? "" : inCart.stripTrailingZeros().toPlainString());
-                    })
-                    .toList());
-        }
-        model.addAttribute("clientName", client.getName());
-        model.addAttribute("rowsByCategory", rowsByCategory);
-        model.addAttribute("cartCount", cart(session).size());
-        return "shop/products";
+        dropHiddenFromCart(cart(session));
+        return app("products", client, session, model);
     }
 
-    /**
-     * Товар крупным планом — аналог product_quantity_screen.dart. Степпер здесь целиком на
-     * стороне браузера (см. shop/product.html) — сервер отдаёт только начальное количество
-     * (то, что уже в корзине, или один шаг) и цену для расчёта суммы в JS.
-     */
+    /** Отдельной страницы товара больше нет (09.10) — старые ссылки ведут в каталог. */
     @GetMapping("/products/{id}")
-    public String productDetail(@PathVariable Long id, HttpSession session, Model model) {
-        Client client = currentClient(session);
-        if (client == null) {
-            return "redirect:/shop";
-        }
-        Product product = productService.findById(id);
-        if (!product.isVisibleToClients()) {
-            return "redirect:/shop/products";
-        }
-        BigDecimal step = step(product);
-        BigDecimal quantity = cart(session).getOrDefault(id, step);
-        if (quantity.compareTo(step) < 0) {
-            quantity = step;
-        }
-        BigDecimal price = clientPriceService.resolvePrice(client, product);
-        boolean isEditing = cart(session).containsKey(id);
-        model.addAttribute("product", product);
-        model.addAttribute("priceLabel", priceUnitLabel(price, product.getUnit()));
-        model.addAttribute("qty", quantity);
-        model.addAttribute("qtyLabel", QTY_FORMAT.format(quantity));
-        model.addAttribute("priceRaw", price.toPlainString());
-        model.addAttribute("stepRaw", step.toPlainString());
-        model.addAttribute("addLabelPrefix", isEditing ? "Сохранить за " : "Добавить за ");
-        model.addAttribute("addButtonLabel", (isEditing ? "Сохранить за " : "Добавить за ")
-                + MONEY_FORMAT.format(price.multiply(quantity)) + " ₸");
-        return "shop/product";
-    }
-
-    @PostMapping("/products/{id}/add")
-    public String addToCart(@PathVariable Long id, @RequestParam BigDecimal qty, HttpSession session) {
-        if (currentClient(session) == null) {
-            return "redirect:/shop";
-        }
-        if (productService.findById(id).isVisibleToClients()) {
-            cart(session).put(id, qty);
-        }
+    public String productDetail(@PathVariable Long id) {
         return "redirect:/shop/products";
     }
 
+    private String app(String view, Client client, HttpSession session, Model model) {
+        model.addAttribute("view", view);
+        model.addAttribute("clientName", client.getName());
+        model.addAttribute("cartCount", cart(session).size());
+        model.addAttribute("shopData", shopData(client, cart(session)));
+        return "shop/app";
+    }
+
+    /**
+     * Всё, что нужно странице магазина, одним JSON: товары (видимые клиентам, цена — клиентская,
+     * вес/коробка — как на рекламной странице, см. PromoPageService.card), группы для фильтра,
+     * текущая корзина и дни выдачи (сегодня + 5; после 17:00 по умолчанию завтра).
+     */
+    private Map<String, Object> shopData(Client client, Map<Long, BigDecimal> cart) {
+        java.text.Collator collator = java.text.Collator.getInstance(new Locale("ru", "RU"));
+        collator.setStrength(java.text.Collator.SECONDARY);
+        List<Product> visible = productService.findVisibleToClients().stream()
+                .sorted((a, b) -> collator.compare(a.getName().trim(), b.getName().trim()))
+                .toList();
+        Map<String, String> groupKeys = new LinkedHashMap<>();
+        Map<String, Integer> groupCounts = new LinkedHashMap<>();
+        List<Map<String, Object>> products = new ArrayList<>();
+        visible.stream()
+                .map(p -> promoPageService.card(p).group())
+                .distinct()
+                .sorted((a, b) -> "Другое".equals(a) ? 1 : "Другое".equals(b) ? -1 : collator.compare(a, b))
+                .forEach(g -> { groupKeys.put(g, "g" + groupKeys.size()); groupCounts.put(g, 0); });
+        for (Product p : visible) {
+            PromoPageService.Card card = promoPageService.card(p);
+            groupCounts.merge(card.group(), 1, Integer::sum);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", p.getId());
+            row.put("name", card.name());
+            row.put("groupKey", groupKeys.get(card.group()));
+            row.put("img", card.imageUrl());
+            row.put("weight", card.weight());
+            row.put("weightG", card.weightGrams());
+            row.put("box", card.boxUnits());
+            row.put("boxText", card.perBox());
+            row.put("price", clientPriceService.resolvePrice(client, p));
+            row.put("unit", p.getUnit() == null || p.getUnit().isBlank() ? "шт" : p.getUnit());
+            row.put("step", step(p));
+            products.add(row);
+        }
+        List<List<Object>> groups = new ArrayList<>();
+        groupKeys.forEach((name, key) -> groups.add(List.of(key, name, groupCounts.get(name))));
+
+        Map<String, BigDecimal> cartJson = new LinkedHashMap<>();
+        cart.forEach((id, qty) -> cartJson.put(String.valueOf(id), qty));
+
+        LocalDate today = LocalDate.now();
+        List<Map<String, Object>> days = new ArrayList<>();
+        for (int i = 0; i < PICKUP_DAYS; i++) {
+            LocalDate d = today.plusDays(i);
+            days.add(Map.of("date", d.toString(), "today", i == 0,
+                    "title", i == 0 ? "Сегодня" : i == 1 ? "Завтра" : capitalize(DAY_TITLE.format(d)),
+                    "sub", DAY_SUB.format(d)));
+        }
+        int hour = java.time.LocalTime.now().getHour();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("products", products);
+        data.put("groups", groups);
+        data.put("cart", cartJson);
+        data.put("days", days);
+        data.put("hourNow", hour);
+        data.put("defaultDay", hour >= LAST_PICKUP_HOUR - 1 ? 1 : 0);
+        return data;
+    }
+
+    private static String capitalize(String s) {
+        return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    /** Окна выдачи — по часу с 8:00 до 18:00, на {@link #PICKUP_DAYS} дней вперёд (см. shop/app.html). */
+    private static final int FIRST_PICKUP_HOUR = 8;
+    private static final int LAST_PICKUP_HOUR = 18;
+    private static final int PICKUP_DAYS = 6;
+    private static final DateTimeFormatter DAY_TITLE = DateTimeFormatter.ofPattern("EE", new Locale("ru"));
+    private static final DateTimeFormatter DAY_SUB = DateTimeFormatter.ofPattern("d MMM", new Locale("ru"));
+    private static final java.util.regex.Pattern SLOT = java.util.regex.Pattern.compile("(\\d{2}):00–(\\d{2}):00");
+    private static final Set<String> PAYMENTS = Set.of("Kaspi", "По счёту");
+
+    /**
+     * Оформление: день выдачи → дата отгрузки заказа (dueDate), окно, оплата и комментарий → в
+     * примечание заказа — сотрудники видят их в приложении (отдельных полей в заказе нет).
+     * С 09.10 выбор времени и оплаты в корзине закомментирован (shop/app.html) — тогда приходит
+     * только комментарий; если блоки вернут, проверки ниже снова заработают сами.
+     */
     @PostMapping("/cart/submit")
-    public String submit(HttpSession session, RedirectAttributes redirectAttributes) {
+    public String submit(@RequestParam(required = false) LocalDate day, @RequestParam(required = false) String slot,
+                         @RequestParam(required = false) String pay, @RequestParam(required = false) String note,
+                         HttpSession session, RedirectAttributes redirectAttributes) {
         Client client = currentClient(session);
         if (client == null) {
             return "redirect:/shop";
         }
+        String pickup = null;
+        if (slot != null && !slot.isBlank()) {
+            LocalDate today = LocalDate.now();
+            java.util.regex.Matcher m = SLOT.matcher(slot);
+            if (day == null || day.isBefore(today) || day.isAfter(today.plusDays(PICKUP_DAYS - 1)) || !m.matches()) {
+                redirectAttributes.addFlashAttribute("error", "Выберите день и время выдачи");
+                return "redirect:/shop/catalog";
+            }
+            int from = Integer.parseInt(m.group(1));
+            if (from < FIRST_PICKUP_HOUR || from >= LAST_PICKUP_HOUR || Integer.parseInt(m.group(2)) != from + 1
+                    || (day.equals(today) && from <= java.time.LocalTime.now().getHour())) {
+                redirectAttributes.addFlashAttribute("error", "Это время выдачи уже недоступно — выберите другое");
+                return "redirect:/shop/catalog";
+            }
+            pickup = DAY_SUB.format(day) + ", " + slot;
+        }
+        String payment = pay == null || pay.isBlank() ? null : PAYMENTS.contains(pay) ? pay : "Kaspi";
+        String comment = note == null ? "" : note.trim();
+        if (comment.length() > 500) comment = comment.substring(0, 500);
+        List<String> head = new ArrayList<>();
+        if (pickup != null) head.add("Выдача: " + pickup);
+        if (payment != null) head.add("Оплата: " + payment);
+        String notes = String.join(" · ", head);
+        if (!comment.isEmpty()) notes = (notes.isEmpty() ? "" : notes + "\n") + "Комментарий: " + comment;
+
         Map<Long, BigDecimal> cart = cart(session);
         OrderForm form = new OrderForm();
         form.setClientId(client.getId());
         form.setFromShop(true);
+        form.setDueDate(pickup != null ? day : null);
+        form.setNotes(notes.isEmpty() ? null : notes);
         List<OrderForm.OrderItemForm> items = new ArrayList<>();
         for (Map.Entry<Long, BigDecimal> entry : cart.entrySet()) {
             OrderForm.OrderItemForm item = new OrderForm.OrderItemForm();
@@ -392,6 +475,8 @@ public class ShopController {
         try {
             Order order = orderService.createOrder(form);
             session.removeAttribute(SESSION_CART);
+            if (pickup != null) redirectAttributes.addFlashAttribute("when", pickup);
+            if (payment != null) redirectAttributes.addFlashAttribute("pay", payment);
             return "redirect:/shop/confirmation/" + order.getId();
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
@@ -419,21 +504,22 @@ public class ShopController {
         LocalDate from = last7Days ? today.minusDays(6)
                 : today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(weeksAgo);
         LocalDate to = last7Days ? today : from.plusDays(6);
-        List<OrderHistoryRow> rows = orderService.findByClient(client.getId()).stream()
+        List<OrderView> rows = orderService.findByClient(client.getId()).stream()
                 .filter(o -> {
                     LocalDate d = o.getCreatedAt().toLocalDate();
                     return !d.isBefore(from) && !d.isAfter(to);
                 })
-                .map(this::historyRow)
+                .map(this::orderView)
                 .toList();
+        model.addAttribute("view", "orders");
         model.addAttribute("clientName", client.getName());
-        model.addAttribute("rows", rows);
+        model.addAttribute("orders", rows);
         model.addAttribute("week", weeksAgo);
         model.addAttribute("weekLabel", last7Days ? "Последние 7 дней" : weeksAgo == 0 ? "Эта неделя" : weeksAgo == 1 ? "Прошлая неделя"
                 : WEEK_FORMAT.format(from) + " – " + WEEK_FORMAT.format(to));
         model.addAttribute("weekRange", WEEK_FORMAT.format(from) + " – " + WEEK_FORMAT.format(to));
         model.addAttribute("cartCount", cart(session).size());
-        return "shop/orders";
+        return "shop/app";
     }
 
     /**
@@ -482,7 +568,7 @@ public class ShopController {
         return removed;
     }
 
-    private OrderHistoryRow historyRow(Order o) {
+    private OrderView orderView(Order o) {
         List<ItemLine> items = o.getItems().stream()
                 .map(i -> itemLine(i.getProduct(), i.getQuantity(), i.getPrice()))
                 .toList();
@@ -497,9 +583,58 @@ public class ShopController {
                 .toList();
         BigDecimal returnTotal = orderReturns.stream()
                 .map(ProductReturn::getTotalSum).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new OrderHistoryRow(o, items, MONEY_FORMAT.format(o.getTotalPrice()) + " ₸", returns,
+        Packing packing = packing(o.getItems().stream().map(i -> Map.entry(i.getProduct(), i.getQuantity())).toList());
+        String status = switch (o.getStatus()) {
+            case NEW -> "new";
+            case CONFIRMED, IN_PRODUCTION -> "work";
+            case READY -> "ready";
+            case DELIVERED, COMPLETED -> "done";
+            case CANCELLED -> "off";
+        };
+        String statusLabel = switch (status) {
+            case "new" -> "Принят";
+            case "work" -> "Собирается";
+            case "ready" -> "Готов к выдаче";
+            case "done" -> "Выдан";
+            default -> "Отменён";
+        };
+        String when = "Оформлен " + DAY_SUB.format(o.getCreatedAt())
+                + (o.getDueDate() != null ? " · выдача " + DAY_SUB.format(o.getDueDate()) : "");
+        return new OrderView(o.getId(), when, status, statusLabel,
+                status.equals("new") || status.equals("work") || status.equals("ready"),
+                items.size(), packing.boxes(), packing.weight(),
+                MONEY_FORMAT.format(o.getTotalPrice()) + " ₸",
                 returns.isEmpty() ? null : "−" + MONEY_FORMAT.format(returnTotal) + " ₸",
-                returns.isEmpty() ? null : MONEY_FORMAT.format(o.getTotalPrice().subtract(returnTotal)) + " ₸");
+                returns.isEmpty() ? null : MONEY_FORMAT.format(o.getTotalPrice().subtract(returnTotal)) + " ₸",
+                items, returns, o.getNotes());
+    }
+
+    /**
+     * Коробки (⌈кол-во / в коробке⌉ по каждой позиции) и общий вес — по карточкам товаров, как в
+     * корзине (shop/app.html). Позиции без размера коробки/веса не считаются; «+» — есть такие.
+     */
+    private Packing packing(List<Map.Entry<Product, BigDecimal>> lines) {
+        int boxes = 0;
+        boolean unknownBox = false;
+        BigDecimal grams = BigDecimal.ZERO;
+        for (Map.Entry<Product, BigDecimal> line : lines) {
+            PromoPageService.Card card = promoPageService.card(line.getKey());
+            if (card.boxUnits() != null) {
+                boxes += line.getValue().divide(card.boxUnits(), 0, java.math.RoundingMode.CEILING).intValue();
+            } else {
+                unknownBox = true;
+            }
+            if (card.weightGrams() != null) {
+                grams = grams.add(card.weightGrams().multiply(line.getValue()));
+            }
+        }
+        String boxesLabel = boxes == 0 ? null : boxes + (unknownBox ? "+" : "");
+        String weight = grams.signum() == 0 ? null
+                : QTY_FORMAT.format(grams.movePointLeft(3).setScale(2, java.math.RoundingMode.HALF_UP)) + " кг";
+        return new Packing(boxesLabel, weight);
+    }
+
+    private record Packing(String boxes, String weight) {
     }
 
     private ItemLine itemLine(Product product, BigDecimal quantity, BigDecimal price) {
@@ -509,12 +644,34 @@ public class ShopController {
                 sum == null ? "" : MONEY_FORMAT.format(sum) + " ₸");
     }
 
+    /** «Заказ принят» — только для своего заказа; выдача/оплата приходят из submit (flash). */
     @GetMapping("/confirmation/{orderId}")
-    public String confirmation(@PathVariable Long orderId, Model model) {
-        Order order = orderService.findById(orderId);
+    public String confirmation(@PathVariable Long orderId, HttpSession session, Model model) {
+        Client client = currentClient(session);
+        if (client == null) {
+            return "redirect:/shop";
+        }
+        Order order;
+        try {
+            order = orderService.findById(orderId);
+        } catch (IllegalArgumentException e) {
+            return "redirect:/shop/orders";
+        }
+        if (!order.getClient().getId().equals(client.getId())) {
+            return "redirect:/shop/orders";
+        }
+        if (!model.containsAttribute("when") && order.getDueDate() != null) {
+            model.addAttribute("when", DAY_SUB.format(order.getDueDate()));
+        }
+        Packing packing = packing(order.getItems().stream()
+                .map(i -> Map.entry(i.getProduct(), i.getQuantity())).toList());
         model.addAttribute("order", order);
-        model.addAttribute("totalLabel", MONEY_FORMAT.format(order.getTotalPrice()));
-        return "shop/confirmation";
+        model.addAttribute("boxes", packing.boxes());
+        model.addAttribute("weight", packing.weight());
+        model.addAttribute("total", MONEY_FORMAT.format(order.getTotalPrice()) + " ₸");
+        model.addAttribute("clientName", client.getName());
+        model.addAttribute("cartCount", cart(session).size());
+        return "shop/done";
     }
 
     /** Общий ответ для степперов /cart/item/**: JSON для фонового запроса, редирект иначе. */
@@ -597,7 +754,7 @@ public class ShopController {
     }
 
     private static BigDecimal step(Product product) {
-        return FRACTIONAL_UNITS.contains(product.getUnit()) ? new BigDecimal("0.1") : BigDecimal.ONE;
+        return product.getUnit() != null && FRACTIONAL_UNITS.contains(product.getUnit()) ? new BigDecimal("0.1") : BigDecimal.ONE;
     }
 
     /** Склонение "N товаров/товар/товара" — как в mobile order_form_screen.dart (_itemsLabel). */
@@ -618,14 +775,16 @@ public class ShopController {
                            String sumLabel, BigDecimal step) {
     }
 
-    /** priceRaw/stepRaw/inCartRaw — для окна ввода количества по «+» на карточке (shop/products.html). */
-    public record ProductRow(Product product, String priceLabel, String priceRaw, String stepRaw, String unit,
-                             String inCartRaw) {
-    }
-
-    /** netTotalLabel — итог «заказ минус возвраты», только если возвраты есть. */
-    public record OrderHistoryRow(Order order, List<ItemLine> items, String totalLabel,
-                                  List<ReturnRow> returns, String returnTotalLabel, String netTotalLabel) {
+    /**
+     * Заказ в истории (shop/app.html, view = orders). statusKey — new/work/ready/done/off для цвета
+     * метки; netTotal — «заказ минус возвраты», только если возвраты есть.
+     */
+    public record OrderView(Long id, String whenLabel, String statusKey, String statusLabel, boolean active,
+                            int positions, String boxes, String weight, String total, String returnTotal,
+                            String netTotal, List<ItemLine> lines, List<ReturnRow> returns, String notes) {
+        public Long number() {
+            return id;
+        }
     }
 
     public record ItemLine(String name, String qtyLabel, String sumLabel) {

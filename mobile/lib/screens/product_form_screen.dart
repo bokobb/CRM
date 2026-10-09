@@ -9,6 +9,7 @@ import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/format.dart';
 import '../widgets/timeout_cache_manager.dart';
+import 'image_crop_screen.dart';
 
 class ProductFormScreen extends StatefulWidget {
   final int? productId;
@@ -42,7 +43,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   bool _initialLoading = false;
   String? _error;
   String? _existingImageUrl;
-  XFile? _pickedImage;
   Uint8List? _pickedImageBytes;
 
   bool get _isEdit => widget.productId != null;
@@ -79,14 +79,19 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     }
   }
 
+  /// После выбора — обязательная квадратная обрезка (ImageCropScreen): в каталоге сайта фото 1:1,
+  /// так у всех товаров одинаковый кадр. Загружается уже готовый PNG 1000×1000.
   Future<void> _pickImage(ImageSource source) async {
-    final picked = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1600);
-    if (picked == null) return;
+    final picked = await ImagePicker().pickImage(source: source, imageQuality: 92, maxWidth: 2400, maxHeight: 2400);
+    if (picked == null || !mounted) return;
     final bytes = await picked.readAsBytes();
-    setState(() {
-      _pickedImage = picked;
-      _pickedImageBytes = bytes;
-    });
+    if (!mounted) return;
+    final cropped = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(builder: (_) => ImageCropScreen(bytes: bytes)),
+    );
+    if (cropped == null) return;
+    setState(() => _pickedImageBytes = cropped);
   }
 
   Future<void> _choosePhotoSource() async {
@@ -147,8 +152,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         await _api.uploadProductImage(
           product.id,
           bytes: _pickedImageBytes!,
-          filename: _pickedImage!.name,
-          contentType: _pickedImage!.mimeType,
+          filename: 'product.png',
+          contentType: 'image/png',
         );
       }
       if (mounted) Navigator.of(context).pop();

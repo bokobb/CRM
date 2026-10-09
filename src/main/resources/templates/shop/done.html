@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<!--/* «Заказ принят» после /shop/cart/submit — см. ShopController.confirmation. */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{shop/fragments/frame :: head(title='Заказ принят')}"></head>
+<body>
+<div class="page">
+    <header th:replace="~{shop/fragments/frame :: top(signedIn=true, active='', cartCount=${cartCount}, clientName=${clientName})}"></header>
+    <main>
+        <section class="done" aria-labelledby="h-done">
+            <div class="wrap done-in">
+                <div class="panel">
+                    <span class="done-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"></path></svg></span>
+                    <h1 id="h-done" th:text="'Заказ № ' + ${order.id} + ' принят'">Заказ принят</h1>
+                    <dl class="spec">
+                        <div th:if="${when}"><dt>выдача</dt><dd th:text="${when}"></dd></div>
+                        <div th:if="${pay}"><dt>оплата</dt><dd th:text="${pay}"></dd></div>
+                        <div><dt>коробок</dt><dd th:text="${boxes} ?: '—'"></dd></div>
+                        <div><dt>вес</dt><dd th:text="${weight} ?: '—'"></dd></div>
+                        <div><dt>сумма</dt><dd th:text="${total}"></dd></div>
+                    </dl>
+                    <p class="hint">Заказ появился в истории заказов. Если что-то изменится, мы позвоним.</p>
+                    <div class="done-actions">
+                        <a class="btn btn-primary" href="/shop/orders">Открыть историю заказов</a>
+                        <a class="btn btn-line" href="/shop/products">Собрать ещё один заказ</a>
+                    </div>
+                </div>
+                <div class="done-art" aria-hidden="true">
+                    <span class="wheat"></span>
+                    <img class="art-cut d2" src="/promo/img/h-keks-izyum.webp" alt="" width="900" height="483">
+                    <img class="art-cut d1" src="/promo/img/h-korzhiki.webp" alt="" width="818" height="657">
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer th:replace="~{shop/fragments/frame :: foot}"></footer>
+</div>
+</body>
+</html>
