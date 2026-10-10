@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Квадратная обрезка фото товара перед загрузкой: в каталоге сайта (templates/promo.html)
-/// карточки 1:1, и чтобы все товары выглядели одинаково, сохраняется ровно то, что видно в
-/// рамке, — PNG [outputSize]×[outputSize]. Фото двигается/масштабируется пальцами, кнопка
+/// Обрезка фото товара 3:4 перед загрузкой: в каталоге сайта (templates/promo.html) и в альбоме
+/// карточки 3:4, и чтобы все товары выглядели одинаково, сохраняется ровно то, что видно в
+/// рамке, — PNG [outputWidth]×[outputHeight]. Фото двигается/масштабируется пальцами, кнопка
 /// поворачивает на 90°. Отдалить можно до «целиком в кадре» — пустые поля заливаются белым.
 /// Возвращает байты PNG или null, если отменили.
 class ImageCropScreen extends StatefulWidget {
@@ -15,9 +15,11 @@ class ImageCropScreen extends StatefulWidget {
 
   const ImageCropScreen({super.key, required this.bytes});
 
-  static const int outputSize = 1000;
+  /// Как на сервере (FileStorageService.toPortrait) — там фото уже не пересчитывается.
+  static const int outputWidth = 900;
+  static const int outputHeight = 1200;
 
-  /// Меньше этого по стороне кадра (в пикселях исходника) — фото слишком мелкое/сильно увеличено.
+  /// Меньше этого по ширине кадра (в пикселях исходника) — фото слишком мелкое/сильно увеличено.
   static const int minSourcePixels = 600;
 
   @override
@@ -27,7 +29,7 @@ class ImageCropScreen extends StatefulWidget {
 class _ImageCropScreenState extends State<ImageCropScreen> {
   final _controller = TransformationController();
   ui.Image? _image;
-  double _side = 0; // сторона рамки на экране
+  double _side = 0; // ширина рамки 3:4 на экране, высота — _side * 4 / 3
   double _base = 1; // масштаб, при котором фото закрывает рамку
   bool _saving = false;
   String? _error;
@@ -74,12 +76,16 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
     final img = _image!;
     if (_side == side) return;
     _side = side;
-    _base = side / (img.width < img.height ? img.width : img.height);
+    final sh = _frameHeight;
+    final bw = side / img.width, bh = sh / img.height;
+    _base = bw > bh ? bw : bh; // фото закрывает рамку целиком
     final w = img.width * _base, h = img.height * _base;
-    _controller.value = Matrix4.identity()..translateByDouble(-(w - side) / 2, -(h - side) / 2, 0, 1);
+    _controller.value = Matrix4.identity()..translateByDouble(-(w - side) / 2, -(h - sh) / 2, 0, 1);
   }
 
-  /// Сколько пикселей исходника попадает в рамку по стороне — для проверки качества.
+  double get _frameHeight => _side * 4 / 3;
+
+  /// Сколько пикселей исходника попадает в рамку по ширине — для проверки качества.
   double get _visibleSourcePixels => _side / (_base * _controller.value.getMaxScaleOnAxis());
 
   Future<void> _save() async {
@@ -90,15 +96,15 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
       return;
     }
     setState(() => _saving = true);
-    const out = ImageCropScreen.outputSize;
+    const ow = ImageCropScreen.outputWidth, oh = ImageCropScreen.outputHeight;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    canvas.drawRect(const Rect.fromLTWH(0, 0, out + 0.0, out + 0.0), Paint()..color = Colors.white);
-    canvas.scale(out / _side);
+    canvas.drawRect(const Rect.fromLTWH(0, 0, ow + 0.0, oh + 0.0), Paint()..color = Colors.white);
+    canvas.scale(ow / _side);
     canvas.transform(_controller.value.storage);
     canvas.scale(_base);
     canvas.drawImage(img, Offset.zero, Paint()..filterQuality = FilterQuality.high);
-    final result = await recorder.endRecording().toImage(out, out);
+    final result = await recorder.endRecording().toImage(ow, oh);
     final data = await result.toByteData(format: ui.ImageByteFormat.png);
     if (!mounted) return;
     Navigator.pop(context, data!.buffer.asUint8List());
@@ -130,21 +136,25 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                       const Padding(
                         padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
                         child: Text(
-                          'Товар по центру и почти на весь квадрат. Двигайте и увеличивайте пальцами, ↻ — повернуть.',
+                          'Товар по центру и почти на всю рамку. Двигайте и увеличивайте пальцами, ↻ — повернуть.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.white70),
                         ),
                       ),
                       Expanded(
                         child: LayoutBuilder(builder: (context, c) {
-                          final side = (c.maxWidth < c.maxHeight ? c.maxWidth : c.maxHeight) - 32;
+                          // рамка 3:4 во весь экран: ширина ограничена и шириной, и высотой (× 3/4)
+                          final byW = c.maxWidth - 32, byH = (c.maxHeight - 32) * 3 / 4;
+                          final side = byW < byH ? byW : byH;
                           _layout(side);
                           final img = _image!;
-                          final minScale = (img.width < img.height ? img.width / img.height : img.height / img.width);
+                          // отдалить можно до «фото целиком в рамке»
+                          final fitW = side / img.width, fitH = _frameHeight / img.height;
+                          final minScale = (fitW < fitH ? fitW : fitH) / _base;
                           return Center(
                             child: Container(
                               width: side,
-                              height: side,
+                              height: _frameHeight,
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 border: Border.all(color: Colors.white, width: 2),

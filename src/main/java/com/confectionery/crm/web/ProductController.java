@@ -1,17 +1,18 @@
 package com.confectionery.crm.web;
 
 import com.confectionery.crm.domain.Product;
-import com.confectionery.crm.service.FileStorageService;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.OneCDepartmentImportService;
 import com.confectionery.crm.service.OneCDepartments;
 import com.confectionery.crm.service.OneCRecipeImportService;
 import com.confectionery.crm.service.OneCSpecificationImportService;
+import com.confectionery.crm.service.ProductPhotoService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.web.dto.RecipeForm;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -26,7 +27,7 @@ public class ProductController {
 
     private final ProductService productService;
     private final IngredientService ingredientService;
-    private final FileStorageService fileStorageService;
+    private final ProductPhotoService productPhotoService;
     private final OneCRecipeImportService oneCRecipeImportService;
     private final OneCDepartmentImportService oneCDepartmentImportService;
     private final OneCSpecificationImportService oneCSpecificationImportService;
@@ -117,7 +118,8 @@ public class ProductController {
 
     @PostMapping
     public String save(@Valid @ModelAttribute("product") Product product, BindingResult binding, Model model,
-                        @RequestParam(value = "imageFile", required = false) MultipartFile imageFile) {
+                        @RequestParam(value = "imageFile", required = false) MultipartFile imageFile,
+                        Authentication auth) {
         if (binding.hasErrors()) {
             model.addAttribute("activePage", "products");
             model.addAttribute("departments", OneCDepartments.NAMES);
@@ -133,9 +135,10 @@ public class ProductController {
         // существующего переносим их в загруженную из БД сущность. Иначе всё, чего в форме нет
         // (остаток, связь с 1С, архив, скрытие от клиентов), затиралось бы значениями по умолчанию.
         Product saved = productService.save(product.getId() == null ? product : applyForm(product));
-        if (imageFile != null && !imageFile.isEmpty()) {
-            saved.setImageUrl(fileStorageService.storeProductImage(saved.getId(), imageFile));
-            productService.save(saved);
+        // Фото товара меняет только админ (альбом на сайте, см. ProductPhotoService) — у остальных файл игнорируется.
+        boolean admin = auth != null && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (admin && imageFile != null && !imageFile.isEmpty()) {
+            productPhotoService.replaceCover(saved.getId(), imageFile);
         }
         return "redirect:/products";
     }
@@ -152,7 +155,10 @@ public class ProductController {
         product.setOneCDepartmentKey(form.getOneCDepartmentKey());
         product.setDescription(form.getDescription());
         product.setSemiFinished(form.isSemiFinished());
-        product.setImageUrl(form.getImageUrl());
+        // С альбомом обложку задаёт первое фото (ProductPhotoService), ссылку из формы берём только у товара без фото.
+        if (product.getPhotos().isEmpty()) {
+            product.setImageUrl(form.getImageUrl());
+        }
         return product;
     }
 

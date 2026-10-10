@@ -2,8 +2,10 @@ package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.CompanyProfile;
 import com.confectionery.crm.domain.Product;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -17,6 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Данные рекламной страницы на "/" (templates/promo.html) — целиком из CRM, ничего не
@@ -32,6 +35,21 @@ public class PromoPageService {
 
     /** «Коржики (12/24 шт)» → 12 и 24 — как Product.unitsFromName в приложении. */
     private static final Pattern UNITS_IN_NAME = Pattern.compile("\\((\\d+)(?:\\s*/\\s*(\\d+))?\\s*шт\\.?\\)");
+
+    /**
+     * Вырезанная выпечка без фона для круглой плитки группы в ленте под первым экраном. Группа —
+     * просто текст «Категория» у товара, отдельной сущности нет, поэтому соответствие здесь.
+     * Группы без выреза (новые) показывают фото товара, обрезанное по кругу.
+     */
+    private static final Map<String, String> GROUP_CUTOUTS = Map.of(
+            "коржики", "/promo/img/c-korzhiki.webp",
+            "пряники и печенье", "/promo/img/c-pryaniki.webp",
+            "кексы", "/promo/img/c-keks-izyum.webp",
+            "булочки", "/promo/img/c-bulochki-sgushchenka.webp",
+            "чак-чак", "/promo/img/c-chak-chak-v-chashke.webp",
+            "орешки и рогалики", "/promo/img/c-kedrovye-oreshki.webp",
+            "печенье в коробках", "/promo/img/c-pechenye-pesochnoe.webp",
+            "торты и пирожные", "/promo/img/c-pirozhnoe-mini.webp");
 
     private final ProductService productService;
     private final CompanyProfileService companyProfileService;
@@ -53,8 +71,10 @@ public class PromoPageService {
         List<Group> groups = new ArrayList<>();
         int i = 0;
         for (Map.Entry<String, List<Card>> e : byGroup.entrySet()) {
-            String image = e.getValue().stream().map(Card::imageUrl).filter(u -> u != null).findFirst().orElse(null);
-            groups.add(new Group("g" + i++, e.getKey(), e.getValue().size(), image));
+            String cutout = GROUP_CUTOUTS.get(e.getKey().toLowerCase(java.util.Locale.ROOT));
+            String image = cutout != null ? cutout
+                    : e.getValue().stream().map(Card::imageUrl).filter(u -> u != null).findFirst().orElse(null);
+            groups.add(new Group("g" + i++, e.getKey(), e.getValue().size(), image, cutout != null));
         }
         Map<String, String> keyByName = new LinkedHashMap<>();
         groups.forEach(g -> keyByName.put(g.name(), g.key()));
@@ -99,7 +119,16 @@ public class PromoPageService {
         String group = p.getCategory() == null || p.getCategory().isBlank() ? NO_GROUP : p.getCategory().trim();
         String title = UNITS_IN_NAME.matcher(p.getName()).replaceAll("").trim();
         String image = p.getImageUrl() == null || p.getImageUrl().isBlank() ? null : p.getImageUrl();
-        return new Card(title, group, null, image, weightG, weightG == null ? null : weight(weightG), perBox, boxWeight, units1);
+        List<Photo> photos = new ArrayList<>();
+        p.getPhotos().forEach(ph -> photos.add(new Photo(ph.getUrl(), ph.getWidth(), ph.getHeight(),
+                title + ", фото " + (photos.size() + 1))));
+        if (photos.isEmpty() && image != null) {
+            photos.add(new Photo(image, null, null, title));
+        }
+        String w = weightG == null ? null : weight(weightG);
+        String meta = String.join(" · ", Stream.of(w, perBox == null ? null : "в коробке " + perBox)
+                .filter(x -> x != null).toList());
+        return new Card(title, group, null, image, weightG, w, perBox, boxWeight, units1, photos, meta);
     }
 
     private static List<BigDecimal> unitsFromName(String name) {
@@ -148,13 +177,30 @@ public class PromoPageService {
         }
     }
 
-    public record Group(String key, String name, int count, String imageUrl) {}
+    /** cutout — imageUrl это вырез без фона (иначе фото товара, плитка обрезает его по кругу). */
+    public record Group(String key, String name, int count, String imageUrl, boolean cutout) {}
 
     /** boxUnits — штук в основной коробке (для «+ коробка» и подсчёта коробок в /shop), null — не задано. */
+    /**
+     * photos — альбом товара (ProductPhoto) по порядку, у товара без альбома — одно imageUrl;
+     * meta — подпись под фото в альбоме («550 г · в коробке 12 шт»).
+     */
     public record Card(String name, String group, String groupKey, String imageUrl,
-                       BigDecimal weightGrams, String weight, String perBox, String boxWeight, BigDecimal boxUnits) {
+                       BigDecimal weightGrams, String weight, String perBox, String boxWeight, BigDecimal boxUnits,
+                       List<Photo> photos, String meta) {
         Card withGroupKey(String key) {
-            return new Card(name, group, key, imageUrl, weightGrams, weight, perBox, boxWeight, boxUnits);
+            return new Card(name, group, key, imageUrl, weightGrams, weight, perBox, boxWeight, boxUnits, photos, meta);
+        }
+
+        /** Для data-photos — альбом на сайте (static/promo/album.js) читает [{src,w,h,alt}]. */
+        public String photosJson() {
+            return JSON.writeValueAsString(photos);
         }
     }
+
+    /** Фото в альбоме сайта; w/h — null, если размер неизвестен (альбом узнает при загрузке). */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Photo(String src, Integer w, Integer h, String alt) {}
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 }

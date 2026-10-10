@@ -55,17 +55,32 @@ public class FileStorageService {
         }
     }
 
-    /** Сохраняет файл на диск и возвращает относительный URL для раздачи (см. UploadConfig). */
-    public String storeProductImage(Long productId, MultipartFile file) {
+    /** Сохранённый файл: относительный URL для раздачи (см. UploadConfig) и размер, если удалось прочитать. */
+    public record StoredImage(String url, Integer width, Integer height) {}
+
+    /** Фото товара для альбома (см. ProductPhotoService) — приводится к 3:4, см. {@link #toPortrait}. */
+    public StoredImage storeProductImage(Long productId, MultipartFile file) {
         return store("product", "/product-images", productId, file, true);
     }
 
     /** Фото накладной поставщика, приложенное к закупке сырья (см. PurchaseService.attachImage). */
     public String storePurchaseInvoiceImage(Long purchaseId, MultipartFile file) {
-        return store("purchase-invoice", "/purchase-images", purchaseId, file, false);
+        return store("purchase-invoice", "/purchase-images", purchaseId, file, false).url();
     }
 
-    private String store(String filenamePrefix, String urlPrefix, Long entityId, MultipartFile file, boolean squareProduct) {
+    /** Удаляет загруженное фото товара с диска; внешние ссылки и чужие папки не трогает. */
+    public void deleteProductImage(String url) {
+        String prefix = "/product-images/";
+        if (url == null || !url.startsWith(prefix)) {
+            return;
+        }
+        Path file = root.resolve(url.substring(prefix.length())).normalize();
+        if (file.startsWith(root)) {
+            deleteQuietly(file);
+        }
+    }
+
+    private StoredImage store(String filenamePrefix, String urlPrefix, Long entityId, MultipartFile file, boolean productPhoto) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Пустой файл");
         }
@@ -73,7 +88,8 @@ public class FileStorageService {
         if (ext == null) {
             throw new IllegalArgumentException("Поддерживаются только изображения (jpeg, png, webp, gif)");
         }
-        String filename = filenamePrefix + "-" + entityId + "-" + System.currentTimeMillis() + "." + ext;
+        String filename = filenamePrefix + "-" + entityId + "-" + System.currentTimeMillis() + "-"
+                + Integer.toHexString(java.util.concurrent.ThreadLocalRandom.current().nextInt()) + "." + ext;
         Path target = root.resolve(filename);
         try {
             Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
@@ -81,12 +97,15 @@ public class FileStorageService {
             throw new UncheckedIOException("Не удалось сохранить файл", e);
         }
 
-        if (squareProduct && CONVERT_TO_WEBP.contains(ext)) {
-            Path squared = toSquare(target);
-            if (squared != null) {
-                target = squared;
+        Integer width = null, height = null;
+        if (productPhoto && CONVERT_TO_WEBP.contains(ext)) {
+            Path portrait = toPortrait(target);
+            if (portrait != null) {
+                target = portrait;
                 ext = "png";
-                filename = squared.getFileName().toString();
+                filename = portrait.getFileName().toString();
+                width = PRODUCT_IMAGE_WIDTH;
+                height = PRODUCT_IMAGE_HEIGHT;
             }
         }
 
@@ -96,21 +115,22 @@ public class FileStorageService {
                 filename = converted.getFileName().toString();
             }
         }
-        return urlPrefix + "/" + filename;
+        return new StoredImage(urlPrefix + "/" + filename, width, height);
     }
 
-    /** Сторона квадрата фото товара — в каталоге сайта (templates/promo.html) карточки 1:1. */
-    private static final int PRODUCT_IMAGE_SIDE = 1000;
+    /** Фото товара 3:4 — как карточки в каталоге сайта (templates/promo.html) и альбом. */
+    private static final int PRODUCT_IMAGE_WIDTH = 900;
+    private static final int PRODUCT_IMAGE_HEIGHT = 1200;
     /** Меньше — фото мутное в каталоге; приложение проверяет то же самое ещё до загрузки (ImageCropScreen). */
     private static final int PRODUCT_IMAGE_MIN_SIDE = 600;
 
     /**
-     * Фото товара → квадрат {@link #PRODUCT_IMAGE_SIDE}×{@link #PRODUCT_IMAGE_SIDE} PNG рядом с исходником:
-     * не квадратное дополняется белыми полями (без обрезки — товар не отрежется). Приложение уже
-     * присылает обрезанный квадрат, это страховка для веб-формы и старых версий. Мелкое фото
+     * Фото товара → {@link #PRODUCT_IMAGE_WIDTH}×{@link #PRODUCT_IMAGE_HEIGHT} PNG рядом с исходником:
+     * не 3:4 дополняется белыми полями (без обрезки — товар не отрежется). Приложение уже
+     * присылает обрезанное 3:4, это страховка для веб-формы и старых версий. Мелкое фото
      * отклоняется. Не прочиталось (экзотический формат) — null, файл остаётся как есть.
      */
-    private Path toSquare(Path source) {
+    private Path toPortrait(Path source) {
         BufferedImage src;
         try {
             src = ImageIO.read(source.toFile());
@@ -126,24 +146,24 @@ public class FileStorageService {
             throw new IllegalArgumentException("Фото слишком маленькое (" + w + "×" + h + "), нужно не меньше "
                     + PRODUCT_IMAGE_MIN_SIDE + " px по каждой стороне");
         }
-        int side = PRODUCT_IMAGE_SIDE;
-        double scale = (double) side / Math.max(w, h);
+        int ow = PRODUCT_IMAGE_WIDTH, oh = PRODUCT_IMAGE_HEIGHT;
+        double scale = Math.min((double) ow / w, (double) oh / h);
         int dw = (int) Math.round(w * scale), dh = (int) Math.round(h * scale);
-        BufferedImage out = new BufferedImage(side, side, BufferedImage.TYPE_INT_RGB);
+        BufferedImage out = new BufferedImage(ow, oh, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = out.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g.setColor(Color.WHITE);
-        g.fillRect(0, 0, side, side);
-        g.drawImage(src, (side - dw) / 2, (side - dh) / 2, dw, dh, null);
+        g.fillRect(0, 0, ow, oh);
+        g.drawImage(src, (ow - dw) / 2, (oh - dh) / 2, dw, dh, null);
         g.dispose();
         String name = source.getFileName().toString();
         int dot = name.lastIndexOf('.');
-        Path target = source.resolveSibling((dot < 0 ? name : name.substring(0, dot)) + "-sq.png");
+        Path target = source.resolveSibling((dot < 0 ? name : name.substring(0, dot)) + "-34.png");
         try {
             ImageIO.write(out, "png", target.toFile());
         } catch (IOException e) {
-            log.warn("Не удалось привести фото к квадрату: {}", e.getMessage());
+            log.warn("Не удалось привести фото к 3:4: {}", e.getMessage());
             return null;
         }
         deleteQuietly(source);

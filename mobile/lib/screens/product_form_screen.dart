@@ -42,10 +42,19 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   bool _loading = false;
   bool _initialLoading = false;
   String? _error;
-  String? _existingImageUrl;
-  Uint8List? _pickedImageBytes;
+  /// Альбом товара для сайта в том виде, как будет после «Сохранить»: первое — обложка.
+  final List<_PhotoItem> _photos = [];
+  /// Фото с сервера, которые убрали в форме — удалятся при сохранении.
+  final List<int> _removedPhotoIds = [];
+  /// Порядок фото на сервере при открытии формы.
+  final List<int> _initialPhotoIds = [];
+  /// Выбранное фото (индекс в _photos) — под сеткой кнопки «Левее/Правее/Обложкой/Удалить».
+  int? _selectedPhoto;
 
   bool get _isEdit => widget.productId != null;
+
+  /// Фото товара меняет только админ (на бэкенде то же самое — ProductApiController).
+  bool get _isAdmin => ApiClient.currentSession?.role == 'ADMIN';
 
   @override
   void initState() {
@@ -60,7 +69,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _price.text = p.price.toString();
         _unit.text = p.unit ?? '';
         _imageUrl.text = p.imageUrl ?? '';
-        _existingImageUrl = p.imageUrl;
+        _photos.addAll(p.photos.map((ph) => _PhotoItem.server(ph)));
+        _initialPhotoIds.addAll(p.photos.map((ph) => ph.id));
+        // товар со ссылкой на фото, но без альбома (старые данные) — показываем ссылку как есть
+        if (_photos.isEmpty && (p.imageUrl ?? '').isNotEmpty) _photos.add(_PhotoItem.link(p.imageUrl!));
         _netWeightGrams.text = p.netWeightGrams?.toString() ?? '';
         _unitWeightKg.text = p.unitWeightKg == null ? '' : formatQty(p.unitWeightKg!);
         _unitsPerBox.text = p.unitsPerBox == null ? '' : formatQty(p.unitsPerBox!);
@@ -79,19 +91,24 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     }
   }
 
-  /// После выбора — обязательная квадратная обрезка (ImageCropScreen): в каталоге сайта фото 1:1,
-  /// так у всех товаров одинаковый кадр. Загружается уже готовый PNG 1000×1000.
-  Future<void> _pickImage(ImageSource source) async {
-    final picked = await ImagePicker().pickImage(source: source, imageQuality: 92, maxWidth: 2400, maxHeight: 2400);
-    if (picked == null || !mounted) return;
-    final bytes = await picked.readAsBytes();
-    if (!mounted) return;
-    final cropped = await Navigator.push<Uint8List>(
-      context,
-      MaterialPageRoute(builder: (_) => ImageCropScreen(bytes: bytes)),
-    );
-    if (cropped == null) return;
-    setState(() => _pickedImageBytes = cropped);
+  /// После выбора — обязательная обрезка 3:4 (ImageCropScreen): в каталоге сайта и альбоме фото 3:4,
+  /// так у всех товаров одинаковый кадр. Из галереи можно выбрать сразу несколько — каждое
+  /// обрезается по очереди («Назад» на обрезке пропускает фото). Загрузятся при «Сохранить».
+  Future<void> _pickImages(ImageSource source) async {
+    final picker = ImagePicker();
+    final List<XFile> picked = source == ImageSource.gallery
+        ? await picker.pickMultiImage(imageQuality: 92, maxWidth: 2400, maxHeight: 2400)
+        : [?await picker.pickImage(source: source, imageQuality: 92, maxWidth: 2400, maxHeight: 2400)];
+    for (final file in picked) {
+      if (!mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      final cropped = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(builder: (_) => ImageCropScreen(bytes: bytes)),
+      );
+      if (cropped != null) setState(() => _photos.add(_PhotoItem.local(cropped)));
+    }
   }
 
   Future<void> _choosePhotoSource() async {
@@ -105,6 +122,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             ListTile(
               leading: Icon(Icons.photo_library_outlined, color: context.pal.accent),
               title: const Text('Выбрать из галереи'),
+              subtitle: const Text('Можно сразу несколько'),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
@@ -116,7 +134,54 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         ),
       ),
     );
-    if (source != null) await _pickImage(source);
+    if (source != null) await _pickImages(source);
+  }
+
+  void _movePhoto(int from, int to) {
+    if (to < 0 || to >= _photos.length || from == to) return;
+    setState(() {
+      _photos.insert(to, _photos.removeAt(from));
+      _selectedPhoto = to;
+    });
+  }
+
+  void _removePhoto(int i) {
+    setState(() {
+      final removed = _photos.removeAt(i);
+      if (removed.server != null) _removedPhotoIds.add(removed.server!.id);
+      _selectedPhoto = null;
+    });
+  }
+
+  /// Применяет альбом из формы на сервере: удалить убранные, загрузить новые (по одному — до 10 МБ
+  /// каждое), затем выставить порядок. Ссылку без альбома (_PhotoItem.link) не трогаем.
+  Future<void> _syncPhotos(int productId) async {
+    for (final id in _removedPhotoIds) {
+      await _api.deleteProductPhoto(productId, id);
+    }
+    final ids = <int>[];
+    final added = <int>[];
+    for (final item in _photos) {
+      if (item.server != null) {
+        ids.add(item.server!.id);
+      } else if (item.bytes != null) {
+        final p = await _api.addProductPhoto(productId,
+            bytes: item.bytes!, filename: 'product.png', contentType: 'image/png');
+        ids.add(p.photos.last.id);
+        added.add(p.photos.last.id);
+      }
+    }
+    // На сервере сейчас: прежние фото без удалённых, новые — в конце. Не совпадает с формой — шлём порядок.
+    final onServer = [..._initialPhotoIds.where((id) => !_removedPhotoIds.contains(id)), ...added];
+    if (ids.length > 1 && !_sameOrder(ids, onServer)) await _api.reorderProductPhotos(productId, ids);
+  }
+
+  static bool _sameOrder(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   Future<void> _save() async {
@@ -148,14 +213,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     try {
       final product =
           _isEdit ? await _api.updateProduct(widget.productId!, body) : await _api.createProduct(body);
-      if (_pickedImageBytes != null) {
-        await _api.uploadProductImage(
-          product.id,
-          bytes: _pickedImageBytes!,
-          filename: 'product.png',
-          contentType: 'image/png',
-        );
-      }
+      if (_isAdmin) await _syncPhotos(product.id);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       setState(() {
@@ -195,15 +253,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(_error!, style: TextStyle(color: context.pal.danger)),
                     ),
-                  Center(child: _photoPreview()),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: OutlinedButton.icon(
-                      onPressed: _choosePhotoSource,
-                      icon: const Icon(Icons.add_a_photo_outlined, size: 18),
-                      label: Text(_pickedImageBytes == null ? 'Загрузить фото с телефона' : 'Заменить фото'),
-                    ),
-                  ),
+                  _photoSection(),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _name,
@@ -283,16 +333,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     maxLines: 3,
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _imageUrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Или ссылка на фото',
-                      hintText: 'https://...',
-                      helperText: 'Используется, если фото с телефона не выбрано',
+                  if (_isAdmin && _photos.every((p) => p.link != null)) ...[
+                    TextFormField(
+                      controller: _imageUrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Или ссылка на фото',
+                        hintText: 'https://...',
+                        helperText: 'Используется, если фото с телефона не добавлены',
+                      ),
+                      keyboardType: TextInputType.url,
                     ),
-                    keyboardType: TextInputType.url,
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                  ],
                   DropdownButtonFormField<String?>(
                     initialValue: _departmentKey,
                     decoration: const InputDecoration(labelText: 'Подразделение в 1С (корпус)'),
@@ -330,29 +382,147 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     );
   }
 
-  Widget _photoPreview() {
-    Widget child;
-    if (_pickedImageBytes != null) {
-      child = Image.memory(_pickedImageBytes!, fit: BoxFit.cover);
-    } else if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
-      child = CachedNetworkImage(
-        imageUrl: _existingImageUrl!,
-        cacheManager: TimeoutCacheManager(),
-        fit: BoxFit.cover,
-        errorWidget: (context, url, error) => Icon(Icons.image_not_supported_outlined, color: context.pal.muted),
-      );
-    } else {
-      child = Icon(Icons.image_outlined, size: 36, color: context.pal.muted);
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+  /// Альбом товара для сайта: сетка фото 3:4, первое — обложка. Админ добавляет, меняет порядок и
+  /// удаляет (применится при «Сохранить»); остальные только смотрят.
+  Widget _photoSection() {
+    final pal = context.pal;
+    final sel = _selectedPhoto != null && _selectedPhoto! < _photos.length ? _selectedPhoto : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Text('Фото для сайта', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(width: 8),
+          Text('${_photos.length}', style: TextStyle(color: pal.muted)),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          _isAdmin
+              ? 'Первое — обложка в каталоге и заказах. Остальные покупатель листает в альбоме. Нажмите на фото, чтобы поменять место или удалить.'
+              : 'Фото товара меняет только администратор.',
+          style: TextStyle(color: pal.muted, fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(builder: (context, c) {
+          const gap = 8.0;
+          final w = (c.maxWidth - gap * 3) / 4;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (var i = 0; i < _photos.length; i++) _photoTile(i, w, selected: sel == i),
+              if (_isAdmin) _addTile(w),
+            ],
+          );
+        }),
+        if (_isAdmin && sel != null) ...[
+          const SizedBox(height: 10),
+          Text(sel == 0 ? 'Фото 1 — обложка' : 'Фото ${sel + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            OutlinedButton(onPressed: sel == 0 ? null : () => _movePhoto(sel, sel - 1), child: const Text('← Левее')),
+            OutlinedButton(
+                onPressed: sel == _photos.length - 1 ? null : () => _movePhoto(sel, sel + 1), child: const Text('Правее →')),
+            OutlinedButton(onPressed: sel == 0 ? null : () => _movePhoto(sel, 0), child: const Text('Сделать обложкой')),
+            OutlinedButton(
+              onPressed: () => _removePhoto(sel),
+              style: OutlinedButton.styleFrom(foregroundColor: pal.danger),
+              child: const Text('Удалить'),
+            ),
+          ]),
+        ],
+      ],
+    );
+  }
+
+  Widget _photoTile(int i, double w, {required bool selected}) {
+    final pal = context.pal;
+    final item = _photos[i];
+    final Widget image = item.bytes != null
+        ? Image.memory(item.bytes!, fit: BoxFit.cover)
+        : CachedNetworkImage(
+            imageUrl: item.url!,
+            cacheManager: TimeoutCacheManager(),
+            fit: BoxFit.cover,
+            errorWidget: (context, url, error) => Icon(Icons.image_not_supported_outlined, color: pal.muted),
+          );
+    return GestureDetector(
+      onTap: _isAdmin && item.link == null ? () => setState(() => _selectedPhoto = selected ? null : i) : null,
       child: Container(
-        width: 140,
-        height: 140,
-        color: context.pal.bg,
-        alignment: Alignment.center,
-        child: child,
+        width: w,
+        height: w * 4 / 3,
+        decoration: BoxDecoration(
+          color: pal.bg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? pal.accent : pal.line, width: selected ? 3 : 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(fit: StackFit.expand, children: [
+          image,
+          Positioned(
+            left: 4,
+            top: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: Colors.black.withValues(alpha: .7), borderRadius: BorderRadius.circular(99)),
+              child: Text('${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          if (i == 0)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                color: Colors.black.withValues(alpha: .7),
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: const Text('Обложка',
+                    textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          if (item.bytes != null)
+            Positioned(
+              right: 4,
+              top: 4,
+              child: Icon(Icons.cloud_upload_outlined, size: 16, color: pal.accent, shadows: const [Shadow(blurRadius: 4)]),
+            ),
+        ]),
       ),
     );
   }
+
+  Widget _addTile(double w) {
+    final pal = context.pal;
+    return InkWell(
+      onTap: _choosePhotoSource,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: w,
+        height: w * 4 / 3,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: pal.muted, width: 1.5),
+        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.add_a_photo_outlined, color: pal.accent),
+          const SizedBox(height: 4),
+          Text('Добавить', style: TextStyle(color: pal.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Фото в форме: уже на сервере, только что выбранное (загрузится при «Сохранить») или
+/// старая ссылка без альбома (imageUrl), которую в форме не меняют.
+class _PhotoItem {
+  final ProductPhoto? server;
+  final Uint8List? bytes;
+  final String? link;
+
+  _PhotoItem.server(ProductPhoto p) : server = p, bytes = null, link = null;
+  _PhotoItem.local(Uint8List b) : server = null, bytes = b, link = null;
+  _PhotoItem.link(String url) : server = null, bytes = null, link = url;
+
+  String? get url => server?.url ?? link;
 }

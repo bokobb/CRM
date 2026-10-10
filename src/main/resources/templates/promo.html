@@ -1,5 +1,6 @@
 <!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><head><meta charset="utf-8"><title th:text="${(page.company.name ?: 'Юг Сладости') + ' — выпечка к чаю оптом'}">Юг Сладости — выпечка к чаю оптом</title><meta name="description" content="Коржики, пряники, кексы, булочки, чак-чак и песочное печенье оптом с производства. Онлайн-заказ по номеру телефона."><link rel="icon" href="/promo/img/logo.svg"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,500;1,600&family=Golos+Text:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,500;1,600&family=Golos+Text:wght@400;500;600;700&family=Marck+Script&display=swap">
+<link rel="stylesheet" href="/promo/album.css">
 <style>
 /* Layout: the printed catalogue brought to the web — yolk-yellow fields over white, photos in taped cream frames, spec strips with hairlines.
    One light theme by design: these are the brand's own printed colours. */
@@ -79,14 +80,21 @@ p{margin:0}
 .cta{display:flex;flex-wrap:wrap;gap:14px}
 .hero-note{font-size:14.5px}
 .hero .spec{width:100%;max-width:580px;margin-top:6px;padding-top:18px;border-top:1px solid var(--line-strong)}
-.hero-art{position:relative;width:min(100%,540px);aspect-ratio:1/1.04;margin-inline:auto}
-.hero-art .wheat{right:-10%;top:-7%;width:64%;color:var(--ink);opacity:.2;transform:rotate(8deg)}
-.hero-frame{position:absolute;left:21%;top:3%;width:58%;transform:rotate(-3deg)}
-.hero-cut{position:absolute;height:auto;filter:drop-shadow(0 14px 12px rgba(80,40,0,.32))}
-.hero-cut.c1{right:-7%;bottom:0;width:60%}
-.hero-cut.c2{left:-8%;bottom:11%;width:43%}
-.hero-cut.c3{left:0;top:4%;width:33%;rotate:-8deg}
-.sticker{position:absolute;right:5%;top:-1%;width:108px;aspect-ratio:1;display:grid;place-content:center;border-radius:50%;background:var(--crimson);color:#fff;text-align:center;font:italic 600 17px/1.05 var(--font-display);font-variant-numeric:lining-nums;rotate:10deg;box-shadow:0 5px 0 var(--crimson-deep)}
+.hero-art{position:relative;width:min(100%,540px,max(380px,(100vh - 250px)/1.18));aspect-ratio:1/1.18;margin-inline:auto}
+/* четыре фото-карточки на скотче (макет «Промо-сайт»): коржики, пряники, кукурузное, булочки с клубникой; поверх — вырезанный товар */
+.hcard{position:absolute;left:var(--x);top:var(--y);width:41%;rotate:var(--r);transform-origin:14% 5%}
+.hcard.tr{transform-origin:86% 5%}
+.hcard-in{position:relative}
+.hcard .frame{display:block;padding:7px}
+.hcard .frame::after{display:none}
+.hcard .frame::before{width:36%;height:9%;left:-13%;top:-2%}
+.hcard.tr .frame::before{left:auto;right:-13%;transform:rotate(38deg)}
+.hcut{position:absolute;z-index:2;right:-13%;bottom:-7%;width:70%;height:auto;filter:drop-shadow(0 10px 9px rgba(80,40,0,.32))}
+.hcard.h1{--x:2%;--y:.5%;--r:-6deg;--d:.26s;--fy:-9vh;--fr:-70deg}
+.hcard.h2{--x:55%;--y:3.5%;--r:5deg;--d:0s;--fy:-24vh;--fr:50deg}
+.hcard.h3{--x:-1%;--y:51%;--r:4deg;--d:.4s;--fy:12vh;--fr:-42deg}
+.hcard.h4{--x:53%;--y:53.5%;--r:-5deg;--d:.13s;--fy:-5vh;--fr:84deg}
+.sticker{position:absolute;right:-3%;top:-4%;z-index:3;width:108px;aspect-ratio:1;display:grid;place-content:center;border-radius:50%;background:var(--crimson);color:#fff;text-align:center;font:italic 600 17px/1.05 var(--font-display);font-variant-numeric:lining-nums;rotate:10deg;box-shadow:0 5px 0 var(--crimson-deep)}
 .sticker b{display:block;font:800 28px/1 var(--font-display)}
 
 /* category tray */
@@ -96,7 +104,9 @@ p{margin:0}
 .cat:hover{background:var(--cream)}
 .cat-pic{display:grid;place-items:center;width:min(100%,104px);aspect-ratio:1;border-radius:50%;background:var(--cream)}
 .cat:hover .cat-pic{background:var(--white)}
-.cat-pic img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:50%;filter:drop-shadow(0 6px 5px rgba(80,40,0,.26));transition:transform .2s}
+.cat-pic img{width:124%;max-width:none;filter:drop-shadow(0 6px 5px rgba(80,40,0,.26));transition:transform .2s}
+.cat-pic.is-photo{overflow:hidden}
+.cat-pic.is-photo img{width:100%;height:100%;object-fit:cover;filter:none}
 .cat:hover .cat-pic img{transform:scale(1.08) rotate(-3deg)}
 .cat-name{font-weight:600;font-size:15px;line-height:1.2}
 .cat-n{font-size:12.5px;line-height:1.2;color:var(--ink-soft)}
@@ -116,9 +126,14 @@ p{margin:0}
 .tab[aria-pressed="true"] span{color:rgba(255,255,255,.75)}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(30px,3.2vw,44px) clamp(18px,2.4vw,32px);margin-top:clamp(28px,3vw,40px)}
 .card{display:grid;align-content:start;gap:10px;min-width:0}
-.shot{position:relative;margin-bottom:8px}
-.shot .frame{padding:7px}
-.shot .frame img{aspect-ratio:1/1}
+/* фото карточки — кнопка альбома (static/promo/album.js): при 2+ фото под рамкой стопка снимков */
+.shot{position:relative;display:block;width:100%;margin:0 0 8px;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:left}
+button.shot:focus-visible{outline-offset:8px}
+.shot .frame{display:block;padding:7px;transition:transform .25s}
+button.shot:hover .frame{transform:translateY(-3px)}
+/* 3:4, фото целиком на белом — старые квадратные фото не обрезаются */
+.shot .frame img{aspect-ratio:3/4;object-fit:contain;background:#fff}
+.shot .frame img.noimg{background:none}
 .shot .frame::after{width:30%;right:-9%}
 .shot .frame::before{width:30%;left:-9%}
 .shot-cut{position:absolute;right:-6%;bottom:-6%;width:60%;height:auto;filter:drop-shadow(0 8px 7px rgba(80,40,0,.3));transition:transform .25s}
@@ -130,26 +145,13 @@ p{margin:0}
 .card .spec>div:nth-child(odd){padding-left:0;border-left:0}
 .card .spec dd{font-size:15px}
 .more{display:flex;justify-content:center;margin-top:clamp(32px,4vw,48px)}
+.more .btn-line:not(:hover){background:var(--white)}   /* за кнопкой проходят колосья — надпись на чистой плашке */
 .strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 28px;margin-top:clamp(36px,4.5vw,56px);padding:clamp(20px,2.6vw,30px) clamp(20px,3vw,36px);border-radius:26px;background:var(--cream)}
 .strip p{font:700 clamp(21px,2.2vw,28px)/1.15 var(--font-display);font-variant-numeric:lining-nums;min-width:0}
 
 /* why us */
 .perks-sec{position:relative;overflow:clip;background:var(--paper)}
-/* Каталог: два больших колоска-гравюры на фоне всего раздела, оба смотрят слева направо (картинка
-   отзеркалена): нижний у левого края, верхний у правого — линия из левого нижнего угла в правый
-   верхний. .cat-bg растянут на весь раздел, внутри — липкий слой высотой в экран: пока листаешь
-   45 карточек, колоски стоят на месте и чуть качаются. */
 #catalog{position:relative;isolation:isolate}
-.cat-bg{position:absolute;inset:0;z-index:-1;overflow:clip;pointer-events:none}
-.cat-bg-in{position:sticky;top:0;height:100vh;height:100svh}
-.cat-bg .wheat{color:#C9962A;opacity:.32;transform-origin:50% 100%}
-.cat-bg .w1{left:-6%;bottom:-8%;width:min(52vw,600px);transform:rotate(20deg) scaleX(-1)}
-.cat-bg .w2{right:-4%;top:6%;width:min(40vw,460px);transform:rotate(14deg) scaleX(-1)}
-@media (prefers-reduced-motion:no-preference){
-  .cat-bg .wheat{animation:sway 7s ease-in-out infinite alternate}
-  .cat-bg .w2{animation-duration:9s;animation-delay:-4s}
-  @keyframes sway{from{rotate:-3deg}to{rotate:3deg}}
-}
 .perks-sec .wheat{right:-4%;bottom:-18%;width:min(34%,360px);color:#C9962A;opacity:.5;transform:rotate(-14deg)}
 .perks{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(22px,2.6vw,36px)}
 .perk{display:grid;align-content:start;gap:10px;min-width:0}
@@ -222,8 +224,24 @@ p{margin:0}
 @media (max-width:900px){
   .nav{display:none}
   .burger{display:inline-flex}
-  .hero-in{grid-template-columns:minmax(0,1fr)}
-  .hero-art{width:min(100%,440px)}
+  /* на телефоне карточки — полоса между заголовком и текстом */
+  .hero-in{grid-template-columns:minmax(0,1fr);gap:20px;justify-items:start}
+  .hero-copy{display:contents}
+  .hero .eyebrow{order:1}
+  .hero h1{order:2}
+  .hero-art{order:3;justify-self:center;width:min(100%,560px);aspect-ratio:2.5/1;margin:8px 0 0}
+  .hero .lead{order:4}
+  .hero .cta{order:5}
+  .hero-note{order:6}
+  .hero .spec{order:7}
+  .hcard{width:25%}
+  .hcard .frame{padding:4px}
+  .hcard.h1{--x:0%;--y:9%}
+  .hcard.h2{--x:25%;--y:0%}
+  .hcard.h3{--x:50%;--y:10%}
+  .hcard.h4{--x:74%;--y:1%}
+  .sticker{right:-1%;top:-34%;width:84px;font-size:13.5px}
+  .sticker b{font-size:21px}
   .cats-in{grid-template-columns:repeat(auto-fit,minmax(78px,1fr))}
   .about,.contact-in{grid-template-columns:minmax(0,1fr)}
   .about-pic{max-width:520px}
@@ -240,8 +258,6 @@ p{margin:0}
   .foot-end{padding-bottom:96px}
 }
 @media (max-width:560px){
-  .cat-bg .w1{width:82vw;left:-18%}
-  .cat-bg .w2{width:66vw;right:-14%}
   body{font-size:16px}
   .top-in{min-height:68px}
   .brand img{height:52px}
@@ -249,8 +265,8 @@ p{margin:0}
   .hero .spec,.about-copy .spec{grid-auto-flow:row;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 0}
   .hero .spec>div:nth-child(odd),.about-copy .spec>div:nth-child(odd){padding-left:0;border-left:0}
   .cta .btn{flex:1 1 100%}
-  .sticker{width:86px;font-size:14px}
-  .sticker b{font-size:22px}
+  .sticker{top:-24%;width:70px;font-size:11.5px}
+  .sticker b{font-size:18px}
   .cat-name{font-size:12.5px}
   .cat-n{display:none}
   .card .spec dt{font-size:11.5px}
@@ -260,16 +276,64 @@ p{margin:0}
   .foot-in{grid-template-columns:minmax(0,1fr)}
 }
 @media (prefers-reduced-motion:no-preference){
-  .hero-cut{animation:bob 6s ease-in-out infinite alternate}
-  .hero-cut.c2{animation-delay:-2s}
-  .hero-cut.c3{animation-delay:-4s}
-  @keyframes bob{to{translate:0 -9px}}
+  /* вступление первого экрана: ветер приносит карточки слева мимо колосьев, они встают на места,
+     клеится скотч, следом наклейка. Классы ставит скрипт в конце страницы. */
+  .intro .hcard{translate:-115vw 0}
+  .intro .hcard .frame::before{opacity:0}
+  .intro .sticker{scale:0}
+  .intro-go .hcard{animation:hfly-x 1.05s cubic-bezier(.16,.72,.24,1) var(--d) both}
+  .intro-go .hcard-in{animation:hfly-in 1.3s cubic-bezier(.33,.1,.3,1) var(--d) both}
+  .intro-go .hcard .frame::before{animation:htape .26s cubic-bezier(.3,1.5,.5,1) calc(var(--d) + 1.02s) both}
+  .intro-go .sticker{animation:hpop .5s cubic-bezier(.3,1.5,.5,1) 1.7s both}
+  @keyframes hfly-x{from{translate:-115vw 0}to{translate:0 0}}
+  @keyframes hfly-in{
+    0%{translate:0 var(--fy);rotate:var(--fr);scale:.72}
+    45%{translate:0 calc(var(--fy) * -.3);rotate:calc(var(--fr) * -.28);scale:1.06}
+    72%{translate:0 2%;rotate:7deg;scale:1.03}
+    86%{translate:0 -.6%;rotate:-2.5deg;scale:1}
+    100%{translate:0 0;rotate:0deg;scale:1}
+  }
+  @keyframes htape{from{opacity:0;scale:1.9}to{opacity:1;scale:1}}
+  @keyframes hpop{from{scale:0;rotate:-30deg}to{scale:1;rotate:10deg}}
+  /* каждый следующий порыв того же ветра, что клонит колосья: карточки качаются на скотче */
+  .gusty .hcard{animation:hflutter 1.5s ease-in-out var(--d)}
+  @keyframes hflutter{
+    0%,100%{rotate:var(--r)}
+    22%{rotate:calc(var(--r) + 2.4deg * var(--gust,1))}
+    48%{rotate:calc(var(--r) - 1.2deg * var(--gust,1))}
+    72%{rotate:calc(var(--r) + .6deg * var(--gust,1))}
+  }
 }
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   .btn,.shot-cut,.cat-pic img{transition:none}
 }
+
+/* три колоса на фоне страницы от первого экрана до конца каталога (static/promo/kolos.js):
+   не заходят под липкую шапку и под нижнюю панель на телефоне; на жёлтом — тёмное золото, ниже на белом — светлое */
+.kolos{--kolos-top:85px}
+@media (max-width:760px){.kolos{--kolos-bottom:75px}}
+@media (max-width:560px){.kolos{--kolos-top:69px}}
+.hero .kolos{--kolos-color:#C9972F}
+.hero .kolos-text{--kolos-paper:var(--yolk)}
+.under-hero{display:flow-root}
+.kolos-host{position:relative}
+.kolos-host>:not(.kolos){position:relative;z-index:1}
+.kolos{position:absolute;inset:0;z-index:0;pointer-events:none;-webkit-clip-path:inset(0);clip-path:inset(0)}
+.kolos canvas{position:fixed;left:0;top:0;width:100%;height:100vh;height:100lvh}
+/* текст поверх колосьев: ореол цвета фона вокруг букв, линии рисунка обрываются возле текста */
+.kolos-text{--p:var(--kolos-paper,#fff);text-shadow:0 0 2px var(--p),0 0 2px var(--p),0 0 3px var(--p),0 0 3px var(--p),0 0 5px var(--p),0 0 5px var(--p)}
 </style>
+<script>
+/* Вступлению нужно, чтобы карточки были за экраном ещё до первой отрисовки; если скрипт страницы его
+   так и не запустит, класс снимется и карточки просто будут стоять на местах. */
+(function () {
+  var root = document.documentElement, calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (calm) return;
+  root.classList.add('intro');
+  setTimeout(function () { if (!window.yugIntro) root.classList.remove('intro'); }, 4000);
+})();
+</script>
 
 <a class="skip" href="#catalog">Перейти к каталогу</a>
 
@@ -299,19 +363,20 @@ p{margin:0}
 
 <main>
 <section class="hero">
+  <div class="kolos" aria-hidden="true"></div>
   <div class="wrap hero-in">
     <div class="hero-copy">
-      <p class="eyebrow" th:text="${'Кондитерская «' + (page.company.name ?: 'Юг Сладости') + '»'}">Кондитерская «Юг Сладости»</p>
-      <h1>Выпечка к чаю <em>оптом</em>&nbsp;— прямо с&nbsp;производства</h1>
-      <p class="lead"><th:block th:if="${!page.groupList().isEmpty()}" th:text="${#strings.capitalize(page.groupList()) + ' в фирменной упаковке'}">Коржики, пряники и кексы в фирменной упаковке</th:block><th:block th:if="${page.groupList().isEmpty()}">Выпечка в фирменной упаковке</th:block>&nbsp;— для магазинов, кафе, столовых и оптовых компаний.</p>
+      <p class="eyebrow kolos-text" th:text="${'Кондитерская «' + (page.company.name ?: 'Юг Сладости') + '»'}">Кондитерская «Юг Сладости»</p>
+      <h1 class="kolos-text">Выпечка к чаю <em>оптом</em>&nbsp;— прямо с&nbsp;производства</h1>
+      <p class="lead kolos-text"><th:block th:if="${!page.groupList().isEmpty()}" th:text="${#strings.capitalize(page.groupList()) + ' в фирменной упаковке'}">Коржики, пряники и кексы в фирменной упаковке</th:block><th:block th:if="${page.groupList().isEmpty()}">Выпечка в фирменной упаковке</th:block>&nbsp;— для магазинов, кафе, столовых и оптовых компаний.</p>
       <div class="cta">
         <a class="btn btn-primary" href="/shop">Заказать онлайн
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
         </a>
         <a class="btn btn-light" href="#catalog">Смотреть каталог</a>
       </div>
-      <p class="hero-note">Вход в онлайн-заказ — по номеру телефона.</p>
-      <dl class="spec">
+      <p class="hero-note kolos-text">Вход в онлайн-заказ — по номеру телефона.</p>
+      <dl class="spec kolos-text">
         <div><dt>в каталоге</dt><dd th:text="${page.positions(page.productCount)}">43 позиции</dd></div>
         <div th:if="${page.weightRange}"><dt>фасовка</dt><dd th:text="${page.weightRange}">200 г – 1,75 кг</dd></div>
         <div><dt>групп выпечки</dt><dd th:text="${page.groups.size()}">8</dd></div>
@@ -323,26 +388,27 @@ p{margin:0}
       </dl>
     </div>
     <div class="hero-art" aria-hidden="true">
-      <span class="wheat"></span>
-      <div class="frame hero-frame"><img src="/promo/img/p-korzhiki.webp" alt="" width="660" height="880"></div>
+      <div class="hcard h1"><div class="hcard-in"><span class="frame"><img src="/promo/img/p-korzhiki.webp" alt="" width="660" height="880"></span><img class="hcut" src="/promo/img/c-korzhiki.webp" alt="" width="560" height="450"></div></div>
+      <div class="hcard h2 tr"><div class="hcard-in"><span class="frame"><img src="/promo/img/p-pryaniki.webp" alt="" width="660" height="880"></span><img class="hcut" src="/promo/img/c-pryaniki.webp" alt="" width="560" height="340"></div></div>
+      <div class="hcard h3"><div class="hcard-in"><span class="frame"><img src="/promo/img/p-kukuruznoe.webp" alt="" width="660" height="880"></span><img class="hcut" src="/promo/img/c-kukuruznoe.webp" alt="" width="560" height="262"></div></div>
+      <!--/* у булочек с клубникой нет вырезанного товара в макете — только фото на скотче */-->
+      <div class="hcard h4 tr"><div class="hcard-in"><span class="frame"><img src="/promo/img/p-bulochki-klubnika.webp" alt="" width="660" height="880"></span></div></div>
       <span class="sticker">каталог<b th:text="${page.year}">2026</b></span>
-      <img class="hero-cut c3" src="/promo/img/h-keks-izyum.webp" alt="" width="900" height="483">
-      <img class="hero-cut c2" src="/promo/img/h-pryaniki.webp" alt="" width="900" height="546">
-      <img class="hero-cut c1" src="/promo/img/h-korzhiki.webp" alt="" width="818" height="657">
     </div>
   </div>
 </section>
 
+<div class="under-hero">
+<div class="kolos" aria-hidden="true"></div>
 <div class="wrap cats">
   <nav class="cats-in" aria-label="Группы выпечки">
-    <a class="cat" href="#catalog" th:each="g : ${page.groups}" th:attr="data-cat-link=${g.key}"><span class="cat-pic"><img th:src="${g.imageUrl ?: '/promo/img/logo.svg'}" alt="" width="104" height="104" loading="lazy"></span><span class="cat-name" th:text="${g.name}">Группа</span><span class="cat-n" th:text="${page.positions(g.count)}">5 позиций</span></a>
+    <a class="cat" href="#catalog" th:each="g : ${page.groups}" th:attr="data-cat-link=${g.key}"><span class="cat-pic" th:classappend="${g.cutout or g.imageUrl == null} ? '' : 'is-photo'"><img th:src="${g.imageUrl ?: '/promo/img/logo.svg'}" alt="" width="104" height="104" loading="lazy"></span><span class="cat-name" th:text="${g.name}">Группа</span><span class="cat-n" th:text="${page.positions(g.count)}">5 позиций</span></a>
   </nav>
 </div>
 
 <section class="section" id="catalog">
-  <div class="cat-bg" aria-hidden="true"><div class="cat-bg-in"><span class="wheat w1"></span><span class="wheat w2"></span></div></div>
   <div class="wrap">
-    <header class="sec-head">
+    <header class="sec-head kolos-text">
       <p class="eyebrow" th:text="${'Каталог ' + page.year}">Каталог 2026</p>
       <h2>Что печём</h2>
       <p class="sec-note">Вес и количество в коробке по каждой позиции. Цены — в онлайн-заказе.</p>
@@ -352,9 +418,12 @@ p{margin:0}
       <button class="tab" type="button" th:each="g : ${page.groups}" th:attr="data-filter=${g.key}" aria-pressed="false"><th:block th:text="${g.name}">Группа</th:block> <span th:text="${g.count}">5</span></button>
     </div>
     <div class="grid" id="grid">
-      <article class="card" th:each="c, it : ${page.cards}" th:attr="data-cat=${c.groupKey}" th:hidden="${it.index >= 12}">
-        <div class="shot">
-          <div class="frame"><img th:if="${c.imageUrl}" th:src="${c.imageUrl}" th:alt="${c.name}" width="660" height="880" loading="lazy"><img th:unless="${c.imageUrl}" class="noimg" src="/promo/img/logo.svg" alt="" width="660" height="880" loading="lazy"></div>
+      <article class="card kolos-text" th:each="c, it : ${page.cards}" th:attr="data-cat=${c.groupKey}" th:hidden="${it.index >= 12}">
+        <button class="shot alb-fan" type="button" th:if="${!c.photos.isEmpty()}" th:attr="data-photos=${c.photosJson()},data-title=${c.name},data-meta=${c.meta}">
+          <span class="frame"><img th:src="${c.photos[0].src}" th:alt="${c.name}" width="660" height="880" loading="lazy"></span>
+        </button>
+        <div class="shot" th:if="${c.photos.isEmpty()}">
+          <div class="frame"><img class="noimg" src="/promo/img/logo.svg" alt="" width="660" height="880" loading="lazy"></div>
         </div>
         <h3 th:text="${c.name}">Товар</h3>
         <dl class="spec" th:if="${c.weight != null or c.perBox != null}">
@@ -373,6 +442,7 @@ p{margin:0}
     </div>
   </div>
 </section>
+</div><!--/* .under-hero — колосья на фоне от категорий до конца каталога */-->
 
 <section class="section perks-sec">
   <span class="wheat" aria-hidden="true"></span>
@@ -547,6 +617,7 @@ p{margin:0}
   <a class="btn btn-primary" href="/shop">Заказать онлайн</a>
 </div>
 
+<script src="/promo/kolos.js"></script>
 <script>
 (function () {
   var FIRST = 12;
@@ -589,6 +660,44 @@ p{margin:0}
   burger.addEventListener('click', function () { setMenu(mnav.hidden); });
   mnav.addEventListener('click', function (e) { if (e.target.closest('a')) setMenu(false); });
 
+  /* Вступление первого экрана: порыв ветра клонит колосья и приносит карточки; они встают на места, клеится скотч. */
+  var root = document.documentElement;
+  var art = document.querySelector('.hero-art');
+  (function () {
+    if (!root.classList.contains('intro')) return;
+    window.yugIntro = true;                             // дальше карточки показывает этот скрипт
+    var pics = Array.prototype.slice.call(art.querySelectorAll('img'));
+    var left = pics.filter(function (img) { return !img.complete; }).length;
+    var started = false;
+    function go() {
+      if (started) return;
+      if (document.hidden) {                            // открыта в фоновой вкладке — играем, когда на неё посмотрят
+        document.addEventListener('visibilitychange', function seen() {
+          if (!document.hidden) { document.removeEventListener('visibilitychange', seen); go(); }
+        });
+        return;
+      }
+      started = true;
+      root.classList.add('intro-go');
+      setTimeout(function () { if (window.YugKolos) window.YugKolos.gust(0.3, 1); }, 60);
+      setTimeout(function () { root.classList.remove('intro', 'intro-go'); }, 2700);   // всё прилетело — обычные стили
+    }
+    function one() { left -= 1; if (left <= 0) go(); }
+    pics.forEach(function (img) { if (!img.complete) { img.addEventListener('load', one); img.addEventListener('error', one); } });
+    if (!left) go(); else setTimeout(go, 1500);        // медленные картинки дольше не ждём
+  })();
+  /* Каждый следующий порыв: карточки первого экрана качаются на скотче вместе с ветром. */
+  var calmTimer = 0;
+  document.addEventListener('kolos:gust', function (e) {
+    if (root.classList.contains('intro')) return;
+    art.style.setProperty('--gust', e.detail.dir * Math.min(1.3, e.detail.power / 0.25));
+    art.classList.remove('gusty');
+    void art.offsetWidth;
+    art.classList.add('gusty');
+    clearTimeout(calmTimer);
+    calmTimer = setTimeout(function () { art.classList.remove('gusty'); }, 2100);
+  });
+
   var form = document.getElementById('lead');
   var status = document.getElementById('lead-status');
   form.addEventListener('submit', function (e) {
@@ -617,4 +726,5 @@ p{margin:0}
 })();
 </script>
 
+<script src="/promo/album.js" defer></script>
 </body></html>

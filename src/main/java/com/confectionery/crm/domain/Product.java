@@ -6,9 +6,12 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "products")
@@ -119,6 +122,12 @@ public class Product {
 
     @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Recipe recipe;
+
+    /** Альбом товара, первое — обложка (= imageUrl). Правится только через ProductPhotoService. */
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("position ASC, id ASC")
+    @BatchSize(size = 100)
+    private List<ProductPhoto> photos = new ArrayList<>();
 
     /**
      * Архивный товар (false) скрыт из каталога/списков для новых заказов, но остаётся в БД —

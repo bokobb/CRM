@@ -2,7 +2,7 @@ package com.confectionery.crm.api;
 
 import com.confectionery.crm.api.dto.*;
 import com.confectionery.crm.domain.Product;
-import com.confectionery.crm.service.FileStorageService;
+import com.confectionery.crm.service.ProductPhotoService;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.OneCDepartmentImportService;
 import com.confectionery.crm.service.OneCRecipeImportService;
@@ -24,7 +24,7 @@ public class ProductApiController {
 
     private final ProductService productService;
     private final IngredientService ingredientService;
-    private final FileStorageService fileStorageService;
+    private final ProductPhotoService productPhotoService;
     private final OneCDepartmentImportService oneCDepartmentImportService;
     private final OneCRecipeImportService oneCRecipeImportService;
 
@@ -70,11 +70,31 @@ public class ProductApiController {
         productService.delete(id);
     }
 
+    /** Старое «одно фото на товар» (приложение до альбома): заменяет обложку, остальные фото альбома остаются. */
     @PostMapping("/{id}/image")
+    @PreAuthorize("hasRole('ADMIN')")
     public ProductDto uploadImage(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
-        Product product = productService.findById(id);
-        product.setImageUrl(fileStorageService.storeProductImage(id, file));
-        return ProductDto.from(productService.save(product));
+        return ProductDto.from(productPhotoService.replaceCover(id, file));
+    }
+
+    /** Альбом товара для сайта: фото сколько угодно, добавляются в конец; первое — обложка. */
+    @PostMapping("/{id}/photos")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ProductDto addPhotos(@PathVariable Long id, @RequestParam("files") List<MultipartFile> files) {
+        return ProductDto.from(productPhotoService.add(id, files));
+    }
+
+    @DeleteMapping("/{id}/photos/{photoId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ProductDto deletePhoto(@PathVariable Long id, @PathVariable Long photoId) {
+        return ProductDto.from(productPhotoService.delete(id, photoId));
+    }
+
+    /** Все фото товара в новом порядке, первое станет обложкой. */
+    @PutMapping("/{id}/photos/order")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ProductDto reorderPhotos(@PathVariable Long id, @RequestBody List<Long> photoIds) {
+        return ProductDto.from(productPhotoService.reorder(id, photoIds));
     }
 
     @GetMapping("/{id}/recipe")
@@ -104,7 +124,11 @@ public class ProductApiController {
         product.setDescription(req.description());
         product.setPrice(req.price());
         product.setUnit(req.unit());
-        product.setImageUrl(req.imageUrl());
+        // С альбомом обложку задаёт первое фото (ProductPhotoService); старое приложение шлёт прежний
+        // imageUrl при каждом сохранении — у товара с фото его не слушаем, иначе обложка бы затёрлась.
+        if (product.getPhotos().isEmpty()) {
+            product.setImageUrl(req.imageUrl());
+        }
         product.setSemiFinished(req.semiFinished());
         product.setNetWeightGrams(req.netWeightGrams());
         product.setMassReferenceProduct(req.massReferenceProduct());

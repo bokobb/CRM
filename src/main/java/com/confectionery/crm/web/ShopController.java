@@ -372,6 +372,15 @@ public class ShopController {
             row.put("name", card.name());
             row.put("groupKey", groupKeys.get(card.group()));
             row.put("img", card.imageUrl());
+            // альбом по нажатию на фото (static/promo/album.js); Map, а не record — Thymeleaf сериализует в JS только Map/бины
+            row.put("photos", card.photos().stream().map(ph -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("src", ph.src());
+                if (ph.w() != null) m.put("w", ph.w());
+                if (ph.h() != null) m.put("h", ph.h());
+                m.put("alt", ph.alt());
+                return m;
+            }).toList());
             row.put("weight", card.weight());
             row.put("weightG", card.weightGrams());
             row.put("box", card.boxUnits());

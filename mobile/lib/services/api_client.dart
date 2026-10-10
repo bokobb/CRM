@@ -144,19 +144,11 @@ class ApiClient {
     return '${uri.scheme}://${uri.authority}';
   }
 
-  Future<Product> _withAbsoluteImage(Product p) async {
-    final url = p.imageUrl;
-    if (url == null || url.isEmpty || url.startsWith('http')) return p;
-    return p.withImageUrl('${await _origin()}$url');
-  }
+  Future<Product> _withAbsoluteImage(Product p) async => p.withAbsoluteUrls(await _origin());
 
   Future<List<Product>> _withAbsoluteImages(List<Product> list) async {
     final origin = await _origin();
-    return list.map((p) {
-      final url = p.imageUrl;
-      if (url == null || url.isEmpty || url.startsWith('http')) return p;
-      return p.withImageUrl('$origin$url');
-    }).toList();
+    return list.map((p) => p.withAbsoluteUrls(origin)).toList();
   }
 
   /// То же самое, но для фото товаров внутри позиций заказа (Order.items[].productImageUrl).
@@ -450,23 +442,41 @@ class ApiClient {
     return _withAbsoluteImage(Product.fromJson(_decode(res)));
   }
 
-  /// Загружает фото товара с телефона/компьютера (см. FileStorageService на бэкенде)
-  /// и возвращает товар с уже абсолютным imageUrl. Без явного content-type пакет http
-  /// шлёт "application/octet-stream" — backend такое отклоняет как неизвестный формат
-  /// (проверяет именно content-type, не расширение файла), поэтому определяем его сами.
-  Future<Product> uploadProductImage(int id,
+  /// Добавляет фото в альбом товара (только ADMIN, см. ProductPhotoService на бэкенде) — в конец,
+  /// у товара без фото первое станет обложкой. По одному файлу за запрос: до 10 МБ каждый, а
+  /// nginx пропускает не больше 20 МБ за раз. Без явного content-type пакет http шлёт
+  /// "application/octet-stream" — backend такое отклоняет, поэтому определяем его сами.
+  Future<Product> addProductPhoto(int id,
       {required List<int> bytes, required String filename, String? contentType}) async {
-    final request = http.MultipartRequest('POST', await _uri('/products/$id/image'));
+    final request = http.MultipartRequest('POST', await _uri('/products/$id/photos'));
     final token = _session?.token;
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
     request.files.add(http.MultipartFile.fromBytes(
-      'file',
+      'files',
       bytes,
       filename: filename,
       contentType: MediaType.parse(contentType ?? _guessImageContentType(filename)),
     ));
     final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
+    return _withAbsoluteImage(Product.fromJson(_decode(res)));
+  }
+
+  Future<Product> deleteProductPhoto(int id, int photoId) async {
+    final res = await _http.delete(
+      await _uri('/products/$id/photos/$photoId'),
+      headers: await _authHeaders(),
+    );
+    return _withAbsoluteImage(Product.fromJson(_decode(res)));
+  }
+
+  /// Все фото товара в новом порядке, первое станет обложкой.
+  Future<Product> reorderProductPhotos(int id, List<int> photoIds) async {
+    final res = await _http.put(
+      await _uri('/products/$id/photos/order'),
+      headers: await _authHeaders(),
+      body: jsonEncode(photoIds),
+    );
     return _withAbsoluteImage(Product.fromJson(_decode(res)));
   }
 
@@ -1095,7 +1105,7 @@ class ApiClient {
   }
 
   /// Фото накладной поставщика — прикладывается отдельным запросом сразу после создания
-  /// закупки (тот же паттерн, что uploadProductImage). Content-type определяем сами — иначе
+  /// закупки (тот же паттерн, что addProductPhoto). Content-type определяем сами — иначе
   /// http-пакет шлёт "application/octet-stream", backend такое отклоняет.
   Future<Purchase> uploadPurchaseImage(int id,
       {required List<int> bytes, required String filename, String? contentType}) async {

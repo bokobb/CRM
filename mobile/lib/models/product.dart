@@ -8,6 +8,25 @@ const Map<String, String> oneCDepartmentNames = {
   'e72d5a7c-7380-11f1-8dca-5254007c5efd': 'Производство Корпус D',
 };
 
+/// Фото альбома товара для сайта (см. ProductPhotoService на бэкенде): первое — обложка (= imageUrl).
+class ProductPhoto {
+  final int id;
+  final String url;
+  final int? width;
+  final int? height;
+
+  const ProductPhoto({required this.id, required this.url, this.width, this.height});
+
+  factory ProductPhoto.fromJson(Map<String, dynamic> json) => ProductPhoto(
+        id: json['id'] as int,
+        url: json['url'] as String,
+        width: json['width'] as int?,
+        height: json['height'] as int?,
+      );
+
+  ProductPhoto withUrl(String u) => ProductPhoto(id: id, url: u, width: width, height: height);
+}
+
 class Product {
   final int id;
   final String name;
@@ -58,6 +77,7 @@ class Product {
 
   /// Код номенклатуры в 1С (сверяется с 1С раз в сутки) — колонка «Код» в «Объём и масса».
   final String? oneCCode;
+  final List<ProductPhoto> photos;
 
   /// Штуки в коробке из названия: «(15 шт)» → [15], «(12/24 шт)» → [12, 24] — как на бэкенде
   /// (ProductPacking), когда в карточке не заполнено.
@@ -98,6 +118,7 @@ class Product {
     this.unitsPerBox2,
     this.boxVolume2M3,
     this.oneCCode,
+    this.photos = const [],
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -125,34 +146,41 @@ class Product {
         unitsPerBox2: (json['unitsPerBox2'] as num?)?.toDouble(),
         boxVolume2M3: (json['boxVolume2M3'] as num?)?.toDouble(),
         oneCCode: json['oneCCode'] as String?,
+        photos: (json['photos'] as List<dynamic>? ?? const [])
+            .map((e) => ProductPhoto.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 
-  /// Копия с другим imageUrl — используется, чтобы превратить относительный путь
-  /// с сервера (загруженные файлы) в абсолютный URL для Image.network (см. ApiClient).
-  Product withImageUrl(String url) => Product(
-        id: id,
-        name: name,
-        category: category,
-        group: group,
-        description: description,
-        price: price,
-        unit: unit,
-        quantityInStock: quantityInStock,
-        imageUrl: url,
-        semiFinished: semiFinished,
-        oneCDepartmentKey: oneCDepartmentKey,
-        netWeightGrams: netWeightGrams,
-        massReferenceProduct: massReferenceProduct,
-        hiddenFromClients: hiddenFromClients,
-        hiddenFromClientsUntil: hiddenFromClientsUntil,
-        visibleToClients: visibleToClients,
-        unitWeightKg: unitWeightKg,
-        unitsPerBox: unitsPerBox,
-        boxVolumeM3: boxVolumeM3,
-        unitsPerBox2: unitsPerBox2,
-        boxVolume2M3: boxVolume2M3,
-        oneCCode: oneCCode,
-      );
+  /// Копия с абсолютными адресами фото — относительные пути с сервера (загруженные файлы)
+  /// превращаются в URL для Image.network (см. ApiClient).
+  Product withAbsoluteUrls(String origin) {
+    String abs(String u) => u.isEmpty || u.startsWith('http') ? u : '$origin$u';
+    return Product(
+      id: id,
+      name: name,
+      category: category,
+      group: group,
+      description: description,
+      price: price,
+      unit: unit,
+      quantityInStock: quantityInStock,
+      imageUrl: imageUrl == null ? null : abs(imageUrl!),
+      semiFinished: semiFinished,
+      oneCDepartmentKey: oneCDepartmentKey,
+      netWeightGrams: netWeightGrams,
+      massReferenceProduct: massReferenceProduct,
+      hiddenFromClients: hiddenFromClients,
+      hiddenFromClientsUntil: hiddenFromClientsUntil,
+      visibleToClients: visibleToClients,
+      unitWeightKg: unitWeightKg,
+      unitsPerBox: unitsPerBox,
+      boxVolumeM3: boxVolumeM3,
+      unitsPerBox2: unitsPerBox2,
+      boxVolume2M3: boxVolume2M3,
+      oneCCode: oneCCode,
+      photos: photos.map((p) => p.withUrl(abs(p.url))).toList(),
+    );
+  }
 }
 
 class RecipeItem {

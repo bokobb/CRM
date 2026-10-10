@@ -293,9 +293,16 @@
   var rows = {};
   function makeRow(p, inCart) {
     var li = el('li', { 'class': inCart ? 'item item--cart' : 'item', 'data-on': 'false' });
-    var pic = el('div', { 'class': 'item-pic' });
-    pic.appendChild(p.img ? el('img', { src: p.img, alt: '', width: 240, height: 240, loading: 'lazy' })
-      : el('img', { src: '/promo/img/logo.svg', 'class': 'noimg', alt: '', width: 240, height: 240 }));
+    /* фото — кнопка альбома (static/promo/album.js сам ловит нажатие на [data-photos]); при 2+ фото под рамкой стопка */
+    var photos = p.photos || [];
+    var pic = photos.length
+      ? el('button', { type: 'button', 'class': 'item-pic alb-fan', 'data-photos': JSON.stringify(photos), 'data-title': p.name,
+          'data-meta': [p.weight, p.boxText ? 'в коробке ' + p.boxText : null].filter(Boolean).join(' · ') })
+      : el('div', { 'class': 'item-pic' });
+    var frame = el('span', { 'class': 'item-frame' });
+    frame.appendChild(photos.length ? el('img', { src: photos[0].src, alt: '', width: 240, height: 320, loading: 'lazy' })
+      : el('img', { src: '/promo/img/logo.svg', 'class': 'noimg', alt: '', width: 240, height: 320 }));
+    pic.appendChild(frame);
     var body = el('div', { 'class': 'item-body' });
     var info = el('div', { 'class': 'item-info' });
     info.appendChild(el('h3', {}, p.name));
