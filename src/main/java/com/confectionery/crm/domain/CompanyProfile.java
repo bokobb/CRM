@@ -54,4 +54,25 @@ public class CompanyProfile {
 
     /** Номер WhatsApp для кнопки на рекламной странице (ссылка wa.me собирается из цифр). */
     private String whatsappPhone;
+
+    /** Адрес до « (…)» для сайта, с неразрывными пробелами: строка не кончается на «г.», «ж/м», «ул.». */
+    public String addressMain() {
+        if (address == null || address.isBlank()) return null;
+        int cut = address.indexOf(" (");
+        return nbsp(cut > 0 ? address.substring(0, cut) : address);
+    }
+
+    /** Уточнение адреса в скобках — «(ул. Елебекова, 135а, Енбекшинский район)» — или null. */
+    public String addressSub() {
+        if (address == null) return null;
+        int cut = address.indexOf(" (");
+        return cut > 0 ? nbsp(address.substring(cut + 1)) : null;
+    }
+
+    private static String nbsp(String s) {
+        return s.strip()
+                .replaceAll("(^|[\\s(])(г\\.|ж/м|ул\\.|пр\\.|мкр\\.|д\\.)\\s+", "$1$2 ")
+                .replaceAll(",\\s+(\\d)", ", $1")
+                .replaceAll("\\s+(район)", " $1");
+    }
 }

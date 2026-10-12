@@ -190,10 +190,15 @@ button.shot:hover .frame{transform:translateY(-3px)}
 .c-l{display:block;font-size:13.5px;line-height:1.3}
 .c-v{display:block;width:fit-content;font-weight:600;line-height:1.35;overflow-wrap:anywhere;text-decoration:none}
 a.c-v:hover{text-decoration:underline}
-/* одно имя в Instagram и TikTok: имя одной строкой, под ним обе сети ссылками */
-.c-links{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:2px}
-.c-links a{font-size:14.5px;font-weight:600;line-height:1.35;color:var(--crimson-deep);text-decoration:underline;text-underline-offset:3px}
-.c-links a:hover{text-decoration-thickness:2px}
+/* соцсети: под подписью по строке на сеть — маленький круглый значок и название рядом */
+.c-net{display:grid;gap:4px;margin-top:4px}
+.c-net-a{display:inline-flex;align-items:center;gap:10px;width:fit-content;min-height:34px;font-weight:600;line-height:1.35;text-decoration:none}
+.c-net-i{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;transition:background-color .15s}
+.c-net-a:hover{text-decoration:underline}
+.c-net-a:hover .c-net-i{background:var(--crimson)}
+@media (prefers-reduced-motion:reduce){
+  .c-net-i{transition:none}
+}
 .c-sub{display:block;font-size:14px;line-height:1.35;color:rgba(42,23,18,.78)}
 .form{display:grid;gap:16px;padding:clamp(20px,3vw,34px);border-radius:28px;background:var(--white);box-shadow:0 26px 40px -30px rgba(80,40,0,.5)}
 .form h3{font-weight:700;font-size:24px;line-height:1.15}
