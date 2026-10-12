@@ -213,6 +213,8 @@ button.shot:hover .frame{transform:translateY(-3px)}
 .foot-info a{font-weight:600;color:var(--yolk)}
 .foot-info>*{justify-self:start}
 .foot-end{position:relative;padding-block:18px 26px;border-top:1px solid rgba(255,255,255,.24);font-size:13.5px;color:rgba(255,255,255,.8)}
+.foot-dev{display:block;margin-top:6px;font-size:11.5px;color:rgba(255,255,255,.55)}
+.foot-dev a{color:inherit}
 
 /* phone order bar */
 .mbar{display:none}
@@ -617,7 +619,8 @@ button.shot:hover .frame{transform:translateY(-3px)}
       <span th:if="${page.company.legalInfo}" th:text="${page.company.legalInfo}">реквизиты</span>
     </div>
   </div>
-  <div class="wrap"><p class="foot-end">© <th:block th:text="${page.year + ' ' + (page.company.name ?: 'Юг Сладости')}">2026 Юг Сладости</th:block> · <a href="/login" style="color:inherit">Вход для сотрудников</a></p></div>
+  <div class="wrap"><p class="foot-end">© <th:block th:text="${page.year + ' ' + (page.company.name ?: 'Юг Сладости')}">2026 Юг Сладости</th:block> · <a href="/login" style="color:inherit">Вход для сотрудников</a>
+    <span class="foot-dev">Сайт разработан — <a href="https://www.instagram.com/bilalov_bakhodir" target="_blank" rel="noopener">@bilalov_bakhodir</a></span></p></div>
 </footer>
 
 <div class="mbar">
