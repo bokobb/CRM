@@ -18,6 +18,7 @@ import '../models/product.dart';
 import '../models/product_return.dart';
 import '../models/employee.dart';
 import '../models/vacancy.dart';
+import '../models/callback_request.dart';
 import '../models/report.dart';
 import '../models/production_cost.dart';
 import '../models/production_request.dart';
@@ -605,6 +606,18 @@ class ApiClient {
       updated: json['updated'] as int,
       matchedByName: json['matchedByName'] as int,
     );
+  }
+
+  /// Заявки «Перезвоните мне» с сайта (ADMIN/ACCOUNTANT/SALES), новые сверху.
+  Future<List<CallbackRequest>> getCallbackRequests() async {
+    final res = await http.get(await _uri('/callback-requests'), headers: await _authHeaders());
+    return [for (final r in _decode(res) as List) CallbackRequest.fromJson(r as Map<String, dynamic>)];
+  }
+
+  Future<CallbackRequest> updateCallbackRequest(int id, {String? status, String? note}) async {
+    final res = await _http.put(await _uri('/callback-requests/$id'),
+        headers: await _authHeaders(), body: jsonEncode({'status': status, 'note': note}));
+    return CallbackRequest.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
   /// Вакансии для сайта /vacancies (ADMIN/ACCOUNTANT, см. VacancyApiController).
@@ -1353,6 +1366,12 @@ class ApiClient {
       headers: await _authHeaders(),
       body: jsonEncode(body),
     );
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
+  }
+
+  /// «Подтянуть цены»: позиции с ценой 0 заполняются по текущему прайсу клиента (только неотгруженный заказ).
+  Future<Order> fillOrderPrices(int id) async {
+    final res = await _http.post(await _uri('/orders/$id/fill-prices'), headers: await _authHeaders());
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 

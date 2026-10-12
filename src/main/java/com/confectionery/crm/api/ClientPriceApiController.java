@@ -16,6 +16,7 @@ import java.util.List;
 public class ClientPriceApiController {
 
     private final ClientPriceService clientPriceService;
+    private final com.confectionery.crm.service.OrderPriceFillService orderPriceFillService;
 
     @GetMapping
     public List<ClientPriceDto> list(@PathVariable Long clientId) {
@@ -26,7 +27,9 @@ public class ClientPriceApiController {
     @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT')")
     public ClientPriceDto upsert(@PathVariable Long clientId, @PathVariable Long productId,
                                   @Valid @RequestBody ClientPriceRequest req) {
-        return ClientPriceDto.from(clientPriceService.upsert(clientId, productId, req.price()));
+        ClientPriceDto saved = ClientPriceDto.from(clientPriceService.upsert(clientId, productId, req.price()));
+        orderPriceFillService.afterPriceChange(clientId, productId);   // нули в его неотгруженных заказах
+        return saved;
     }
 
     @DeleteMapping("/{productId}")

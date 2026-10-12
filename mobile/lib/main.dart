@@ -37,6 +37,7 @@ import 'screens/production_screen.dart';
 import 'screens/tech_cards_screen.dart';
 import 'screens/employees_screen.dart';
 import 'screens/vacancies_screen.dart';
+import 'screens/leads_screen.dart';
 import 'screens/purchases_screen.dart';
 import 'screens/returns_screen.dart';
 import 'screens/recipe_screen.dart';
@@ -183,6 +184,8 @@ class CrmApp extends StatelessWidget {
         return MaterialPageRoute(builder: (_) => const ProductionScreen(), settings: settings);
       case '/employees':
         return MaterialPageRoute(builder: (_) => const EmployeesScreen(), settings: settings);
+      case '/leads':
+        return MaterialPageRoute(builder: (_) => const LeadsScreen(), settings: settings);
       case '/vacancies':
         return MaterialPageRoute(builder: (_) => const VacanciesScreen(), settings: settings);
       case '/tech-cards':

@@ -701,6 +701,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ],
                 if (canManageOrder || canShip || canComplete) ...[
                   const SizedBox(height: 28),
+                  // Цена фиксируется при создании заказа: если тогда у товара не было цены, в позиции 0.
+                  // Кнопка берёт текущую цену из прайса клиента (сервер, OrderPriceFillService).
+                  if (canManageOrder &&
+                      const {'NEW', 'CONFIRMED', 'IN_PRODUCTION', 'READY'}.contains(o.status) &&
+                      o.items.any((it) => it.price == 0)) ...[
+                    Text(
+                      'Без цены: ${o.items.where((it) => it.price == 0).length} поз. — поставьте цену в «Индивидуальных ценах» '
+                      'клиента или в карточке товара, потом нажмите кнопку',
+                      style: TextStyle(color: context.pal.danger, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _actionInProgress ? null : () => _runAction(() => _api.fillOrderPrices(o.id)),
+                        icon: const Icon(Icons.price_change_outlined),
+                        label: const Text('Подтянуть цены из прайса'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   if (o.status == 'NEW' && canShip) ...[
                     SizedBox(
                       width: double.infinity,

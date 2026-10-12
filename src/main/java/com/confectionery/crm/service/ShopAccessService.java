@@ -2,7 +2,9 @@ package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Client;
 import com.confectionery.crm.domain.Role;
+import com.confectionery.crm.domain.CallbackRequest;
 import com.confectionery.crm.domain.ShopAccessRequest;
+import com.confectionery.crm.repository.CallbackRequestRepository;
 import com.confectionery.crm.repository.ShopAccessRequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ public class ShopAccessService {
     private final ShopAccessRequestRepository repository;
     private final ClientService clientService;
     private final NotificationService notificationService;
+    private final CallbackRequestRepository callbackRepository;
 
     /** Последняя ожидающая или отклонённая заявка с этого номера (разрешённая уже стала клиентом). */
     public Optional<ShopAccessRequest> findOpen(String phone) {
@@ -64,8 +67,8 @@ public class ShopAccessService {
     private final Deque<LocalDateTime> recentCallbacks = new ArrayDeque<>();
 
     /**
-     * Форма «Перезвоните мне» на рекламной странице (static/promo) — не заявка на доступ к
-     * сайту, а просьба позвонить: уведомление админу (журнал + push), отдельной таблицы нет.
+     * Форма «Перезвоните мне» на сайте — не заявка на доступ к сайту, а просьба позвонить:
+     * сохраняется в CallbackRequest (отрабатывают в приложении) + push админу и продажам.
      * Сверх лимита в час запросы молча отбрасываются (false) — защита от спама с открытой формы.
      */
     public synchronized boolean requestCallback(String phone, String name, String business) {
@@ -77,11 +80,38 @@ public class ShopAccessService {
             return false;
         }
         recentCallbacks.addLast(LocalDateTime.now());
-        String who = name == null || name.isBlank() ? "без имени" : name.trim();
-        String kind = business == null || business.isBlank() ? "" : " (" + business.trim() + ")";
-        notificationService.notifyRole(Role.ADMIN,
-                "Перезвонить с сайта: " + who + kind + ", " + phone.trim(), null);
+        CallbackRequest r = new CallbackRequest();
+        r.setPhone(phone.trim());
+        r.setName(name == null || name.isBlank() ? null : name.trim());
+        r.setBusiness(business == null || business.isBlank() ? null : business.trim());
+        callbackRepository.save(r);
+        String who = r.getName() == null ? "без имени" : r.getName();
+        String kind = r.getBusiness() == null ? "" : " (" + r.getBusiness() + ")";
+        String text = "Перезвонить с сайта: " + who + kind + ", " + r.getPhone() + ". Отработать — «Отклики и заявки».";
+        notificationService.notifyRole(Role.ADMIN, text, null);
+        notificationService.notifyRole(Role.SALES, text, null);
         return true;
+    }
+
+    /** «Отклики и заявки» › «Заявки»: новые сверху. */
+    public List<CallbackRequest> callbacks() {
+        return callbackRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    @Transactional
+    public CallbackRequest updateCallback(Long id, String status, String note, String who) {
+        CallbackRequest r = callbackRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Заявка не найдена"));
+        if (status != null && !status.equals(r.getStatus())) {
+            if (!java.util.Set.of(CallbackRequest.NEW, CallbackRequest.CONTACTED, CallbackRequest.ORDERED,
+                    CallbackRequest.REJECTED).contains(status)) {
+                throw new IllegalStateException("Неизвестный статус: " + status);
+            }
+            r.setStatus(status);
+            r.setHandledAt(LocalDateTime.now());
+            r.setHandledBy(who);
+        }
+        if (note != null) r.setNote(note.isBlank() ? null : note.strip());
+        return r;
     }
 
     public List<ShopAccessRequest> pending() {

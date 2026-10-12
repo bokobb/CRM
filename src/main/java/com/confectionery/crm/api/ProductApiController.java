@@ -23,6 +23,7 @@ import java.util.List;
 public class ProductApiController {
 
     private final ProductService productService;
+    private final com.confectionery.crm.service.OrderPriceFillService orderPriceFillService;
     private final IngredientService ingredientService;
     private final ProductPhotoService productPhotoService;
     private final OneCDepartmentImportService oneCDepartmentImportService;
@@ -53,7 +54,9 @@ public class ProductApiController {
     @PutMapping("/{id}")
     public ProductDto update(@PathVariable Long id, @Valid @RequestBody ProductRequest req) {
         Product product = productService.findById(id);
-        return ProductDto.from(productService.save(toEntity(product, req)));
+        ProductDto saved = ProductDto.from(productService.save(toEntity(product, req)));
+        orderPriceFillService.afterPriceChange(null, id);   // нули в неотгруженных заказах с этим товаром
+        return saved;
     }
 
     /** Только ADMIN — товар архивируется вместо удаления, если уже есть история (см. ProductService.delete). */

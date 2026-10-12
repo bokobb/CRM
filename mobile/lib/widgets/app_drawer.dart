@@ -22,7 +22,8 @@ const _reports = ('/reports', 'Отчёты', Icons.summarize_outlined);
 const _purchases = ('/purchases', 'Покупки', Icons.local_shipping_outlined);
 const _debts = ('/debts', 'Долги', Icons.hourglass_bottom_outlined);
 const _returns = ('/returns', 'Возвраты', Icons.assignment_return_outlined);
-const _whatsappInbox = ('/whatsapp-inbox', 'WhatsApp-заказы', Icons.chat_bubble_outline);
+// «WhatsApp-заказы» убраны из меню по просьбе владельца (12.10) — экран и маршрут /whatsapp-inbox остались.
+const _leads = ('/leads', 'Отклики и заявки', Icons.contact_phone_outlined);
 const _notifications = (
   '/notifications',
   'Уведомления',
@@ -61,11 +62,11 @@ class AppDrawer extends StatelessWidget {
           _employees,
           _vacancies,
           _debts,
-          _whatsappInbox,
+          _leads,
           _notifications,
         ];
       case 'SALES':
-        return [_dashboard, _orders, _returns, _clients, _products, _recipes, _whatsappInbox, _notifications];
+        return [_dashboard, _orders, _returns, _clients, _products, _recipes, _leads, _notifications];
       case 'WAREHOUSE_FG':
         return [_dashboard, _orders, _returns, _productionRequests, _warehouse, _ingredientWarehouse, _reports, _notifications];
       case 'WAREHOUSE_RAW':

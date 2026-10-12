@@ -5,6 +5,7 @@ import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/error_view.dart';
 import '../widgets/format.dart';
+import '../widgets/hidden_search.dart';
 import '../theme/app_theme.dart';
 
 class ClientPricesScreen extends StatefulWidget {
@@ -18,12 +19,19 @@ class ClientPricesScreen extends StatefulWidget {
 
 class _ClientPricesScreenState extends State<ClientPricesScreen> {
   final _api = ApiClient();
+  final _search = HiddenSearch();
   late Future<(List<Product>, List<ClientPrice>)> _future;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
   }
 
   Future<(List<Product>, List<ClientPrice>)> _load() async {
@@ -83,8 +91,10 @@ class _ClientPricesScreenState extends State<ClientPricesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Индивидуальные цены')),
-      body: RefreshIndicator(
+      appBar: AppBar(title: const Text('Индивидуальные цены'), actions: [_search.button(setState), const SizedBox(width: 4)]),
+      body: Column(children: [
+        _search.field(setState),
+        Expanded(child: RefreshIndicator(
         onRefresh: () async {
           _refresh();
           await _future;
@@ -98,8 +108,18 @@ class _ClientPricesScreenState extends State<ClientPricesScreen> {
             if (snapshot.hasError) {
               return ErrorView(error: snapshot.error.toString(), onRetry: _refresh);
             }
-            final (products, prices) = snapshot.data!;
+            final (allProducts, prices) = snapshot.data!;
             final byProduct = {for (final p in prices) p.productId: p};
+            final products = allProducts.where((p) => _search.matches(p.name)).toList();
+            if (products.isEmpty) {
+              return ListView(children: [
+                Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text('Товар «${_search.query}» не найден', textAlign: TextAlign.center,
+                      style: TextStyle(color: context.pal.muted)),
+                ),
+              ]);
+            }
             return ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: products.length,
@@ -108,7 +128,7 @@ class _ClientPricesScreenState extends State<ClientPricesScreen> {
                 final product = products[i];
                 final override = byProduct[product.id];
                 return ListTile(
-                  title: Text(product.name),
+                  title: Text.rich(TextSpan(children: highlightSpans(product.name, _search.query))),
                   subtitle: Text('Базовая цена: ${formatMoney(product.price)}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -130,7 +150,8 @@ class _ClientPricesScreenState extends State<ClientPricesScreen> {
             );
           },
         ),
-      ),
+      )),
+      ]),
     );
   }
 }

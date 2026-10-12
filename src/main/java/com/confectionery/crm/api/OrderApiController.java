@@ -31,6 +31,7 @@ import java.util.List;
 public class OrderApiController {
 
     private final OrderService orderService;
+    private final com.confectionery.crm.service.OrderPriceFillService orderPriceFillService;
     private final InvoicePdfService invoicePdfService;
 
     /** from/to не заданы — все даты (как раньше); мобильное приложение по умолчанию передаёт сегодняшний день. */
@@ -123,6 +124,14 @@ public class OrderApiController {
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public void delete(@PathVariable Long id) {
         orderService.delete(id);
+    }
+
+    /** «Подтянуть цены»: позиции с ценой 0 — по текущему прайсу клиента (OrderPriceFillService). */
+    @PostMapping("/{id}/fill-prices")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN','ACCOUNTANT')")
+    public OrderDto fillPrices(@PathVariable Long id) {
+        orderPriceFillService.fill(id);
+        return OrderDto.from(orderService.findById(id));
     }
 
     @PutMapping("/{id}/items")
