@@ -242,10 +242,10 @@ a.c-v:hover{text-decoration:underline}
   .contact-list li:nth-child(odd){padding-left:0;border-left:0}
   .foot-in{grid-template-columns:repeat(3,minmax(0,1fr))}
   .foot-brand{grid-column:1/-1}
+  .nav{display:none}                  /* пять разделов уже не помещаются рядом с логотипом и кнопкой */
+  .burger{display:inline-flex}
 }
 @media (max-width:900px){
-  .nav{display:none}
-  .burger{display:inline-flex}
   /* на телефоне карточки — полоса между заголовком и текстом */
   .hero-in{grid-template-columns:minmax(0,1fr);gap:20px;justify-items:start}
   .hero-copy{display:contents}
@@ -377,7 +377,8 @@ a.c-v:hover{text-decoration:underline}
       <a href="#catalog">Каталог</a>
       <a href="#how">Как заказать</a>
       <a href="#about">О кондитерской</a>
-      <a href="#contacts">Контакты</a>
+      <a href="/vacancies">Вакансии</a>
+      <a href="/contacts">Контакты</a>
     </nav>
     <div class="top-actions">
       <a class="btn btn-primary btn-sm" href="/shop">Заказать онлайн</a>
@@ -390,7 +391,8 @@ a.c-v:hover{text-decoration:underline}
     <a href="#catalog">Каталог</a>
     <a href="#how">Как заказать</a>
     <a href="#about">О кондитерской</a>
-    <a href="#contacts">Контакты</a>
+    <a href="/vacancies">Вакансии</a>
+    <a href="/contacts">Контакты</a>
   </nav>
 </header>
 
@@ -646,7 +648,8 @@ a.c-v:hover{text-decoration:underline}
       <a href="#catalog">Каталог</a>
       <a href="#how">Как заказать</a>
       <a href="#about">О кондитерской</a>
-      <a href="#contacts">Контакты</a>
+      <a href="/vacancies">Вакансии</a>
+      <a href="/contacts">Контакты</a>
     </nav>
     <div class="foot-col">
       <p class="foot-h">Связаться</p>
