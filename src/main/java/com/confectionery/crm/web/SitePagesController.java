@@ -38,8 +38,8 @@ public class SitePagesController {
     private final VacancyService vacancyService;
     private final VacancyReplyService vacancyReplyService;
 
-    /** «Как добраться»: точка ворот (lat/lon, 6 знаков) или null — тогда карты нет, кнопки ищут адрес. */
-    public record Route(String lat, String lon, String gisUrl, String yandexUrl) {
+    /** «Как добраться»: точка ворот (lat/lon, 6 знаков) или null — тогда карты нет, кнопки ищут адрес. Карта — виджет Яндекса. */
+    public record Route(String lat, String lon, String gisUrl, String yandexUrl, String yandexWidgetUrl) {
         public boolean hasPoint() {
             return lat != null;
         }
@@ -121,7 +121,9 @@ public class SitePagesController {
                     String lat = String.format(java.util.Locale.ROOT, "%.6f", Double.parseDouble(p[0]));
                     String lon = String.format(java.util.Locale.ROOT, "%.6f", Double.parseDouble(p[1]));
                     return new Route(lat, lon, "https://2gis.kz/shymkent/directions/points/%7C" + lon + "%2C" + lat,
-                            "https://yandex.kz/maps/?rtext=~" + lat + "%2C" + lon + "&rtt=auto");
+                            "https://yandex.kz/maps/?rtext=~" + lat + "%2C" + lon + "&rtt=auto",
+                            "https://yandex.kz/map-widget/v1/?ll=" + lon + "%2C" + lat + "&z=17&pt=" + lon + "%2C" + lat
+                                    + "%2Cpm2rdm&lang=ru_RU");
                 }
             } catch (NumberFormatException ignored) {
                 // ниже — как без точки
@@ -129,7 +131,7 @@ public class SitePagesController {
         }
         String q = URLEncoder.encode(ROUTE_ADDRESS, StandardCharsets.UTF_8).replace("+", "%20");
         String qCity = URLEncoder.encode("Шымкент, " + ROUTE_ADDRESS, StandardCharsets.UTF_8).replace("+", "%20");
-        return new Route(null, null, "https://2gis.kz/shymkent/search/" + q, "https://yandex.kz/maps/?text=" + qCity);
+        return new Route(null, null, "https://2gis.kz/shymkent/search/" + q, "https://yandex.kz/maps/?text=" + qCity, null);
     }
 
     private static VacancyView view(Vacancy v) {

@@ -15,13 +15,11 @@
     <th:block th:replace="~{site/frame :: contact-list}"></th:block>
     <!--/* Точки ворот нет (Профиль компании › «Точка ворот на карте») — без карты, кнопки ищут адрес. */-->
     <div class="map-box" id="map" th:classappend="${page.route.hasPoint() ? '' : 'no-map'}">
-      <div class="map" th:if="${page.route.hasPoint()}" th:attr="data-lat=${page.route.lat},data-lon=${page.route.lon}">
-        <div class="map-gl" role="region" aria-label="Карта: производство «Юг Сладости», Шымкент, ж/м Исфиджаб, улица Жусипбека Елебекова, 128"></div>
-        <div class="map-pin" aria-hidden="true">
-          <span class="map-tag"><img src="/promo/img/logo.svg" alt="" width="384" height="223"><span>производство</span></span>
-          <span class="map-dot"></span>
-        </div>
-        <p class="map-fail">Карта не загрузилась. Маршрут откроется в 2ГИС или Яндекс Картах.</p>
+      <!--/* Карта Яндекса (виджет-iframe, бесплатно, без ключа): в OSM у ворот нет домов, у Яндекса есть дома и сама точка «Юг Сладости».
+           loading=lazy — грузится, когда до неё докрутили. */-->
+      <div class="map" th:if="${page.route.hasPoint()}">
+        <iframe class="map-ya" th:src="${page.route.yandexWidgetUrl}" loading="lazy" allowfullscreen
+                title="Карта: производство «Юг Сладости» на Яндекс Картах"></iframe>
       </div>
       <div class="map-go">
         <p class="map-go-h">Как добраться</p>
@@ -85,75 +83,6 @@
       })
       .finally(function () { btn.disabled = false; });
   });
-})();
-/* Карта на странице «Контакты». Загружается, когда до неё докрутили; метка — у ворот производства. */
-(function () {
-  var box = document.querySelector('.map');
-  if (!box) return;
-  var LON = Number(box.getAttribute('data-lon')), LAT = Number(box.getAttribute('data-lat'));   // ворота — CompanyProfile.mapPoint
-  var PAINT = { land: '#F7F1E3', water: '#CFE3E6', park: '#E1E8C3', building: '#EBDCBD', buildingLine: '#DBC59D',
-                street: '#FFFFFF', casing: '#E5D3B0', main: '#FFE39C', mainCasing: '#E8B848', label: '#76625A', halo: '#FFFFFF' };
-  function brand(map) {                 // цвета сайта поверх стиля positron
-    map.getStyle().layers.forEach(function (l) {
-      var src = l['source-layer'] || '', id = l.id;
-      try {
-        if (l.type === 'background') map.setPaintProperty(id, 'background-color', PAINT.land);
-        else if (l.type === 'fill' && src === 'water') map.setPaintProperty(id, 'fill-color', PAINT.water);
-        else if (l.type === 'fill' && (src === 'park' || src === 'landcover')) map.setPaintProperty(id, 'fill-color', PAINT.park);
-        else if (l.type === 'fill' && src === 'landuse') map.setPaintProperty(id, 'fill-color', PAINT.land);
-        else if (l.type === 'fill' && src === 'building') {
-          map.setPaintProperty(id, 'fill-color', PAINT.building);
-          map.setPaintProperty(id, 'fill-outline-color', PAINT.buildingLine);
-        } else if (l.type === 'line' && src === 'transportation') {
-          var main = /motorway|trunk|primary|secondary|major/.test(id), edge = /casing|outline/.test(id);
-          map.setPaintProperty(id, 'line-color', edge ? (main ? PAINT.mainCasing : PAINT.casing) : (main ? PAINT.main : PAINT.street));
-        } else if (l.type === 'symbol') {
-          if (l.layout && l.layout['icon-image']) { map.setLayoutProperty(id, 'visibility', 'none'); return; }   // значки заведений не нужны
-          map.setLayoutProperty(id, 'text-field', ['coalesce', ['get', 'name:ru'], ['get', 'name']]);
-          map.setPaintProperty(id, 'text-color', PAINT.label);
-          map.setPaintProperty(id, 'text-halo-color', PAINT.halo);
-        }
-      } catch (e) { /* у слоя нет такого свойства — оставляем как есть */ }
-    });
-  }
-  function fail() { box.classList.add('map-off'); }
-  function start() {
-    var css = document.createElement('link');
-    css.rel = 'stylesheet'; css.href = '/promo/vendor/maplibre-gl.css';
-    document.head.appendChild(css);
-    var js = document.createElement('script');
-    js.src = '/promo/vendor/maplibre-gl.js';
-    js.onerror = fail;
-    js.onload = function () {
-      var wide = window.matchMedia('(min-width: 901px)').matches, map, loaded = false;
-      try {
-        map = new maplibregl.Map({
-          container: box.querySelector('.map-gl'),
-          style: 'https://tiles.openfreemap.org/styles/positron',
-          center: [LON, LAT], zoom: 16, minZoom: 11, maxZoom: 18,
-          cooperativeGestures: true,
-          attributionControl: { compact: true },
-          locale: {
-            'CooperativeGesturesHandler.WindowsHelpText': 'Чтобы изменить масштаб, крутите колесо с нажатой Ctrl',
-            'CooperativeGesturesHandler.MacHelpText': 'Чтобы изменить масштаб, крутите колесо с нажатой ⌘',
-            'CooperativeGesturesHandler.MobileHelpText': 'Двигайте карту двумя пальцами'
-          }
-        });
-      } catch (e) { fail(); return; }                 // нет WebGL — запасной вид
-      map.setPadding(wide ? { left: 380, top: 90 } : { top: 90 });   // на компьютере метка правее карточки «Как добраться»
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-      map.on('style.load', function () { brand(map); });
-      map.on('load', function () { loaded = true; });
-      new maplibregl.Marker({ element: box.querySelector('.map-pin'), anchor: 'center' }).setLngLat([LON, LAT]).addTo(map);
-      setTimeout(function () { if (!loaded) { map.remove(); fail(); } }, 15000);   // тайлы не пришли
-    };
-    document.head.appendChild(js);
-  }
-  if (!('IntersectionObserver' in window)) { start(); return; }
-  var io = new IntersectionObserver(function (entries) {
-    if (entries.some(function (e) { return e.isIntersecting; })) { io.disconnect(); start(); }
-  }, { rootMargin: '600px 0px' });
-  io.observe(box);
 })();
 </script>
 </body>
