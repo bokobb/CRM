@@ -28,6 +28,7 @@ public class CompanyProfileApiController {
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
     public CompanyProfileDto update(@RequestBody CompanyProfileDto req) {
         return CompanyProfileDto.from(companyProfileService.save(req.name(), req.address(), req.phone(), req.email(),
-                req.pickupHours(), req.about(), req.legalInfo(), req.instagramUrl(), req.whatsappPhone(), req.tiktokUrl()));
+                req.pickupHours(), req.about(), req.legalInfo(), req.instagramUrl(), req.whatsappPhone(), req.tiktokUrl(),
+                req.workHours(), req.jobsPhone(), req.mapPoint()));
     }
 }

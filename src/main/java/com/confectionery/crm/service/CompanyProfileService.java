@@ -17,7 +17,8 @@ public class CompanyProfileService {
 
     public CompanyProfile save(String name, String address, String phone, String email,
                                String pickupHours, String about, String legalInfo,
-                               String instagramUrl, String whatsappPhone, String tiktokUrl) {
+                               String instagramUrl, String whatsappPhone, String tiktokUrl,
+                               String workHours, String jobsPhone, String mapPoint) {
         CompanyProfile profile = get();
         profile.setName(name);
         profile.setAddress(address);
@@ -30,6 +31,9 @@ public class CompanyProfileService {
         if (instagramUrl != null) profile.setInstagramUrl(instagramUrl);
         if (whatsappPhone != null) profile.setWhatsappPhone(whatsappPhone);
         if (tiktokUrl != null) profile.setTiktokUrl(tiktokUrl);
+        if (workHours != null) profile.setWorkHours(workHours);
+        if (jobsPhone != null) profile.setJobsPhone(jobsPhone);
+        if (mapPoint != null) profile.setMapPoint(mapPoint);
         return companyProfileRepository.save(profile);
     }
 }

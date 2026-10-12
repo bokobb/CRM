@@ -17,6 +17,7 @@ import '../models/order.dart';
 import '../models/product.dart';
 import '../models/product_return.dart';
 import '../models/employee.dart';
+import '../models/vacancy.dart';
 import '../models/report.dart';
 import '../models/production_cost.dart';
 import '../models/production_request.dart';
@@ -604,6 +605,51 @@ class ApiClient {
       updated: json['updated'] as int,
       matchedByName: json['matchedByName'] as int,
     );
+  }
+
+  /// Вакансии для сайта /vacancies (ADMIN/ACCOUNTANT, см. VacancyApiController).
+  Future<List<Vacancy>> getVacancies() async {
+    final res = await http.get(await _uri('/vacancies'), headers: await _authHeaders());
+    return [for (final v in _decode(res) as List) Vacancy.fromJson(v as Map<String, dynamic>)];
+  }
+
+  /// id == null — новая вакансия (встаёт последней).
+  Future<Vacancy> saveVacancy(int? id, Map<String, dynamic> body) async {
+    final res = id == null
+        ? await _http.post(await _uri('/vacancies'), headers: await _authHeaders(), body: jsonEncode(body))
+        : await _http.put(await _uri('/vacancies/$id'), headers: await _authHeaders(), body: jsonEncode(body));
+    return Vacancy.fromJson(_decode(res) as Map<String, dynamic>);
+  }
+
+  Future<void> setVacancyActive(int id, bool active) async {
+    final res = await _http.put(await _uri('/vacancies/$id/active'),
+        headers: await _authHeaders(), body: jsonEncode({'active': active}));
+    _decode(res);
+  }
+
+  /// Порядок на сайте — как в списке ids.
+  Future<void> reorderVacancies(List<int> ids) async {
+    final res = await _http.put(await _uri('/vacancies/order'),
+        headers: await _authHeaders(), body: jsonEncode({'ids': ids}));
+    _decode(res);
+  }
+
+  /// Удаляется только вакансия без откликов, иначе сервер просит скрыть.
+  Future<void> deleteVacancy(int id) async {
+    final res = await _http.delete(await _uri('/vacancies/$id'), headers: await _authHeaders());
+    _decode(res);
+  }
+
+  /// Отклики с сайта, новые сверху.
+  Future<List<VacancyReply>> getVacancyReplies() async {
+    final res = await http.get(await _uri('/vacancy-replies'), headers: await _authHeaders());
+    return [for (final r in _decode(res) as List) VacancyReply.fromJson(r as Map<String, dynamic>)];
+  }
+
+  Future<VacancyReply> updateVacancyReply(int id, {String? status, String? note}) async {
+    final res = await _http.put(await _uri('/vacancy-replies/$id'),
+        headers: await _authHeaders(), body: jsonEncode({'status': status, 'note': note}));
+    return VacancyReply.fromJson(_decode(res) as Map<String, dynamic>);
   }
 
   Future<Employee> saveEmployee(int? id, Map<String, dynamic> body) async {

@@ -16,6 +16,7 @@ const _ingredientWarehouse = ('/ingredients-warehouse', 'Склад сырья',
 const _production = ('/production', 'Производство', Icons.factory_outlined);
 const _techCards = ('/tech-cards', 'Техкарта', Icons.assignment_outlined);
 const _employees = ('/employees', 'Сотрудники', Icons.badge_outlined);
+const _vacancies = ('/vacancies', 'Вакансии', Icons.work_outline);
 const _productionRequests = ('/production-requests', 'Заявки на сырьё', Icons.science_outlined);
 const _reports = ('/reports', 'Отчёты', Icons.summarize_outlined);
 const _purchases = ('/purchases', 'Покупки', Icons.local_shipping_outlined);
@@ -58,6 +59,7 @@ class AppDrawer extends StatelessWidget {
           _production,
           _techCards,
           _employees,
+          _vacancies,
           _debts,
           _whatsappInbox,
           _notifications,

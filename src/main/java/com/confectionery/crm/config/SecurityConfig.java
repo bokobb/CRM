@@ -125,6 +125,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/promo/**").permitAll()
+                        .requestMatchers("/contacts", "/vacancies", "/vacancies/reply").permitAll()
                         .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/h2-console/**", "/firebase-messaging-sw.js").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form

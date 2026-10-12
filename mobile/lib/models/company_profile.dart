@@ -16,8 +16,14 @@ class CompanyProfile {
   final String? whatsappPhone;
   final String? tiktokUrl;
 
+  /// Для страниц сайта /contacts и /vacancies.
+  final String? workHours;
+  final String? jobsPhone;
+  final String? mapPoint;
+
   CompanyProfile({this.name, this.address, this.phone, this.email, this.warehouseName, this.warehouseManagerName,
-      this.pickupHours, this.about, this.legalInfo, this.instagramUrl, this.whatsappPhone, this.tiktokUrl});
+      this.pickupHours, this.about, this.legalInfo, this.instagramUrl, this.whatsappPhone, this.tiktokUrl,
+      this.workHours, this.jobsPhone, this.mapPoint});
 
   factory CompanyProfile.fromJson(Map<String, dynamic> json) => CompanyProfile(
         name: json['name'] as String?,
@@ -32,6 +38,9 @@ class CompanyProfile {
         instagramUrl: json['instagramUrl'] as String?,
         whatsappPhone: json['whatsappPhone'] as String?,
         tiktokUrl: json['tiktokUrl'] as String?,
+        workHours: json['workHours'] as String?,
+        jobsPhone: json['jobsPhone'] as String?,
+        mapPoint: json['mapPoint'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -45,5 +54,8 @@ class CompanyProfile {
         'instagramUrl': instagramUrl,
         'whatsappPhone': whatsappPhone,
         'tiktokUrl': tiktokUrl,
+        'workHours': workHours,
+        'jobsPhone': jobsPhone,
+        'mapPoint': mapPoint,
       };
 }

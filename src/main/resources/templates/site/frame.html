@@ -1,0 +1,154 @@
+<!--/* Общие куски страниц /contacts и /vacancies (SitePagesController). Главная (promo.html) их НЕ подключает:
+     её не трогаем, пока владелец не разрешит. Полоса контактов, форма «Перезвоните мне» и подвал скопированы с главной. */-->
+<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><body>
+
+<head th:fragment="head(title, description, ogImage, path)"><meta charset="utf-8"><title th:text="${title}">Юг Сладости</title><meta name="description" th:content="${description}"><link rel="icon" href="/promo/img/logo.svg"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="canonical" th:href="${page.baseUrl + path}">
+<meta property="og:type" content="website"><meta property="og:locale" content="ru_RU"><meta property="og:site_name" content="Юг Сладости">
+<meta property="og:title" th:content="${title}"><meta property="og:description" th:content="${description}">
+<meta property="og:url" th:content="${page.baseUrl + path}"><meta property="og:image" th:content="${page.baseUrl + ogImage}">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,500;1,600&family=Golos+Text:wght@400;500;600;700&family=Marck+Script&display=swap">
+<link rel="stylesheet" href="/promo/site.css">
+<link rel="stylesheet" href="/promo/pages.css">
+</head>
+
+<th:block th:fragment="header">
+<a class="skip" href="#content">Перейти к содержанию</a>
+<header class="top" id="top">
+  <div class="wrap top-in">
+    <a class="brand" href="/" aria-label="Юг Сладости — на главную"><img src="/promo/img/logo.svg" alt="Юг Сладости. Кондитерская" width="384" height="223"></a>
+    <nav class="nav" aria-label="Разделы">
+      <a href="/#catalog">Каталог</a>
+      <a href="/#how">Как заказать</a>
+      <a href="/#about">О кондитерской</a>
+      <a href="/vacancies" th:attr="aria-current=${page.current == 'vacancies' ? 'page' : null}">Вакансии</a>
+      <a href="/contacts" th:attr="aria-current=${page.current == 'contacts' ? 'page' : null}">Контакты</a>
+    </nav>
+    <div class="top-actions">
+      <a class="btn btn-primary btn-sm" href="/shop">Заказать онлайн</a>
+      <button class="burger" type="button" id="burger" aria-label="Открыть меню" aria-expanded="false" aria-controls="mnav">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+      </button>
+    </div>
+  </div>
+  <nav class="mnav" id="mnav" aria-label="Разделы" hidden>
+      <a href="/#catalog">Каталог</a>
+      <a href="/#how">Как заказать</a>
+      <a href="/#about">О кондитерской</a>
+      <a href="/vacancies" th:attr="aria-current=${page.current == 'vacancies' ? 'page' : null}">Вакансии</a>
+      <a href="/contacts" th:attr="aria-current=${page.current == 'contacts' ? 'page' : null}">Контакты</a>
+  </nav>
+</header>
+</th:block>
+
+<!--/* Полоса контактов — как на главной */-->
+<th:block th:fragment="contact-list">
+    <ul class="contact-list">
+      <li th:if="${page.company.phone}">
+        <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"></path></svg></span>
+        <span class="c-t"><span class="c-l">Телефон / сотрудничество</span><a class="c-v" th:each="tel : ${#strings.arraySplit(page.company.phone, ',;')}" th:href="${'tel:+' + tel.replaceAll('[^0-9]', '')}" th:text="${#strings.trim(tel)}">+7</a></span>
+      </li>
+      <th:block th:with="ig=${!#strings.isEmpty(page.company.instagramUrl)}, tt=${!#strings.isEmpty(page.company.tiktokUrl)},
+          igH=${'@' + #strings.replace(#strings.substringBefore(#strings.substringAfter(page.company.instagramUrl + '?', 'instagram.com/'), '?'), '/', '')},
+          ttH=${'@' + #strings.replace(#strings.replace(#strings.substringBefore(#strings.substringAfter(page.company.tiktokUrl + '?', 'tiktok.com/'), '?'), '/', ''), '@', '')},
+          one=${ig and tt and igH == ttH}"><li th:if="${ig or tt}">
+        <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.3" cy="6.7" r=".6" fill="currentColor"></circle></svg></span>
+        <span class="c-t"><span class="c-l" th:text="${ig and tt ? 'Instagram / TikTok' : (ig ? 'Instagram' : 'TikTok')}">Instagram / TikTok</span><th:block th:if="${one}"><span class="c-v" th:text="${igH}">@yug_sladosti</span><span class="c-links"><a th:href="${page.company.instagramUrl}" target="_blank" rel="noopener">Instagram</a><a th:href="${page.company.tiktokUrl}" target="_blank" rel="noopener">TikTok</a></span></th:block><th:block th:unless="${one}"><a class="c-v" th:if="${ig}" th:href="${page.company.instagramUrl}" target="_blank" rel="noopener"><th:block th:if="${tt}">Instagram </th:block><th:block th:text="${igH}">@yug_sladosti</th:block></a><a class="c-v" th:if="${tt}" th:href="${page.company.tiktokUrl}" target="_blank" rel="noopener"><th:block th:if="${ig}">TikTok </th:block><th:block th:text="${ttH}">@yug_sladosti</th:block></a></th:block></span>
+      </li></th:block>
+      <li th:if="${page.company.email}">
+        <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="m4 7 8 6 8-6"></path></svg></span>
+        <span class="c-t"><span class="c-l">Почта</span><a class="c-v" th:if="${#strings.contains(page.company.email, '@')}" th:href="${'mailto:' + page.company.email}" th:text="${page.company.email}">почта</a><span class="c-v" th:unless="${#strings.contains(page.company.email, '@')}" th:text="${page.company.email}">почта</span></span>
+      </li>
+      <li th:if="${page.company.pickupHours}">
+        <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
+        <span class="c-t"><span class="c-l">Выдача заказов</span><span class="c-v" th:text="${page.company.pickupHours}">часы</span></span>
+      </li>
+      <li th:if="${page.company.address}">
+        <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg></span>
+        <span class="c-t"><span class="c-l">Адрес производства</span><span class="c-v" th:text="${#strings.contains(page.company.address, ' (') ? #strings.substringBefore(page.company.address, ' (') : page.company.address}">адрес</span><span class="c-sub" th:if="${#strings.contains(page.company.address, ' (')}" th:text="${'(' + #strings.substringAfter(page.company.address, ' (')}">уточнение</span></span>
+      </li>
+    </ul>
+</th:block>
+
+<!--/* Форма «Перезвоните мне» — как на главной */-->
+<th:block th:fragment="lead-form">
+    <form class="form" id="lead" novalidate>
+      <h3>Перезвоните мне</h3>
+      <div class="field">
+        <label for="lead-name">Как к вам обращаться</label>
+        <input id="lead-name" name="name" type="text" autocomplete="name" placeholder="Имя">
+      </div>
+      <div class="field">
+        <label for="lead-phone">Телефон или WhatsApp</label>
+        <input id="lead-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+7" required>
+      </div>
+      <div class="field">
+        <label for="lead-type">Ваш бизнес</label>
+        <select id="lead-type" name="type">
+          <option>Магазин или минимаркет</option>
+          <option>Кафе или кофейня</option>
+          <option>Столовая или буфет</option>
+          <option>Оптовая компания</option>
+          <option>Другое</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Жду звонка</button>
+      <p class="form-status" id="lead-status" role="status" hidden></p>
+      <p class="form-note">Нажимая кнопку, вы соглашаетесь на обработку персональных данных.</p>
+    </form>
+</th:block>
+
+<footer class="foot" th:fragment="footer">
+  <span class="wheat" aria-hidden="true"></span>
+  <div class="wrap foot-in">
+    <div class="foot-brand">
+      <img src="/promo/img/logo.svg" alt="Юг Сладости. Кондитерская" width="384" height="223" loading="lazy">
+      <p>Кондитерская с собственным производством. Выпечка к чаю оптом.</p>
+      <div class="foot-cta">
+        <a class="btn btn-yolk btn-sm" href="/shop">Заказать онлайн <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
+        <a class="foot-pdf" href="/promo/katalog.pdf" download="Юг Сладости — каталог.pdf"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"></path></svg>Скачать каталог <small>PDF, 25 МБ</small></a>
+      </div>
+    </div>
+    <nav class="foot-col" aria-label="Разделы в подвале">
+      <p class="foot-h">Разделы</p>
+      <a href="/#catalog">Каталог</a>
+      <a href="/#how">Как заказать</a>
+      <a href="/#about">О кондитерской</a>
+      <a href="/vacancies" th:attr="aria-current=${page.current == 'vacancies' ? 'page' : null}">Вакансии</a>
+      <a href="/contacts" th:attr="aria-current=${page.current == 'contacts' ? 'page' : null}">Контакты</a>
+    </nav>
+    <div class="foot-col">
+      <p class="foot-h">Связаться</p>
+      <a class="foot-link" th:if="${page.company.phone}" th:each="tel : ${#strings.arraySplit(page.company.phone, ',;')}" th:href="${'tel:+' + tel.replaceAll('[^0-9]', '')}" th:text="${#strings.trim(tel)}">+7</a>
+      <a class="foot-link" th:if="${page.company.instagramUrl}" th:href="${page.company.instagramUrl}" target="_blank" rel="noopener">Instagram <small th:text="${'@' + #strings.replace(#strings.substringBefore(#strings.substringAfter(page.company.instagramUrl + '?', 'instagram.com/'), '?'), '/', '')}">@yug_sladosti</small></a>
+      <a class="foot-link" th:if="${page.company.tiktokUrl}" th:href="${page.company.tiktokUrl}" target="_blank" rel="noopener">TikTok <small th:text="${'@' + #strings.replace(#strings.replace(#strings.substringBefore(#strings.substringAfter(page.company.tiktokUrl + '?', 'tiktok.com/'), '?'), '/', ''), '@', '')}">@yug_sladosti</small></a>
+    </div>
+    <div class="foot-col foot-where" th:if="${page.company.address}">
+      <p class="foot-h">Адрес производства</p>
+      <p class="foot-addr"><th:block th:text="${#strings.contains(page.company.address, ' (') ? #strings.substringBefore(page.company.address, ' (') : page.company.address}">адрес</th:block><small th:if="${#strings.contains(page.company.address, ' (')}" th:text="${'(' + #strings.substringAfter(page.company.address, ' (')}">уточнение</small></p>
+    </div>
+  </div>
+  <div class="wrap"><div class="foot-end">
+    <span>© <th:block th:text="${page.year + ' ' + (page.company.name ?: 'Юг Сладости')}">2026 Юг Сладости</th:block><span class="foot-dev">Сайт разработан — <a href="https://www.instagram.com/bilalov_bakhodir" target="_blank" rel="noopener">@bilalov_bakhodir</a></span><span class="foot-dev" th:if="${page.company.legalInfo}" th:text="${page.company.legalInfo}">реквизиты</span></span>
+    <a href="/login">Вход для сотрудников</a>
+  </div></div>
+</footer>
+
+<script th:fragment="menu-script">
+/* Меню на узких экранах — как на главной. */
+(function () {
+  var burger = document.getElementById('burger');
+  var mnav = document.getElementById('mnav');
+  function setMenu(open) {
+    mnav.hidden = !open;
+    burger.setAttribute('aria-expanded', String(open));
+    burger.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+  }
+  burger.addEventListener('click', function () { setMenu(mnav.hidden); });
+  mnav.addEventListener('click', function (e) { if (e.target.closest('a')) setMenu(false); });
+})();
+</script>
+
+</body></html>

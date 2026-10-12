@@ -1,0 +1,148 @@
+<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{site/frame :: head('Вакансии — «Юг Сладости», Шымкент', 'Работа на кондитерском производстве «Юг Сладости» в Шымкенте: открытые вакансии, график и зарплата. Откликнуться можно прямо на сайте.', '/promo/img/og-vakansii.png', '/vacancies')}"></head>
+<body>
+<th:block th:replace="~{site/frame :: header}"></th:block>
+
+<main id="content">
+<section class="page-head">
+  <span class="wheat" aria-hidden="true"></span>
+  <div class="wrap page-head-in">
+    <nav class="crumbs" aria-label="Вы здесь"><a href="/">Главная</a><span aria-current="page">Вакансии</span></nav>
+    <div class="jobs-top">
+      <header class="sec-head">
+        <p class="eyebrow">Вакансии</p>
+        <h1>Ищем людей в команду</h1>
+        <p class="sec-note">Работа на нашем производстве в&nbsp;Шымкенте, ж/м&nbsp;Исфиджаб (<a href="/contacts#map">как&nbsp;добраться</a>). Откликнитесь на вакансию, и мы перезвоним.</p>
+      </header>
+      <div class="jobs-call" th:if="${page.jobsPhone}">
+        <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"></path></svg></span>
+        <span class="c-t"><span class="c-l">Звонки по вакансиям</span><a class="c-v" th:href="${'tel:+' + page.jobsPhone.replaceAll('[^0-9]', '')}" th:text="${page.jobsPhone}">+7 778 700 39 02</a></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section jobs jobs-page" aria-label="Открытые вакансии">
+  <div class="wrap">
+    <ul class="job-list" th:unless="${page.vacancies.isEmpty()}">
+      <li class="job" th:each="v : ${page.vacancies}">
+        <div class="job-head">
+          <h2 class="job-t" th:id="${'job-' + v.id}" th:text="${v.title}">Пекарь</h2>
+          <p class="job-note" th:if="${v.summary}" th:text="${v.summary}">строка под названием</p>
+        </div>
+        <dl class="spec"><div class="sp-time"><dt>график</dt><dd th:text="${v.schedule}">5/2</dd></div><div class="sp-exp"><dt>опыт</dt><dd th:text="${v.experience}">от 1 года</dd></div><div class="sp-pay"><dt>зарплата</dt><dd th:text="${v.salary}">по договорённости</dd></div></dl>
+        <button class="btn btn-primary btn-sm" type="button" th:attr="data-apply=${v.id},aria-describedby=${'job-' + v.id}">Откликнуться</button>
+        <details class="job-more" th:if="${v.hasMore()}">
+          <summary>Подробнее о вакансии <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></summary>
+          <div class="job-cols">
+            <div th:unless="${v.duties.isEmpty()}"><h3>Что делать</h3><ul><li th:each="p : ${v.duties}" th:text="${p}">пункт</li></ul></div>
+            <div th:unless="${v.requirements.isEmpty()}"><h3>Кого ищем</h3><ul><li th:each="p : ${v.requirements}" th:text="${p}">пункт</li></ul></div>
+            <div th:unless="${v.conditions.isEmpty()}"><h3>Что предлагаем</h3><ul><li th:each="p : ${v.conditions}" th:text="${p}">пункт</li></ul></div>
+          </div>
+        </details>
+      </li>
+    </ul>
+    <p class="jobs-empty" th:if="${page.vacancies.isEmpty()}">Сейчас открытых вакансий нет.</p>
+    <div class="strip jobs-strip">
+      <p>Не нашли свою вакансию? Оставьте номер, и мы позвоним, когда появится место.</p>
+      <button class="btn btn-line" type="button" data-apply="">Оставить номер</button>
+    </div>
+  </div>
+</section>
+
+<dialog class="apply" id="apply" aria-labelledby="apply-title">
+  <form class="form" id="apply-form" novalidate>
+    <button class="apply-x" type="button" id="apply-x" aria-label="Закрыть"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+    <p class="eyebrow" id="apply-kind">Отклик на вакансию</p>
+    <h2 class="apply-t" id="apply-title"></h2>
+    <div class="field">
+      <label for="apply-name">Как к вам обращаться</label>
+      <input id="apply-name" name="name" type="text" autocomplete="name" maxlength="80" placeholder="Имя">
+    </div>
+    <div class="field">
+      <label for="apply-phone">Телефон или WhatsApp</label>
+      <input id="apply-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+7" required>
+    </div>
+    <div class="field">
+      <label for="apply-job">Вакансия</label>
+      <select id="apply-job" name="vacancyId">
+        <option th:each="v : ${page.vacancies}" th:value="${v.id}" th:text="${v.title}">Пекарь</option>
+        <option value="">Любая, в резерв</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="apply-about">Коротко о себе <span>(необязательно)</span></label>
+      <textarea id="apply-about" name="about" rows="3" maxlength="1000" placeholder="Где работали, когда можете выйти"></textarea>
+    </div>
+    <p class="hp" aria-hidden="true"><label>Сайт <input name="website" tabindex="-1" autocomplete="off"></label></p>
+    <button class="btn btn-primary" type="submit">Отправить отклик</button>
+    <p class="form-status" id="apply-status" role="status" hidden></p>
+    <p class="form-note">Нажимая кнопку, вы соглашаетесь на обработку персональных данных.</p>
+  </form>
+</dialog>
+</main>
+
+<footer th:replace="~{site/frame :: footer}"></footer>
+
+<script th:replace="~{site/frame :: menu-script}"></script>
+<script th:attr="data-phone=${page.jobsPhone}" id="apply-js">
+/* «Откликнуться» открывает окно отклика с этой вакансией, «Оставить номер» — для кадрового резерва. */
+(function () {
+  var dlg = document.getElementById('apply');
+  if (!dlg) return;
+  var form = document.getElementById('apply-form');
+  var sel = document.getElementById('apply-job');
+  var title = document.getElementById('apply-title');
+  var kind = document.getElementById('apply-kind');
+  var status = document.getElementById('apply-status');
+  var phone = document.getElementById('apply-phone');
+  var send = form.querySelector('[type=submit]');
+  var callUs = document.getElementById('apply-js').getAttribute('data-phone');
+  var opener = null;
+  function sync() {
+    kind.textContent = sel.value ? 'Отклик на вакансию' : 'Кадровый резерв';
+    title.textContent = sel.value ? sel.options[sel.selectedIndex].text : 'Позвоним, когда появится место';
+  }
+  function close() { if (dlg.close) dlg.close(); else { dlg.removeAttribute('open'); if (opener) opener.focus(); } }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-apply]');
+    if (!b) return;
+    opener = b;
+    sel.value = b.getAttribute('data-apply');
+    sync();
+    status.hidden = true;
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    document.getElementById('apply-name').focus();
+  });
+  sel.addEventListener('change', sync);
+  document.getElementById('apply-x').addEventListener('click', close);
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) close(); });   // нажатие на затемнение вокруг окна
+  dlg.addEventListener('close', function () { if (opener) opener.focus(); });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    status.hidden = false;
+    if (phone.value.replace(/\D/g, '').length < 10) {
+      status.textContent = 'Укажите номер телефона полностью, чтобы мы могли перезвонить.';
+      phone.focus();
+      return;
+    }
+    send.disabled = true;
+    status.textContent = 'Отправляем…';
+    // как форма «Перезвоните мне»: обычные поля формы, ответ 400 — текст ошибки для человека
+    fetch('/vacancies/reply', {method: 'POST', body: new URLSearchParams(new FormData(form))})
+      .then(function (r) {
+        if (r.status === 400) return r.text().then(function (t) { throw {user: t}; });
+        if (!r.ok) throw {};
+        status.textContent = 'Спасибо! Отклик получили, перезвоним в рабочее время.';
+        ['apply-name', 'apply-phone', 'apply-about'].forEach(function (id) { document.getElementById(id).value = ''; });
+      })
+      .catch(function (err) {
+        status.textContent = err && err.user ? err.user
+          : 'Не получилось отправить.' + (callUs ? ' Позвоните нам: ' + callUs + '.' : ' Попробуйте ещё раз.');
+      })
+      .finally(function () { send.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

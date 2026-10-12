@@ -25,6 +25,9 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   final _instagram = TextEditingController();
   final _whatsapp = TextEditingController();
   final _tiktok = TextEditingController();
+  final _workHours = TextEditingController();
+  final _jobsPhone = TextEditingController();
+  final _mapPoint = TextEditingController();
   bool _initialLoading = true;
   bool _loading = false;
   bool _saved = false;
@@ -44,6 +47,9 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
       _instagram.text = p.instagramUrl ?? '';
       _whatsapp.text = p.whatsappPhone ?? '';
       _tiktok.text = p.tiktokUrl ?? '';
+      _workHours.text = p.workHours ?? '';
+      _jobsPhone.text = p.jobsPhone ?? '';
+      _mapPoint.text = p.mapPoint ?? '';
       setState(() => _initialLoading = false);
     });
   }
@@ -66,6 +72,9 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         instagramUrl: _instagram.text.trim(),
         whatsappPhone: _whatsapp.text.trim(),
         tiktokUrl: _tiktok.text.trim(),
+        workHours: _workHours.text.trim(),
+        jobsPhone: _jobsPhone.text.trim(),
+        mapPoint: _mapPoint.text.trim(),
       ));
       setState(() {
         _loading = false;
@@ -139,6 +148,25 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                     controller: _whatsapp,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(labelText: 'WhatsApp', hintText: '+7 775 005 02 30')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _workHours,
+                    decoration: const InputDecoration(
+                        labelText: 'Время работы (страница «Контакты»)',
+                        hintText: 'Пн–Сб с 07:00 до 18:00, обед с 12:00 до 13:00')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _jobsPhone,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                        labelText: 'Телефон по вакансиям', hintText: '+7 778 700 39 02')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _mapPoint,
+                    decoration: const InputDecoration(
+                        labelText: 'Ворота на карте: широта, долгота',
+                        hintText: '42.300000, 69.600000',
+                        helperText: 'Пусто — на «Контактах» без карты, кнопки маршрута ищут адрес')),
                 const SizedBox(height: 20),
                 FilledButton(
                   onPressed: _loading ? null : _save,

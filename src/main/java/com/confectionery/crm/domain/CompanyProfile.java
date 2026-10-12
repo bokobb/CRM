@@ -43,6 +43,15 @@ public class CompanyProfile {
     /** Ссылка на TikTok, на сайте выводится в одном пункте с Instagram. */
     private String tiktokUrl;
 
+    /** Время работы для страницы /contacts: «Пн–Сб с 07:00 до 18:00, обед с 12:00 до 13:00». */
+    private String workHours;
+
+    /** Номер для звонков по вакансиям (страница /vacancies). */
+    private String jobsPhone;
+
+    /** Ворота производства на карте /contacts: «широта, долгота». Пусто — карты нет, кнопки ищут адрес. */
+    private String mapPoint;
+
     /** Номер WhatsApp для кнопки на рекламной странице (ссылка wa.me собирается из цифр). */
     private String whatsappPhone;
 }
