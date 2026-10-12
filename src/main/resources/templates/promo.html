@@ -192,6 +192,10 @@ button.shot:hover .frame{transform:translateY(-3px)}
 .c-l{display:block;font-size:13.5px;line-height:1.3}
 .c-v{display:block;width:fit-content;font-weight:600;line-height:1.35;overflow-wrap:anywhere;text-decoration:none}
 a.c-v:hover{text-decoration:underline}
+/* одно имя в Instagram и TikTok: имя одной строкой, под ним обе сети ссылками */
+.c-links{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:2px}
+.c-links a{font-size:14.5px;font-weight:600;line-height:1.35;color:var(--crimson-deep);text-decoration:underline;text-underline-offset:3px}
+.c-links a:hover{text-decoration-thickness:2px}
 .c-sub{display:block;font-size:14px;line-height:1.35;color:rgba(42,23,18,.78)}
 .form{display:grid;gap:16px;padding:clamp(20px,3vw,34px);border-radius:28px;background:var(--white);box-shadow:0 26px 40px -30px rgba(80,40,0,.5)}
 .form h3{font-weight:700;font-size:24px;line-height:1.15}
@@ -602,9 +606,12 @@ a.c-v:hover{text-decoration:underline}
         <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"></path></svg></span>
         <span class="c-t"><span class="c-l">Телефон / сотрудничество</span><a class="c-v" th:each="tel : ${#strings.arraySplit(page.company.phone, ',;')}" th:href="${'tel:+' + tel.replaceAll('[^0-9]', '')}" th:text="${#strings.trim(tel)}">+7</a></span>
       </li>
-      <th:block th:with="ig=${!#strings.isEmpty(page.company.instagramUrl)}, tt=${!#strings.isEmpty(page.company.tiktokUrl)}"><li th:if="${ig or tt}">
+      <th:block th:with="ig=${!#strings.isEmpty(page.company.instagramUrl)}, tt=${!#strings.isEmpty(page.company.tiktokUrl)},
+          igH=${'@' + #strings.replace(#strings.substringBefore(#strings.substringAfter(page.company.instagramUrl + '?', 'instagram.com/'), '?'), '/', '')},
+          ttH=${'@' + #strings.replace(#strings.replace(#strings.substringBefore(#strings.substringAfter(page.company.tiktokUrl + '?', 'tiktok.com/'), '?'), '/', ''), '@', '')},
+          one=${ig and tt and igH == ttH}"><li th:if="${ig or tt}">
         <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.3" cy="6.7" r=".6" fill="currentColor"></circle></svg></span>
-        <span class="c-t"><span class="c-l" th:text="${ig and tt ? 'Instagram / TikTok' : (ig ? 'Instagram' : 'TikTok')}">Instagram / TikTok</span><a class="c-v" th:if="${ig}" th:href="${page.company.instagramUrl}" target="_blank" rel="noopener"><th:block th:if="${tt}">Instagram </th:block><th:block th:text="${'@' + #strings.replace(#strings.substringBefore(#strings.substringAfter(page.company.instagramUrl + '?', 'instagram.com/'), '?'), '/', '')}">@yug_sladosti</th:block></a><a class="c-v" th:if="${tt}" th:href="${page.company.tiktokUrl}" target="_blank" rel="noopener"><th:block th:if="${ig}">TikTok </th:block><th:block th:text="${'@' + #strings.replace(#strings.replace(#strings.substringBefore(#strings.substringAfter(page.company.tiktokUrl + '?', 'tiktok.com/'), '?'), '/', ''), '@', '')}">@yug_sladosti</th:block></a></span>
+        <span class="c-t"><span class="c-l" th:text="${ig and tt ? 'Instagram / TikTok' : (ig ? 'Instagram' : 'TikTok')}">Instagram / TikTok</span><th:block th:if="${one}"><span class="c-v" th:text="${igH}">@yug_sladosti</span><span class="c-links"><a th:href="${page.company.instagramUrl}" target="_blank" rel="noopener">Instagram</a><a th:href="${page.company.tiktokUrl}" target="_blank" rel="noopener">TikTok</a></span></th:block><th:block th:unless="${one}"><a class="c-v" th:if="${ig}" th:href="${page.company.instagramUrl}" target="_blank" rel="noopener"><th:block th:if="${tt}">Instagram </th:block><th:block th:text="${igH}">@yug_sladosti</th:block></a><a class="c-v" th:if="${tt}" th:href="${page.company.tiktokUrl}" target="_blank" rel="noopener"><th:block th:if="${ig}">TikTok </th:block><th:block th:text="${ttH}">@yug_sladosti</th:block></a></th:block></span>
       </li></th:block>
       <li th:if="${page.company.email}">
         <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="m4 7 8 6 8-6"></path></svg></span>
