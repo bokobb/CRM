@@ -12,9 +12,11 @@ class CompanyProfile {
   final String? pickupHours;
   final String? about;
   final String? legalInfo;
+  final String? instagramUrl;
+  final String? whatsappPhone;
 
   CompanyProfile({this.name, this.address, this.phone, this.email, this.warehouseName, this.warehouseManagerName,
-      this.pickupHours, this.about, this.legalInfo});
+      this.pickupHours, this.about, this.legalInfo, this.instagramUrl, this.whatsappPhone});
 
   factory CompanyProfile.fromJson(Map<String, dynamic> json) => CompanyProfile(
         name: json['name'] as String?,
@@ -26,6 +28,8 @@ class CompanyProfile {
         pickupHours: json['pickupHours'] as String?,
         about: json['about'] as String?,
         legalInfo: json['legalInfo'] as String?,
+        instagramUrl: json['instagramUrl'] as String?,
+        whatsappPhone: json['whatsappPhone'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -36,5 +40,7 @@ class CompanyProfile {
         'pickupHours': pickupHours,
         'about': about,
         'legalInfo': legalInfo,
+        'instagramUrl': instagramUrl,
+        'whatsappPhone': whatsappPhone,
       };
 }

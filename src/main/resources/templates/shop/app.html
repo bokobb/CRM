@@ -186,7 +186,7 @@
                 <h2 id="h-help">Вопрос по заказу?</h2>
                 <p class="side-note">Напишите или позвоните и назовите номер заказа — подскажем по составу, оплате и времени выдачи.</p>
                 <a class="btn btn-primary" th:href="'https://wa.me/' + ${waPhone}" target="_blank" rel="noopener">Написать в WhatsApp</a>
-                <a class="btn btn-line" th:href="'tel:+' + ${waPhone}" th:text="${company.phone}">телефон</a>
+                <a class="btn btn-line" th:href="'tel:+' + ${telPhone}" th:text="${firstPhone}">телефон</a>
             </aside>
         </div>
     </main>

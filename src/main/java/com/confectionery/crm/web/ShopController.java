@@ -110,7 +110,13 @@ public class ShopController {
     public void companyInfo(Model model) {
         CompanyProfile company = companyProfileService.get();
         model.addAttribute("company", company);
-        model.addAttribute("waPhone", company.getPhone() == null ? "" : company.getPhone().replaceAll("\\D", ""));
+        // В «Телефоне» может быть несколько номеров через запятую — звоним на первый.
+        String firstPhone = company.getPhone() == null ? "" : company.getPhone().split("[,;]")[0].trim();
+        String wa = company.getWhatsappPhone() == null || company.getWhatsappPhone().isBlank()
+                ? firstPhone : company.getWhatsappPhone();
+        model.addAttribute("firstPhone", firstPhone);
+        model.addAttribute("telPhone", firstPhone.replaceAll("\\D", ""));
+        model.addAttribute("waPhone", wa.replaceAll("\\D", ""));
     }
 
     @GetMapping

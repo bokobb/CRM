@@ -36,4 +36,10 @@ public class CompanyProfile {
 
     /** Юр. лицо и БИН/ИИН для подвала рекламной страницы, например «ТОО «…» · БИН …». */
     private String legalInfo;
+
+    /** Ссылка на Instagram для рекламной страницы, например https://www.instagram.com/yug_sladosti. */
+    private String instagramUrl;
+
+    /** Номер WhatsApp для кнопки на рекламной странице (ссылка wa.me собирается из цифр). */
+    private String whatsappPhone;
 }

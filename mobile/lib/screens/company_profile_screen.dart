@@ -22,6 +22,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   final _pickupHours = TextEditingController();
   final _about = TextEditingController();
   final _legalInfo = TextEditingController();
+  final _instagram = TextEditingController();
+  final _whatsapp = TextEditingController();
   bool _initialLoading = true;
   bool _loading = false;
   bool _saved = false;
@@ -38,6 +40,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
       _pickupHours.text = p.pickupHours ?? '';
       _about.text = p.about ?? '';
       _legalInfo.text = p.legalInfo ?? '';
+      _instagram.text = p.instagramUrl ?? '';
+      _whatsapp.text = p.whatsappPhone ?? '';
       setState(() => _initialLoading = false);
     });
   }
@@ -57,6 +61,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         pickupHours: _pickupHours.text.trim(),
         about: _about.text.trim(),
         legalInfo: _legalInfo.text.trim(),
+        instagramUrl: _instagram.text.trim(),
+        whatsappPhone: _whatsapp.text.trim(),
       ));
       setState(() {
         _loading = false;
@@ -113,6 +119,17 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                 TextField(
                     controller: _legalInfo,
                     decoration: const InputDecoration(labelText: 'Юр. лицо и БИН', hintText: 'ТОО «…» · БИН …')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _instagram,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                        labelText: 'Instagram', hintText: 'https://www.instagram.com/yug_sladosti')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _whatsapp,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(labelText: 'WhatsApp', hintText: '+7 775 005 02 30')),
                 const SizedBox(height: 20),
                 FilledButton(
                   onPressed: _loading ? null : _save,

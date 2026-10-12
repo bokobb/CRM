@@ -374,7 +374,7 @@
         </nav>
         <div class="top-side">
             <a class="back" href="/" th:unless="${signedIn}">← На сайт</a>
-            <span class="help" th:if="${!signedIn and company.phone != null}"><span>Помощь: </span><b th:text="${company.phone}">телефон</b></span>
+            <span class="help" th:if="${!signedIn and company.phone != null}"><span>Помощь: </span><b th:text="${firstPhone}">телефон</b></span>
             <span class="user" th:if="${signedIn}"><b th:text="${clientName}">Клиент</b>
                 <form action="/shop/reset" method="post" style="display:inline"><button class="link" type="submit">Выйти</button></form>
             </span>
@@ -385,7 +385,7 @@
 <footer th:fragment="foot" class="foot">
     <div class="wrap foot-in">
         <span>© <th:block th:text="${#temporals.year(#temporals.createNow())} + ' ' + (${company.name} ?: 'Юг Сладости')">2026 Юг Сладости</th:block><th:block th:if="${company.address}" th:text="' · ' + ${company.address}"></th:block></span>
-        <span th:if="${company.phone}" th:text="'Телефон и WhatsApp: ' + ${company.phone}">телефон</span>
+        <span th:if="${company.phone}" th:text="'Телефон: ' + ${company.phone}">телефон</span>
     </div>
 </footer>
 

@@ -16,7 +16,8 @@ public class CompanyProfileService {
     }
 
     public CompanyProfile save(String name, String address, String phone, String email,
-                               String pickupHours, String about, String legalInfo) {
+                               String pickupHours, String about, String legalInfo,
+                               String instagramUrl, String whatsappPhone) {
         CompanyProfile profile = get();
         profile.setName(name);
         profile.setAddress(address);
@@ -25,6 +26,9 @@ public class CompanyProfileService {
         profile.setPickupHours(pickupHours);
         profile.setAbout(about);
         profile.setLegalInfo(legalInfo);
+        // Старые версии приложения этих полей не знают и шлют null — тогда не затираем.
+        if (instagramUrl != null) profile.setInstagramUrl(instagramUrl);
+        if (whatsappPhone != null) profile.setWhatsappPhone(whatsappPhone);
         return companyProfileRepository.save(profile);
     }
 }
