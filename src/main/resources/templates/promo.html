@@ -609,7 +609,7 @@ button.shot:hover .frame{transform:translateY(-3px)}
     </nav>
     <div class="foot-info">
       <a href="/shop">Онлайн-заказ →</a>
-      <a href="/promo/katalog.pdf" download="Юг Сладости — каталог.pdf">Скачать каталог (PDF, 8,6 МБ)</a>
+      <a href="/promo/katalog.pdf" download="Юг Сладости — каталог.pdf">Скачать каталог (PDF, 25 МБ)</a>
       <span th:if="${page.company.phone}">Телефон / сотрудничество:</span>
       <a th:if="${page.company.phone}" th:each="tel : ${#strings.arraySplit(page.company.phone, ',;')}" th:href="${'tel:+' + tel.replaceAll('[^0-9]', '')}" th:text="${#strings.trim(tel)}">телефон</a>
       <a th:if="${page.company.instagramUrl}" th:href="${page.company.instagramUrl}" target="_blank" rel="noopener">Instagram</a>
