@@ -43,9 +43,9 @@ public class PromoPageService {
      */
     private static final Map<String, String> GROUP_CUTOUTS = Map.of(
             "коржики", "/promo/img/c-korzhiki.webp",
-            "пряники и печенье", "/promo/img/c-pryaniki.webp",
-            "кексы", "/promo/img/c-keks-izyum.webp",
-            "булочки", "/promo/img/c-bulochki-sgushchenka.webp",
+            "пряники и печенье", "/promo/img/c-gr-pryaniki.webp",
+            "кексы", "/promo/img/c-gr-keksy.webp",
+            "булочки", "/promo/img/c-gr-bulochki.webp",
             "чак-чак", "/promo/img/c-chak-chak-v-chashke.webp",
             "орешки и рогалики", "/promo/img/c-kedrovye-oreshki.webp",
             "печенье в коробках", "/promo/img/c-pechenye-pesochnoe.webp",
