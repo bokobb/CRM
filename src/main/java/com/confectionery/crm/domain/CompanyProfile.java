@@ -40,6 +40,9 @@ public class CompanyProfile {
     /** Ссылка на Instagram для рекламной страницы, например https://www.instagram.com/yug_sladosti. */
     private String instagramUrl;
 
+    /** Ссылка на TikTok, на сайте выводится в одном пункте с Instagram. */
+    private String tiktokUrl;
+
     /** Номер WhatsApp для кнопки на рекламной странице (ссылка wa.me собирается из цифр). */
     private String whatsappPhone;
 }

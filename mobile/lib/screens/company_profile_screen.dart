@@ -24,6 +24,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   final _legalInfo = TextEditingController();
   final _instagram = TextEditingController();
   final _whatsapp = TextEditingController();
+  final _tiktok = TextEditingController();
   bool _initialLoading = true;
   bool _loading = false;
   bool _saved = false;
@@ -42,6 +43,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
       _legalInfo.text = p.legalInfo ?? '';
       _instagram.text = p.instagramUrl ?? '';
       _whatsapp.text = p.whatsappPhone ?? '';
+      _tiktok.text = p.tiktokUrl ?? '';
       setState(() => _initialLoading = false);
     });
   }
@@ -63,6 +65,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         legalInfo: _legalInfo.text.trim(),
         instagramUrl: _instagram.text.trim(),
         whatsappPhone: _whatsapp.text.trim(),
+        tiktokUrl: _tiktok.text.trim(),
       ));
       setState(() {
         _loading = false;
@@ -125,6 +128,12 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                     keyboardType: TextInputType.url,
                     decoration: const InputDecoration(
                         labelText: 'Instagram', hintText: 'https://www.instagram.com/yug_sladosti')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _tiktok,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                        labelText: 'TikTok', hintText: 'https://www.tiktok.com/@yug_sladosti')),
                 const SizedBox(height: 12),
                 TextField(
                     controller: _whatsapp,
