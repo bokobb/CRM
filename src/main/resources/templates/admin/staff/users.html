@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/staff"><th:block th:utext="${i['back']}"></th:block>Сотрудники</a>
+<div class="tools"><span class="grow"></span><a class="btn btn-primary btn-sm" href="/admin/staff/users/new"><th:block th:utext="${i['plus']}"></th:block>Новый вход</a></div>
+<section class="card"><div class="tbl-w"><table class="tbl tbl--cards">
+    <thead><tr><th>Сотрудник</th><th>Логин</th><th>Роль</th><th>Доступ</th></tr></thead>
+    <tbody><tr th:each="u : ${rows}" class="rowlink" th:attr="data-href=${'/admin/staff/users/' + u.id}">
+        <td class="c-full"><a th:href="${'/admin/staff/users/' + u.id}" style="text-decoration:none"><b th:text="${u.fullName}"></b></a></td>
+        <td th:text="${u.username}"></td><td th:text="${u.role.label}"></td>
+        <td><span th:if="${u.enabled}" class="tag tag--ok">входит</span><span th:unless="${u.enabled}" class="tag tag--bad">отключён</span></td></tr></tbody>
+</table></div></section>
+<p class="cnt">Один логин и пароль — и для админки, и для приложения на телефоне. Разделы меню зависят от роли.</p>
+</th:block>
+</body>
+</html>

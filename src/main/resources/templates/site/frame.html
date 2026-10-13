@@ -23,6 +23,7 @@
       <a href="/#catalog">Каталог</a>
       <a href="/#how">Как заказать</a>
       <a href="/#about">О кондитерской</a>
+      <a href="/shop/orders">Заказы</a>
       <a href="/vacancies" th:attr="aria-current=${page.current == 'vacancies' ? 'page' : null}">Вакансии</a>
       <a href="/contacts" th:attr="aria-current=${page.current == 'contacts' ? 'page' : null}">Контакты</a>
     </nav>
@@ -37,8 +38,10 @@
       <a href="/#catalog">Каталог</a>
       <a href="/#how">Как заказать</a>
       <a href="/#about">О кондитерской</a>
+      <a href="/shop/orders">Заказы</a>
       <a href="/vacancies" th:attr="aria-current=${page.current == 'vacancies' ? 'page' : null}">Вакансии</a>
       <a href="/contacts" th:attr="aria-current=${page.current == 'contacts' ? 'page' : null}">Контакты</a>
+      <div class="mnav-cta"><a class="btn btn-primary" href="/shop">Заказать онлайн</a></div>
   </nav>
 </header>
 </th:block>
@@ -113,6 +116,7 @@
       <a href="/#catalog">Каталог</a>
       <a href="/#how">Как заказать</a>
       <a href="/#about">О кондитерской</a>
+      <a href="/shop/orders">Заказы</a>
       <a href="/vacancies" th:attr="aria-current=${page.current == 'vacancies' ? 'page' : null}">Вакансии</a>
       <a href="/contacts" th:attr="aria-current=${page.current == 'contacts' ? 'page' : null}">Контакты</a>
     </nav>
@@ -129,7 +133,7 @@
   </div>
   <div class="wrap"><div class="foot-end">
     <span>© <th:block th:text="${page.year + ' ' + (page.company.name ?: 'Юг Сладости')}">2026 Юг Сладости</th:block><span class="foot-dev">Сайт разработан — <a href="https://www.instagram.com/bilalov_bakhodir" target="_blank" rel="noopener">@bilalov_bakhodir</a></span><span class="foot-dev" th:if="${page.company.legalInfo}" th:text="${page.company.legalInfo}">реквизиты</span></span>
-    <a href="/login">Вход для сотрудников</a>
+    <a href="/admin/login">Вход для сотрудников</a>
   </div></div>
 </footer>
 

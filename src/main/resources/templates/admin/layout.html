@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!--/* Общая часть админки: шрифты, стили, меню, верхняя строка, всплывающая строка, окно-диалог.
+     Страница: <html th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}"> и свои
+     фрагменты content (внутри <main class="view">) и scripts (в конце body, может быть пустым).
+     Из модели: title — крупно в верхней строке, sub — пояснение мелко, sec — подсвеченный пункт меню,
+     viewClass — доп. класс <main>, toast/toastUndo — всплывающая строка после POST. */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:fragment="layout(content, scripts)">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="_csrf" th:content="${_csrf != null} ? ${_csrf.token} : ''">
+    <meta name="_csrf_header" th:content="${_csrf != null} ? ${_csrf.headerName} : ''">
+    <meta name="_csrf_param" th:content="${_csrf != null} ? ${_csrf.parameterName} : ''">
+    <title th:text="${(title != null ? title + ' — ' : '') + 'Админка Юг Сладости'}">Админка Юг Сладости</title>
+    <link rel="icon" href="/admin/assets/logo.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,600&family=Golos+Text:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="/admin/assets/admin.css?v=2">
+    <link rel="stylesheet" href="/admin/assets/admin-more.css?v=1">
+</head>
+<body>
+<div class="app" id="app">
+    <aside class="side" id="side" aria-label="Меню админки">
+        <div class="side-brand">
+            <a href="/admin/dashboard" aria-label="Дашборд"><img src="/admin/assets/logo.svg" alt="Юг Сладости" width="383" height="223"></a>
+            <button class="ibtn side-x" type="button" id="side-x" aria-label="Закрыть меню" th:utext="${i['x']}"></button>
+        </div>
+        <nav class="nav" aria-label="Разделы">
+            <th:block th:each="g : ${menu}">
+                <hr class="nav-sep" th:if="${g.separator}">
+                <p class="nav-g" th:if="${!g.separator and !#strings.isEmpty(g.title)}" th:text="${g.title}">Продажи</p>
+                <a th:each="s : ${g.items}" class="nav-a" th:href="${s.href()}" th:attr="data-sec=${s.key},aria-current=${s.key == sec} ? 'page' : null"><th:block th:utext="${i[s.key]}"></th:block><span th:text="${s.title}">Раздел</span><b th:if="${s.key == 'orders'}" class="nav-n" id="nav-n-orders" title="Новые заказы с сайта" th:text="${navNew}" th:attr="hidden=${navNew == 0} ? 'hidden' : null">0</b></a>
+            </th:block>
+        </nav>
+        <div class="side-foot">
+            <p><a href="/">Сайт для покупателей</a> · <a href="/app/">Приложение</a></p>
+        </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+
+    <div class="main">
+        <header class="bar" id="bar">
+            <button class="ibtn burger" type="button" id="burger" aria-label="Открыть меню" aria-expanded="false" aria-controls="side" th:utext="${i['menu']}"></button>
+            <div class="bar-t"><h1 id="title" tabindex="-1" th:text="${title}">Дашборд</h1><p id="subtitle" th:text="${sub}"></p></div>
+            <form class="search" id="gsearch" role="search" action="/admin/orders" method="get">
+                <th:block th:utext="${i['search']}"></th:block>
+                <input class="inp" id="gq" name="q" type="search" placeholder="№ заказа, магазин, телефон" aria-label="Найти заказ" autocomplete="off">
+            </form>
+            <button class="ibtn s-btn" type="button" id="s-btn" aria-label="Поиск заказа" aria-expanded="false" th:utext="${i['search']}"></button>
+            <a class="btn btn-primary btn-sm bar-new" href="/admin/orders/new" aria-label="Новый заказ"><th:block th:utext="${i['plus']}"></th:block><span>Новый заказ</span></a>
+            <div class="me">
+                <button class="me-b" type="button" id="me-b" aria-expanded="false" aria-controls="me-pop"><span class="ava" aria-hidden="true" th:text="${me.initial}">А</span><span class="me-n"><b th:text="${me.name}">Администратор</b><span th:text="${me.roleLabel}">директор</span></span><span class="sr">Меню пользователя</span></button>
+                <div class="me-pop" id="me-pop" hidden>
+                    <p><b th:text="${me.name}">Администратор</b><th:block th:text="${'Роль: ' + me.roleLabel + (me.isAdmin() ? ', видит все разделы' : '')}">Роль</th:block></p>
+                    <a href="/admin/settings" th:if="${me.isAdmin()}"><th:block th:utext="${i['settings']}"></th:block>Настройки</a>
+                    <a href="/admin/me/password"><th:block th:utext="${i['eye']}"></th:block>Сменить пароль</a>
+                    <form action="/admin/logout" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <button type="submit" id="logout"><th:block th:utext="${i['logout']}"></th:block>Выйти</button>
+                    </form>
+                </div>
+            </div>
+        </header>
+        <main class="view" id="view" tabindex="-1" th:classappend="${viewClass}">
+            <th:block th:replace="${content}"></th:block>
+        </main>
+    </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" th:attr="data-text=${toast},data-error=${toastError}"><span id="toast-t"></span><form id="toast-undo" method="post" th:action="${toastUndo}" th:if="${toastUndo != null}"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button type="submit" id="toast-b">Вернуть</button></form></div>
+<dialog class="dlg" id="dlg" aria-labelledby="dlg-h"></dialog>
+<script type="application/json" id="admin-icons" th:utext="${iconsJson}"></script>
+<script src="/admin/assets/admin.js?v=1"></script>
+<th:block th:replace="${scripts}"></th:block>
+</body>
+</html>

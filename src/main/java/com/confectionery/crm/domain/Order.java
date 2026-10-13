@@ -58,6 +58,46 @@ public class Order {
     private Boolean fromWhatsapp;
 
     /**
+     * Кто завёл заказ: клиент сам (сайт, WhatsApp) или сотрудник в CRM — история заказов на /shop
+     * по нему решает, с какого этапа начинать дорожку («Новая» есть только у заказов клиента).
+     * null — старый заказ, по которому не видно, кто его создал.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private OrderSource source;
+
+    /** Когда заказ принят (PLACED -> NEW); у заказа сотрудника — время создания. */
+    private LocalDateTime acceptedAt;
+
+    /** Когда склад ГП отметил заказ собранным (NEW -> READY). */
+    private LocalDateTime readyAt;
+
+    /**
+     * Окно выдачи: час начала (8 = 08:00–09:00) в день dueDate. Пока окна — заглушка: часы и
+     * вместимость из настроек (crm.pickup.*, см. PickupSlotService). null — время не выбрано
+     * (заказы из приложения, 1С, старые).
+     */
+    private Integer pickupHour;
+
+    /** Способ оплаты; null — не выбран (старые заказы, сайт без выбора оплаты). */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private PaymentMethod paymentMethod;
+
+    /** Оплату отметил сотрудник (директор, бухгалтер) — см. OrderService.markPaid. */
+    private LocalDateTime paidAt;
+    private String paidByName;
+
+    /** Журнал действий по заказу (кто, когда) — удаляется вместе с заказом. */
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("at ASC, id ASC")
+    private List<OrderEvent> events = new ArrayList<>();
+
+    public boolean isPaid() {
+        return paidAt != null || Boolean.TRUE.equals(debtPaid) || status == OrderStatus.COMPLETED;
+    }
+
+    /**
      * Номер и GUID документа "Реализация товаров и услуг", созданного НЕпроведённым в 1С при
      * оформлении заказа (см. OneCOrderSyncService) — бухгалтер потом проверяет и проводит его
      * вручную в 1С. oneCSyncError заполняется вместо номера, если выгрузка не удалась

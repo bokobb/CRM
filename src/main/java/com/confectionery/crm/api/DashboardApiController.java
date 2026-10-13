@@ -69,7 +69,8 @@ public class DashboardApiController {
         }
         return new DashboardDto(
                 rangeFrom, rangeTo,
-                orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.NEW, start, end),
+                // «Новая» (ещё не принят) считается вместе со сборкой — оба ждут склад ГП.
+                orderRepository.countByStatusInAndCreatedAtBetween(List.of(OrderStatus.PLACED, OrderStatus.CONFIRMED, OrderStatus.NEW), start, end),
                 orderRepository.countByStatusAndCreatedAtBetween(OrderStatus.READY, start, end),
                 grossSales.subtract(returns),
                 grossSales,
@@ -125,13 +126,13 @@ public class DashboardApiController {
                 .toList();
         return new WarehouseDashboardDto(
                 rangeFrom, rangeTo,
-                orderRepository.countByStatus(OrderStatus.NEW),
+                orderRepository.countByStatusIn(List.of(OrderStatus.PLACED, OrderStatus.CONFIRMED, OrderStatus.NEW)),
                 orderRepository.countByStatus(OrderStatus.READY),
                 orderRepository.countByStatusInAndShippedAtBetween(
                         List.of(OrderStatus.DELIVERED, OrderStatus.COMPLETED), start, end),
                 summary.counts().awaitingReceipt(),
                 lowStock,
-                orderRepository.findByStatusInOrderByCreatedAtAsc(List.of(OrderStatus.NEW, OrderStatus.READY))
+                orderRepository.findByStatusInOrderByCreatedAtAsc(List.of(OrderStatus.PLACED, OrderStatus.CONFIRMED, OrderStatus.NEW, OrderStatus.READY, OrderStatus.NO_SHOW))
                         .stream().map(OrderDto::summary).toList()
         );
     }

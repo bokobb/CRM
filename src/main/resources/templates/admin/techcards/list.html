@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/techcards" data-autosubmit>
+    <input type="hidden" name="group" th:value="${group}">
+    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block><input class="inp" name="q" type="search" placeholder="Найти изделие" autocomplete="off" th:value="${q}"></label>
+    <label class="switch"><input type="checkbox" name="draft" value="1" th:checked="${draft}"> Только черновики</label>
+</form>
+<div class="chips" role="group" aria-label="Группа"><a th:each="c : ${chips}" class="chip" th:href="${c.href}" th:attr="aria-pressed=${c.on}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a></div>
+<section class="card"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
+        <thead><tr><th>Изделие</th><th>Группа</th><th class="r">Штук с замеса</th><th class="r">Сырья</th><th class="r">Этапов</th><th class="r">ККТ</th><th>Состояние</th></tr></thead>
+        <tbody><tr th:each="t : ${rows}" class="rowlink" th:attr="data-href=${'/admin/techcards/' + t.productId}">
+            <td class="c-full"><div class="prod"><img th:if="${t.imageUrl != null and !#strings.isEmpty(t.imageUrl)}" class="th" th:src="${t.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${t.imageUrl != null and !#strings.isEmpty(t.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p class="rc-name"><a th:href="${'/admin/techcards/' + t.productId}" th:text="${t.name}"></a><span th:if="${t.semiFinished}" class="tag tag--pf">ПФ</span></p></div></td>
+            <td th:text="${t.group}"></td>
+            <td class="r num" th:text="${t.yieldQuantity != null ? @fmt.num(t.yieldQuantity) : '—'}"></td>
+            <td class="r num" th:text="${t.ingredientCount}"></td><td class="r num" th:text="${t.stageCount}"></td><td class="r num" th:text="${t.ccpCount}"></td>
+            <td><span th:if="${t.draft}" class="tag tag--warn">черновик</span><span th:unless="${t.draft}" class="tag tag--ok">готова</span></td>
+        </tr></tbody>
+    </table>
+</div></section>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/requests"><th:block th:utext="${i['back']}"></th:block>Все заявки</a>
+<div class="oh"><div class="oh-t"><h2>Новая заявка</h2></div>
+    <p class="oh-m">Что выпускаем и сколько замесов. Сырьё посчитается по рецептуре; изделия разных групп попадут в отдельные заявки.</p></div>
+<div class="errs errs-top" role="alert" th:if="${!errors.isEmpty()}"><span th:each="e : ${errors}" th:text="${e}"></span></div>
+<form method="post" action="/admin/requests" data-guard="Заявка не создана.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <div class="section-gap">
+    <section class="card form-card"><div class="fgrid"><label class="field"><span>Дата производства</span><input class="inp" type="date" name="date" th:value="${date}"></label></div></section>
+    <section class="card">
+        <div class="card-h"><h2>Изделия</h2><p>только с заполненной рецептурой</p></div>
+        <div class="tbl-w"><table class="tbl edit-rows" id="qt">
+            <thead><tr><th>Изделие</th><th class="r">Замесов</th><th class="acts-col"></th></tr></thead>
+            <tbody>
+            <tr th:each="l : ${lines}">
+                <td><select class="sel full" name="product"><option value="">— изделие —</option><option th:each="rc : ${recipes}" th:value="${rc.product.id}" th:text="${rc.product.name + ' · ' + @fmt.num(rc.yieldQuantity) + ' шт с замеса'}" th:selected="${rc.product.id == l.productId}"></option></select></td>
+                <td class="r"><input class="inp num-in" name="batches" inputmode="decimal" th:value="${l.batches}"></td>
+                <td><button class="rx-del" type="button" data-del-row aria-label="Удалить строку" th:utext="${i['trash']}"></button></td>
+            </tr>
+            </tbody>
+        </table></div>
+        <button class="add" type="button" data-add-row="qt"><th:block th:utext="${i['plus']}"></th:block><span>Добавить изделие</span></button>
+    </section>
+    <div class="form-acts"><a class="btn btn-soft" href="/admin/requests">Отмена</a><button class="btn btn-primary" type="submit">Создать заявку</button></div>
+    </div>
+</form>
+<template id="row-tpl"><tr>
+    <td><select class="sel full" name="product"><option value="">— изделие —</option><option th:each="rc : ${recipes}" th:value="${rc.product.id}" th:text="${rc.product.name + ' · ' + @fmt.num(rc.yieldQuantity) + ' шт с замеса'}"></option></select></td>
+    <td class="r"><input class="inp num-in" name="batches" inputmode="decimal" value="1"></td>
+    <td><button class="rx-del" type="button" data-del-row aria-label="Удалить строку" th:utext="${i['trash']}"></button></td>
+</tr></template>
+</th:block>
+<th:block th:fragment="scripts"><script src="/admin/assets/lines.js?v=1"></script></th:block>
+</body>
+</html>

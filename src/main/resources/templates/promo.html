@@ -63,12 +63,16 @@ p{margin:0}
 .brand{display:block;flex:none}
 .brand img{height:68px;width:auto}
 .nav{display:flex;gap:4px}
-.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;font-weight:500;font-size:16px;text-decoration:none}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;font-weight:500;font-size:16px;text-decoration:none;white-space:nowrap}
 .nav a:hover{background:rgba(255,255,255,.55)}
 .top-actions{display:flex;align-items:center;gap:12px}
 .burger{display:none;flex:none;width:48px;height:48px;padding:0;border-radius:50%;border:2px solid var(--ink);background:transparent;color:var(--ink);align-items:center;justify-content:center;cursor:pointer}
 .mnav{border-top:1px solid rgba(42,23,18,.12)}
 .mnav a{display:flex;align-items:center;min-height:54px;padding:0 var(--gutter);font-weight:600;text-decoration:none;border-bottom:1px solid rgba(42,23,18,.1)}
+.mnav .mnav-cta{padding:14px var(--gutter) 18px;border-bottom:0}
+.mnav .mnav-cta .btn{display:flex;width:100%;min-height:54px;padding:0 26px;border:2px solid transparent;border-bottom:2px solid transparent;font-weight:600}
+/* шесть разделов рядом с логотипом и кнопкой помещаются с 1200 px — уже бургер */
+@media (max-width:1200px){.nav{display:none}.burger{display:inline-flex}}
 
 /* hero */
 .hero{position:relative;background:var(--yolk);overflow:clip}
@@ -247,7 +251,7 @@ a.c-v:hover{text-decoration:underline}
   .contact-list li:nth-child(odd){padding-left:0;border-left:0}
   .foot-in{grid-template-columns:repeat(3,minmax(0,1fr))}
   .foot-brand{grid-column:1/-1}
-  .nav{display:none}                  /* пять разделов уже не помещаются рядом с логотипом и кнопкой */
+  .nav{display:none}                  /* шесть разделов уже не помещаются рядом с логотипом и кнопкой */
   .burger{display:inline-flex}
 }
 @media (max-width:900px){
@@ -382,6 +386,7 @@ a.c-v:hover{text-decoration:underline}
       <a href="#catalog">Каталог</a>
       <a href="#how">Как заказать</a>
       <a href="#about">О кондитерской</a>
+      <a href="/shop/orders">Заказы</a>
       <a href="/vacancies">Вакансии</a>
       <a href="/contacts">Контакты</a>
     </nav>
@@ -396,8 +401,10 @@ a.c-v:hover{text-decoration:underline}
     <a href="#catalog">Каталог</a>
     <a href="#how">Как заказать</a>
     <a href="#about">О кондитерской</a>
+    <a href="/shop/orders">Заказы</a>
     <a href="/vacancies">Вакансии</a>
     <a href="/contacts">Контакты</a>
+    <div class="mnav-cta"><a class="btn btn-primary" href="/shop">Заказать онлайн</a></div>
   </nav>
 </header>
 
@@ -650,6 +657,7 @@ a.c-v:hover{text-decoration:underline}
       <a href="#catalog">Каталог</a>
       <a href="#how">Как заказать</a>
       <a href="#about">О кондитерской</a>
+      <a href="/shop/orders">Заказы</a>
       <a href="/vacancies">Вакансии</a>
       <a href="/contacts">Контакты</a>
     </nav>
@@ -666,7 +674,7 @@ a.c-v:hover{text-decoration:underline}
   </div>
   <div class="wrap"><div class="foot-end">
     <span>© <th:block th:text="${page.year + ' ' + (page.company.name ?: 'Юг Сладости')}">2026 Юг Сладости</th:block><span class="foot-dev">Сайт разработан — <a href="https://www.instagram.com/bilalov_bakhodir" target="_blank" rel="noopener">@bilalov_bakhodir</a></span><span class="foot-dev" th:if="${page.company.legalInfo}" th:text="${page.company.legalInfo}">реквизиты</span></span>
-    <a href="/login">Вход для сотрудников</a>
+    <a href="/admin/login">Вход для сотрудников</a>
   </div></div>
 </footer>
 

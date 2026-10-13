@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/materials"><th:block th:utext="${i['back']}"></th:block>Склад сырья</a>
+<div class="oh"><div class="oh-t"><h2 th:text="${ing.id != null ? ing.name : 'Новое сырьё'}">Сырьё</h2></div></div>
+<div class="errs errs-top" role="alert" th:if="${!errors.isEmpty()}"><span th:each="e : ${errors}" th:text="${e}"></span></div>
+<form method="post" th:action="${ing.id != null ? '/admin/materials/' + ing.id : '/admin/materials'}" data-guard="Сырьё не сохранено." style="max-width:760px">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <section class="card form-card">
+        <div class="fgrid">
+            <label class="field wide"><span>Название</span><input class="inp" name="name" maxlength="200" required th:value="${ing.name}"></label>
+            <label class="field"><span>Единица</span><select class="sel full" name="unit"><option th:each="u : ${ {'кг','г','л','мл','шт','уп'} }" th:value="${u}" th:text="${u}" th:selected="${u == ing.unit}"></option></select></label>
+            <label class="field"><span>Минимальный остаток</span><input class="inp" name="minThreshold" inputmode="decimal" th:value="${ing.minThreshold != null and ing.minThreshold.signum() > 0 ? @fmt.num(ing.minThreshold) : ''}" placeholder="0 — не следить"></label>
+            <label class="switch wide" th:if="${ing.id != null}"><input type="checkbox" name="active" value="true" th:checked="${ing.active}"> На учёте (снятое не предлагается в рецептурах и документах)</label>
+            <input th:if="${ing.id == null}" type="hidden" name="active" value="true">
+        </div>
+        <p class="hint" th:if="${ing.id != null}" th:text="${'Остаток: ' + @fmt.num(ing.quantityInStock) + ' ' + ing.unit + '. Меняется поступлением, списанием и расходом в производство.'}"></p>
+        <div class="form-acts"><a class="btn btn-soft" href="/admin/materials">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div>
+    </section>
+</form>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/jobs"><th:block th:utext="${i['back']}"></th:block>Вакансии</a>
+<div class="oh"><div class="oh-t"><h2 th:text="${v.id != null ? v.title : 'Новая вакансия'}">Вакансия</h2></div></div>
+<form method="post" th:action="${v.id != null ? '/admin/jobs/' + v.id : '/admin/jobs'}" data-guard="Вакансия не сохранена." style="max-width:900px">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <section class="card form-card"><div class="fgrid">
+        <label class="field wide"><span>Должность</span><input class="inp" name="title" required maxlength="200" th:value="${v.title}" placeholder="Пекарь-кондитер"></label>
+        <label class="field wide"><span>Коротко</span><input class="inp" name="summary" maxlength="300" th:value="${v.summary}"></label>
+        <label class="field"><span>График</span><input class="inp" name="schedule" th:value="${v.schedule}" placeholder="5/2, с 7:00"></label>
+        <label class="field"><span>Опыт</span><input class="inp" name="experience" th:value="${v.experience}" placeholder="без опыта — научим"></label>
+        <label class="field"><span>Зарплата</span><input class="inp" name="salary" th:value="${v.salary}" placeholder="от 200 000 ₸"></label>
+        <label class="field wide"><span>Обязанности — по строке на пункт</span><textarea class="ta" name="duties" th:text="${v.duties}"></textarea></label>
+        <label class="field wide"><span>Требования</span><textarea class="ta" name="requirements" th:text="${v.requirements}"></textarea></label>
+        <label class="field wide"><span>Условия</span><textarea class="ta" name="conditions" th:text="${v.conditions}"></textarea></label>
+        <label class="switch wide" th:if="${v.id != null}"><input type="checkbox" name="active" value="true" th:checked="${v.active}"> Показывать на сайте</label>
+    </div>
+    <div class="form-acts"><a class="btn btn-soft" href="/admin/jobs">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div></section>
+</form>
+</th:block>
+</body>
+</html>

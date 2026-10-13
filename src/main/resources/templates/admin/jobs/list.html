@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<div class="tools">
+    <div class="chips" style="margin:0"><a class="chip" href="/admin/jobs" th:attr="aria-pressed=${tab == 'vacancies'}">Вакансии <span th:text="${vacancies.size()}"></span></a>
+        <a class="chip" th:classappend="${newReplies > 0} ? 'chip--alert'" href="/admin/jobs?tab=replies" th:attr="aria-pressed=${tab == 'replies'}">Отклики <span th:text="${newReplies + ' нов.'}"></span></a></div>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" href="/vacancies" target="_blank">Страница на сайте</a>
+    <a class="btn btn-primary btn-sm" href="/admin/jobs/new"><th:block th:utext="${i['plus']}"></th:block>Вакансия</a>
+</div>
+<section class="card" th:if="${tab == 'vacancies'}"><div class="tbl-w">
+    <div th:if="${vacancies.isEmpty()}" class="empty">Вакансий пока нет.</div>
+    <table th:unless="${vacancies.isEmpty()}" class="tbl tbl--cards"><thead><tr><th>Вакансия</th><th>График</th><th>Зарплата</th><th>Сайт</th><th class="acts-col"></th></tr></thead>
+    <tbody><tr th:each="v, it : ${vacancies}">
+        <td class="c-full"><a th:href="${'/admin/jobs/' + v.id}" style="text-decoration:none"><b th:text="${v.title}"></b></a><small th:text="${v.summary}"></small></td>
+        <td th:text="${v.schedule}"></td><td th:text="${v.salary}"></td>
+        <td><span th:if="${v.active}" class="tag tag--ok">на сайте</span><span th:unless="${v.active}" class="tag">снята</span></td>
+        <td><div class="tbl-actions">
+            <form th:action="${'/admin/jobs/' + v.id + '/move'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <button th:unless="${it.first}" class="ibtn" type="submit" name="dir" value="up" aria-label="Выше">↑</button><button th:unless="${it.last}" class="ibtn" type="submit" name="dir" value="down" aria-label="Ниже">↓</button></form>
+            <form th:action="${'/admin/jobs/' + v.id + '/active'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="active" th:value="${!v.active}">
+                <button class="btn btn-soft btn-sm" type="submit" th:text="${v.active ? 'Снять' : 'На сайт'}"></button></form>
+            <form th:action="${'/admin/jobs/' + v.id + '/delete'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <button class="ibtn" type="submit" aria-label="Удалить" th:utext="${i['trash']}" data-confirm="Вакансия удалится с сайта и из списка." data-confirm-title="Удалить вакансию?" data-confirm-ok="Удалить"></button></form></div></td></tr></tbody></table>
+</div></section>
+<section class="card" th:if="${tab == 'replies'}"><div class="tbl-w">
+    <div th:if="${replies.isEmpty()}" class="empty">Откликов пока нет.</div>
+    <table th:unless="${replies.isEmpty()}" class="tbl tbl--cards"><thead><tr><th>Когда</th><th>Кто</th><th>Вакансия</th><th>Статус и заметка</th></tr></thead>
+    <tbody><tr th:each="r : ${replies}"><td th:text="${@fmt.when(r.createdAt)}"></td>
+        <td class="c-full"><b th:text="${r.name}"></b><small class="phone"><span th:text="${@fmt.phone(r.phone)}"></span></small><small th:text="${r.about}"></small></td>
+        <td th:text="${r.vacancyTitle}"></td>
+        <td class="c-full"><form th:action="${'/admin/jobs/replies/' + r.id}" method="post" class="tbl-actions" style="justify-content:flex-start"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <select class="sel" name="status"><option th:each="s : ${statuses}" th:value="${s.key}" th:text="${s.value}" th:selected="${s.key == r.status}"></option></select>
+            <input class="inp" name="note" th:value="${r.note}" placeholder="Заметка" style="max-width:240px"><button class="btn btn-soft btn-sm" type="submit">Сохранить</button></form></td></tr></tbody></table>
+</div></section>
+<p class="cnt" th:if="${tab == 'replies'}">Отклики хранятся 6 месяцев.</p>
+</th:block>
+</body>
+</html>

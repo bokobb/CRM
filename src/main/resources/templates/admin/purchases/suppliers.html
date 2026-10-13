@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/purchases"><th:block th:utext="${i['back']}"></th:block>Покупки</a>
+<div class="tools">
+    <form th:if="${canEdit}" method="post" action="/admin/purchases/suppliers" class="tools" style="margin:0;flex:1 1 auto">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <label class="search" style="flex:1 1 260px;max-width:420px"><span class="sr">Новый поставщик</span><th:block th:utext="${i['plus']}"></th:block><input class="inp" name="name" required maxlength="200" placeholder="Новый поставщик"></label>
+        <button class="btn btn-primary btn-sm" type="submit">Добавить</button>
+    </form>
+    <form th:if="${isAdmin}" method="post" action="/admin/purchases/suppliers/sync-1c" style="margin:0"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Загрузить из 1С</button></form>
+</div>
+<section class="card"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Поставщиков пока нет.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl">
+        <thead><tr><th>Поставщик</th><th>1С</th><th class="acts-col"></th></tr></thead>
+        <tbody><tr th:each="c : ${rows}">
+            <td><b th:text="${c.name}"></b></td>
+            <td><span th:if="${c.oneCContragentKey != null}" class="tag tag--ok">связан</span><span th:if="${c.oneCSyncError != null}" class="tag tag--bad" th:title="${c.oneCSyncError}">ошибка</span><span th:if="${c.oneCContragentKey == null and c.oneCSyncError == null}" class="tag">нет в 1С</span></td>
+            <td><form th:if="${canEdit}" th:action="${'/admin/purchases/suppliers/' + c.id + '/delete'}" method="post"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="ibtn" type="submit" aria-label="Удалить" th:utext="${i['trash']}" data-confirm="Поставщик удалится, если по нему нет покупок." data-confirm-title="Удалить поставщика?" data-confirm-ok="Удалить"></button></form></td>
+        </tr></tbody>
+    </table>
+</div></section>
+</th:block>
+</body>
+</html>

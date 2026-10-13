@@ -32,6 +32,10 @@ public class Recipe {
     @Column(nullable = false, precision = 12, scale = 3)
     private BigDecimal yieldQuantity = BigDecimal.ONE;
 
+    /** Кто и когда последним сохранил рецептуру (админка «Рецепты», приложение, импорт из 1С). */
+    private java.time.LocalDateTime updatedAt;
+    private String updatedBy;
+
     /** В порядке ввода — при импорте из 1С это порядок строк спецификации (удобно складу). */
     @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")

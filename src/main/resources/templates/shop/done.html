@@ -16,6 +16,7 @@
                         <div th:if="${pay}"><dt>оплата</dt><dd th:text="${pay}"></dd></div>
                         <div><dt>коробок</dt><dd th:text="${boxes} ?: '—'"></dd></div>
                         <div><dt>вес</dt><dd th:text="${weight} ?: '—'"></dd></div>
+                        <div><dt>объём</dt><dd th:if="${volume}" th:text="${volume}"></dd><dd th:unless="${volume}" title="не у всех товаров указан размер коробки">—</dd></div>
                         <div><dt>сумма</dt><dd th:text="${total}"></dd></div>
                     </dl>
                     <p class="hint">Заказ появился в истории заказов. Если что-то изменится, мы позвоним.</p>

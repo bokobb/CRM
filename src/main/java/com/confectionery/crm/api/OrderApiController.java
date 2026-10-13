@@ -90,6 +90,27 @@ public class OrderApiController {
         return OrderDto.from(orderService.createOrder(form));
     }
 
+    /** Новый заказ клиента (PLACED) принят — см. OrderService.accept. */
+    @PostMapping("/{id}/accept")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','SALES')")
+    public OrderDto accept(@PathVariable Long id) {
+        return OrderDto.from(orderService.accept(id));
+    }
+
+    /** Принятый заказ (CONFIRMED) склад начал собирать — см. OrderService.startAssembly. */
+    @PostMapping("/{id}/start")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','SALES','ACCOUNTANT')")
+    public OrderDto start(@PathVariable Long id) {
+        return OrderDto.from(orderService.startAssembly(id));
+    }
+
+    /** Готовый заказ не забрали — см. OrderService.noShow. */
+    @PostMapping("/{id}/no-show")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN','SALES')")
+    public OrderDto noShow(@PathVariable Long id) {
+        return OrderDto.from(orderService.noShow(id));
+    }
+
     @PostMapping("/{id}/confirm")
     @PreAuthorize("hasAnyRole('WAREHOUSE_FG','ADMIN')")
     public OrderDto confirm(@PathVariable Long id) {

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/clients"><th:block th:utext="${i['back']}"></th:block>Клиенты</a>
+<section class="card"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Заявок пока нет.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards"><thead><tr><th>Когда</th><th>Кто</th><th>Телефон</th><th>Статус и заметка</th></tr></thead>
+    <tbody><tr th:each="r : ${rows}"><td th:text="${@fmt.when(r.createdAt)}"></td>
+        <td class="c-full"><b th:text="${r.name}"></b><small th:text="${r.business}"></small></td>
+        <td class="num"><span th:text="${@fmt.phone(r.phone)}"></span></td>
+        <td class="c-full"><form th:action="${'/admin/clients/callbacks/' + r.id}" method="post" class="tbl-actions" style="justify-content:flex-start">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <select class="sel" name="status"><option value="NEW" th:selected="${r.status == 'NEW'}">Новая</option><option value="CONTACTED" th:selected="${r.status == 'CONTACTED'}">Связались</option><option value="ORDERED" th:selected="${r.status == 'ORDERED'}">Сделал заказ</option><option value="REJECTED" th:selected="${r.status == 'REJECTED'}">Не актуально</option></select>
+            <input class="inp" name="note" th:value="${r.note}" placeholder="Заметка" style="max-width:240px">
+            <button class="btn btn-soft btn-sm" type="submit">Сохранить</button></form>
+            <small th:if="${r.handledBy != null}" th:text="${r.handledBy + ', ' + @fmt.when(r.handledAt)}"></small></td></tr></tbody></table>
+</div></section>
+</th:block>
+</body>
+</html>

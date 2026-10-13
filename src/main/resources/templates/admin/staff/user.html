@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/staff/users"><th:block th:utext="${i['back']}"></th:block>Входы в CRM</a>
+<div class="oh"><div class="oh-t"><h2 th:text="${u.id != null ? u.fullName : 'Новый вход'}">Вход</h2></div></div>
+<form method="post" th:action="${u.id != null ? '/admin/staff/users/' + u.id : '/admin/staff/users'}" style="max-width:760px" data-guard="Учётная запись не сохранена.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <section class="card form-card"><div class="fgrid">
+        <label class="field wide"><span>ФИО</span><input class="inp" name="fullName" required maxlength="200" th:value="${u.fullName}"></label>
+        <label class="field"><span>Логин</span><input class="inp" name="username" required maxlength="64" autocapitalize="none" spellcheck="false" th:value="${u.username}"></label>
+        <label class="field"><span>Роль</span><select class="sel full" name="role"><option th:each="r : ${roles}" th:value="${r.name()}" th:text="${r.label}" th:selected="${u.role == r}"></option></select></label>
+        <label class="field"><span th:text="${u.id != null ? 'Новый пароль (пусто — не менять)' : 'Пароль'}">Пароль</span><input class="inp" name="password" type="password" autocomplete="new-password" minlength="6"></label>
+        <label class="switch wide"><input type="checkbox" name="enabled" value="true" th:checked="${u.id == null or u.enabled}"> Может входить</label>
+    </div>
+    <div class="form-acts"><a class="btn btn-soft" href="/admin/staff/users">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div></section>
+</form>
+</th:block>
+</body>
+</html>

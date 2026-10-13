@@ -33,6 +33,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final RecipeRepository recipeRepository;
+    private final CurrentUserService currentUserService;
     private final IngredientRepository ingredientRepository;
     private final ProductAliasRepository productAliasRepository;
     private final ClientPriceRepository clientPriceRepository;
@@ -191,6 +192,8 @@ public class ProductService {
             item.setQuantity(itemForm.getQuantity());
             recipe.addItem(item);
         }
+        recipe.setUpdatedAt(java.time.LocalDateTime.now());
+        recipe.setUpdatedBy(currentUserService.displayName());
 
         recipeRepository.save(recipe);
     }

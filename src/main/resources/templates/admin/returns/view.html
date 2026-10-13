@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/returns"><th:block th:utext="${i['back']}"></th:block>Все возвраты</a>
+<div class="oh">
+    <div class="oh-t"><h2 th:text="${'Возврат № ' + r.id}">Возврат</h2>
+        <span th:if="${r.oneCSyncError != null}" class="tag tag--bad">1С: ошибка</span>
+        <span th:if="${r.oneCSyncError == null and r.oneCDocumentNumber != null}" class="tag tag--ok" th:text="${'1С: № ' + r.oneCDocumentNumber}"></span></div>
+    <p class="oh-m" th:text="${'от ' + @fmt.dml(r.returnDate) + ' · ' + r.client.name + ' · оформил ' + r.createdBy + ', ' + @fmt.when(r.createdAt)}"></p>
+    <div class="acts">
+        <a class="btn btn-soft" th:href="${'/admin/returns/' + r.id + '/edit'}">Изменить</a>
+        <a class="btn btn-soft" th:href="${'/api/returns/' + r.id + '/invoice'}" target="_blank" th:if="false">Накладная</a>
+        <form th:action="${'/admin/returns/' + r.id + '/sync-1c'}" method="post" style="display:contents" th:if="${canDelete}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="btn btn-soft" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Отправить в 1С ещё раз</button></form>
+        <form th:action="${'/admin/returns/' + r.id + '/delete'}" method="post" style="display:contents" th:if="${canDelete}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="btn btn-danger" type="submit" data-confirm="Возврат удалится, документ в 1С распроведётся и пометится на удаление." data-confirm-title="Удалить возврат?">Удалить</button></form>
+    </div>
+</div>
+<div class="od">
+    <section class="card" aria-labelledby="h-rl">
+        <div class="card-h"><h2 id="h-rl">Товары</h2><p th:text="${@fmt.count(r.items.size(), 'позиция', 'позиции', 'позиций')}"></p></div>
+        <div class="tbl-w"><table class="tbl tbl--l">
+            <thead><tr><th>Товар</th><th class="r">Кол-во</th><th class="r">Цена</th><th class="r">Сумма</th></tr></thead>
+            <tbody><tr th:each="it : ${r.items}">
+                <td class="l-p"><div class="prod"><img th:if="${it.product.imageUrl != null and !#strings.isEmpty(it.product.imageUrl)}" class="th" th:src="${it.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${it.product.imageUrl != null and !#strings.isEmpty(it.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p><b th:text="${it.product.name}"></b></p></div></td>
+                <td class="r num l-q" th:text="${@fmt.num(it.quantity) + ' шт'}"></td>
+                <td class="r num l-b" th:text="${@fmt.money(it.price)}"></td>
+                <td class="r num l-s" th:text="${@fmt.money(it.price.multiply(it.quantity))}"></td></tr></tbody>
+        </table></div>
+        <div class="rcpt"><p class="rcpt-r rcpt-tot"><span>Сумма возврата</span><i></i><b th:text="${@fmt.money(r.totalSum)}"></b></p></div>
+    </section>
+    <aside class="od-side">
+        <section class="card card-b box"><h3>Возврат</h3><dl class="kv">
+            <div><dt>Клиент</dt><dd><b th:text="${r.client.name}"></b></dd></div>
+            <div><dt>Заказ</dt><dd><a th:if="${r.order != null}" class="link" th:href="${'/admin/orders/' + r.order.id}" th:text="${'№ ' + r.order.id}"></a><span th:if="${r.order == null}" class="muted">не закреплён</span></dd></div>
+            <div><dt>Причина</dt><dd th:text="${r.reason}"></dd></div>
+            <div><dt>1С</dt><dd th:text="${r.oneCSyncError != null ? r.oneCSyncError : (r.oneCDocumentNumber != null ? 'Возврат № ' + r.oneCDocumentNumber : 'ждёт отправки')}"></dd></div>
+        </dl></section>
+    </aside>
+</div>
+</th:block>
+</body>
+</html>

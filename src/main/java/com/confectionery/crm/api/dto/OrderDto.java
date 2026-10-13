@@ -33,7 +33,11 @@ public record OrderDto(
         BigDecimal netTotal,
         int returnsCount,
         /** Номер накладной — номер «Реализации» в 1С без нулей, до выгрузки — номер заказа. */
-        String invoiceNumber
+        String invoiceNumber,
+        /** SITE / WHATSAPP / CRM, null — старый заказ (см. Order.source). */
+        String source,
+        LocalDateTime acceptedAt,
+        LocalDateTime readyAt
 ) {
     public static OrderDto from(Order o) {
         return new OrderDto(
@@ -45,7 +49,8 @@ public record OrderDto(
                 o.getItems().stream().map(OrderItemDto::from).toList(),
                 List.of(),
                 o.getReturnTotal(), o.getNetTotal(), o.getReturns().size(),
-                com.confectionery.crm.service.OrderService.invoiceNumber(o)
+                com.confectionery.crm.service.OrderService.invoiceNumber(o),
+                o.getSource() == null ? null : o.getSource().name(), o.getAcceptedAt(), o.getReadyAt()
         );
     }
 

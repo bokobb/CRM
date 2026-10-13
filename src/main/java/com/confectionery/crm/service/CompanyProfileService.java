@@ -36,4 +36,12 @@ public class CompanyProfileService {
         if (mapPoint != null) profile.setMapPoint(mapPoint);
         return companyProfileRepository.save(profile);
     }
+
+    /** Настройки › Магазин: выбор дня/времени выдачи и способа оплаты на /shop. */
+    public CompanyProfile saveShopOptions(boolean pickupChoice, boolean paymentChoice) {
+        CompanyProfile profile = get();
+        profile.setShopPickupChoice(pickupChoice);
+        profile.setShopPaymentChoice(paymentChoice);
+        return companyProfileRepository.save(profile);
+    }
 }

@@ -23,6 +23,28 @@ public class OrderForm {
 
     private List<OrderItemForm> items = new ArrayList<>();
 
+    /** Окно выдачи — час начала в день dueDate (админка); null — без окна. */
+    private Integer pickupHour;
+
+    /** Способ оплаты (админка); null — не выбран. */
+    private com.confectionery.crm.domain.PaymentMethod paymentMethod;
+
+    public Integer getPickupHour() {
+        return pickupHour;
+    }
+
+    public void setPickupHour(Integer pickupHour) {
+        this.pickupHour = pickupHour;
+    }
+
+    public com.confectionery.crm.domain.PaymentMethod getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(com.confectionery.crm.domain.PaymentMethod paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
     public Long getClientId() {
         return clientId;
     }

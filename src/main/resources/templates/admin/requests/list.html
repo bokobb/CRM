@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/requests" data-autosubmit>
+    <input type="hidden" name="status" th:value="${status}">
+    <label class="pick"><span class="sr">С</span><input class="inp" type="date" name="from" th:value="${from}"></label>
+    <label class="pick"><span class="sr">По</span><input class="inp" type="date" name="to" th:value="${to}"></label>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" th:href="${'/admin/requests/report.pdf?date=' + today}" target="_blank"><th:block th:utext="${i['print']}"></th:block>Отчёт за сегодня</a>
+    <a th:if="${canCreate}" class="btn btn-primary btn-sm" href="/admin/requests/new"><th:block th:utext="${i['plus']}"></th:block>Новая заявка</a>
+</form>
+<div class="chips" role="group" aria-label="Статус заявки">
+    <a th:each="c : ${chips}" class="chip" th:classappend="${c.key == 'NEW' and c.count > 0} ? 'chip--alert'" th:href="${c.href}" th:attr="aria-pressed=${c.on}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a>
+</div>
+<section class="card" aria-label="Заявки">
+    <div class="tbl-w">
+        <div th:if="${rows.isEmpty()}" class="empty">Заявок нет.</div>
+        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
+            <thead><tr><th>№</th><th>Дата</th><th>Заявка</th><th>Изделия</th><th class="r">Сырья</th><th>Создал</th><th>Статус</th><th>1С</th></tr></thead>
+            <tbody>
+            <tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/requests/' + r.id}">
+                <td><a th:href="${'/admin/requests/' + r.id}" th:text="${r.id}"></a></td>
+                <td th:text="${@fmt.dm(r.documentDate)}"></td>
+                <td class="c-full"><b th:text="${r.title}"></b></td>
+                <td class="c-full" th:text="${#strings.abbreviate(#strings.listJoin(r.lines.![product.name + ' × ' + @fmt.num(batches)], ', '), 100)}"></td>
+                <td class="r num" th:text="${r.items.size()}"></td>
+                <td th:text="${r.createdBy}"></td>
+                <td><span class="tag" th:classappend="${r.status.name() == 'NEW' ? 'tag--warn' : r.status.name() == 'COLLECTED' ? 'tag--site' : r.status.name() == 'RECEIVED' ? 'tag--ok' : 'tag--bad'}" th:text="${r.status.label + (r.requisitionCompleted ? ' · завершена' : '')}"></span></td>
+                <td><span th:if="${r.oneCSyncError != null}" class="tag tag--bad" th:title="${r.oneCSyncError}">ошибка</span><span th:if="${r.oneCSyncError == null and r.oneCReportNumber != null}" class="tag tag--ok" th:text="${r.oneCReportNumber}"></span><span th:if="${r.oneCSyncError == null and r.oneCReportNumber == null}" class="tag">—</span></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+<p class="cnt">Новые и собранные заявки видны всегда, остальные — за выбранные дни.</p>
+</th:block>
+</body>
+</html>

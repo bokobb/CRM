@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/returns" data-autosubmit>
+    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="№, клиент, причина, № заказа" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">С</span><input class="inp" type="date" name="from" th:value="${from}"></label>
+    <label class="pick"><span class="sr">По</span><input class="inp" type="date" name="to" th:value="${to}"></label>
+    <span class="grow"></span>
+    <a class="btn btn-primary btn-sm" href="/admin/returns/new"><th:block th:utext="${i['plus']}"></th:block>Оформить возврат</a>
+</form>
+<section class="card" aria-label="Возвраты">
+    <div class="tbl-w">
+        <div th:if="${rows.isEmpty()}" class="empty">За эти дни возвратов нет.</div>
+        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
+            <thead><tr><th>№</th><th>Дата</th><th>Клиент</th><th>Заказ</th><th class="r">Позиций</th><th class="r">Сумма</th><th>Причина</th><th>1С</th></tr></thead>
+            <tbody>
+            <tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/returns/' + r.id}">
+                <td><a th:href="${'/admin/returns/' + r.id}" th:text="${r.id}"><b></b></a></td>
+                <td th:text="${@fmt.dm(r.returnDate)}"></td>
+                <td class="c-full"><b th:text="${r.client.name}"></b></td>
+                <td><a th:if="${r.order != null}" class="link" th:href="${'/admin/orders/' + r.order.id}" th:text="${'№ ' + r.order.id}"></a><span th:if="${r.order == null}" class="muted">не закреплён</span></td>
+                <td class="r num" th:text="${r.items.size()}"></td>
+                <td class="r num"><b th:text="${@fmt.money(r.totalSum)}"></b></td>
+                <td class="c-full" th:text="${r.reason}"></td>
+                <td><span th:if="${r.oneCSyncError != null}" class="tag tag--bad" th:title="${r.oneCSyncError}">ошибка</span><span th:if="${r.oneCSyncError == null and r.oneCDocumentNumber != null}" class="tag tag--ok" th:text="${r.oneCDocumentNumber}"></span><span th:if="${r.oneCSyncError == null and r.oneCDocumentNumber == null}" class="tag">в очереди</span></td>
+            </tr>
+            </tbody>
+            <tfoot><tr><td colspan="5">Итого</td><td class="r num" th:text="${@fmt.money(sum)}"></td><td colspan="2"></td></tr></tfoot>
+        </table>
+    </div>
+</section>
+<p class="cnt" th:text="${'Возвратов: ' + rows.size() + ' с ' + @fmt.dm(from) + ' по ' + @fmt.dm(to) + '. Возврат уменьшает сумму заказа и попадает в отчёты; товар уходит на склад «Испорченные товары» в 1С.'}"></p>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/photos" data-autosubmit>
+    <label class="search"><span class="sr">Поиск товара</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Найти товар" autocomplete="off" th:value="${q}"></label>
+    <label class="switch"><input type="checkbox" name="empty" value="1" th:checked="${empty}"> Только без фото</label>
+</form>
+<div class="ph-grid">
+    <a th:each="p : ${rows}" class="ph" th:href="${'/admin/photos/' + p.id}" style="text-decoration:none">
+        <img th:if="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" th:src="${p.imageUrl}" alt="" loading="lazy">
+        <span th:unless="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" class="th-none" style="aspect-ratio:3/4;display:grid;place-items:center;border-radius:10px;background:var(--cream)" th:utext="${i['photo']}"></span>
+        <span class="tag" th:text="${p.photos.size() + ' фото'}"></span>
+        <b th:text="${p.name}" style="font-size:14px;line-height:1.25"></b>
+    </a>
+</div>
+<p class="cnt" th:if="${rows.isEmpty()}">Ничего не нашлось.</p>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/products"><th:block th:utext="${i['back']}"></th:block>Все товары</a>
+<div class="oh">
+    <div class="oh-t"><h2 th:text="${p.id != null ? p.name : 'Новый товар'}">Товар</h2>
+        <span th:if="${p.id != null and !p.active}" class="tag">в архиве</span>
+        <span th:if="${p.semiFinished}" class="tag tag--pf">полуфабрикат</span></div>
+    <div class="acts" th:if="${p.id != null}">
+        <a class="btn btn-soft" th:href="${'/admin/recipes/' + p.id}">Рецептура</a>
+        <a class="btn btn-soft" th:href="${'/admin/techcards/' + p.id}">Техкарта</a>
+        <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/photos/' + p.id}"><th:block th:utext="${i['photo']}"></th:block>Фото</a>
+    </div>
+</div>
+<div class="errs errs-top" role="alert" th:if="${!errors.isEmpty()}"><span th:each="e : ${errors}" th:text="${e}"></span></div>
+<div class="two">
+<form method="post" th:action="${p.id != null ? '/admin/products/' + p.id : '/admin/products'}" data-guard="Товар не сохранён.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <fieldset class="fs" th:disabled="${!canEdit}">
+    <section class="card form-card">
+        <h3 class="big" style="font-size:19px">Карточка</h3>
+        <div class="fgrid">
+            <label class="field wide"><span>Название</span><input class="inp" name="name" maxlength="200" required th:value="${p.name}"></label>
+            <label class="field"><span>Группа на сайте</span><input class="inp" name="category" list="cats" th:value="${p.category}"></label>
+            <label class="field"><span>Группа производства</span><input class="inp" name="group" list="groups" th:value="${p.group}"></label>
+            <label class="field"><span>Цена, ₸</span><input class="inp" name="price" inputmode="decimal" required th:value="${p.price != null ? p.price.stripTrailingZeros().toPlainString() : ''}"></label>
+            <label class="field"><span>Единица</span><input class="inp" name="unit" maxlength="10" th:value="${p.unit}"></label>
+            <label class="field wide"><span>Описание</span><textarea class="ta" name="description" maxlength="1000" th:text="${p.description}"></textarea></label>
+            <label class="switch wide"><input type="checkbox" name="semiFinished" value="true" th:checked="${p.semiFinished}"> Полуфабрикат (не продаётся, идёт в другие изделия)</label>
+        </div>
+    </section>
+    <section class="card form-card" style="margin-top:18px">
+        <h3 class="big" style="font-size:19px">Упаковка</h3>
+        <div class="fgrid">
+            <label class="field"><span>Вес нетто 1 шт, г</span><input class="inp" name="netWeightGrams" inputmode="decimal" th:value="${p.netWeightGrams != null ? p.netWeightGrams.stripTrailingZeros().toPlainString() : ''}"></label>
+            <label class="field"><span>Вес брутто 1 шт, кг</span><input class="inp" name="unitWeightKg" inputmode="decimal" th:value="${p.unitWeightKg != null ? p.unitWeightKg.stripTrailingZeros().toPlainString() : ''}"></label>
+            <label class="field"><span>Штук в коробке</span><input class="inp" name="unitsPerBox" inputmode="decimal" th:value="${p.unitsPerBox != null ? p.unitsPerBox.stripTrailingZeros().toPlainString() : ''}" th:placeholder="${box != null ? 'по названию: ' + @fmt.num(box) : ''}"></label>
+            <label class="field"><span>Объём коробки, м³</span><input class="inp" name="boxVolumeM3" inputmode="decimal" th:value="${p.boxVolumeM3 != null ? p.boxVolumeM3.stripTrailingZeros().toPlainString() : ''}"></label>
+            <label class="field"><span>Вторая коробка: штук</span><input class="inp" name="unitsPerBox2" inputmode="decimal" th:value="${p.unitsPerBox2 != null ? p.unitsPerBox2.stripTrailingZeros().toPlainString() : ''}"></label>
+            <label class="field"><span>Вторая коробка: объём, м³</span><input class="inp" name="boxVolume2M3" inputmode="decimal" th:value="${p.boxVolume2M3 != null ? p.boxVolume2M3.stripTrailingZeros().toPlainString() : ''}"></label>
+        </div>
+        <div class="form-acts" th:if="${canEdit}"><a class="btn btn-soft" href="/admin/products">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div>
+    </section>
+    </fieldset>
+    <datalist id="cats"><option th:each="c : ${cats}" th:value="${c}"></option></datalist>
+    <datalist id="groups"><option th:each="g : ${groups}" th:value="${g}"></option></datalist>
+</form>
+<aside class="two-side" th:if="${p.id != null}">
+    <section class="card card-b box"><h3>Фото</h3>
+        <img th:if="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" th:src="${p.imageUrl}" alt="" style="border-radius:12px;aspect-ratio:3/4;object-fit:cover">
+        <p th:unless="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" class="muted">Фото нет.</p>
+        <p th:text="${'В альбоме: ' + p.photos.size()}" class="muted"></p></section>
+    <section class="card card-b box"><h3>На сайте</h3>
+        <p th:if="${p.visibleToClients}" class="muted">Покупатели видят товар на витрине и в WhatsApp.</p>
+        <p th:if="${p.active and !p.visibleToClients}" class="pay-bad" th:text="${p.hiddenFromClientsUntil != null ? 'Скрыт до ' + @fmt.dml(p.hiddenFromClientsUntil) : 'Скрыт от покупателей'}"></p>
+        <form th:if="${canEdit and p.active and p.visibleToClients}" th:action="${'/admin/products/' + p.id + '/visibility'}" method="post" class="field">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="hidden" value="true">
+            <label class="field"><span>Скрыть до (необязательно)</span><input class="inp" type="date" name="until" th:min="${today}"></label>
+            <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['eye-hide']}"></th:block>Скрыть с витрины</button></form>
+        <form th:if="${canEdit and p.active and !p.visibleToClients}" th:action="${'/admin/products/' + p.id + '/visibility'}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="hidden" value="false">
+            <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['eye']}"></th:block>Вернуть на витрину</button></form>
+    </section>
+    <section class="card card-b box" th:if="${canEdit}"><h3>Архив</h3>
+        <form th:if="${p.active}" th:action="${'/admin/products/' + p.id + '/delete'}" method="post"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <p class="hint">Товар с историей заказов уходит в архив, без истории — удаляется.</p>
+            <button class="btn btn-danger btn-sm" type="submit" data-confirm="Если по товару были заказы, он уйдёт в архив и пропадёт из продажи." data-confirm-title="Удалить товар?">Удалить товар</button></form>
+        <form th:if="${!p.active}" th:action="${'/admin/products/' + p.id + '/restore'}" method="post"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="btn btn-soft btn-sm" type="submit">Вернуть из архива</button></form>
+    </section>
+</aside>
+</div>
+</th:block>
+</body>
+</html>

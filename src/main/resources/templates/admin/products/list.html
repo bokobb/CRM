@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/products" data-autosubmit>
+    <input type="hidden" name="group" th:value="${group}">
+    <label class="search"><span class="sr">Поиск товара</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Найти товар" autocomplete="off" th:value="${q}"></label>
+    <label class="switch"><input type="checkbox" name="pf" value="1" th:checked="${pf}"> С полуфабрикатами</label>
+    <label class="switch"><input type="checkbox" name="archived" value="1" th:checked="${archived}"> Архив</label>
+    <span class="grow"></span>
+    <a th:if="${canEdit}" class="btn btn-primary btn-sm" href="/admin/products/new"><th:block th:utext="${i['plus']}"></th:block>Новый товар</a>
+</form>
+<div class="chips" role="group" aria-label="Группа"><a th:each="c : ${chips}" class="chip" th:href="${c.href}" th:attr="aria-pressed=${c.on}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a></div>
+<section class="card" aria-label="Товары"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
+        <thead><tr><th>Товар</th><th>Группа</th><th class="r">Цена</th><th class="r">В коробке</th><th class="r">Вес</th><th class="r">Остаток</th><th>Сайт</th></tr></thead>
+        <tbody><tr th:each="p : ${rows}" class="rowlink" th:attr="data-href=${'/admin/products/' + p.id}">
+            <td class="c-full"><div class="prod"><img th:if="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" class="th" th:src="${p.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p class="rc-name"><a th:href="${'/admin/products/' + p.id}" th:text="${p.name}"></a><span th:if="${p.semiFinished}" class="tag tag--pf">ПФ</span></p></div></td>
+            <td th:text="${p.category != null ? p.category : '—'}"></td>
+            <td class="r num"><b th:text="${@fmt.money(p.price)}"></b></td>
+            <td class="r num" th:text="${p.unitsPerBox != null ? @fmt.num(p.unitsPerBox) + ' шт' : '—'}"></td>
+            <td class="r num" th:text="${p.netWeightGrams != null ? @fmt.num(p.netWeightGrams) + ' г' : (p.unitWeightKg != null ? @fmt.num(p.unitWeightKg) + ' кг' : '—')}"></td>
+            <td class="r num" th:text="${@fmt.num(p.quantityInStock)}"></td>
+            <td><span th:if="${!p.active}" class="tag">архив</span><span th:if="${p.active and p.visibleToClients}" class="tag tag--ok">на витрине</span><span th:if="${p.active and !p.visibleToClients}" class="tag tag--warn" th:text="${p.hiddenFromClientsUntil != null ? 'скрыт до ' + @fmt.dm(p.hiddenFromClientsUntil) : 'скрыт'}"></span></td>
+        </tr></tbody>
+    </table>
+</div></section>
+<p class="cnt" th:text="${'Товаров: ' + rows.size()}"></p>
+</th:block>
+</body>
+</html>

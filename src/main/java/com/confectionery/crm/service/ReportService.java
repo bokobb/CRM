@@ -40,8 +40,8 @@ import java.util.*;
 public class ReportService {
 
     private static final List<OrderStatus> SHIPPED = List.of(OrderStatus.DELIVERED, OrderStatus.COMPLETED);
-    private static final List<OrderStatus> OPEN = List.of(OrderStatus.NEW, OrderStatus.CONFIRMED,
-            OrderStatus.IN_PRODUCTION, OrderStatus.READY);
+    private static final List<OrderStatus> OPEN = List.of(OrderStatus.PLACED, OrderStatus.NEW, OrderStatus.CONFIRMED,
+            OrderStatus.IN_PRODUCTION, OrderStatus.READY, OrderStatus.NO_SHOW);
 
     private static final String TEXT = "TEXT", MONEY = "MONEY", QTY = "QTY", INT = "INT";
 

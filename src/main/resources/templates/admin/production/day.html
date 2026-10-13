@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/production" data-autosubmit>
+    <a class="btn btn-soft btn-sm" th:href="${'/admin/production?date=' + prev}">← День назад</a>
+    <label class="pick"><span class="sr">День</span><input class="inp" type="date" name="date" th:value="${date}"></label>
+    <a class="btn btn-soft btn-sm" th:href="${'/admin/production?date=' + next}">День вперёд →</a>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" th:href="${'/admin/requests/report.pdf?date=' + date}" target="_blank"><th:block th:utext="${i['print']}"></th:block>Отчёт производства</a>
+</form>
+<div class="mini-kpis">
+    <div class="kpi"><span class="kpi-l">Сырьё по норме</span><span class="kpi-v" th:text="${@fmt.dec(d.totals.normCost, 0)}"></span><span class="kpi-s">₸ по техкартам</span></div>
+    <div class="kpi"><span class="kpi-l">Сырьё выдано</span><span class="kpi-v" th:text="${@fmt.dec(d.totals.issuedCost, 0)}"></span><span class="kpi-s">₸ со склада сырья</span></div>
+    <div class="kpi" th:if="${labor}"><span class="kpi-l">Зарплата бригад</span><span class="kpi-v" th:text="${@fmt.dec(d.totals.laborCost, 0)}"></span><span class="kpi-s">₸ за смену</span></div>
+    <div class="kpi kpi--warm"><span class="kpi-l">Себестоимость готового</span><span class="kpi-v" th:text="${@fmt.dec(d.totals.finishedCost, 0)}"></span><span class="kpi-s" th:text="${'по прайсу ' + @fmt.money(d.totals.finishedSaleValue)}"></span></div>
+</div>
+<section class="card" th:if="${d.requests.isEmpty()}"><p class="empty">В этот день заявок на производство нет.</p></section>
+<section th:each="r : ${d.requests}" class="card" style="margin-bottom:18px">
+    <div class="card-h"><div><h2><a th:href="${'/admin/production/requests/' + r.id}" th:text="${'№ ' + r.id + ' · ' + r.title}" style="text-decoration:none"></a></h2>
+        <p th:text="${r.statusLabel + ' · бригада: ' + (r.brigade.isEmpty() ? 'не назначена' : #strings.listJoin(r.brigade.![fullName], ', '))}"></p></div>
+        <a class="btn btn-soft btn-sm" th:href="${'/admin/production/requests/' + r.id}">Подробно</a></div>
+    <div class="tbl-w"><table class="tbl tbl--cards">
+        <thead><tr><th>Изделие</th><th class="r">Замесов</th><th class="r">План, шт</th><th class="r">Выпуск</th><th class="r">Сырьё</th><th class="r" th:if="${labor}">Зарплата</th><th class="r">Себест. 1 шт</th><th class="r">Цена</th></tr></thead>
+        <tbody><tr th:each="l : ${r.lines}">
+            <td class="c-full"><b th:text="${l.name}"></b><span th:if="${l.semiFinished}" class="tag tag--pf">ПФ</span></td>
+            <td class="r num" th:text="${@fmt.num(l.batches)}"></td>
+            <td class="r num" th:text="${@fmt.num(l.plannedQuantity)}"></td>
+            <td class="r num" th:text="${l.received ? @fmt.num(l.quantity) : 'ещё нет'}"></td>
+            <td class="r num" th:text="${@fmt.money(l.rawCost)}"></td>
+            <td class="r num" th:if="${labor}" th:text="${@fmt.money(l.laborCost)}"></td>
+            <td class="r num"><b th:text="${l.unitCost != null ? @fmt.dec(l.unitCost, 1) + ' ₸' : '—'}"></b><small th:if="${l.planUnitCost != null}" th:text="${'план ' + @fmt.dec(l.planUnitCost, 1)}"></small></td>
+            <td class="r num" th:text="${@fmt.money(l.salePrice)}"></td>
+        </tr></tbody>
+    </table></div>
+</section>
+<p class="cnt" th:if="${!d.unpricedIngredients.isEmpty()}" th:text="${'Нет цены у сырья: ' + #strings.listJoin(d.unpricedIngredients, ', ') + '. Цена берётся из последней покупки.'}"></p>
+<section class="card" th:if="${!d.history.isEmpty()}">
+    <div class="card-h"><h2>По дням</h2></div>
+    <div class="tbl-w"><table class="tbl">
+        <thead><tr><th>День</th><th class="r">Сырьё по норме</th><th class="r">Выдано</th><th class="r">Себестоимость</th><th class="r">По прайсу</th></tr></thead>
+        <tbody><tr th:each="h : ${d.history}" class="rowlink" th:attr="data-href=${'/admin/production?date=' + h.date}">
+            <td th:text="${@fmt.wday(h.date) + ', ' + @fmt.dm(h.date)}"></td>
+            <td class="r num" th:text="${@fmt.money(h.normCost)}"></td><td class="r num" th:text="${@fmt.money(h.issuedCost)}"></td>
+            <td class="r num" th:text="${@fmt.money(h.finishedCost)}"></td><td class="r num" th:text="${@fmt.money(h.finishedSaleValue)}"></td></tr></tbody>
+    </table></div>
+</section>
+</th:block>
+</body>
+</html>

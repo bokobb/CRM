@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/reports"><th:block th:utext="${i['back']}"></th:block>Все отчёты</a>
+<form class="tools" method="get" th:action="${'/admin/reports/' + info.key}" data-autosubmit>
+    <label class="pick"><span class="lbl" th:text="${day ? 'День' : 'С'}">С</span> <input class="inp" type="date" name="from" th:value="${from}"></label>
+    <label class="pick" th:unless="${day}"><span class="lbl">По</span> <input class="inp" type="date" name="to" th:value="${to}"></label>
+    <span class="grow"></span>
+    <button class="btn btn-soft btn-sm" type="button" onclick="window.print()"><th:block th:utext="${i['print']}"></th:block>Печать</button>
+</form>
+<div class="errs errs-top" th:if="${error != null}" th:text="${error}"></div>
+<th:block th:if="${r != null}">
+<div class="mini-kpis" th:if="${!r.cards.isEmpty()}">
+    <div th:each="c : ${r.cards}" class="kpi" th:classappend="${c.tone == 'bad' ? 'kpi--alert' : c.tone == 'good' ? 'kpi--warm' : ''}"><span class="kpi-l" th:text="${c.label}"></span><span class="kpi-v" th:text="${@fmt.cell(c.value, c.type)}"></span><span class="kpi-s" th:text="${c.hint}"></span></div>
+</div>
+<section class="card"><div class="tbl-w">
+    <div th:if="${r.rows.isEmpty()}" class="empty">За этот период данных нет.</div>
+    <table th:unless="${r.rows.isEmpty()}" class="tbl">
+        <thead><tr><th th:each="c : ${r.columns}" th:classappend="${c.type != 'TEXT'} ? 'r'" th:text="${c.label}"></th></tr></thead>
+        <tbody><tr th:each="row : ${r.rows}" th:classappend="${row.tone == 'bad' ? 'pay-bad' : ''}" th:style="${row.tone == 'muted'} ? 'color:var(--ink-mute)'">
+            <td th:each="v, it : ${row.cells}" th:classappend="${r.columns[it.index].type != 'TEXT'} ? 'r num'" th:text="${@fmt.cell(v, r.columns[it.index].type)}"></td></tr></tbody>
+        <tfoot th:if="${r.totals != null and !r.totals.isEmpty()}"><tr><td th:each="v, it : ${r.totals}" th:classappend="${r.columns[it.index].type != 'TEXT'} ? 'r num'" th:text="${v == null ? '' : @fmt.cell(v, r.columns[it.index].type)}"></td></tr></tfoot>
+    </table>
+</div></section>
+<div class="prose cnt" th:if="${r.notes != null}"><p th:each="n : ${r.notes}" th:text="${n}"></p></div>
+</th:block>
+</th:block>
+</body>
+</html>

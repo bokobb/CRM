@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" th:href="${'/admin/production?date=' + r.date}"><th:block th:utext="${i['back']}"></th:block>Производство за день</a>
+<div class="oh"><div class="oh-t"><h2 th:text="${'Заявка № ' + r.request.id}">Заявка</h2><span class="tag" th:text="${r.request.statusLabel}"></span></div>
+    <p class="oh-m" th:text="${r.request.title + ' · ' + @fmt.dml(r.date)}"></p>
+    <div class="acts"><a class="btn btn-soft" th:href="${'/admin/requests/' + r.request.id}">Открыть заявку</a></div></div>
+<div class="two">
+    <div class="section-gap">
+    <section class="card">
+        <div class="card-h"><h2>Сырьё: норма и выдано</h2></div>
+        <div class="tbl-w"><table class="tbl tbl--cards">
+            <thead><tr><th>Сырьё</th><th class="r">Норма</th><th class="r">Выдано</th><th class="r">Цена</th><th class="r">По норме</th><th class="r">Выдано, ₸</th></tr></thead>
+            <tbody><tr th:each="g : ${r.ingredients}">
+                <td class="c-full"><b th:text="${g.name}"></b><small th:if="${g.originalName != null}" th:text="${'вместо ' + g.originalName}"></small></td>
+                <td class="r num" th:text="${@fmt.num(g.normQuantity) + ' ' + g.unit}"></td>
+                <td class="r num" th:classappend="${g.issuedQuantity != null and g.normQuantity != null and g.issuedQuantity.compareTo(g.normQuantity) > 0} ? 'low'" th:text="${@fmt.num(g.issuedQuantity) + ' ' + g.unit}"></td>
+                <td class="r num"><th:block th:text="${g.unitPrice != null ? @fmt.money(g.unitPrice) : 'нет цены'}"></th:block><small th:if="${g.priceDate != null}" th:text="${'от ' + @fmt.dm(g.priceDate)}"></small></td>
+                <td class="r num" th:text="${@fmt.money(g.normCost)}"></td>
+                <td class="r num" th:text="${@fmt.money(g.issuedCost)}"></td></tr></tbody>
+            <tfoot><tr><td colspan="4">Итого</td><td class="r num" th:text="${@fmt.money(r.request.normCost)}"></td><td class="r num" th:text="${@fmt.money(r.request.issuedCost)}"></td></tr></tfoot>
+        </table></div>
+    </section>
+    </div>
+    <aside class="two-side">
+        <section class="card card-b box"><h3>Бригада</h3>
+            <p class="muted" th:if="${labor}" th:text="${'Зарплата за смену: ' + @fmt.money(r.request.laborCost)}"></p>
+            <form th:if="${canBrigade}" th:action="${'/admin/production/requests/' + r.request.id + '/brigade'}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <div style="display:grid;gap:2px;max-height:360px;overflow:auto">
+                    <label class="check" th:each="e : ${employees}"><input type="checkbox" name="employee" th:value="${e.id}" th:checked="${inBrigade.contains(e.id)}"><span><th:block th:text="${e.fullName}"></th:block> <small class="muted" th:text="${e.position}"></small></span></label>
+                </div>
+                <p class="hint">Один сотрудник — в одной бригаде за день.</p>
+                <p style="margin-top:8px"><button class="btn btn-primary btn-sm" type="submit">Сохранить бригаду</button></p>
+            </form>
+            <ul th:unless="${canBrigade}" class="prose"><li th:each="m : ${r.request.brigade}" th:text="${m.fullName}"></li></ul>
+        </section>
+    </aside>
+</div>
+</th:block>
+</body>
+</html>

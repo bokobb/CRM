@@ -38,6 +38,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByStatus(OrderStatus status);
 
+    long countByStatusIn(java.util.Collection<OrderStatus> statuses);
+
+    long countByStatusInAndCreatedAtBetween(java.util.Collection<OrderStatus> statuses, LocalDateTime start, LocalDateTime end);
+
     /** Есть ли хоть один заказ (любого статуса, любого клиента) с этим товаром — см. ProductService.delete. */
     boolean existsByItems_Product_Id(Long productId);
 
@@ -95,6 +99,51 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "AND (o.debtPaid IS NULL OR o.debtPaid = false) " +
             "AND o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED")
     List<Order> findOverdueDebts(@Param("today") LocalDate today);
+
+    /** Занятые места в окне выдачи (см. PickupSlotService): заказы дня с этим часом, кроме отменённых и exceptId. */
+    @Query("select count(o) from Order o where o.dueDate = :day and o.pickupHour = :hour " +
+            "and o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED and (:exceptId is null or o.id <> :exceptId)")
+    long countInSlot(@Param("day") LocalDate day, @Param("hour") Integer hour, @Param("exceptId") Long exceptId);
+
+    /** Сколько заказов в каждом окне дня: [час, число] — для выбора окна. */
+    @Query("select o.pickupHour, count(o) from Order o where o.dueDate = :day and o.pickupHour is not null " +
+            "and o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED and (:exceptId is null or o.id <> :exceptId) " +
+            "group by o.pickupHour")
+    List<Object[]> countBySlot(@Param("day") LocalDate day, @Param("exceptId") Long exceptId);
+
+    /**
+     * Заказы с выдачей в этот день, кроме отменённых — «Выдача сегодня» и блок «Выдача» на дашборде.
+     * День выдачи — dueDate, у заказов без него (1С, старые) — день отгрузки, а до неё — оформления
+     * (как AdminOrders.day).
+     */
+    @Query("select distinct o from Order o join fetch o.client where o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED " +
+            "and (o.dueDate = :day or (o.dueDate is null and ((o.shippedAt is not null and o.shippedAt >= :start and o.shippedAt < :end) " +
+            "or (o.shippedAt is null and o.createdAt >= :start and o.createdAt < :end))))")
+    List<Order> findForPickupDay(@Param("day") LocalDate day, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /**
+     * Заказы, у которых в этот день было действие: оформлен (с вечера прошлого дня — заказы после 18:00
+     * переходят на утро), принят, собран, отгружен, оплачен или есть запись в журнале. Для окон «Выдачи» на дашборде.
+     */
+    @Query("select distinct o from Order o join fetch o.client left join o.events e where o.status <> com.confectionery.crm.domain.OrderStatus.CANCELLED " +
+            "and ((o.createdAt >= :from and o.createdAt < :end) or (o.acceptedAt >= :start and o.acceptedAt < :end) " +
+            "or (o.readyAt >= :start and o.readyAt < :end) or (o.shippedAt >= :start and o.shippedAt < :end) " +
+            "or (o.paidAt >= :start and o.paidAt < :end) or (e.at >= :start and e.at < :end))")
+    List<Order> findWithActivity(@Param("from") LocalDateTime from, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** Выручка по выданным заказам: [id, shippedAt, сумма позиций] — для графика «Выручка» дашборда. */
+    @Query("select o.id, o.shippedAt, sum(i.price * i.quantity) from Order o join o.items i " +
+            "where o.status in (com.confectionery.crm.domain.OrderStatus.DELIVERED, com.confectionery.crm.domain.OrderStatus.COMPLETED) " +
+            "and o.shippedAt >= :start and o.shippedAt < :end group by o.id, o.shippedAt")
+    List<Object[]> revenueByOrder(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** Что берут: [productId, сумма штук] по выданным заказам за период. */
+    @Query("select i.product.id, sum(i.quantity) from Order o join o.items i " +
+            "where o.status in (com.confectionery.crm.domain.OrderStatus.DELIVERED, com.confectionery.crm.domain.OrderStatus.COMPLETED) " +
+            "and o.shippedAt >= :start and o.shippedAt < :end group by i.product.id")
+    List<Object[]> soldByProduct(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    List<Order> findByStatusIn(java.util.Collection<OrderStatus> statuses);
 
     /** Ждут фоновой отправки в 1С (см. OneCQueue). */
     @Query("select e.id from Order e where e.oneCPending = true order by e.id")

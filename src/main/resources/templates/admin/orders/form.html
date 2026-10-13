@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" th:href="${st.no != null ? '/admin/orders/' + st.no : '/admin/orders'}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${st.no != null ? 'Заказ № ' + st.no : 'Все заказы'}">Все заказы</th:block></a>
+<div class="oh">
+    <div class="oh-t"><h2 th:text="${st.no != null ? 'Изменить заказ № ' + st.no : 'Новый заказ'}">Новый заказ</h2>
+        <span th:if="${o != null}" class="st" th:classappend="${'st--' + o.status.badge()}"><th:block th:utext="${i16['s-' + o.status.badge()]}"></th:block><span th:text="${o.status.badgeLabel()}"></span></span></div>
+    <p class="oh-m" th:text="${st.no != null ? 'Состав, окно выдачи и оплату можно менять, пока заказ не начали собирать.' : (repeat ? 'Повтор заказа: тот же клиент и товары, цены — сегодняшние.' : 'Заказ по телефону или WhatsApp. Из админки заказ сразу получает статус «Принят».')}"></p>
+</div>
+<form id="of-form" method="post" th:action="${st.no != null ? '/admin/orders/' + st.no : '/admin/orders'}" novalidate
+      th:attr="data-guard=${st.no != null ? 'Изменения заказа № ' + st.no + ' не сохранены.' : 'Новый заказ ещё не создан.'}">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <input type="hidden" name="stamp" th:value="${st.stamp}"><input type="hidden" name="status" th:value="${st.status}">
+    <div id="of-hidden"></div>
+    <div class="of">
+        <div class="of-main">
+            <section class="card of-sec" aria-labelledby="f-h1"><div class="card-h"><h2 id="f-h1"><span class="step">1</span> Клиент</h2></div><div class="card-b" id="f-client"></div></section>
+            <section class="card of-sec" aria-labelledby="f-h2"><div class="card-h"><h2 id="f-h2"><span class="step">2</span> Выдача</h2><p>окно — 1 час</p></div><div class="card-b" id="f-slot"></div></section>
+            <section class="card of-sec" aria-labelledby="f-h3"><div class="card-h"><h2 id="f-h3"><span class="step">3</span> Товары</h2><p>цена — за упаковку</p></div>
+                <div class="card-b" style="padding-bottom:0"><div class="lines" id="f-lines"></div></div>
+                <button class="add" type="button" id="f-add"><th:block th:utext="${i['plus']}"></th:block><span>Добавить товар</span></button></section>
+            <section class="card of-sec" aria-labelledby="f-h4"><div class="card-h"><h2 id="f-h4"><span class="step">4</span> Оплата и комментарий</h2></div><div class="card-b">
+                <div class="radios" role="radiogroup" aria-label="Способ оплаты" id="f-pay">
+                    <label class="radio" th:each="p : ${payments}"><input type="radio" name="pay" th:value="${p.name()}" th:checked="${st.pay == p.name()}"><th:block th:text="${p.label}"></th:block></label>
+                </div>
+                <div class="field"><label class="lbl" for="f-note">Комментарий к заказу</label><textarea class="ta" id="f-note" name="note" maxlength="500" placeholder="Например: позвонить за 15 минут до готовности" th:text="${st.note}"></textarea></div>
+            </div></section>
+        </div>
+        <aside class="card of-sum" id="f-sum" aria-label="Итог заказа"></aside>
+    </div>
+</form>
+</th:block>
+<th:block th:fragment="scripts">
+<script type="application/json" id="of-state" th:utext="${stateJson}"></script>
+<script type="application/json" id="of-catalog" th:utext="${catalogJson}"></script>
+<script type="application/json" id="of-clients" th:utext="${clientsJson}"></script>
+<script type="application/json" id="of-slots" th:utext="${slotsJson}"></script>
+<script type="application/json" id="of-errors" th:utext="${errorsJson}"></script>
+<script src="/admin/assets/slots.js?v=1"></script>
+<script src="/admin/assets/order-form.js?v=1"></script>
+</th:block>
+</body>
+</html>

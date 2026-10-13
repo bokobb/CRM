@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/materials" data-autosubmit>
+    <label class="search"><span class="sr">Поиск сырья</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Найти сырьё" autocomplete="off" th:value="${q}"></label>
+    <label class="switch"><input type="checkbox" name="low" value="1" th:checked="${low}"> Только на исходе</label>
+    <label class="switch"><input type="checkbox" name="archived" value="1" th:checked="${archived}"> Показать снятое с учёта</label>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" href="/admin/materials/movements">Движения</a>
+    <a th:if="${canEdit}" class="btn btn-soft btn-sm" href="/admin/materials/doc?type=out">Списание</a>
+    <a th:if="${canEdit}" class="btn btn-primary btn-sm" href="/admin/materials/doc?type=in"><th:block th:utext="${i['plus']}"></th:block>Поступление</a>
+</form>
+<div class="mini-kpis">
+    <a class="kpi" href="/admin/materials"><span class="kpi-l">Позиций сырья</span><span class="kpi-v" th:text="${rows.size()}"></span></a>
+    <a class="kpi" th:classappend="${lowCount > 0} ? 'kpi--alert'" href="/admin/materials?low=1"><span class="kpi-l">На исходе</span><span class="kpi-v" th:text="${lowCount}"></span><span class="kpi-s">ниже минимального остатка</span></a>
+</div>
+<section class="card" aria-label="Сырьё">
+    <div class="tbl-w">
+        <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
+        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
+            <thead><tr><th>Сырьё</th><th class="r">Остаток</th><th class="r">Минимум</th><th>Состояние</th><th class="acts-col"></th></tr></thead>
+            <tbody>
+            <tr th:each="m : ${rows}">
+                <td class="c-full"><b th:text="${m.name}"></b><small th:if="${!m.active}">снято с учёта</small></td>
+                <td class="r num" th:classappend="${lowIds.contains(m.id)} ? 'low'" th:text="${@fmt.num(m.quantityInStock) + ' ' + m.unit}"></td>
+                <td class="r num" th:text="${m.minThreshold.signum() > 0 ? @fmt.num(m.minThreshold) + ' ' + m.unit : '—'}"></td>
+                <td><span th:if="${lowIds.contains(m.id)}" class="tag tag--bad">на исходе</span><span th:if="${!lowIds.contains(m.id) and m.quantityInStock.signum() > 0}" class="tag tag--ok">есть</span><span th:if="${!lowIds.contains(m.id) and m.quantityInStock.signum() <= 0}" class="tag">нет</span></td>
+                <td><div class="tbl-actions"><a th:if="${canEdit}" class="btn btn-soft btn-sm" th:href="${'/admin/materials/doc?type=in&item=' + m.id}">Приход</a><a th:if="${canEdit}" class="ibtn" th:href="${'/admin/materials/' + m.id + '/edit'}" aria-label="Изменить" th:utext="${i['edit']}"></a></div></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+<p class="cnt">Остаток считается из поступлений, расхода в производство по заявкам и списаний; раз в несколько минут сверяется с 1С. <a th:if="${canEdit}" class="link" href="/admin/materials/new">Добавить сырьё в справочник</a></p>
+</th:block>
+</body>
+</html>

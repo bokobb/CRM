@@ -86,9 +86,13 @@ public class DashboardExtrasApiController {
                     money(o.getNetTotal()) + " · срок " + o.getDebtDueDate().format(DAY), o.getId()));
         }
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
-        for (Order o : orderRepository.findByStatusInAndCreatedAtBefore(List.of(OrderStatus.NEW, OrderStatus.READY), todayStart)) {
+        for (Order o : orderRepository.findByStatusInAndCreatedAtBefore(List.of(OrderStatus.PLACED, OrderStatus.CONFIRMED, OrderStatus.NEW, OrderStatus.READY, OrderStatus.NO_SHOW), todayStart)) {
             long dayNo = ChronoUnit.DAYS.between(o.getCreatedAt().toLocalDate(), LocalDate.now()) + 1;
-            String what = o.getStatus() == OrderStatus.NEW ? "собирается" : "ждёт отгрузки";
+            String what = switch (o.getStatus()) {
+                case PLACED -> "не принят";
+                case NEW -> "собирается";
+                default -> "ждёт отгрузки";
+            };
             alerts.add(new DashboardInsightsDto.Alert("STUCK_ORDER",
                     "Заказ №" + o.getId() + " " + what + " " + dayNo + "-й день",
                     o.getClient().getName() + " · " + money(o.getTotalPrice()), o.getId()));

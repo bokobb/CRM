@@ -1375,6 +1375,33 @@ class ApiClient {
     return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
   }
 
+  /// Принять новый заказ клиента: PLACED («Новая») -> NEW («В процессе сборки»), клиент на сайте видит «Принят».
+  Future<Order> acceptOrder(int id) async {
+    final res = await _http.post(
+      await _uri('/orders/$id/accept'),
+      headers: await _authHeaders(),
+    );
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
+  }
+
+  /// Принятый заказ (CONFIRMED «Принят») — склад начал сборку: -> NEW «В процессе сборки».
+  Future<Order> startOrder(int id) async {
+    final res = await _http.post(
+      await _uri('/orders/$id/start'),
+      headers: await _authHeaders(),
+    );
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
+  }
+
+  /// Готовый заказ не забрали: READY -> NO_SHOW «Не забрали».
+  Future<Order> noShowOrder(int id) async {
+    final res = await _http.post(
+      await _uri('/orders/$id/no-show'),
+      headers: await _authHeaders(),
+    );
+    return _withAbsoluteOrderImages(Order.fromJson(_decode(res)));
+  }
+
   Future<Order> confirmOrder(int id) async {
     final res = await _http.post(
       await _uri('/orders/$id/confirm'),

@@ -1,4 +1,5 @@
 const List<String> orderStatuses = [
+  'PLACED',
   'NEW',
   'CONFIRMED',
   'IN_PRODUCTION',
@@ -8,7 +9,9 @@ const List<String> orderStatuses = [
   'CANCELLED',
 ];
 
+/// PLACED — заказ, который клиент оформил сам (сайт, WhatsApp): ждёт «Принять» (админ, склад ГП).
 const Map<String, String> orderStatusLabels = {
+  'PLACED': 'Новая',
   'NEW': 'В процессе сборки',
   'CONFIRMED': 'Подтверждён',
   'IN_PRODUCTION': 'В производстве',
@@ -159,6 +162,11 @@ class Order {
   /// Номер накладной — номер «Реализации» в 1С без нулей, до выгрузки — номер заказа.
   final String? invoiceNumber;
 
+  /// Кто завёл заказ: SITE / WHATSAPP (клиент сам) / CRM, null — старый заказ.
+  final String? source;
+
+  bool get byClient => source == 'SITE' || source == 'WHATSAPP';
+
   bool get hasUnpaidDebt => debtDueDate != null && !debtPaid;
 
   Order({
@@ -182,6 +190,7 @@ class Order {
     required this.netTotal,
     this.returnsCount = 0,
     this.invoiceNumber,
+    this.source,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) => Order(
@@ -206,6 +215,7 @@ class Order {
         : null,
     debtPaid: json['debtPaid'] as bool? ?? false,
     fromWhatsapp: json['fromWhatsapp'] as bool? ?? false,
+    source: json['source'] as String?,
     items: (json['items'] as List)
         .map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
         .toList(),

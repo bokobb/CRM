@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/staff" data-autosubmit>
+    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block><input class="inp" name="q" type="search" placeholder="ФИО или должность" autocomplete="off" th:value="${q}"></label>
+    <label class="switch"><input type="checkbox" name="inactive" value="1" th:checked="${inactive}"> С уволенными</label>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" href="/admin/staff/timesheet">Табель</a>
+    <a th:if="${canUsers}" class="btn btn-soft btn-sm" href="/admin/staff/users">Входы в CRM</a>
+    <a class="btn btn-primary btn-sm" href="/admin/staff/new"><th:block th:utext="${i['plus']}"></th:block>Сотрудник</a>
+</form>
+<section class="card"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards"><thead><tr><th>Сотрудник</th><th>Должность</th><th>Группа затрат</th><th>Телефон</th><th class="r" th:if="${money}">Ставка за смену</th><th class="r" th:if="${money}">Оклад</th></tr></thead>
+    <tbody><tr th:each="e : ${rows}" class="rowlink" th:attr="data-href=${'/admin/staff/' + e.id}">
+        <td class="c-full"><a th:href="${'/admin/staff/' + e.id}" style="text-decoration:none"><b th:text="${e.fullName}"></b></a><small th:if="${!e.active}">уволен</small><small th:if="${e.oneCKey != null}">из 1С</small></td>
+        <td th:text="${e.position}"></td><td th:text="${e.effectiveCostGroup().label}"></td><td class="num" th:text="${@fmt.phone(e.phone)}"></td>
+        <td class="r num" th:if="${money}" th:text="${e.dailyRate != null ? @fmt.money(e.dailyRate) : '—'}"></td>
+        <td class="r num" th:if="${money}" th:text="${e.monthlySalary != null ? @fmt.money(e.monthlySalary) : '—'}"></td></tr></tbody></table>
+</div></section>
+<form method="post" action="/admin/staff/import-1c" class="pager"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <p class="cnt" th:text="${'Сотрудников: ' + rows.size() + '. Цех — ставка за смену в себестоимости; офис и продажи — оклад.'}"></p>
+    <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Загрузить из 1С</button></form>
+</th:block>
+</body>
+</html>

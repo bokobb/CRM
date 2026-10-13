@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/orders" data-autosubmit>
+    <input type="hidden" name="status" th:value="${status}">
+    <input type="hidden" name="client" th:if="${client != null}" th:value="${client}">
+    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="№, магазин, телефон" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">Дата выдачи</span><select class="sel" name="date">
+        <option th:each="o : ${dates}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
+    <label class="pick"><span class="sr">Откуда заказ</span><select class="sel" name="source">
+        <option th:each="o : ${sources}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
+    <a th:if="${clientName != null}" class="chip" aria-pressed="true" th:href="@{/admin/orders(status=${status},q=${q})}" title="Убрать фильтр по клиенту"><th:block th:text="${'Клиент: ' + clientName}"></th:block> <span>✕</span></a>
+</form>
+<div class="chips" role="group" aria-label="Статус заказа">
+    <a th:each="t : ${tabs}" class="chip" th:classappend="${t.alert} ? 'chip--alert'" th:href="${t.href}" th:attr="aria-pressed=${t.on}"><th:block th:text="${t.label}"></th:block> <span th:text="${t.count}">0</span></a>
+</div>
+<section class="card" aria-label="Список заказов">
+    <div class="tbl-w">
+        <div th:if="${rows.isEmpty()}" class="empty"><p>Заказов не найдено.</p><p style="margin-top:10px" th:if="${filtered}"><a class="btn btn-soft btn-sm" href="/admin/orders">Сбросить фильтры</a></p></div>
+        <table th:unless="${rows.isEmpty()}" class="tbl tbl--o">
+            <thead><tr><th>№</th><th>Клиент</th><th>Выдача</th><th class="r o-sz">Состав</th><th class="r">Сумма</th><th>Оплата</th><th>Статус</th></tr></thead>
+            <tbody>
+            <tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/orders/' + r.id}">
+                <td class="o-no"><div class="o-no-in"><a th:href="${'/admin/orders/' + r.id}" th:text="${r.id}">1052</a><span class="tag" th:classappend="${r.site} ? 'tag--site'" th:text="${r.src}">сайт</span></div></td>
+                <td class="o-cl"><b th:text="${r.client.name}">Магазин</b><small th:text="${r.client.contactPerson}"></small></td>
+                <td class="o-win" th:classappend="${r.badge == 'noshow'} ? 'is-bad'">
+                    <th:block th:if="${r.badge == 'done'}"><b>выдан</b><small th:text="${@fmt.when(@fmt.doneAt(r.order))}"></small></th:block>
+                    <th:block th:if="${r.badge == 'off'}"><b>отменён</b><small th:with="e=${@fmt.offAt(r.order)}" th:text="${e != null ? @fmt.when(e) : @fmt.dm(r.day)}"></small></th:block>
+                    <th:block th:if="${r.badge != 'done' and r.badge != 'off'}"><b th:text="${@fmt.cap(@fmt.relDay(r.day)) + (r.day.isAfter(@fmt.today().plusDays(1)) ? ', ' + @fmt.wday(r.day) : '')}">Сегодня</b><small th:text="${r.order.pickupHour != null ? @fmt.win(r.order.pickupHour) : 'окно не выбрано'}"></small></th:block>
+                </td>
+                <td class="o-sz r num" th:text="${r.totals.positions + ' поз. · ' + r.totals.boxes + ' кор.'}"></td>
+                <td class="o-sum r num"><b th:text="${@fmt.money(r.totals.net())}"></b><small th:if="${r.totals.ret.signum() > 0}">с возвратом</small></td>
+                <td class="o-pay"><th:block th:text="${r.pay.method}"></th:block><small th:classappend="${r.pay.bad} ? 'pay-bad'" th:text="${r.pay.status}"></small></td>
+                <td class="o-st"><span class="st" th:classappend="${'st--' + r.badge}"><th:block th:utext="${i16['s-' + r.badge]}"></th:block><span th:text="${r.badgeLabel}"></span></span></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+<div class="pager">
+    <p class="cnt" th:text="${'Показано ' + rows.size() + ' из ' + total + (total != allCount ? ' (всего заказов ' + allCount + ')' : '') + (pages > 1 ? '. Страница ' + page + ' из ' + pages : '')}"></p>
+    <a th:if="${prevHref != null}" class="btn btn-soft btn-sm" th:href="${prevHref}">← Назад</a>
+    <a th:if="${nextHref != null}" class="btn btn-soft btn-sm" th:href="${nextHref}">Дальше →</a>
+</div>
+</th:block>
+</body>
+</html>

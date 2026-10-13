@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" th:href="${base}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${product ? 'Склад' : 'Склад сырья'}"></th:block></a>
+<div class="oh"><div class="oh-t"><h2 th:text="${(type == 'out' ? 'Списание ' : 'Поступление ') + (product ? 'товара' : 'сырья')}">Поступление</h2></div>
+    <p class="oh-m">Несколько позиций одним документом. Документ проводится сразу и уходит в 1С.</p></div>
+<div class="errs errs-top" role="alert" th:if="${!errors.isEmpty()}"><span th:each="e : ${errors}" th:text="${e}"></span></div>
+<form method="post" th:action="${base + '/doc'}" data-guard="Документ не проведён.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <div class="section-gap">
+    <section class="card form-card">
+        <div class="radios" role="radiogroup" aria-label="Вид документа">
+            <label class="radio"><input type="radio" name="type" value="in" th:checked="${type == 'in'}">Поступление</label>
+            <label class="radio"><input type="radio" name="type" value="out" th:checked="${type == 'out'}">Списание</label></div>
+        <div class="fgrid">
+            <label class="field"><span>Дата документа</span><input class="inp" type="date" name="date" th:value="${date}" th:max="${today}"></label>
+            <label class="field wide"><span th:text="${type == 'out' ? 'Причина (обязательно)' : 'Комментарий'}">Причина</span><input class="inp" name="reason" maxlength="300" th:value="${reason}" placeholder="Например: брак, просрочка, инвентаризация"></label>
+        </div>
+    </section>
+    <section class="card">
+        <div class="card-h"><h2>Позиции</h2></div>
+        <div class="tbl-w"><table class="tbl edit-rows" id="dt">
+            <thead><tr><th th:text="${product ? 'Товар' : 'Сырьё'}"></th><th class="r">Количество</th><th></th><th class="acts-col"></th></tr></thead>
+            <tbody>
+            <tr th:each="l : ${lines}">
+                <td><select class="sel full" name="item"><option value="">— выберите —</option><option th:each="it : ${items}" th:value="${it.id}" th:text="${it.name + ' · остаток ' + @fmt.num(it.stock) + ' ' + it.unit}" th:selected="${it.id == l.itemId}" th:attr="data-unit=${it.unit}"></option></select></td>
+                <td class="r"><input class="inp num-in" name="qty" inputmode="decimal" th:value="${l.qty}"></td>
+                <td class="muted" data-unit></td>
+                <td><button class="rx-del" type="button" data-del-row aria-label="Удалить строку" th:utext="${i['trash']}"></button></td>
+            </tr>
+            </tbody>
+        </table></div>
+        <button class="add" type="button" data-add-row="dt"><th:block th:utext="${i['plus']}"></th:block><span>Добавить позицию</span></button>
+    </section>
+    <div class="form-acts"><a class="btn btn-soft" th:href="${base}">Отмена</a><button class="btn btn-primary" type="submit">Провести</button></div>
+    </div>
+</form>
+<template id="row-tpl"><tr>
+    <td><select class="sel full" name="item"><option value="">— выберите —</option><option th:each="it : ${items}" th:value="${it.id}" th:text="${it.name + ' · остаток ' + @fmt.num(it.stock) + ' ' + it.unit}" th:attr="data-unit=${it.unit}"></option></select></td>
+    <td class="r"><input class="inp num-in" name="qty" inputmode="decimal"></td>
+    <td class="muted" data-unit></td>
+    <td><button class="rx-del" type="button" data-del-row aria-label="Удалить строку" th:utext="${i['trash']}"></button></td>
+</tr></template>
+</th:block>
+<th:block th:fragment="scripts"><script src="/admin/assets/lines.js?v=1"></script></th:block>
+</body>
+</html>

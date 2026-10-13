@@ -22,8 +22,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class OrderPriceFillService {
 
-    static final Set<OrderStatus> OPEN = EnumSet.of(OrderStatus.NEW, OrderStatus.CONFIRMED,
-            OrderStatus.IN_PRODUCTION, OrderStatus.READY);
+    static final Set<OrderStatus> OPEN = EnumSet.of(OrderStatus.PLACED, OrderStatus.NEW, OrderStatus.CONFIRMED,
+            OrderStatus.IN_PRODUCTION, OrderStatus.READY, OrderStatus.NO_SHOW);
 
     private final OrderRepository orderRepository;
     private final ClientPriceService clientPriceService;

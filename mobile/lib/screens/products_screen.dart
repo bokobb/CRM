@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/api_client.dart';
 import '../widgets/app_bottom_nav.dart';
+import '../widgets/app_choice_chip.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_list_tile.dart';
 import '../widgets/error_view.dart';
@@ -24,6 +25,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
   String _query = '';
   bool _importing = false;
 
+  /// «Без объёма коробки» — товары на продажу без объёма коробки: без него не считается объём
+  /// заказа на сайте (история, корзина) и в бланке накладной.
+  bool _noVolume = false;
+
+  static bool _missingVolume(Product p) => !p.semiFinished && (p.boxVolumeM3 == null || p.boxVolumeM3! <= 0);
+
   @override
   void initState() {
     super.initState();
@@ -38,10 +45,28 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   List<Product> _filter(List<Product> products) {
-    if (_query.isEmpty) return products;
     final q = _query.toLowerCase();
-    return products.where((p) => p.name.toLowerCase().contains(q)).toList();
+    return products
+        .where((p) => !_noVolume || _missingVolume(p))
+        .where((p) => q.isEmpty || p.name.toLowerCase().contains(q))
+        .toList();
   }
+
+  Widget _chips(List<Product> all) => SizedBox(
+        height: 48,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          children: [
+            AppChoiceChip(label: 'Все', selected: !_noVolume, onTap: () => setState(() => _noVolume = false)),
+            AppChoiceChip(
+              label: 'Без объёма коробки · ${all.where(_missingVolume).length}',
+              selected: _noVolume,
+              onTap: () => setState(() => _noVolume = true),
+            ),
+          ],
+        ),
+      );
 
   Future<void> _delete(Product p) async {
     final confirmed = await showDialog<bool>(
@@ -215,10 +240,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
             final products = _filter(snapshot.data!);
             if (products.isEmpty) {
               return ListView(children: [
+                _chips(snapshot.data!),
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Center(
-                    child: Text(_query.isEmpty ? 'Товаров пока нет' : 'Ничего не найдено',
+                    child: Text(_query.isEmpty && !_noVolume ? 'Товаров пока нет' : 'Ничего не найдено',
                         style: TextStyle(color: context.pal.muted)),
                   ),
                 ),
@@ -226,9 +252,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
             }
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              itemCount: products.length,
-              itemBuilder: (context, i) {
-                final p = products[i];
+              itemCount: products.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) return _chips(snapshot.data!);
+                final p = products[index - 1];
                 return AppListTile(
                   leading: ProductAvatar(name: p.name, imageUrl: p.imageUrl),
                   title: p.name,

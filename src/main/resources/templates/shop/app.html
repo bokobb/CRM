@@ -10,7 +10,7 @@
 <div class="page" id="page">
     <header th:replace="~{shop/fragments/frame :: top(signedIn=true, active=${view}, cartCount=${cartCount}, clientName=${clientName})}"></header>
 
-    <main id="main">
+    <main id="main" th:classappend="${view == 'orders'} ? 'is-orders' : ''">
         <div class="wrap flow" id="shell" th:classappend="${view == 'cart' and cartCount == 0} ? 'is-solo' : ''">
             <div class="flow-main">
                 <p class="alert" th:if="${error}" th:text="${error}" role="alert"></p>
@@ -57,31 +57,30 @@
                             <ul class="items" id="cart-items"></ul>
                             <p><a class="link" href="/shop/products">+ Добавить товары</a></p>
                         </div>
-                        <!--/* Выбор дня/времени выдачи и способа оплаты временно отключены (09.10, пока не нужны).
-                             Чтобы вернуть — снять комментарий с этих двух блоков и со строки «выдача» в боковой
-                             панели: скрипт ниже (PICKUP) и ShopController.submit подхватят их сами.
-                        <div class="block" id="pick">
-                            <h2 id="h-pick" tabindex="-1">Время выдачи</h2>
-                            <p class="hint">Самовывоз с производства<th:block th:if="${company.address}" th:text="', ' + ${company.address}"></th:block>. Соберём партию к выбранному времени.</p>
+                        <!--/* День/время выдачи и способ оплаты — скрытые возможности, включаются в админке
+                             (Настройки › Магазин); оба необязательны, заказ оформляется и без них. */-->
+                        <div class="block" id="pick" th:if="${company.pickupChoiceOn()}">
+                            <h2 id="h-pick" tabindex="-1">Когда заберёте <small class="opt">необязательно</small></h2>
+                            <p class="hint">Самовывоз с производства<th:block th:if="${company.address}" th:text="', ' + ${company.address}"></th:block>. Укажите день, а если удобно — и время, мы соберём заказ к нему.</p>
                             <div class="field">
                                 <span class="field-label" id="l-day">День</span>
                                 <div class="days" id="days" role="group" aria-labelledby="l-day"></div>
                             </div>
-                            <div class="field">
+                            <div class="field" id="slot-field" hidden>
                                 <span class="field-label" id="l-slot">Время</span>
                                 <div class="slots" id="slots" role="group" aria-labelledby="l-slot"></div>
                             </div>
                             <input type="hidden" name="day" id="f-day">
                             <input type="hidden" name="slot" id="f-slot">
                         </div>
-                        <div class="block">
-                            <h2>Оплата</h2>
+                        <div class="block" th:if="${company.paymentChoiceOn()}">
+                            <h2>Оплата <small class="opt">необязательно</small></h2>
                             <div class="choices" role="radiogroup" aria-label="Способ оплаты">
-                                <label class="choice"><input type="radio" name="pay" value="Kaspi" checked> Kaspi</label>
-                                <label class="choice"><input type="radio" name="pay" value="По счёту"> По счёту (безнал)</label>
+                                <label class="choice"><input type="radio" name="pay" value="KASPI"> Kaspi</label>
+                                <label class="choice"><input type="radio" name="pay" value="CASH"> Наличными при выдаче</label>
+                                <label class="choice"><input type="radio" name="pay" value="INVOICE"> По счёту (безнал)</label>
                             </div>
                         </div>
-                        */-->
                         <div class="block">
                             <div class="field">
                                 <label for="f-note">Комментарий к заказу</label>
@@ -109,52 +108,78 @@
                         <button type="button" class="chip" data-key="all" aria-pressed="true">Все</button>
                         <button type="button" class="chip" data-key="active" aria-pressed="false">В работе</button>
                         <button type="button" class="chip" data-key="closed" aria-pressed="false">Завершённые</button>
+                        <button type="button" class="chip" data-key="ret" aria-pressed="false">С возвратом</button>
                     </div>
                     <ul class="orders" id="orders">
-                        <li class="order" th:each="o : ${orders}" th:attr="data-active=${o.active}">
-                            <div class="order-top">
-                                <div>
-                                    <h2 th:text="'Заказ № ' + ${o.number}">Заказ № 1</h2>
-                                    <p class="order-when" th:text="${o.whenLabel}">Оформлен</p>
-                                </div>
-                                <span class="status" th:classappend="'status--' + ${o.statusKey}" th:text="${o.statusLabel}">Принят</span>
-                            </div>
-                            <div class="totals">
-                                <dl class="totals-left">
+                        <li th:each="o : ${orders}" th:attr="data-active=${o.active},data-state=${o.statusKey},data-return=${o.returns.isEmpty()} ? null : 'true'">
+                            <article class="ord" th:attr="data-state=${o.statusKey},aria-labelledby='o' + ${o.id}">
+                                <header class="ord-head">
+                                    <div>
+                                        <h2 th:id="'o' + ${o.id}" th:text="'Заказ № ' + ${o.number}">Заказ № 1</h2>
+                                        <p class="ord-meta" th:text="${o.whenLabel}">Оформлен</p>
+                                    </div>
+                                    <span class="st" th:classappend="'st--' + ${o.statusKey}"><th:block th:replace="~{shop/fragments/order-art :: __${'icon-' + o.statusKey}__}"></th:block><span class="st-t" th:text="${o.statusLabel}">Принят</span></span>
+                                </header>
+
+                                <ol class="trk" th:if="${o.track}" th:style="'--k:' + ${o.track.k} + ';--n:' + ${o.track.n}" aria-label="Как идёт заказ">
+                                    <li th:each="stg : ${o.track.stages}" th:class="${stg.cls}" th:attr="aria-current=${stg.cls == 'is-now'} ? 'step' : null">
+                                        <span class="stage-w"><span class="stage"><th:block th:replace="~{shop/fragments/order-art :: __${'stage-' + stg.key}__}"></th:block></span><span class="tick"><th:block th:replace="~{shop/fragments/order-art :: tick}"></th:block></span></span>
+                                        <b th:text="${stg.title}">Этап</b>
+                                        <small th:if="${stg.time}" th:text="${stg.time}"></small>
+                                    </li>
+                                </ol>
+
+                                <dl class="spec">
                                     <div><dt>позиций</dt><dd th:text="${o.positions}">0</dd></div>
                                     <div><dt>коробок</dt><dd th:text="${o.boxes} ?: '—'">0</dd></div>
                                     <div><dt>вес</dt><dd th:text="${o.weight} ?: '—'">0 кг</dd></div>
+                                    <div><dt>объём</dt><dd th:if="${o.volume}" th:text="${o.volume}">0 м³</dd><dd th:unless="${o.volume}" title="не у всех товаров указан размер коробки">—</dd></div>
                                 </dl>
-                                <dl class="totals-right">
-                                    <div><dt>сумма</dt><dd th:text="${o.total}">0 ₸</dd></div>
-                                </dl>
-                            </div>
-                            <p class="total-line" th:if="${o.returnTotal}"><span>Возврат</span><b th:text="${o.returnTotal}">−0 ₸</b></p>
-                            <p class="sum"><span>Итого</span><b th:text="${o.netTotal} ?: ${o.total}">0 ₸</b></p>
-                            <details>
-                                <summary>Состав заказа</summary>
-                                <ul class="order-lines">
-                                    <li th:each="it : ${o.lines}"><span th:text="${it.name} + ' — ' + ${it.qtyLabel}">Товар</span><b th:text="${it.sumLabel}">0 ₸</b></li>
-                                </ul>
-                                <p class="hint order-note" th:if="${o.notes}" th:text="${o.notes}" style="white-space:pre-line"></p>
-                            </details>
-                            <div class="order-returns-wrap" th:if="${!#lists.isEmpty(o.returns)}" hidden>
-                                <div class="order-returns" th:each="ret : ${o.returns}">
-                                    <h3><span th:text="'Возврат от ' + ${ret.dateLabel} + (${ret.documentNumber} != null ? ' · №' + ${ret.documentNumber} : '')"></span><b th:text="'−' + ${ret.totalLabel}"></b></h3>
-                                    <p class="hint" th:if="${ret.reason}" th:text="${ret.reason}"></p>
-                                    <ul class="order-lines">
-                                        <li th:each="it : ${ret.items}"><span th:text="${it.name} + ' — ' + ${it.qtyLabel}"></span><b th:text="${it.sumLabel}"></b></li>
-                                    </ul>
+
+                                <div class="rcpt">
+                                    <p class="rcpt-row" th:unless="${o.returns.isEmpty()}"><span>Сумма заказа</span><i></i><b th:text="${o.total}">0 ₸</b></p>
+                                    <p class="rcpt-row rcpt-ret" th:each="ret : ${o.returns}"><span th:text="'Возврат' + (${ret.number} != null ? ' № ' + ${ret.number} : '') + ' от ' + ${ret.dateShort}">Возврат</span><i></i><b th:text="${ret.totalLabel}">−0 ₸</b></p>
+                                    <p class="rcpt-row rcpt-total"><span>Итого</span><i></i><b th:text="${o.netTotal}">0 ₸</b></p>
                                 </div>
-                            </div>
-                            <div class="actions">
-                                <form th:action="@{/shop/orders/{id}/repeat(id=${o.id})}" method="post">
-                                    <button class="btn btn-line btn-sm" type="submit">Повторить заказ</button>
-                                </form>
-                                <button class="btn btn-line btn-sm returns-toggle" type="button" th:if="${!#lists.isEmpty(o.returns)}"
-                                        th:attr="data-count=${#lists.size(o.returns)}"
-                                        th:text="'Показать возврат (' + ${#lists.size(o.returns)} + ')'">Показать возврат</button>
-                            </div>
+
+                                <div class="ord-foot">
+                                    <button class="tog" type="button" aria-expanded="false" th:attr="aria-controls='c' + ${o.id}">Состав заказа <span th:text="${o.positions}">0</span><th:block th:replace="~{shop/fragments/order-art :: chevron}"></th:block></button>
+                                    <button class="tog" type="button" aria-expanded="false" th:unless="${o.returns.isEmpty()}" th:attr="aria-controls='r' + ${o.id}">Возврат <span th:text="${o.returnLines}">0</span><th:block th:replace="~{shop/fragments/order-art :: chevron}"></th:block></button>
+                                    <form th:action="@{/shop/orders/{id}/repeat(id=${o.id})}" method="post">
+                                        <button class="btn btn-line btn-sm" type="submit">Повторить заказ</button>
+                                    </form>
+                                </div>
+
+                                <div class="ord-lines" th:id="'c' + ${o.id}" hidden>
+                                    <table class="tbl">
+                                        <thead><tr><th>Товар</th><th>Кол-во</th><th>Сумма</th></tr></thead>
+                                        <tbody>
+                                            <tr th:each="it : ${o.lines}"><td><th:block th:text="${it.name}">Товар</th:block><small th:if="${it.unitPrice}" th:text="${it.unitPrice}"></small></td><td th:text="${it.qtyLabel}"></td><td th:text="${it.sumLabel}"></td></tr>
+                                        </tbody>
+                                        <tfoot><tr><td th:text="${o.positionsLabel()}"></td><td th:text="${o.linesQty}"></td><td th:text="${o.total}"></td></tr></tfoot>
+                                    </table>
+                                    <p class="hint order-note" th:if="${o.notes}" th:text="${o.notes}" style="white-space:pre-line"></p>
+                                </div>
+
+                                <th:block th:each="ret, rs : ${o.returns}">
+                                    <section class="slip" th:id="${rs.first} ? 'r' + ${o.id} : 'r' + ${o.id} + '-' + ${rs.index}" th:attr="aria-labelledby='r' + ${o.id} + 'h' + ${rs.index},data-ret-of=${o.id}" hidden>
+                                        <span class="slip-tape" aria-hidden="true"></span><span class="stamp" aria-hidden="true">Возврат</span>
+                                        <header class="slip-head">
+                                            <h3 th:id="'r' + ${o.id} + 'h' + ${rs.index}" th:text="'Возврат' + (${ret.number} != null ? ' № ' + ${ret.number} : '')">Возврат</h3>
+                                            <p th:text="'от ' + ${ret.dateLong} + (${ret.document} != null ? ' · документ ' + ${ret.document} : '') + ' · по заказу № ' + ${o.number}"></p>
+                                        </header>
+                                        <div class="slip-body">
+                                            <table class="tbl tbl--ret">
+                                                <thead><tr><th>Вернули</th><th>Кол-во</th><th>Сумма</th></tr></thead>
+                                                <tbody>
+                                                    <tr th:each="it : ${ret.items}"><td th:text="${it.name}"></td><td th:text="${it.qtyLabel}"></td><td th:text="${it.sumLabel}"></td></tr>
+                                                </tbody>
+                                                <tfoot><tr><td th:text="${ret.positionsLabel()}"></td><td th:text="${ret.qtyTotal}"></td><td th:text="${ret.totalLabel}"></td></tr></tfoot>
+                                            </table>
+                                        </div>
+                                    </section>
+                                </th:block>
+                            </article>
                         </li>
                     </ul>
                     <p class="none" id="orders-none" th:hidden="${!#lists.isEmpty(orders)}">За этот период заказов нет.</p>
@@ -170,14 +195,13 @@
                         <div><dt>позиций</dt><dd id="t-pos">0</dd></div>
                         <div><dt>коробок</dt><dd id="t-boxes">0</dd></div>
                         <div><dt>вес</dt><dd id="t-kg">0 кг</dd></div>
+                        <div><dt>объём</dt><dd id="t-vol">—</dd></div>
                     </dl>
                     <dl class="totals-right">
                         <div><dt>сумма</dt><dd id="t-sum">0 ₸</dd></div>
                     </dl>
                 </div>
-                <!--/* выдача — отключена вместе с выбором времени (см. корзину выше)
-                <p class="side-when" id="aside-when" hidden><span>выдача</span><b id="t-when"></b></p>
-                */-->
+                <p th:if="${company.pickupChoiceOn()}" class="side-when" id="aside-when" hidden><span>выдача</span><b id="t-when"></b></p>
                 <p class="sum"><span>Итого</span><b id="t-total" aria-live="polite">0 ₸</b></p>
                 <button class="btn btn-primary side-cta" type="button" id="next" disabled>Перейти в корзину</button>
             </aside>
@@ -201,22 +225,45 @@
 
 <script th:if="${view == 'orders'}">
 (function () {
+  /* «Состав заказа» и «Возврат» раскрываются под заказом (у «Возврата» — все листки заказа); фильтры
+     «Все / В работе / Завершённые / С возвратом»; «В работе» считает и «Новая» (data-active). */
   document.getElementById('orders').addEventListener('click', function (e) {
-    var b = e.target.closest('.returns-toggle');
-    if (!b) return;
-    var wrap = b.closest('.order').querySelector('.order-returns-wrap');
-    wrap.hidden = !wrap.hidden;
-    b.textContent = wrap.hidden ? 'Показать возврат (' + b.getAttribute('data-count') + ')' : 'Скрыть возврат';
+    var trk = e.target.closest('.trk');
+    if (trk) {
+      /* нажали на дорожку — картинка текущего этапа играет сначала */
+      trk.classList.add('is-off');
+      void trk.offsetWidth;
+      trk.classList.remove('is-off');
+      return;
+    }
+    var t = e.target.closest('.tog');
+    if (!t) return;
+    var open = t.getAttribute('aria-expanded') !== 'true';
+    t.setAttribute('aria-expanded', String(open));
+    var id = t.getAttribute('aria-controls');
+    if (id.charAt(0) === 'r') {
+      Array.prototype.forEach.call(t.closest('.ord').querySelectorAll('.slip'), function (s) { s.hidden = !open; });
+    } else {
+      document.getElementById(id).hidden = !open;
+    }
   });
+  /* Картинка этапа играет каждый раз, когда дорожка снова появляется на экране: вне экрана — .is-off
+     (animation:none), при возврате класс снимается и анимация начинается сначала. */
+  if ('IntersectionObserver' in window) {
+    var seen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { en.target.classList.toggle('is-off', !en.isIntersecting); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#orders .trk'), function (t) { seen.observe(t); });
+  }
   var chips = document.getElementById('order-chips');
   chips.addEventListener('click', function (e) {
     var b = e.target.closest('.chip');
     if (!b) return;
     var key = b.getAttribute('data-key'), shown = 0;
     Array.prototype.forEach.call(chips.children, function (c) { c.setAttribute('aria-pressed', String(c === b)); });
-    Array.prototype.forEach.call(document.querySelectorAll('#orders .order'), function (li) {
+    Array.prototype.forEach.call(document.querySelectorAll('#orders > li'), function (li) {
       var active = li.getAttribute('data-active') === 'true';
-      var ok = key === 'all' || (key === 'active') === active;
+      var ok = key === 'all' || (key === 'ret' ? li.hasAttribute('data-return') : (key === 'active') === active);
       li.hidden = !ok;
       if (ok) shown += 1;
     });
@@ -232,8 +279,8 @@
   var VIEW = /*[[${view}]]*/ 'products';
   var PRODUCTS = DATA.products, BY_ID = {};
   PRODUCTS.forEach(function (p) { BY_ID[p.id] = p; });
-  var state = { qty: {}, group: 'all', q: '', day: DATA.defaultDay, slot: null };
-  /* выбор времени выдачи есть, только если его блок не закомментирован в разметке */
+  var state = { qty: {}, group: 'all', q: '', day: null, slot: null };
+  /* выбор дня/времени выдачи есть, только если он включён в настройках (блок #pick в разметке) */
   var PICKUP = !!document.getElementById('pick');
   Object.keys(DATA.cart).forEach(function (id) { if (BY_ID[id]) state.qty[id] = DATA.cart[id]; });
 
@@ -257,12 +304,14 @@
   function boxesWord(n) { return n + ' ' + plural(n, 'коробка', 'коробки', 'коробок'); }
   function boxesOf(p, q) { return p.box ? Math.ceil(q / p.box - 1e-9) : 0; }
   function totals() {
-    var t = { pos: 0, boxes: 0, noBox: 0, g: 0, sum: 0, lines: [] };
+    var t = { pos: 0, boxes: 0, noBox: 0, g: 0, vol: 0, noVol: 0, sum: 0, lines: [] };
     PRODUCTS.forEach(function (p) {
       var q = state.qty[p.id] || 0;
       if (!q) return;
       t.pos += 1; t.sum += q * p.price;
       if (p.box) t.boxes += boxesOf(p, q); else t.noBox += 1;
+      /* объём = коробки × объём коробки из карточки; хоть у одной позиции нет — объёма нет («—») */
+      if (p.box && p.vol > 0) t.vol += boxesOf(p, q) * p.vol; else t.noVol += 1;
       if (p.weightG) t.g += q * p.weightG;
       t.lines.push({ p: p, q: q, sum: q * p.price });
     });
@@ -399,33 +448,32 @@
     });
   }
 
-  /* ---- корзина: день и время выдачи ---- */
-  function slotsFor(day) {
-    var out = [], h;
-    for (h = 8; h < 18; h += 1) {
-      out.push({ id: day.date + '-' + h, label: (h < 10 ? '0' : '') + h + ':00–' + (h + 1 < 10 ? '0' : '') + (h + 1) + ':00', past: day.today && h <= DATA.hourNow });
-    }
-    return out;
+  /* ---- корзина: день и время выдачи (необязательно; повторное нажатие снимает выбор) ---- */
+  function whenText() {
+    var d = DATA.days[state.day];
+    return d.title + ', ' + d.sub + (state.slot ? ' · ' + state.slot.label : '');
   }
-  function whenText() { var d = DATA.days[state.day]; return d.title + ', ' + d.sub + ' · ' + state.slot.label; }
   function renderPick() {
     var box = $('days'), sbox = $('slots');
     box.textContent = '';
     DATA.days.forEach(function (d, i) {
       var b = el('button', { type: 'button', 'class': 'day', 'aria-pressed': String(i === state.day) }, d.title);
       b.appendChild(el('small', {}, d.sub));
-      b.addEventListener('click', function () { if (state.day !== i) { state.day = i; state.slot = null; } renderPick(); render(); });
+      b.addEventListener('click', function () { state.day = state.day === i ? null : i; state.slot = null; renderPick(); render(); });
       box.appendChild(b);
     });
     sbox.textContent = '';
-    slotsFor(DATA.days[state.day]).forEach(function (s) {
-      var b = el('button', { type: 'button', 'class': 'slot', 'aria-pressed': String(!!state.slot && state.slot.id === s.id) }, s.label);
-      if (s.past) { b.disabled = true; b.appendChild(el('small', {}, 'прошло')); }
-      b.addEventListener('click', function () { state.slot = s; renderPick(); render(); });
-      sbox.appendChild(b);
-    });
-    $('f-day').value = DATA.days[state.day].date;
-    $('f-slot').value = state.slot ? state.slot.label : '';
+    $('slot-field').hidden = state.day === null;
+    if (state.day !== null) {
+      DATA.days[state.day].slots.forEach(function (s) {
+        var b = el('button', { type: 'button', 'class': 'slot', 'aria-pressed': String(!!state.slot && state.slot.hour === s.hour) }, s.label);
+        if (s.past || s.full) { b.disabled = true; b.appendChild(el('small', {}, s.past ? 'прошло' : 'занято')); }
+        b.addEventListener('click', function () { state.slot = state.slot && state.slot.hour === s.hour ? null : s; renderPick(); render(); });
+        sbox.appendChild(b);
+      });
+    }
+    $('f-day').value = state.day === null ? '' : DATA.days[state.day].date;
+    $('f-slot').value = state.slot ? state.slot.hour : '';
   }
   function buildCart() {
     PRODUCTS.forEach(function (p) {
@@ -458,14 +506,16 @@
     $('t-pos').textContent = t.pos;
     $('t-boxes').textContent = boxesLabel(t);
     $('t-kg').textContent = t.g ? kilos(t.g) : '—';
+    $('t-vol').textContent = t.noVol ? '—' : t.vol.toFixed(2).replace('.', ',') + '\u00a0м³';
+    $('t-vol').title = t.noVol ? 'не у всех товаров указан размер коробки' : '';
     $('t-sum').textContent = money(t.sum);
     $('t-total').textContent = money(t.sum);
     if (PICKUP && $('aside-when')) {
       $('aside-when').hidden = !inCart;
-      $('t-when').textContent = state.slot ? whenText() : 'не выбрано';
-      $('t-when').classList.toggle('is-none', !state.slot);
+      $('t-when').textContent = state.day !== null ? whenText() : 'не указано';
+      $('t-when').classList.toggle('is-none', state.day === null);
     }
-    var cta = !inCart ? ['Перейти в корзину', 'В корзину'] : PICKUP && !state.slot ? ['Выбрать время выдачи', 'Выбрать время'] : ['Оформить заказ', 'Оформить'];
+    var cta = !inCart ? ['Перейти в корзину', 'В корзину'] : ['Оформить заказ', 'Оформить'];
     $('next').textContent = cta[0];
     $('next').disabled = !t.pos;
     $('m-next').textContent = cta[1];
@@ -486,12 +536,6 @@
     var t = totals();
     if (!t.pos || busy) return;
     if (VIEW === 'products') { busy = true; flush().then(function () { location.href = '/shop/catalog'; }); return; }
-    if (PICKUP && !state.slot) {
-      var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      $('pick').scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
-      $('h-pick').focus({ preventScroll: true });
-      return;
-    }
     busy = true;
     $('next').disabled = true; $('m-next').disabled = true;
     flush().then(function () { $('cart-body').submit(); });

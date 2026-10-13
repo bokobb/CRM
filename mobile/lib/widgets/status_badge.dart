@@ -15,6 +15,8 @@ class StatusBadge extends StatelessWidget {
     final p = context.pal;
     if (insufficient) return p.danger;
     switch (status) {
+      case 'PLACED':
+        return p.accent;
       case 'NEW':
       case 'PENDING':
         return p.warn;
@@ -29,6 +31,7 @@ class StatusBadge extends StatelessWidget {
       case 'RECEIVED':
         return p.success;
       case 'CANCELLED':
+      case 'NO_SHOW':
         return p.danger;
       default:
         return p.muted;

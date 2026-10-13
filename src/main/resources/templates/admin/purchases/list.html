@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/purchases" data-autosubmit>
+    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="№, поставщик, сырьё" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">С</span><input class="inp" type="date" name="from" th:value="${from}"></label>
+    <label class="pick"><span class="sr">По</span><input class="inp" type="date" name="to" th:value="${to}"></label>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" href="/admin/purchases/suppliers">Поставщики</a>
+    <a th:if="${canEdit}" class="btn btn-primary btn-sm" href="/admin/purchases/new"><th:block th:utext="${i['plus']}"></th:block>Новая покупка</a>
+</form>
+<section class="card" aria-label="Покупки">
+    <div class="tbl-w">
+        <div th:if="${rows.isEmpty()}" class="empty">За эти дни покупок нет.</div>
+        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
+            <thead><tr><th>№</th><th>Дата</th><th>Поставщик</th><th>Сырьё</th><th class="r">Сумма</th><th>1С</th></tr></thead>
+            <tbody>
+            <tr th:each="p : ${rows}" class="rowlink" th:attr="data-href=${'/admin/purchases/' + p.id}">
+                <td><a th:href="${'/admin/purchases/' + p.id}" th:text="${p.id}"></a></td>
+                <td th:text="${@fmt.dm(p.purchaseDate)}"></td>
+                <td class="c-full"><b th:text="${p.counterparty.name}"></b></td>
+                <td class="c-full"><th:block th:text="${#strings.abbreviate(#strings.listJoin(p.items.![ingredient.name], ', '), 90)}"></th:block><small th:text="${@fmt.count(p.items.size(), 'позиция', 'позиции', 'позиций')}"></small></td>
+                <td class="r num"><b th:text="${@fmt.money(p.totalSum)}"></b></td>
+                <td><span th:if="${p.oneCSyncError != null}" class="tag tag--bad" th:title="${p.oneCSyncError}">ошибка</span><span th:if="${p.oneCSyncError == null and p.oneCDocumentNumber != null}" class="tag tag--ok" th:text="${p.oneCDocumentNumber}"></span><span th:if="${p.oneCSyncError == null and p.oneCDocumentNumber == null}" class="tag">в очереди</span></td>
+            </tr>
+            </tbody>
+            <tfoot><tr><td colspan="4">Итого</td><td class="r num" th:text="${@fmt.money(sum)}"></td><td></td></tr></tfoot>
+        </table>
+    </div>
+</section>
+</th:block>
+</body>
+</html>

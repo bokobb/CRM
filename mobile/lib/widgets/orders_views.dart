@@ -7,10 +7,11 @@ import 'format.dart';
 import 'hidden_search.dart';
 
 Color orderStatusColor(AppPalette p, String status) => switch (status) {
+      'PLACED' => p.accent,
       'NEW' => p.warn,
       'CONFIRMED' || 'IN_PRODUCTION' || 'READY' => p.info,
       'DELIVERED' => p.success,
-      'CANCELLED' => p.danger,
+      'CANCELLED' || 'NO_SHOW' => p.danger,
       _ => p.muted,
     };
 
@@ -144,10 +145,15 @@ class OrdersBoardView extends StatelessWidget {
   });
 
   static const _columns = [
+    ('PLACED', 'Новые'),
+    ('CONFIRMED', 'Принят'),
     ('NEW', 'Сборка'),
     ('READY', 'К отгрузке'),
     ('DELIVERED', 'Отгружен'),
   ];
+
+  /// «Не забрали» лежит в колонке «К отгрузке» (оттуда же его отгружают после переноса выдачи).
+  static String _column(String status) => status == 'NO_SHOW' ? 'READY' : status;
 
   bool get _canMove {
     final role = ApiClient.currentSession?.role;
@@ -158,7 +164,11 @@ class OrdersBoardView extends StatelessWidget {
     final api = ApiClient();
     final messenger = ScaffoldMessenger.of(context);
     try {
-      if (o.status == 'NEW' && to == 'READY') {
+      if (o.status == 'PLACED' && to == 'CONFIRMED') {
+        await api.acceptOrder(o.id);
+      } else if (o.status == 'CONFIRMED' && to == 'NEW') {
+        await api.startOrder(o.id);
+      } else if (o.status == 'NEW' && to == 'READY') {
         final ok = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -172,7 +182,7 @@ class OrdersBoardView extends StatelessWidget {
         );
         if (ok != true) return;
         await api.confirmOrder(o.id);
-      } else if (o.status == 'READY' && to == 'DELIVERED') {
+      } else if ((o.status == 'READY' || o.status == 'NO_SHOW') && to == 'DELIVERED') {
         final controller = TextEditingController();
         final plate = await showDialog<String>(
           context: context,
@@ -217,10 +227,10 @@ class OrdersBoardView extends StatelessWidget {
                 width: colWidth,
                 child: DragTarget<OrderSummary>(
                   onWillAcceptWithDetails: (d) =>
-                      _canMove && c > 0 && d.data.status == _columns[c - 1].$1,
+                      _canMove && c > 0 && _column(d.data.status) == _columns[c - 1].$1,
                   onAcceptWithDetails: (d) => _move(context, d.data, _columns[c].$1),
                   builder: (context, candidate, _) {
-                    final items = orders.where((o) => o.status == _columns[c].$1).toList();
+                    final items = orders.where((o) => _column(o.status) == _columns[c].$1).toList();
                     return Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(

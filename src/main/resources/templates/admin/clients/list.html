@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/clients" data-autosubmit>
+    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block><input class="inp" name="q" type="search" placeholder="Магазин, контакт, телефон, адрес" autocomplete="off" th:value="${q}"></label>
+    <span class="grow"></span>
+    <a class="btn btn-primary btn-sm" href="/admin/clients/new"><th:block th:utext="${i['plus']}"></th:block>Новый клиент</a>
+</form>
+<div class="chips">
+    <a th:if="${isAdmin}" class="chip" th:classappend="${accessCount > 0} ? 'chip--alert'" href="/admin/clients/access">Доступ на сайт <span th:text="${accessCount}"></span></a>
+    <a class="chip" th:classappend="${callbackCount > 0} ? 'chip--alert'" href="/admin/clients/callbacks">«Перезвоните мне» <span th:text="${callbackCount}"></span></a>
+    <a class="chip" th:classappend="${debtCount > 0} ? 'chip--alert'" href="/admin/clients/debts">Долги <span th:text="${debtCount}"></span></a>
+</div>
+<section class="card"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
+        <thead><tr><th>Клиент</th><th>Телефон</th><th class="r">Заказов</th><th class="r">Куплено</th><th>Последний заказ</th><th class="r">Долг</th></tr></thead>
+        <tbody><tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/clients/' + r.client.id}">
+            <td class="c-full"><a th:href="${'/admin/clients/' + r.client.id}" style="text-decoration:none"><b th:text="${r.client.name}"></b></a><small th:text="${!#strings.isEmpty(r.client.contactPerson) ? r.client.contactPerson : r.client.address}"></small></td>
+            <td class="num" th:text="${@fmt.phone(r.client.phone)}"></td>
+            <td class="r num" th:text="${r.orders}"></td>
+            <td class="r num"><b th:text="${@fmt.money(r.sales)}"></b></td>
+            <td th:text="${r.last != null ? @fmt.cap(@fmt.relDay(r.last)) : '—'}"></td>
+            <td class="r num" th:classappend="${r.debt.signum() > 0} ? 'pay-bad'" th:text="${r.debt.signum() > 0 ? @fmt.money(r.debt) : '—'}"></td>
+        </tr></tbody>
+    </table>
+</div></section>
+<p class="cnt" th:text="${'Клиентов: ' + rows.size() + '. Вход клиента на сайт — по телефону из этого списка.'}"></p>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<div class="two">
+<form method="post" action="/admin/settings/profile" data-guard="Настройки не сохранены.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <section class="card form-card">
+        <h3 class="big" style="font-size:19px">Компания — на сайте, в магазине и в накладных</h3>
+        <div class="fgrid">
+            <label class="field wide"><span>Название</span><input class="inp" name="name" th:value="${p.name}"></label>
+            <label class="field wide"><span>Адрес</span><input class="inp" name="address" th:value="${p.address}"></label>
+            <label class="field"><span>Телефон</span><input class="inp" name="phone" th:value="${p.phone}"></label>
+            <label class="field"><span>WhatsApp</span><input class="inp" name="whatsappPhone" th:value="${p.whatsappPhone}"></label>
+            <label class="field"><span>Почта</span><input class="inp" name="email" th:value="${p.email}"></label>
+            <label class="field"><span>Телефон по вакансиям</span><input class="inp" name="jobsPhone" th:value="${p.jobsPhone}"></label>
+            <label class="field"><span>Часы работы</span><input class="inp" name="workHours" th:value="${p.workHours}"></label>
+            <label class="field"><span>Часы выдачи заказов</span><input class="inp" name="pickupHours" th:value="${p.pickupHours}"></label>
+            <label class="field"><span>Instagram</span><input class="inp" name="instagramUrl" th:value="${p.instagramUrl}"></label>
+            <label class="field"><span>TikTok</span><input class="inp" name="tiktokUrl" th:value="${p.tiktokUrl}"></label>
+            <label class="field"><span>Точка на карте (широта, долгота)</span><input class="inp" name="mapPoint" th:value="${p.mapPoint}"></label>
+            <label class="field wide"><span>О компании</span><textarea class="ta" name="about" th:text="${p.about}"></textarea></label>
+            <label class="field wide"><span>Реквизиты (БИН, банк, счёт)</span><textarea class="ta" name="legalInfo" th:text="${p.legalInfo}"></textarea></label>
+        </div>
+        <div class="form-acts"><button class="btn btn-primary" type="submit">Сохранить</button></div>
+    </section>
+</form>
+<aside class="two-side">
+    <form class="card card-b box" method="post" action="/admin/settings/shop">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <h3>Магазин для клиентов</h3>
+        <label class="check-row"><input type="checkbox" name="pickupChoice" th:checked="${p.pickupChoiceOn()}"> <span>Клиент может указать день и время выдачи</span></label>
+        <label class="check-row"><input type="checkbox" name="paymentChoice" th:checked="${p.paymentChoiceOn()}"> <span>Клиент может выбрать способ оплаты</span></label>
+        <p class="hint">По умолчанию выключено. Включённые поля в корзине необязательны: можно оформить заказ и без них.</p>
+        <div class="form-acts"><button class="btn btn-soft" type="submit">Сохранить</button></div>
+    </form>
+    <section class="card card-b box"><h3>Окна выдачи</h3>
+        <dl class="kv"><div><dt>Часы</dt><dd th:text="${@fmt.win(firstHour).substring(0, 5) + ' — ' + lastHour + ':00'}"></dd></div>
+            <div><dt>Окно</dt><dd>1 час</dd></div><div><dt>Заказов в окне</dt><dd th:text="${capacity}"></dd></div></dl>
+        <p class="hint">Пока задаются в настройках сервера (crm.pickup.*). Отдельная таблица окон и рабочие дни — следующим шагом.</p></section>
+    <section class="card card-b box"><h3>WhatsApp</h3>
+        <p th:if="${wa == null}" class="pay-bad">Шлюз WhatsApp не отвечает.</p>
+        <p th:if="${wa != null}" th:text="${'Состояние: ' + wa.status + (wa.phone != null ? ' · ' + wa.phone : '')}"></p>
+        <p class="hint">Подключение и QR-код — в приложении, раздел «WhatsApp».</p></section>
+    <section class="card card-b box"><h3>Пользователи и пароли</h3>
+        <p><a class="link" href="/admin/staff/users">Входы в CRM</a> — роли и пароли сотрудников.</p>
+        <p><a class="link" href="/admin/me/password">Сменить свой пароль</a></p></section>
+</aside>
+</div>
+</th:block>
+</body>
+</html>

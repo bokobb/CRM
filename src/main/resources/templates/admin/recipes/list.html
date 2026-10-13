@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/recipes" data-autosubmit>
+    <input type="hidden" name="group" th:value="${group}">
+    <label class="search"><span class="sr">Поиск изделия</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Найти изделие" autocomplete="off" th:value="${q}"></label>
+    <label class="switch"><input type="checkbox" name="empty" value="true" th:checked="${empty}"> Только без рецептуры</label>
+</form>
+<div class="chips" role="group" aria-label="Группа">
+    <a th:each="c : ${chips}" class="chip" th:href="${c.href}" th:attr="aria-pressed=${c.on}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a>
+</div>
+<section class="card" aria-label="Рецептуры">
+    <div class="tbl-w">
+        <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
+        <table th:unless="${rows.isEmpty()}" class="tbl tbl--rc">
+            <thead><tr><th>Изделие</th><th>Группа</th><th class="r">Штук с замеса</th><th class="r">Закладка, кг</th><th class="r">На 1 шт, г</th><th class="r">Сырья</th><th>Изменено</th></tr></thead>
+            <tbody>
+            <tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/recipes/' + r.product.id}">
+                <td class="rc-p"><div class="prod"><img th:if="${r.product.imageUrl != null and !#strings.isEmpty(r.product.imageUrl)}" class="th" th:src="${r.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${r.product.imageUrl != null and !#strings.isEmpty(r.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span>
+                    <p class="rc-name"><a th:href="${'/admin/recipes/' + r.product.id}" th:text="${r.product.name}"></a><span th:if="${r.pf}" class="tag tag--pf">ПФ</span></p></div></td>
+                <td class="rc-g" th:text="${r.group}"></td>
+                <th:block th:if="${r.items == 0}">
+                    <td colspan="4" class="rc-none r">Рецептура не заполнена</td>
+                    <td class="rc-upd"><a class="link" th:href="${'/admin/recipes/' + r.product.id}">Заполнить</a></td>
+                </th:block>
+                <th:block th:if="${r.items > 0}">
+                    <td class="r num rc-c" th:text="${@fmt.dec(r.yield, 0)}"></td>
+                    <td class="r num rc-c" th:text="${@fmt.fix(r.total, 3)}"></td>
+                    <td class="r num rc-c" th:text="${r.perPiece != null ? @fmt.fix(r.perPiece, 1) : '—'}"></td>
+                    <td class="r num rc-c" th:text="${r.items}"></td>
+                    <td class="rc-upd" th:text="${r.recipe.updatedAt != null ? @fmt.cap(@fmt.relDay(r.recipe.updatedAt)) : '—'}"></td>
+                    <td class="rc-m"><span><b th:text="${@fmt.fix(r.total, 3)}"></b> кг</span><span><b th:text="${@fmt.dec(r.yield, 0)}"></b> шт</span><span th:if="${r.perPiece != null}"><b th:text="${@fmt.fix(r.perPiece, 1)}"></b> г/шт</span></td>
+                </th:block>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+<p class="cnt" th:text="${'Изделий: ' + rows.size() + ' из ' + total + '. Без рецептуры: ' + emptyCount + '.'}"></p>
+</th:block>
+</body>
+</html>

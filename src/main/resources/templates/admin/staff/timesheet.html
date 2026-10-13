@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/staff"><th:block th:utext="${i['back']}"></th:block>Сотрудники</a>
+<div class="tools">
+    <a class="btn btn-soft btn-sm" th:href="${'/admin/staff/timesheet?month=' + prev}">← Месяц назад</a>
+    <h2 class="big" th:text="${s.title}" style="font-size:22px">Октябрь 2026</h2>
+    <a class="btn btn-soft btn-sm" th:href="${'/admin/staff/timesheet?month=' + next}">Месяц вперёд →</a>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" th:href="${'/admin/staff/timesheet.xlsx?month=' + ym}"><th:block th:utext="${i['download']}"></th:block>Excel</a>
+</div>
+<form method="post" action="/admin/staff/timesheet" id="ts-form" data-guard="Табель не сохранён.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="month" th:value="${ym}">
+    <section class="card"><div class="ts-wrap"><table class="ts">
+        <thead><tr><th>Сотрудник</th><th th:each="d : ${s.days}" th:classappend="${d.sunday} ? 'we'"><th:block th:text="${d.day}"></th:block><br><small th:text="${d.weekday}"></small></th><th>Дней</th><th th:if="${money}">К выплате</th></tr></thead>
+        <tbody><tr th:each="r : ${s.rows}">
+            <td><b th:text="${r.name}"></b><br><small class="muted" th:text="${r.position}"></small></td>
+            <td th:each="c, it : ${r.cells}" th:classappend="${s.days[it.index].sunday} ? 'we'">
+                <button type="button" class="m" th:classappend="${c == 'P' ? 'm-w' : c == 'A' ? 'm-a' : c == 'O' ? 'm-o' : c == 'H' ? 'm-w' : ''}" th:disabled="${s.days[it.index].future}"
+                        th:attr="data-c=${'c_' + r.employeeId + '_' + s.days[it.index].date},data-v=${c},data-auto=${r.auto[it.index]}"
+                        th:title="${r.auto[it.index] ? 'по бригаде в заявке' : ''}" th:text="${c == 'P' ? '✓' : c == 'A' ? '✗' : c == 'O' ? 'В' : c == 'H' ? '½' : '·'}"></button></td>
+            <td class="num"><b th:text="${@fmt.num(r.worked)}"></b></td>
+            <td class="num" th:if="${money}" th:text="${@fmt.money(r.pay)}"></td></tr></tbody>
+        <tfoot th:if="${money}"><tr><td>Итого</td><td th:attr="colspan=${s.days.size() + 1}"></td><td class="num"><b th:text="${@fmt.money(s.totalPay)}"></b></td></tr></tfoot>
+    </table></div>
+    <div class="card-f"><span>Нажатие меняет отметку: ✓ пришёл → ½ полдня → ✗ не пришёл → В выходной → пусто. ✓ по бригаде ставится сам.</span><button class="btn btn-primary" type="submit">Сохранить табель</button></div></section>
+    <div id="ts-changed"></div>
+</form>
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="none">
+(function () {
+  var order = ['P', 'H', 'A', 'O', ''], label = { P: '✓', H: '½', A: '✗', O: 'В', '': '·' }, cls = { P: 'm-w', H: 'm-w', A: 'm-a', O: 'm-o', '': '' };
+  var changed = {};
+  document.querySelector('.ts').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-c]'); if (!b || b.disabled) return;
+    var v = b.getAttribute('data-v') || '', n = order[(order.indexOf(v) + 1) % order.length];
+    b.setAttribute('data-v', n); b.textContent = label[n]; b.className = 'm ' + cls[n];
+    changed[b.getAttribute('data-c')] = n;
+    Admin.guard.set(true);
+  });
+  document.getElementById('ts-form').addEventListener('submit', function () {
+    var h = '';
+    Object.keys(changed).forEach(function (k) { h += '<input type="hidden" name="' + k + '" value="' + changed[k] + '">'; });
+    document.getElementById('ts-changed').innerHTML = h;
+  });
+})();
+</script>
+</th:block>
+</body>
+</html>

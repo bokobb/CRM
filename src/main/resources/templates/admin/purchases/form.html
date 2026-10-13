@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" th:href="${id != null ? '/admin/purchases/' + id : '/admin/purchases'}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${id != null ? 'Покупка № ' + id : 'Все покупки'}"></th:block></a>
+<div class="oh"><div class="oh-t"><h2 th:text="${id != null ? 'Изменить покупку № ' + id : 'Новая покупка'}">Новая покупка</h2></div>
+    <p class="oh-m">Сырьё приходит на склад сразу; в 1С уходит «Поступление товаров» от поставщика.</p></div>
+<div class="errs errs-top" role="alert" th:if="${!errors.isEmpty()}"><span th:each="e : ${errors}" th:text="${e}"></span></div>
+<form method="post" th:action="${id != null ? '/admin/purchases/' + id : '/admin/purchases'}" data-guard="Покупка не сохранена.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <div class="section-gap">
+    <section class="card form-card"><div class="fgrid">
+        <label class="field"><span>Поставщик</span><select class="sel full" name="counterparty"><option value="">— выберите —</option>
+            <option th:each="c : ${counterparties}" th:value="${c.id}" th:text="${c.name}" th:selected="${c.id == counterpartyId}"></option></select></label>
+        <label class="field"><span>…или новый поставщик</span><input class="inp" name="newCounterparty" maxlength="200" placeholder="Название, если его нет в списке"></label>
+        <label class="field"><span>Дата покупки</span><input class="inp" type="date" name="date" th:value="${date}"></label>
+    </div></section>
+    <section class="card">
+        <div class="card-h"><h2>Сырьё</h2><p>Итого: <b data-total="pt">0 ₸</b></p></div>
+        <div class="tbl-w"><table class="tbl edit-rows" id="pt">
+            <thead><tr><th>Сырьё</th><th class="r">Количество</th><th></th><th class="r">Сумма за позицию, ₸</th><th class="acts-col"></th></tr></thead>
+            <tbody>
+            <tr th:each="l : ${lines}">
+                <td><select class="sel full" name="ingredient"><option value="">— сырьё —</option><option th:each="g : ${ingredients}" th:value="${g.id}" th:text="${g.name}" th:selected="${g.id == l.ingredientId}" th:attr="data-unit=${g.unit}"></option></select></td>
+                <td class="r"><input class="inp num-in" name="qty" inputmode="decimal" th:value="${l.qty}"></td>
+                <td class="muted" data-unit></td>
+                <td class="r"><input class="inp num-in" name="total" inputmode="decimal" th:value="${l.total}" data-p><span hidden data-s></span></td>
+                <td><button class="rx-del" type="button" data-del-row aria-label="Удалить строку" th:utext="${i['trash']}"></button></td>
+            </tr>
+            </tbody>
+        </table></div>
+        <button class="add" type="button" data-add-row="pt"><th:block th:utext="${i['plus']}"></th:block><span>Добавить сырьё</span></button>
+    </section>
+    <div class="form-acts"><a class="btn btn-soft" th:href="${id != null ? '/admin/purchases/' + id : '/admin/purchases'}">Отмена</a><button class="btn btn-primary" type="submit" th:text="${id != null ? 'Сохранить' : 'Оформить покупку'}"></button></div>
+    </div>
+</form>
+<template id="row-tpl"><tr>
+    <td><select class="sel full" name="ingredient"><option value="">— сырьё —</option><option th:each="g : ${ingredients}" th:value="${g.id}" th:text="${g.name}" th:attr="data-unit=${g.unit}"></option></select></td>
+    <td class="r"><input class="inp num-in" name="qty" inputmode="decimal"></td>
+    <td class="muted" data-unit></td>
+    <td class="r"><input class="inp num-in" name="total" inputmode="decimal" data-p><span hidden data-s></span></td>
+    <td><button class="rx-del" type="button" data-del-row aria-label="Удалить строку" th:utext="${i['trash']}"></button></td>
+</tr></template>
+</th:block>
+<th:block th:fragment="scripts"><script src="/admin/assets/lines.js?v=1"></script></th:block>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<th:block th:if="${missing}">
+    <a class="back" href="/admin/recipes"><th:block th:utext="${i['back']}"></th:block>Рецепты</a>
+    <div class="card empty">Такого изделия нет.</div>
+</th:block>
+<th:block th:unless="${missing}">
+<div class="rx">
+    <div class="rx-top"><a class="ibtn" href="/admin/recipes" aria-label="Назад к списку рецептов" th:utext="${i['back']}"></a><h2>Рецептура</h2><p class="rx-state is-clean" id="rx-state" aria-live="polite">Сохранено</p></div>
+    <section class="card rx-prod" aria-label="Изделие">
+        <div class="rx-pr">
+            <a class="rx-photo" th:classappend="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)} ? 'has-img'" th:href="${'/admin/photos/' + p.id}" aria-label="Изменить фото товара" id="rx-photo">
+                <img th:if="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" th:src="${p.imageUrl}" alt="">
+                <th:block th:unless="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}"><th:block th:utext="${i['photo']}"></th:block><span>Фото</span></th:block></a>
+            <p><span class="rx-nm"><th:block th:text="${p.name}"></th:block><span th:if="${pf}" class="tag tag--pf">полуфабрикат</span></span><span class="rx-gr" style="display:block" th:text="${'Группа: ' + groupFull}"></span>
+                <span class="rx-gr" style="display:block" th:if="${recipe != null and recipe.updatedAt != null}" th:text="${'Изменено: ' + @fmt.when(recipe.updatedAt) + (recipe.updatedBy != null ? ' · ' + recipe.updatedBy : '')}"></span></p>
+        </div>
+        <div class="rx-fields">
+            <label class="rx-f"><span class="rx-l">Штук с 1 замеса</span><span class="rx-in" id="rx-yb"><input id="rx-y" type="text" inputmode="numeric" autocomplete="off"><i>шт</i></span></label>
+            <div class="rx-f"><span class="rx-l">Закладка</span><span class="rx-v"><output id="rx-total"></output><i>кг</i></span></div>
+            <div class="rx-f"><span class="rx-l">На 1 шт</span><span class="rx-v"><output id="rx-per"></output><i id="rx-pu"></i></span></div>
+        </div>
+    </section>
+    <section class="card rx-comp" aria-labelledby="rx-h">
+        <div class="rx-ch"><h3 id="rx-h">Состав</h3><span id="rx-count"></span></div>
+        <div id="rx-rows"></div>
+        <button class="add" type="button" id="rx-add"><th:block th:utext="${i['plus']}"></th:block><span>Добавить позицию</span></button>
+    </section>
+</div>
+<div class="rx-foot"><div class="rx-foot-in"><p class="rx-err" id="rx-err" role="alert"></p><button class="btn btn-primary" type="button" id="rx-save">Сохранить</button></div></div>
+</th:block>
+</th:block>
+<th:block th:fragment="scripts">
+<th:block th:unless="${missing}">
+<script type="application/json" id="rx-state-json" th:utext="${stateJson}"></script>
+<script type="application/json" id="rx-mats" th:utext="${matsJson}"></script>
+<script src="/admin/assets/recipe.js?v=1"></script>
+</th:block>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/purchases"><th:block th:utext="${i['back']}"></th:block>Все покупки</a>
+<div class="oh">
+    <div class="oh-t"><h2 th:text="${'Покупка № ' + p.id}">Покупка</h2>
+        <span th:if="${p.oneCSyncError != null}" class="tag tag--bad">1С: ошибка</span>
+        <span th:if="${p.oneCSyncError == null and p.oneCDocumentNumber != null}" class="tag tag--ok" th:text="${'1С: № ' + p.oneCDocumentNumber}"></span></div>
+    <p class="oh-m" th:text="${'от ' + @fmt.dml(p.purchaseDate) + ' · ' + p.counterparty.name + ' · оформил ' + p.createdBy}"></p>
+    <div class="acts">
+        <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/purchases/' + p.id + '/edit'}">Изменить</a>
+        <form th:if="${canSync}" th:action="${'/admin/purchases/' + p.id + '/sync-1c'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-soft" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Отправить в 1С ещё раз</button></form>
+    </div>
+</div>
+<div class="od">
+    <section class="card">
+        <div class="card-h"><h2>Сырьё</h2><p th:text="${@fmt.count(p.items.size(), 'позиция', 'позиции', 'позиций')}"></p></div>
+        <div class="tbl-w"><table class="tbl tbl--l">
+            <thead><tr><th>Сырьё</th><th class="r">Количество</th><th class="r">Цена за ед.</th><th class="r">Сумма</th></tr></thead>
+            <tbody><tr th:each="it : ${p.items}">
+                <td class="l-p"><b th:text="${it.ingredient.name}"></b></td>
+                <td class="r num l-q" th:text="${@fmt.num(it.quantity) + ' ' + it.ingredient.unit}"></td>
+                <td class="r num l-b" th:text="${@fmt.unitPrice(it.totalPrice, it.quantity)}"></td>
+                <td class="r num l-s" th:text="${@fmt.money(it.totalPrice)}"></td></tr></tbody>
+        </table></div>
+        <div class="rcpt"><p class="rcpt-r rcpt-tot"><span>Итого</span><i></i><b th:text="${@fmt.money(p.totalSum)}"></b></p></div>
+    </section>
+    <aside class="od-side">
+        <section class="card card-b box"><h3>Накладная</h3>
+            <a th:if="${p.imageUrl != null}" th:href="${p.imageUrl}" target="_blank"><img th:src="${p.imageUrl}" alt="Фото накладной" style="border-radius:12px"></a>
+            <p th:if="${p.imageUrl == null}" class="muted">Фото накладной не прикреплено.</p>
+            <form th:if="${canEdit}" th:action="${'/admin/purchases/' + p.id + '/image'}" method="post" enctype="multipart/form-data" class="field">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input class="inp" type="file" name="file" accept="image/*" required>
+                <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['upload']}"></th:block>Загрузить фото</button>
+            </form>
+        </section>
+        <section class="card card-b box" th:if="${p.oneCSyncError != null}"><h3>1С</h3><p class="note" th:text="${p.oneCSyncError}"></p></section>
+    </aside>
+</div>
+</th:block>
+</body>
+</html>

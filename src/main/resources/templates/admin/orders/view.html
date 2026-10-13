@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<th:block th:if="${missing != null}">
+    <a class="back" href="/admin/orders"><th:block th:utext="${i['back']}"></th:block>Все заказы</a>
+    <div class="card empty" th:text="${'Заказа № ' + missing + ' нет.'}">Заказа нет.</div>
+</th:block>
+<th:block th:if="${missing == null}">
+<a class="back" href="/admin/orders"><th:block th:utext="${i['back']}"></th:block>Все заказы</a>
+<div class="oh">
+    <div class="oh-t"><h2 th:text="${'Заказ № ' + o.id}">Заказ № 1052</h2>
+        <span class="st" th:classappend="${'st--' + row.badge}"><th:block th:utext="${i16['s-' + row.badge]}"></th:block><span th:text="${row.badgeLabel}"></span></span>
+        <span class="tag" th:classappend="${row.site} ? 'tag--site'" th:text="${@fmt.srcLong(o)}">через сайт</span></div>
+    <p class="oh-m" th:text="${'Оформлен ' + @fmt.when(o.createdAt) + ' ' + placedBy + ' · ' + o.client.name}"></p>
+    <div class="acts" id="od-acts">
+        <th:block th:each="a : ${acts}">
+            <button th:if="${a.target.name() == 'CANCELLED'}" class="btn btn-danger" type="button" data-dialog="dlg-cancel" th:text="${a.label}">Отменить</button>
+            <button th:if="${a.target.name() == 'DELIVERED'}" class="btn" th:classappend="${'btn-' + a.kind}" type="button" data-dialog="dlg-ship" th:text="${a.label}">Выдать</button>
+            <form th:if="${a.target.name() != 'CANCELLED' and a.target.name() != 'DELIVERED'}" th:action="${'/admin/orders/' + o.id + '/transition'}" method="post" style="display:contents">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="target" th:value="${a.target.name()}"><input type="hidden" name="expected" th:value="${o.status.name()}">
+                <button class="btn" th:classappend="${'btn-' + a.kind}" type="submit" th:text="${a.label}">Принять заказ</button>
+            </form>
+        </th:block>
+        <button th:if="${row.badge == 'noshow' and canMove}" class="btn btn-primary" type="button" data-dialog="dlg-move">Перенести выдачу</button>
+        <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/orders/' + o.id + '/edit'}">Изменить</a>
+        <a th:if="${row.badge == 'done'}" class="btn btn-soft" th:href="${'/admin/returns/new?order=' + o.id}">Оформить возврат</a>
+        <a th:if="${row.badge == 'done' or row.badge == 'off'}" class="btn btn-soft" th:href="${'/admin/orders/new?repeat=' + o.id}">Повторить заказ</a>
+    </div>
+</div>
+<div class="od">
+    <div class="od-main">
+        <section class="card" aria-labelledby="h-comp">
+            <div class="card-h"><h2 id="h-comp">Состав</h2><p th:text="${@fmt.count(t.positions, 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(t.packs) + ' шт'}"></p></div>
+            <div class="tbl-w"><table class="tbl tbl--l">
+                <thead><tr><th>Товар</th><th class="r">Кол-во</th><th class="r">Коробок</th><th class="r">Сумма</th></tr></thead>
+                <tbody>
+                <tr th:each="l : ${lines}">
+                    <td class="l-p"><div class="prod"><img th:if="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th" th:src="${l.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span>
+                        <p><b th:text="${l.product.name}"></b><small th:text="${@fmt.money(l.price) + ' за ' + l.unit + (l.perBox != null ? ' · в коробке ' + @fmt.num(l.perBox) : '')}"></small></p></div></td>
+                    <td class="r num l-q"><th:block th:text="${@fmt.num(l.qty) + ' ' + l.unit}"></th:block><span class="mob" th:if="${!#strings.isEmpty(l.boxText)}" th:text="${' · ' + l.boxText}"></span></td>
+                    <td class="r num l-b" th:text="${l.boxText}"></td>
+                    <td class="r num l-s" th:text="${@fmt.money(l.sum)}"></td>
+                </tr>
+                </tbody>
+            </table></div>
+            <dl class="spec">
+                <div><dt>позиций</dt><dd th:text="${t.positions}">6</dd></div>
+                <div><dt>коробок</dt><dd th:text="${t.boxes + (t.boxesKnown ? '' : '+')}">10</dd></div>
+                <div><dt>вес</dt><dd th:text="${@fmt.dec(t.kg, 1) + ' кг'}">69,0 кг</dd></div>
+                <div><dt>объём</dt><dd th:text="${t.volumeKnown ? @fmt.dec(t.volume, 2) + ' м³' : '—'}">0,33 м³</dd></div>
+            </dl>
+            <div class="retbox" th:if="${ret != null}"><span>По заказу оформлен <b th:text="${'возврат № ' + ret.id}">возврат</b> <th:block th:text="${'от ' + @fmt.dm(ret.returnDate != null ? ret.returnDate : ret.createdAt.toLocalDate()) + ': ' + @fmt.count(ret.items.size(), 'позиция', 'позиции', 'позиций') + ' на ' + @fmt.money(t.ret)}"></th:block></span><a class="link" th:href="${'/admin/returns/' + ret.id}">В «Возвраты»</a></div>
+            <div class="rcpt">
+                <th:block th:if="${t.ret.signum() > 0}">
+                    <p class="rcpt-r"><span>Сумма заказа</span><i></i><b th:text="${@fmt.money(t.sum)}"></b></p>
+                    <p class="rcpt-r rcpt-ret" th:each="r : ${o.returns}"><span th:text="${'Возврат № ' + r.id}"></span><i></i><b th:text="${@fmt.money(r.totalSum.negate())}"></b></p>
+                </th:block>
+                <p class="rcpt-r rcpt-tot"><span>Итого</span><i></i><b th:text="${@fmt.money(t.net())}"></b></p>
+            </div>
+        </section>
+    </div>
+    <aside class="od-side">
+        <section class="card card-b box" aria-labelledby="h-pick"><h3 id="h-pick">Выдача</h3>
+            <th:block th:if="${row.badge == 'done'}"><p class="big" th:text="${'Выдан ' + @fmt.when(doneAt)}"></p>
+                <p class="muted" th:text="${'окно было ' + @fmt.dm(row.day) + (o.pickupHour != null ? ', ' + @fmt.win(o.pickupHour) : '') + (o.vehicleNumber != null ? ' · гос. номер ' + o.vehicleNumber : '')}"></p></th:block>
+            <th:block th:if="${row.badge == 'off'}"><p class="big">Отменён</p><p class="muted" th:if="${offEvent != null}" th:text="${@fmt.when(offEvent.at) + (offEvent.note != null ? ' · ' + offEvent.note : '')}"></p></th:block>
+            <th:block th:if="${row.badge != 'done' and row.badge != 'off'}">
+                <p class="big" th:style="${row.badge == 'noshow'} ? 'color:var(--crimson-deep)'" th:text="${@fmt.cap(@fmt.relDay(row.day)) + (o.pickupHour != null ? ', ' + @fmt.win(o.pickupHour) : '')}"></p>
+                <p class="muted" th:text="${@fmt.wdayLong(row.day) + ', ' + @fmt.dml(row.day) + (o.pickupHour == null ? ' · окно не выбрано' : '') + (row.badge == 'noshow' ? ' · клиент не приехал' : '')}"></p></th:block>
+            <p class="note" th:if="${o.notes != null and !#strings.isEmpty(o.notes)}"><b>Комментарий клиента</b><th:block th:text="${o.notes}"></th:block></p>
+            <p th:if="${canMove and (row.badge == 'sent' or row.badge == 'new' or row.badge == 'work' or row.badge == 'ready')}"><button class="btn btn-soft btn-sm" type="button" data-dialog="dlg-move"><th:block th:utext="${i['clock']}"></th:block>Перенести</button></p>
+        </section>
+        <section class="card card-b box" aria-labelledby="h-cl"><h3 id="h-cl">Клиент</h3>
+            <dl class="kv">
+                <div><dt>Магазин</dt><dd><b th:text="${o.client.name}"></b></dd></div>
+                <div th:if="${o.client.contactPerson != null and !#strings.isEmpty(o.client.contactPerson)}"><dt>Контакт</dt><dd th:text="${o.client.contactPerson}"></dd></div>
+                <div th:if="${o.client.phone != null and !#strings.isEmpty(o.client.phone)}"><dt>Телефон</dt><dd class="phone"><span th:text="${@fmt.phone(o.client.phone)}"></span><button class="link" type="button" th:attr="data-copy=${o.client.phone}"><th:block th:utext="${i['copy']}"></th:block>Копировать</button></dd></div>
+                <div><dt>Заказов</dt><dd><th:block th:text="${clientOrders}"></th:block> · <a class="link" th:href="${'/admin/orders?client=' + o.client.id}">все заказы клиента</a></dd></div>
+            </dl>
+        </section>
+        <section class="card card-b box" aria-labelledby="h-pay"><h3 id="h-pay">Оплата</h3>
+            <dl class="kv">
+                <div><dt>Способ</dt><dd th:text="${row.pay.methodLong}"></dd></div>
+                <div><dt>Статус</dt><dd th:classappend="${row.pay.bad} ? 'pay-bad' : 'pay-ok'"><b th:text="${@fmt.cap(row.pay.status)}"></b></dd></div>
+                <div><dt>К оплате</dt><dd class="num"><b th:text="${@fmt.money(t.net())}"></b></dd></div>
+                <div th:if="${o.paidAt != null}"><dt>Отметил</dt><dd th:text="${(o.paidByName != null ? o.paidByName + ', ' : '') + @fmt.when(o.paidAt)}"></dd></div>
+                <div th:if="${o.debtDueDate != null and !o.isPaid()}"><dt>Долг до</dt><dd class="pay-bad" th:text="${@fmt.date(o.debtDueDate)}"></dd></div>
+            </dl>
+            <form th:if="${canPay}" th:action="${'/admin/orders/' + o.id + '/paid'}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <p><button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['cash']}"></th:block>Отметить оплату</button></p>
+            </form>
+            <p class="hint" th:if="${canPay and o.status.name() == 'DELIVERED'}">Оплаченный выданный заказ закрывается.</p>
+        </section>
+        <section class="card card-b box" aria-labelledby="h-hist"><h3 id="h-hist">История</h3>
+            <ol class="hist">
+                <li th:each="h : ${hist}"><span class="dot" th:classappend="${h.cls}" th:utext="${i15[h.icon]}"></span><div><p th:text="${h.label}"></p><small><th:block th:text="${(h.at != null ? @fmt.when(h.at) : 'время не записано') + (h.by != null ? ' · ' + h.by : '')}"></th:block><th:block th:if="${h.note != null}"><br><th:block th:text="${h.note}"></th:block></th:block></small></div></li>
+            </ol>
+            <form th:if="${isAdmin and row.badge != 'sent'}" th:action="${'/admin/orders/' + o.id + '/rollback'}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <p style="margin-top:12px"><button class="link" type="submit" data-confirm="Статус заказа вернётся на шаг назад. Это исправление ошибки — в историю запишется, кто вернул." data-confirm-title="Вернуть статус назад?" data-confirm-ok="Вернуть">Вернуть статус на шаг назад</button></p>
+            </form>
+        </section>
+    </aside>
+</div>
+
+<template id="dlg-cancel">
+    <form class="dlg-in" th:action="${'/admin/orders/' + o.id + '/cancel'}" method="post">
+        <input type="hidden" name="expected" th:value="${o.status.name()}">
+        <h2 id="dlg-h" th:text="${'Отменить заказ № ' + o.id + '?'}">Отменить заказ?</h2>
+        <p class="muted">Покупатель увидит статус «Отменён». Отменённый заказ можно повторить.</p>
+        <fieldset class="fs"><legend class="lbl">Причина</legend><div class="radios">
+            <label class="radio"><input type="radio" name="reason" value="Клиент отказался" checked>Клиент отказался</label>
+            <label class="radio"><input type="radio" name="reason" value="Нет нужного товара">Нет нужного товара</label>
+            <label class="radio"><input type="radio" name="reason" value="Дубль заказа">Дубль заказа</label>
+            <label class="radio"><input type="radio" name="reason" value="Другая причина">Другая причина</label>
+        </div></fieldset>
+        <div class="field"><label class="lbl" for="cx-n">Комментарий</label><textarea class="ta" id="cx-n" name="comment" maxlength="300" placeholder="Необязательно"></textarea></div>
+        <div class="dlg-acts"><button class="btn btn-soft" type="button" data-close>Не отменять</button><button class="btn btn-primary" type="submit">Отменить заказ</button></div>
+    </form>
+</template>
+<template id="dlg-ship">
+    <form class="dlg-in" th:action="${'/admin/orders/' + o.id + '/transition'}" method="post">
+        <input type="hidden" name="target" value="DELIVERED"><input type="hidden" name="expected" th:value="${o.status.name()}">
+        <h2 id="dlg-h" th:text="${'Выдать заказ № ' + o.id + '?'}">Выдать заказ?</h2>
+        <p class="muted" th:text="${'Товар (' + t.boxes + ' кор.) спишется со склада готовой продукции, документ в 1С проведётся, клиенту уйдёт накладная.'}"></p>
+        <div class="field"><label class="lbl" for="sh-v">Гос. номер ТС</label><input class="inp" id="sh-v" name="vehicle" required maxlength="20" autocomplete="off" placeholder="Например, 123 ABC 02 или «самовывоз»"></div>
+        <div class="dlg-acts"><button class="btn btn-soft" type="button" data-close>Отмена</button><button class="btn btn-primary" type="submit">Выдать</button></div>
+    </form>
+</template>
+<template id="dlg-move">
+    <form class="dlg-in" th:action="${'/admin/orders/' + o.id + '/move'}" method="post" id="mv">
+        <h2 id="dlg-h" th:text="${'Перенести выдачу № ' + o.id}">Перенести выдачу</h2>
+        <p class="muted" th:text="${'Сейчас: ' + @fmt.relDay(row.day) + (o.pickupHour != null ? ', ' + @fmt.win(o.pickupHour) : ', окно не выбрано') + (row.badge == 'noshow' ? ' — клиент не приехал' : '') + '. Выберите новое окно.'}"></p>
+        <input type="hidden" name="date"><input type="hidden" name="hour">
+        <div id="mv-s" style="display:grid;gap:12px"></div><p class="errs" id="mv-e" hidden>Выберите окно выдачи.</p>
+        <div class="dlg-acts"><button class="btn btn-soft" type="button" data-close>Отмена</button><button class="btn btn-primary" type="submit">Перенести</button></div>
+    </form>
+</template>
+</th:block>
+</th:block>
+<th:block th:fragment="scripts">
+<th:block th:if="${missing == null}">
+<script type="application/json" id="slot-week" th:utext="${slotWeek}"></script>
+<script th:inline="javascript">window.ORDER_DAY = /*[[${o.dueDate != null and !o.dueDate.isBefore(@fmt.today()) ? o.dueDate.toString() : @fmt.today().toString()}]]*/ '';</script>
+<script src="/admin/assets/slots.js?v=1"></script>
+<script th:inline="none">
+(function () {
+  var week = JSON.parse(document.getElementById('slot-week').textContent);
+  document.addEventListener('admin:dialog', function (e) {
+    if (e.detail.id !== 'dlg-move') return;
+    var dlg = e.detail.dialog, S = { day: window.ORDER_DAY, sel: null };
+    var box = dlg.querySelector('#mv-s');
+    AdminSlots.bind(box, S, week, function () { dlg.querySelector('#mv-e').hidden = true; });
+    dlg.querySelector('#mv').addEventListener('submit', function (ev) {
+      if (!S.sel) { ev.preventDefault(); dlg.querySelector('#mv-e').hidden = false; return; }
+      this.querySelector('[name=date]').value = S.sel.d;
+      this.querySelector('[name=hour]').value = S.sel.h;
+    });
+  });
+})();
+</script>
+</th:block>
+</th:block>
+</body>
+</html>

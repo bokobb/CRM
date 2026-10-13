@@ -4,12 +4,17 @@ import com.confectionery.crm.domain.Client;
 import com.confectionery.crm.domain.CompanyProfile;
 import com.confectionery.crm.domain.Order;
 import com.confectionery.crm.domain.OrderItem;
+import com.confectionery.crm.domain.OrderSource;
+import com.confectionery.crm.domain.OrderStatus;
+import com.confectionery.crm.domain.PaymentMethod;
+import com.confectionery.crm.service.OneCInvoiceService;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.service.ClientPriceService;
 import com.confectionery.crm.service.ClientService;
 import com.confectionery.crm.service.CompanyProfileService;
 import com.confectionery.crm.service.OrderService;
+import com.confectionery.crm.service.PickupSlotService;
 import com.confectionery.crm.service.ProductReturnService;
 import com.confectionery.crm.service.ProductService;
 import com.confectionery.crm.service.PromoPageService;
@@ -35,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
@@ -104,6 +110,7 @@ public class ShopController {
     private final ShopAccessService shopAccessService;
     private final PromoPageService promoPageService;
     private final CompanyProfileService companyProfileService;
+    private final PickupSlotService pickupSlotService;
 
     /** Контакты в шапке/подвале магазина (shop/fragments/frame.html) и номер для wa.me / tel:. */
     @ModelAttribute
@@ -390,6 +397,7 @@ public class ShopController {
             row.put("weight", card.weight());
             row.put("weightG", card.weightGrams());
             row.put("box", card.boxUnits());
+            row.put("vol", p.getBoxVolumeM3());
             row.put("boxText", card.perBox());
             row.put("price", clientPriceService.resolvePrice(client, p));
             row.put("unit", p.getUnit() == null || p.getUnit().isBlank() ? "шт" : p.getUnit());
@@ -404,20 +412,23 @@ public class ShopController {
 
         LocalDate today = LocalDate.now();
         List<Map<String, Object>> days = new ArrayList<>();
-        for (int i = 0; i < PICKUP_DAYS; i++) {
+        boolean pickup = companyProfileService.get().pickupChoiceOn();
+        for (int i = 0; pickup && i < PICKUP_DAYS; i++) {
             LocalDate d = today.plusDays(i);
+            List<Map<String, Object>> slots = new ArrayList<>();
+            for (PickupSlotService.Slot s : pickupSlotService.day(d, null).slots()) {
+                slots.add(Map.of("hour", s.hour(), "label", String.format("%02d:00–%02d:00", s.hour(), s.hour() + 1),
+                        "past", s.past(), "full", s.full()));
+            }
             days.add(Map.of("date", d.toString(), "today", i == 0,
                     "title", i == 0 ? "Сегодня" : i == 1 ? "Завтра" : capitalize(DAY_TITLE.format(d)),
-                    "sub", DAY_SUB.format(d)));
+                    "sub", DAY_SUB.format(d), "slots", slots));
         }
-        int hour = java.time.LocalTime.now().getHour();
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("products", products);
         data.put("groups", groups);
         data.put("cart", cartJson);
         data.put("days", days);
-        data.put("hourNow", hour);
-        data.put("defaultDay", hour >= LAST_PICKUP_HOUR - 1 ? 1 : 0);
         return data;
     }
 
@@ -425,20 +436,15 @@ public class ShopController {
         return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    /** Окна выдачи — по часу с 8:00 до 18:00, на {@link #PICKUP_DAYS} дней вперёд (см. shop/app.html). */
-    private static final int FIRST_PICKUP_HOUR = 8;
-    private static final int LAST_PICKUP_HOUR = 18;
+    /** Дни выдачи на выбор — сегодня + 5; часы и вместимость окон — PickupSlotService (crm.pickup.*). */
     private static final int PICKUP_DAYS = 6;
     private static final DateTimeFormatter DAY_TITLE = DateTimeFormatter.ofPattern("EE", new Locale("ru"));
     private static final DateTimeFormatter DAY_SUB = DateTimeFormatter.ofPattern("d MMM", new Locale("ru"));
-    private static final java.util.regex.Pattern SLOT = java.util.regex.Pattern.compile("(\\d{2}):00–(\\d{2}):00");
-    private static final Set<String> PAYMENTS = Set.of("Kaspi", "По счёту");
 
     /**
-     * Оформление: день выдачи → дата отгрузки заказа (dueDate), окно, оплата и комментарий → в
-     * примечание заказа — сотрудники видят их в приложении (отдельных полей в заказе нет).
-     * С 09.10 выбор времени и оплаты в корзине закомментирован (shop/app.html) — тогда приходит
-     * только комментарий; если блоки вернут, проверки ниже снова заработают сами.
+     * Оформление. День/время выдачи и способ оплаты приходят, только если они включены в админке
+     * (Настройки › Магазин), и оба необязательны: день → dueDate, час → pickupHour, оплата →
+     * paymentMethod. Дублируются строкой в примечании — приложение сотрудников показывает примечание.
      */
     @PostMapping("/cart/submit")
     public String submit(@RequestParam(required = false) LocalDate day, @RequestParam(required = false) String slot,
@@ -448,23 +454,42 @@ public class ShopController {
         if (client == null) {
             return "redirect:/shop";
         }
-        String pickup = null;
-        if (slot != null && !slot.isBlank()) {
-            LocalDate today = LocalDate.now();
-            java.util.regex.Matcher m = SLOT.matcher(slot);
-            if (day == null || day.isBefore(today) || day.isAfter(today.plusDays(PICKUP_DAYS - 1)) || !m.matches()) {
-                redirectAttributes.addFlashAttribute("error", "Выберите день и время выдачи");
+        CompanyProfile company = companyProfileService.get();
+        LocalDate today = LocalDate.now();
+        LocalDate pickupDay = null;
+        Integer pickupHour = null;
+        if (company.pickupChoiceOn() && day != null) {
+            if (day.isBefore(today) || day.isAfter(today.plusDays(PICKUP_DAYS - 1))) {
+                redirectAttributes.addFlashAttribute("error", "Этот день выдачи недоступен — выберите другой");
                 return "redirect:/shop/catalog";
             }
-            int from = Integer.parseInt(m.group(1));
-            if (from < FIRST_PICKUP_HOUR || from >= LAST_PICKUP_HOUR || Integer.parseInt(m.group(2)) != from + 1
-                    || (day.equals(today) && from <= java.time.LocalTime.now().getHour())) {
-                redirectAttributes.addFlashAttribute("error", "Это время выдачи уже недоступно — выберите другое");
-                return "redirect:/shop/catalog";
+            pickupDay = day;
+            if (slot != null && !slot.isBlank()) {
+                int h;
+                try {
+                    h = Integer.parseInt(slot.trim());
+                } catch (NumberFormatException e) {
+                    h = -1;
+                }
+                if (h < pickupSlotService.firstHour() || h >= pickupSlotService.lastHour()
+                        || (day.equals(today) && h <= java.time.LocalTime.now().getHour())) {
+                    redirectAttributes.addFlashAttribute("error", "Это время выдачи уже недоступно — выберите другое");
+                    return "redirect:/shop/catalog";
+                }
+                pickupHour = h;
             }
-            pickup = DAY_SUB.format(day) + ", " + slot;
         }
-        String payment = pay == null || pay.isBlank() ? null : PAYMENTS.contains(pay) ? pay : "Kaspi";
+        String pickup = pickupDay == null ? null : DAY_SUB.format(pickupDay)
+                + (pickupHour != null ? ", " + String.format("%02d:00–%02d:00", pickupHour, pickupHour + 1) : "");
+        PaymentMethod method = null;
+        if (company.paymentChoiceOn() && pay != null && !pay.isBlank()) {
+            try {
+                method = PaymentMethod.valueOf(pay.trim());
+            } catch (IllegalArgumentException ignored) {
+                // неизвестное значение — как будто оплату не выбрали
+            }
+        }
+        String payment = method == null ? null : method.getLabel();
         String comment = note == null ? "" : note.trim();
         if (comment.length() > 500) comment = comment.substring(0, 500);
         List<String> head = new ArrayList<>();
@@ -477,7 +502,9 @@ public class ShopController {
         OrderForm form = new OrderForm();
         form.setClientId(client.getId());
         form.setFromShop(true);
-        form.setDueDate(pickup != null ? day : null);
+        form.setDueDate(pickupDay);
+        form.setPickupHour(pickupHour);
+        form.setPaymentMethod(method);
         form.setNotes(notes.isEmpty() ? null : notes);
         List<OrderForm.OrderItemForm> items = new ArrayList<>();
         for (Map.Entry<Long, BigDecimal> entry : cart.entrySet()) {
@@ -588,56 +615,141 @@ public class ShopController {
                 .map(i -> itemLine(i.getProduct(), i.getQuantity(), i.getPrice()))
                 .toList();
         List<ProductReturn> orderReturns = productReturnService.findByOrder(o.getId());
-        List<ReturnRow> returns = orderReturns.stream()
-                .map(r -> new ReturnRow(
-                        r.getReturnDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
-                        r.getOneCDocumentNumber(),
-                        r.getReason(),
-                        r.getItems().stream().map(i -> itemLine(i.getProduct(), i.getQuantity(), i.getPrice())).toList(),
-                        MONEY_FORMAT.format(r.getTotalSum()) + " ₸"))
-                .toList();
+        List<ReturnRow> returns = orderReturns.stream().map(this::returnRow).toList();
         BigDecimal returnTotal = orderReturns.stream()
                 .map(ProductReturn::getTotalSum).reduce(BigDecimal.ZERO, BigDecimal::add);
         Packing packing = packing(o.getItems().stream().map(i -> Map.entry(i.getProduct(), i.getQuantity())).toList());
-        String status = switch (o.getStatus()) {
-            case NEW -> "new";
-            case CONFIRMED, IN_PRODUCTION -> "work";
-            case READY -> "ready";
-            case DELIVERED, COMPLETED -> "done";
-            case CANCELLED -> "off";
-        };
-        String statusLabel = switch (status) {
-            case "new" -> "Принят";
-            case "work" -> "Собирается";
-            case "ready" -> "Готов к выдаче";
-            case "done" -> "Выдан";
-            default -> "Отменён";
-        };
-        String when = "Оформлен " + DAY_SUB.format(o.getCreatedAt())
-                + (o.getDueDate() != null ? " · выдача " + DAY_SUB.format(o.getDueDate()) : "");
-        return new OrderView(o.getId(), when, status, statusLabel,
-                status.equals("new") || status.equals("work") || status.equals("ready"),
-                items.size(), packing.boxes(), packing.weight(),
-                MONEY_FORMAT.format(o.getTotalPrice()) + " ₸",
-                returns.isEmpty() ? null : "−" + MONEY_FORMAT.format(returnTotal) + " ₸",
-                returns.isEmpty() ? null : MONEY_FORMAT.format(o.getTotalPrice().subtract(returnTotal)) + " ₸",
-                items, returns, o.getNotes());
+        // Ключ этапа — та же плашка, что в админке (OrderStatus.badge): «Принят» = CONFIRMED, сборка = NEW.
+        // «Не забрали» покупатель не видит — для него заказ по-прежнему готов к выдаче.
+        String status = o.getStatus() == OrderStatus.NO_SHOW ? "ready" : o.getStatus().badge();
+        boolean byClient = o.getSource() == OrderSource.SITE || o.getSource() == OrderSource.WHATSAPP;
+        List<String> meta = new ArrayList<>();
+        meta.add("Оформлен " + DAY_SUB.format(o.getCreatedAt()));
+        if (o.getSource() != null) {
+            meta.add(switch (o.getSource()) {
+                case SITE -> "через сайт";
+                case WHATSAPP -> "через WhatsApp";
+                case CRM -> "через менеджера";
+            });
+        }
+        if (o.getDueDate() != null) meta.add("выдача " + DAY_SUB.format(o.getDueDate()));
+        String netTotal = MONEY_FORMAT.format(o.getTotalPrice().subtract(returnTotal)) + " ₸";
+        int returnLines = returns.stream().mapToInt(r -> r.items().size()).sum();
+        return new OrderView(o.getId(), String.join(" · ", meta), status, STATUS_LABELS.get(status),
+                status.equals("sent") || status.equals("new") || status.equals("work") || status.equals("ready"),
+                items.size(), packing.boxes(), packing.weight(), packing.volume(),
+                MONEY_FORMAT.format(o.getTotalPrice()) + " ₸", netTotal,
+                items, qtyTotal(o.getItems().stream().map(i -> Map.entry(i.getProduct(), i.getQuantity())).toList()),
+                returns, returnLines, o.getNotes(), track(o, status, byClient));
     }
 
+    /** Подписи статуса на /shop по ключу (sent/new/work/ready/done/off) — те же, что были на сайте, плюс «Новая». */
+    private static final Map<String, String> STATUS_LABELS = Map.of(
+            "sent", "Новая", "new", "Принят", "work", "Собирается",
+            "ready", "Готов к выдаче", "done", "Выдан", "off", "Отменён");
+
     /**
-     * Коробки (⌈кол-во / в коробке⌉ по каждой позиции) и общий вес — по карточкам товаров, как в
-     * корзине (shop/app.html). Позиции без размера коробки/веса не считаются; «+» — есть такие.
+     * Дорожка этапов в истории: у заказов в работе и выданных за последние сутки, иначе null.
+     * У заказа клиента (сайт, WhatsApp) пять этапов с «Новая», у заказа сотрудника и у старого
+     * заказа без source — четыре, с «Принят». Время — когда заказ перешёл в этап (acceptedAt,
+     * readyAt, shippedAt), у «Выдан» до отгрузки — выбранное окно выдачи или день выдачи.
+     */
+    private Track track(Order o, String status, boolean byClient) {
+        boolean shippedToday = status.equals("done") && o.getShippedAt() != null
+                && o.getShippedAt().isAfter(LocalDateTime.now().minusHours(24));
+        if (!(status.equals("sent") || status.equals("new") || status.equals("work") || status.equals("ready") || shippedToday)) {
+            return null;
+        }
+        List<String> keys = new ArrayList<>(List.of("sent", "new", "work", "ready", "done"));
+        if (!byClient) keys.remove("sent");
+        int now = keys.indexOf(status);
+        LocalDateTime accepted = o.getAcceptedAt() != null ? o.getAcceptedAt()
+                : (byClient ? null : o.getCreatedAt());
+        String pickup = pickupLabel(o);
+        List<Stage> stages = new ArrayList<>();
+        for (int i = 0; i < keys.size(); i++) {
+            String key = keys.get(i);
+            String time = switch (key) {
+                case "sent" -> stageTime(o.getCreatedAt());
+                case "new" -> i <= now ? stageTime(accepted) : null;
+                case "ready" -> i <= now ? stageTime(o.getReadyAt()) : null;
+                case "done" -> o.getShippedAt() != null ? stageTime(o.getShippedAt()) : pickup;
+                default -> null;
+            };
+            stages.add(new Stage(key, STATUS_LABELS.get(key), time, i < now ? "is-done" : i == now ? "is-now" : ""));
+        }
+        return new Track(stages, keys.size(), now);
+    }
+
+    /** «12 окт, 08:32» — день и месяц склеены неразрывным пробелом, перенос только после запятой. */
+    private static String stageTime(LocalDateTime t) {
+        if (t == null) return null;
+        return shortDay(t.toLocalDate()) + ", " + t.format(DateTimeFormatter.ofPattern("HH:mm"));
+    }
+
+    /** «12 окт» без точки сокращения, с неразрывным пробелом. */
+    private static String shortDay(LocalDate d) {
+        return DAY_SUB.format(d).replace(".", "").replace(' ', '\u00A0');
+    }
+
+    /** Окно выдачи из комментария заказа («Выдача: 13 окт, 10:00–11:00»), иначе день выдачи. */
+    private static String pickupLabel(Order o) {
+        if (o.getNotes() != null) {
+            java.util.regex.Matcher m = PICKUP_NOTE.matcher(o.getNotes());
+            if (m.find()) {
+                String[] parts = m.group(1).split(", ", 2);
+                return parts[0].replace(' ', '\u00A0')
+                        + (parts.length > 1 ? ", " + parts[1].replace("–", "\u2060–\u2060") : "");
+            }
+        }
+        return o.getDueDate() == null ? null : shortDay(o.getDueDate());
+    }
+
+    private static final java.util.regex.Pattern PICKUP_NOTE = java.util.regex.Pattern.compile("Выдача: ([^·\\n]+?)(?: ·|\\n|$)");
+
+    private ReturnRow returnRow(ProductReturn r) {
+        String doc = r.getOneCDocumentNumber();
+        String number = doc == null ? null : OneCInvoiceService.printNumber(doc);
+        List<ItemLine> lines = r.getItems().stream().map(i -> returnLine(i.getProduct(), i.getQuantity(), i.getPrice())).toList();
+        return new ReturnRow(
+                r.getId(),
+                number,
+                doc,
+                r.getReturnDate().format(DateTimeFormatter.ofPattern("d MMMM", new Locale("ru"))),
+                r.getReturnDate().format(DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("ru"))),
+                lines,
+                qtyTotal(r.getItems().stream().map(i -> Map.entry(i.getProduct(), i.getQuantity())).toList()),
+                MINUS + MONEY_FORMAT.format(r.getTotalSum()) + " ₸");
+    }
+
+    /** Минус в суммах возврата — настоящий знак «−» (U+2212), не дефис. */
+    private static final String MINUS = "\u2212";
+
+    /**
+     * Коробки (⌈кол-во / в коробке⌉ по каждой позиции), общий вес и объём (коробки × объём коробки
+     * из карточки товара) — как в корзине (shop/app.html). Позиции без размера коробки/веса не
+     * считаются; «+» — есть такие. Объём — null, если хоть у одной позиции нет коробки или её объёма.
      */
     private Packing packing(List<Map.Entry<Product, BigDecimal>> lines) {
         int boxes = 0;
         boolean unknownBox = false;
+        boolean unknownVolume = false;
         BigDecimal grams = BigDecimal.ZERO;
+        BigDecimal volume = BigDecimal.ZERO;
         for (Map.Entry<Product, BigDecimal> line : lines) {
             PromoPageService.Card card = promoPageService.card(line.getKey());
             if (card.boxUnits() != null) {
-                boxes += line.getValue().divide(card.boxUnits(), 0, java.math.RoundingMode.CEILING).intValue();
+                int lineBoxes = line.getValue().divide(card.boxUnits(), 0, java.math.RoundingMode.CEILING).intValue();
+                boxes += lineBoxes;
+                BigDecimal boxVolume = line.getKey().getBoxVolumeM3();
+                if (boxVolume != null && boxVolume.signum() > 0) {
+                    volume = volume.add(boxVolume.multiply(BigDecimal.valueOf(lineBoxes)));
+                } else {
+                    unknownVolume = true;
+                }
             } else {
                 unknownBox = true;
+                unknownVolume = true;
             }
             if (card.weightGrams() != null) {
                 grams = grams.add(card.weightGrams().multiply(line.getValue()));
@@ -646,17 +758,48 @@ public class ShopController {
         String boxesLabel = boxes == 0 ? null : boxes + (unknownBox ? "+" : "");
         String weight = grams.signum() == 0 ? null
                 : QTY_FORMAT.format(grams.movePointLeft(3).setScale(2, java.math.RoundingMode.HALF_UP)) + " кг";
-        return new Packing(boxesLabel, weight);
+        String volumeLabel = unknownVolume || lines.isEmpty() ? null
+                : VOLUME_FORMAT.format(volume.setScale(2, java.math.RoundingMode.HALF_UP)) + "\u00A0м³";
+        return new Packing(boxesLabel, weight, volumeLabel);
     }
 
-    private record Packing(String boxes, String weight) {
+    private static final java.text.DecimalFormat VOLUME_FORMAT =
+            new java.text.DecimalFormat("0.00", java.text.DecimalFormatSymbols.getInstance(new Locale("ru")));
+
+    private record Packing(String boxes, String weight, String volume) {
+    }
+
+    /** «66 шт» — сумма количеств, если у всех позиций одна единица; иначе null. */
+    private static String qtyTotal(List<Map.Entry<Product, BigDecimal>> lines) {
+        Set<String> units = new java.util.HashSet<>();
+        BigDecimal sum = BigDecimal.ZERO;
+        for (Map.Entry<Product, BigDecimal> line : lines) {
+            units.add(unitOf(line.getKey()));
+            sum = sum.add(line.getValue());
+        }
+        return units.size() == 1 ? QTY_FORMAT.format(sum) + "\u00A0" + units.iterator().next() : null;
+    }
+
+    private static String unitOf(Product product) {
+        return product.getUnit() == null || product.getUnit().isBlank() ? "шт" : product.getUnit();
+    }
+
+    /** «Кокосовый кекс (15 шт)» — число и единица склеены, чтобы скобка не отрывалась при переносе. */
+    private static String glueUnits(String name) {
+        return name == null ? "" : name.replaceAll("(\\d) (?=(шт|кг|г|л|мл)\\b)", "$1\u00A0");
     }
 
     private ItemLine itemLine(Product product, BigDecimal quantity, BigDecimal price) {
-        String unit = product.getUnit() == null || product.getUnit().isBlank() ? "шт" : product.getUnit();
+        String unit = unitOf(product);
         BigDecimal sum = price == null ? null : price.multiply(quantity);
-        return new ItemLine(product.getName(), QTY_FORMAT.format(quantity) + " " + unit,
-                sum == null ? "" : MONEY_FORMAT.format(sum) + " ₸");
+        return new ItemLine(glueUnits(product.getName()), QTY_FORMAT.format(quantity) + "\u00A0" + unit,
+                sum == null ? "" : MONEY_FORMAT.format(sum) + " ₸",
+                price == null ? null : MONEY_FORMAT.format(price) + " ₸ за " + unit);
+    }
+
+    private ItemLine returnLine(Product product, BigDecimal quantity, BigDecimal price) {
+        ItemLine line = itemLine(product, quantity, price);
+        return new ItemLine(line.name(), line.qtyLabel(), line.sumLabel().isEmpty() ? "" : MINUS + line.sumLabel(), null);
     }
 
     /** «Заказ принят» — только для своего заказа; выдача/оплата приходят из submit (flash). */
@@ -683,6 +826,7 @@ public class ShopController {
         model.addAttribute("order", order);
         model.addAttribute("boxes", packing.boxes());
         model.addAttribute("weight", packing.weight());
+        model.addAttribute("volume", packing.volume());
         model.addAttribute("total", MONEY_FORMAT.format(order.getTotalPrice()) + " ₸");
         model.addAttribute("clientName", client.getName());
         model.addAttribute("cartCount", cart(session).size());
@@ -791,22 +935,47 @@ public class ShopController {
     }
 
     /**
-     * Заказ в истории (shop/app.html, view = orders). statusKey — new/work/ready/done/off для цвета
-     * метки; netTotal — «заказ минус возвраты», только если возвраты есть.
+     * Заказ в истории (shop/app.html, view = orders). statusKey — sent/work/ready/done/off (этап и
+     * цвет плашки); volume — null, если не у всех товаров указан объём коробки; track — дорожка
+     * этапов (null — не показывать).
      */
     public record OrderView(Long id, String whenLabel, String statusKey, String statusLabel, boolean active,
-                            int positions, String boxes, String weight, String total, String returnTotal,
-                            String netTotal, List<ItemLine> lines, List<ReturnRow> returns, String notes) {
+                            int positions, String boxes, String weight, String volume, String total,
+                            String netTotal, List<ItemLine> lines, String linesQty, List<ReturnRow> returns,
+                            int returnLines, String notes, Track track) {
         public Long number() {
             return id;
         }
+
+        public String positionsLabel() {
+            return positions + " " + plural(positions, "позиция", "позиции", "позиций");
+        }
     }
 
-    public record ItemLine(String name, String qtyLabel, String sumLabel) {
+    public record ItemLine(String name, String qtyLabel, String sumLabel, String unitPrice) {
     }
 
-    public record ReturnRow(String dateLabel, String documentNumber, String reason, List<ItemLine> items,
-                            String totalLabel) {
+    /** number — номер документа 1С без ведущих нулей, document — полный; оба null, пока не выгружен. */
+    public record ReturnRow(Long id, String number, String document, String dateShort, String dateLong,
+                            List<ItemLine> items, String qtyTotal, String totalLabel) {
+        public String positionsLabel() {
+            return items.size() + " " + plural(items.size(), "позиция", "позиции", "позиций");
+        }
+    }
+
+    /** n — сколько этапов, k — номер текущего от нуля (для --n / --k в стилях дорожки). */
+    public record Track(List<Stage> stages, int n, int k) {
+    }
+
+    /** cls — is-done / is-now / пусто (будущий этап). */
+    public record Stage(String key, String title, String time, String cls) {
+    }
+
+    private static String plural(int n, String one, String few, String many) {
+        int m10 = n % 10, m100 = n % 100;
+        if (m10 == 1 && m100 != 11) return one;
+        if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+        return many;
     }
 
     private record CartSummary(List<CartRow> rows, String headerLabel, boolean canOrder, String bottomButtonLabel) {

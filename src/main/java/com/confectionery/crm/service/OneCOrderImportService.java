@@ -162,7 +162,7 @@ public class OneCOrderImportService {
                 // бухгалтер мог провести его в 1С позже, вручную; при следующем прогоне (каждые
                 // 5 минут) видим это и довершаем статус, не дожидаясь, пока кто-то в CRM вручную
                 // проведёт заказ через обычную сборку/отгрузку — товар и так уже фактически ушёл.
-                if (header.posted() && existing.getStatus() == OrderStatus.NEW) {
+                if (header.posted() && (existing.getStatus() == OrderStatus.NEW || existing.getStatus() == OrderStatus.PLACED || existing.getStatus() == OrderStatus.CONFIRMED)) {
                     existing.setStatus(OrderStatus.COMPLETED);
                     existing.setShippedAt(parseDate(header.date()));
                     orderRepository.save(existing);

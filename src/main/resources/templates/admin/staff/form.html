@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/staff"><th:block th:utext="${i['back']}"></th:block>Сотрудники</a>
+<div class="oh"><div class="oh-t"><h2 th:text="${e.id != null ? e.fullName : 'Новый сотрудник'}">Сотрудник</h2></div>
+    <p class="oh-m" th:if="${e.id != null}" th:text="${(e.iin != null ? 'ИИН ' + e.iin + ' · ' : '') + (e.hiredAt != null ? 'принят ' + @fmt.date(e.hiredAt) : '')}"></p></div>
+<form method="post" th:action="${e.id != null ? '/admin/staff/' + e.id : '/admin/staff'}" data-guard="Сотрудник не сохранён." style="max-width:860px">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <section class="card form-card"><div class="fgrid">
+        <label class="field wide"><span>ФИО</span><input class="inp" name="fullName" required maxlength="200" th:value="${e.fullName}"></label>
+        <label class="field"><span>Должность</span><input class="inp" name="position" maxlength="200" th:value="${e.position}"></label>
+        <label class="field"><span>Телефон</span><input class="inp" name="phone" type="tel" maxlength="40" th:value="${e.phone}"></label>
+        <label class="field" th:if="${money}"><span>Группа затрат</span><select class="sel full" name="costGroup"><option value="">по должности</option>
+            <option th:each="g : ${groups}" th:value="${g.name()}" th:text="${g.label}" th:selected="${e.costGroup == g}"></option></select></label>
+        <label class="field" th:if="${money}"><span>Ставка за смену, ₸</span><input class="inp" name="dailyRate" inputmode="decimal" th:value="${e.dailyRate != null ? e.dailyRate.stripTrailingZeros().toPlainString() : ''}"></label>
+        <label class="field" th:if="${money}"><span>Оклад в месяц, ₸</span><input class="inp" name="monthlySalary" inputmode="decimal" th:value="${e.monthlySalary != null ? e.monthlySalary.stripTrailingZeros().toPlainString() : ''}"></label>
+        <label class="switch wide" th:if="${e.id != null}"><input type="checkbox" name="active" value="true" th:checked="${e.active}"> Работает (уволенные не попадают в бригады и табель)</label>
+    </div>
+    <div class="form-acts"><a class="btn btn-soft" href="/admin/staff">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div></section>
+</form>
+</th:block>
+</body>
+</html>

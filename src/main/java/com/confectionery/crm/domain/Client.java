@@ -34,6 +34,18 @@ public class Client {
     @Column(length = 2000)
     private String notes;
 
+    /** Контактное лицо (в админке под названием магазина): «Мадина Ержанова», «Ерлан, закупщик». */
+    private String contactPerson;
+
+    /** БИН/ИИН — для счетов. */
+    @Column(length = 20)
+    private String bin;
+
+    /** Способ оплаты по умолчанию в новом заказе (юрлицу — «По счёту»); null — наличными. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private PaymentMethod defaultPayment;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 

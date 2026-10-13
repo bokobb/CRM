@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <title>Вход — Админка Юг Сладости</title>
+    <link rel="icon" href="/admin/assets/logo.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,600&family=Golos+Text:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="/admin/assets/admin.css?v=1">
+</head>
+<body>
+<div class="login" id="login">
+    <img class="login-logo" src="/admin/assets/logo.svg" alt="Юг Сладости. Кондитерская" width="383" height="223">
+    <div class="login-card">
+        <h1>Вход для сотрудников</h1>
+        <p class="lead">Заказы, склад, производство и сайт — в одном месте.</p>
+        <form class="login-form" id="login-form" action="/admin/login" method="post" novalidate>
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <p class="login-err" id="login-err" role="alert" th:attr="hidden=${error == null} ? 'hidden' : null" th:text="${error}"></p>
+            <p class="login-err" role="status" th:if="${logout}" style="background:var(--cream);color:var(--ink)">Вы вышли из админки.</p>
+            <div class="field"><label class="lbl" for="l-user">Логин</label>
+                <input class="inp" id="l-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" th:value="${username}" autofocus></div>
+            <div class="field"><label class="lbl" for="l-pass">Пароль</label>
+                <span class="pw"><input class="inp" id="l-pass" name="password" type="password" autocomplete="current-password">
+                <button class="ibtn" type="button" id="l-eye" aria-label="Показать пароль" aria-pressed="false" th:utext="${i['eye']}"></button></span></div>
+            <label class="check"><input type="checkbox" id="l-rem" name="remember-me" checked> Запомнить меня на этом компьютере</label>
+            <button class="btn btn-primary" type="submit">Войти</button>
+        </form>
+    </div>
+    <p class="login-foot"><span>Забыли пароль — обратитесь к директору.</span><a href="/">← На сайт</a></p>
+</div>
+<script th:inline="javascript">
+(function () {
+  var eyeOn = /*[[${i['eye']}]]*/ '', eyeOff = /*[[${i['eye-off']}]]*/ '';
+  var p = document.getElementById('l-pass'), u = document.getElementById('l-user'), err = document.getElementById('login-err');
+  document.getElementById('l-eye').addEventListener('click', function () {
+    var show = p.type === 'password';
+    p.type = show ? 'text' : 'password';
+    this.setAttribute('aria-pressed', String(show));
+    this.setAttribute('aria-label', show ? 'Скрыть пароль' : 'Показать пароль');
+    this.innerHTML = show ? eyeOff : eyeOn;
+  });
+  if (u.value) p.focus();
+  document.getElementById('login-form').addEventListener('submit', function (e) {
+    if (!u.value.trim() || !p.value) {
+      e.preventDefault();
+      err.textContent = 'Введите логин и пароль.';
+      err.hidden = false;
+      (u.value.trim() ? p : u).focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>

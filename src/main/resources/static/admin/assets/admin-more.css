@@ -1,0 +1,96 @@
+/* Дополнение к admin.css (макет, как есть): то, чего нет в макете части 1, — ссылки в переключателях,
+   формы и карточки разделов частей 2–4. Те же переменные и приёмы, что в admin.css. */
+
+/* переключатель «Сегодня · Завтра · Чт» на сервере — ссылки вместо кнопок */
+.seg a{display:inline-grid;place-items:center;min-height:32px;padding:0 12px;border-radius:999px;font:600 13px/1 var(--body);color:var(--ink-soft);text-decoration:none}
+.seg a[aria-pressed="true"]{background:var(--white);color:var(--ink);box-shadow:0 1px 2px rgba(42,23,18,.18)}
+a.chip{text-decoration:none;color:inherit}
+a.chip[aria-pressed="true"]{color:#fff}
+.me-pop form{margin:0}
+
+/* постраничный вывод */
+.pager{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+.pager .cnt{margin:0 auto 0 0}
+
+/* формы разделов */
+.form-card{display:grid;gap:14px;padding:18px 20px 20px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
+.fgrid .wide{grid-column:1/-1}
+.form-acts{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;padding-top:4px}
+.form-acts.left{justify-content:flex-start}
+.errs-top{margin-bottom:14px}
+.inp[type=date],.inp[type=month]{padding-right:10px}
+.inp[type=file]{height:auto;padding:9px 12px}
+.sel.full{width:100%}
+
+/* таблица с полями ввода (строки документов) */
+.edit-rows .inp,.edit-rows .sel{height:40px}
+.edit-rows td{padding-top:6px;padding-bottom:6px}
+.edit-rows .num-in{max-width:130px;text-align:right}
+.tbl .acts-col{width:1%;white-space:nowrap}
+.tbl-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+
+/* две колонки: основное + боковые карточки, как у карточки заказа */
+.two{display:grid;grid-template-columns:minmax(0,1fr) 340px;align-items:start;gap:18px}
+.two-side{display:grid;gap:18px}
+@media (max-width:1100px){.two{grid-template-columns:minmax(0,1fr)}}
+
+/* сводные плитки в разделах (меньше, чем на дашборде) */
+.mini-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:16px}
+.mini-kpis .kpi{padding:14px 16px}
+.mini-kpis .kpi-v{font-size:28px}
+
+/* метки состояния в списках разделов */
+.tag--ok{background:#E7F0DF;color:#3D5A1E}
+.tag--bad{background:var(--crimson-soft);color:var(--crimson-deep)}
+.tag--warn{background:var(--yolk-soft);color:var(--ink)}
+.low{color:var(--crimson-deep);font-weight:600}
+
+/* фото товаров */
+.ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.ph{position:relative;display:grid;gap:6px;padding:8px;border-radius:14px;background:var(--paper)}
+.ph img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;background:var(--cream)}
+.ph .tag{position:absolute;left:14px;top:14px}
+.ph-acts{display:flex;flex-wrap:wrap;gap:4px}
+.ph-acts .btn{flex:1 1 auto;min-height:32px;padding:0 8px;font-size:13px}
+.th-lg{width:60px;height:80px;border-radius:10px;object-fit:cover;background:var(--cream);box-shadow:0 0 0 1px var(--line)}
+
+/* табель */
+.ts-wrap{overflow-x:auto}
+.ts{border-collapse:collapse;font-size:13px}
+.ts th,.ts td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+.ts th:first-child,.ts td:first-child{position:sticky;left:0;z-index:1;padding-left:16px;text-align:left;background:var(--white)}
+.ts .m{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;font-weight:700}
+.ts .m-w{background:#E7F0DF;color:#3D5A1E}
+.ts .m-a{background:var(--crimson-soft);color:var(--crimson-deep)}
+.ts .m-o{background:var(--paper)}
+.ts .we{background:var(--paper)}
+
+/* этапы техкарты */
+.stages{display:grid;gap:10px}
+.stage{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;padding:12px 14px;border-radius:14px;background:var(--paper)}
+.stage .step{margin:0}
+.stage p{font-size:14.5px;line-height:1.45}
+.stage small{color:var(--ink-soft)}
+
+/* текстовые блоки */
+.prose{display:grid;gap:8px;font-size:14.5px;line-height:1.5}
+.kv.wide div{grid-template-columns:150px minmax(0,1fr)}
+.section-gap{display:grid;gap:18px}
+.split{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+@media (max-width:760px){
+  .fgrid{grid-template-columns:minmax(0,1fr)}
+  .tbl--cards thead{display:none}
+  .tbl--cards,.tbl--cards tbody{display:block}
+  .tbl--cards tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .tbl--cards td{padding:0!important;border:0;text-align:left}
+  .tbl--cards td.r{text-align:right}
+  .tbl--cards td.c-full{grid-column:1/-1}
+  .tbl--cards td.c-hide{display:none}
+}
+.rx-photo{text-decoration:none}
+.tbl-actions{flex-wrap:nowrap;align-items:center}.tbl-actions .inp{width:120px;flex:none}
+.ts .m{border:0;background:none;font:inherit;cursor:pointer;color:var(--ink-mute)}.ts .m.m-w,.ts .m.m-a,.ts .m.m-o{color:inherit}.ts .m.m-w{background:#E7F0DF;color:#3D5A1E}.ts .m.m-a{background:var(--crimson-soft);color:var(--crimson-deep)}.ts .m.m-o{background:var(--paper);color:var(--ink)}.ts .m:disabled{opacity:.4;cursor:default}
+/* Настройки › Магазин */
+.check-row{display:flex;align-items:flex-start;gap:10px;font-size:14.5px;line-height:1.35;cursor:pointer}
+.check-row input{flex:none;width:18px;height:18px;margin-top:1px;accent-color:var(--ink)}

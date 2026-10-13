@@ -222,7 +222,7 @@ public class OneCInvoiceService {
     }
 
     /** 1С печатает номер без ведущих нулей: "00000000161" → "161". */
-    static String printNumber(String number) {
+    public static String printNumber(String number) {
         String trimmed = number.trim();
         return trimmed.matches("\\d+") ? String.valueOf(Long.parseLong(trimmed)) : trimmed;
     }

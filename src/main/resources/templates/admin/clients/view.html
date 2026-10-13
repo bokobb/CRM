@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/clients"><th:block th:utext="${i['back']}"></th:block>Все клиенты</a>
+<div class="oh"><div class="oh-t"><h2 th:text="${c.name}">Клиент</h2><span th:if="${c.oneCContragentKey != null}" class="tag tag--ok">в 1С</span></div>
+    <p class="oh-m" th:text="${(!#strings.isEmpty(c.contactPerson) ? c.contactPerson + ' · ' : '') + 'клиент с ' + @fmt.date(c.createdAt)}"></p>
+    <div class="acts"><a class="btn btn-primary" th:href="${'/admin/orders/new?client=' + c.id}"><th:block th:utext="${i['plus']}"></th:block>Новый заказ</a>
+        <a class="btn btn-soft" th:href="${'/admin/clients/' + c.id + '/edit'}">Изменить</a>
+        <a class="btn btn-soft" th:href="${'/admin/returns/new?client=' + c.id}">Оформить возврат</a>
+        <form th:if="${isAdmin}" th:action="${'/admin/clients/' + c.id + '/delete'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-danger" type="submit" data-confirm="Клиент удалится вместе со всеми его заказами и ценами. Это не отменить." data-confirm-title="Удалить клиента?">Удалить</button></form></div></div>
+<div class="mini-kpis">
+    <div class="kpi"><span class="kpi-l">Заказов</span><span class="kpi-v" th:text="${orderCount}"></span></div>
+    <div class="kpi"><span class="kpi-l">Куплено всего</span><span class="kpi-v" th:text="${@fmt.dec(sales, 0)}"></span><span class="kpi-s">₸ за вычетом возвратов</span></div>
+    <div class="kpi"><span class="kpi-l">В этом месяце</span><span class="kpi-v" th:text="${@fmt.dec(month, 0)}"></span><span class="kpi-s">₸</span></div>
+    <div class="kpi" th:classappend="${debt.signum() > 0} ? 'kpi--alert'"><span class="kpi-l">Долг</span><span class="kpi-v" th:text="${@fmt.dec(debt, 0)}"></span><span class="kpi-s">₸ по счетам</span></div>
+</div>
+<div class="two">
+<div class="section-gap">
+    <section class="card"><div class="card-h"><h2>Заказы</h2><a class="link" th:href="${'/admin/orders?client=' + c.id}">все заказы клиента</a></div>
+        <div class="tbl-w"><table class="tbl tbl--cards"><thead><tr><th>№</th><th>Выдача</th><th class="r">Сумма</th><th>Оплата</th><th>Статус</th></tr></thead>
+        <tbody><tr th:each="r : ${orders}" class="rowlink" th:attr="data-href=${'/admin/orders/' + r.id}">
+            <td><a th:href="${'/admin/orders/' + r.id}" th:text="${r.id}"></a></td><td th:text="${@fmt.dm(r.day)}"></td>
+            <td class="r num"><b th:text="${@fmt.money(r.totals.net())}"></b></td>
+            <td><th:block th:text="${r.pay.method}"></th:block><small th:classappend="${r.pay.bad} ? 'pay-bad'" th:text="${r.pay.status}"></small></td>
+            <td><span class="st" th:classappend="${'st--' + r.badge}"><th:block th:utext="${i16['s-' + r.badge]}"></th:block><span th:text="${r.badgeLabel}"></span></span></td></tr>
+        <tr th:if="${orders.isEmpty()}"><td colspan="5" class="empty">Заказов ещё не было.</td></tr></tbody></table></div></section>
+    <section class="card" id="prices"><div class="card-h"><h2>Индивидуальные цены</h2><p>остальные товары — по цене прайса</p></div>
+        <div class="tbl-w"><table class="tbl"><thead><tr><th>Товар</th><th class="r">Прайс</th><th class="r">Цена клиента</th><th class="acts-col"></th></tr></thead>
+        <tbody><tr th:each="pr : ${prices}"><td th:text="${pr.product.name}"></td><td class="r num muted" th:text="${@fmt.money(pr.product.price)}"></td><td class="r num"><b th:text="${@fmt.money(pr.price)}"></b></td>
+            <td><form th:if="${canPrice}" th:action="${'/admin/clients/' + c.id + '/prices/' + pr.product.id + '/delete'}" method="post"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="ibtn" type="submit" aria-label="Убрать цену" th:utext="${i['trash']}"></button></form></td></tr>
+        <tr th:if="${prices.isEmpty()}"><td colspan="4" class="muted">Индивидуальных цен нет.</td></tr></tbody></table></div>
+        <form th:if="${canPrice}" th:action="${'/admin/clients/' + c.id + '/prices'}" method="post" class="card-f">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <select class="sel" name="product" required style="flex:1 1 260px"><option value="">Товар…</option><option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name + ' · ' + @fmt.money(p.price)}"></option></select>
+            <input class="inp num-in" name="price" inputmode="decimal" placeholder="Цена, ₸" required style="max-width:140px">
+            <button class="btn btn-soft btn-sm" type="submit">Сохранить цену</button></form></section>
+</div>
+<aside class="two-side">
+    <section class="card card-b box"><h3>Контакты</h3><dl class="kv">
+        <div th:if="${!#strings.isEmpty(c.contactPerson)}"><dt>Контакт</dt><dd th:text="${c.contactPerson}"></dd></div>
+        <div th:if="${!#strings.isEmpty(c.phone)}"><dt>Телефон</dt><dd class="phone"><span th:text="${@fmt.phone(c.phone)}"></span><button class="link" type="button" th:attr="data-copy=${c.phone}"><th:block th:utext="${i['copy']}"></th:block>Копировать</button></dd></div>
+        <div th:if="${!#strings.isEmpty(c.email)}"><dt>Почта</dt><dd th:text="${c.email}"></dd></div>
+        <div th:if="${!#strings.isEmpty(c.address)}"><dt>Адрес</dt><dd th:text="${c.address}"></dd></div>
+        <div><dt>БИН/ИИН</dt><dd th:text="${!#strings.isEmpty(c.bin) ? c.bin : '—'}"></dd></div>
+        <div><dt>Оплата</dt><dd th:text="${c.defaultPayment != null ? c.defaultPayment.label : 'Наличными'}"></dd></div></dl>
+        <p class="note" th:if="${!#strings.isEmpty(c.notes)}"><b>Заметка</b><th:block th:text="${c.notes}"></th:block></p></section>
+    <section class="card card-b box"><h3>Что берёт чаще</h3><ol class="top">
+        <li th:each="t : ${top}" style="grid-template-columns:minmax(0,1fr) auto"><p th:text="${t.product.name}" style="grid-column:1"></p><b th:text="${@fmt.num(t.qty) + ' шт'}" style="grid-column:2"></b></li>
+        <li th:if="${top.isEmpty()}" class="muted">Пока нет выданных заказов.</li></ol></section>
+    <section class="card card-b box"><h3>Возвраты</h3>
+        <p th:each="r : ${returns}"><a class="link" th:href="${'/admin/returns/' + r.id}" th:text="${'№ ' + r.id + ' от ' + @fmt.dm(r.returnDate)}"></a> · <th:block th:text="${@fmt.money(r.totalSum)}"></th:block></p>
+        <p th:if="${returns.isEmpty()}" class="muted">Возвратов не было.</p></section>
+</aside>
+</div>
+</th:block>
+</body>
+</html>

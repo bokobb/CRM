@@ -55,6 +55,21 @@ public class CompanyProfile {
     /** Номер WhatsApp для кнопки на рекламной странице (ссылка wa.me собирается из цифр). */
     private String whatsappPhone;
 
+    /**
+     * Скрытые возможности магазина /shop (Настройки › Магазин), по умолчанию выключены: клиент может
+     * указать день и время выдачи (необязательно) и выбрать способ оплаты. null — выключено.
+     */
+    private Boolean shopPickupChoice;
+    private Boolean shopPaymentChoice;
+
+    public boolean pickupChoiceOn() {
+        return Boolean.TRUE.equals(shopPickupChoice);
+    }
+
+    public boolean paymentChoiceOn() {
+        return Boolean.TRUE.equals(shopPaymentChoice);
+    }
+
     /** Адрес до « (…)» для сайта, с неразрывными пробелами: строка не кончается на «г.», «ж/м», «ул.». */
     public String addressMain() {
         if (address == null || address.isBlank()) return null;

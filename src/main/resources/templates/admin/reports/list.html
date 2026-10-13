@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<div class="mini-kpis" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+    <a th:each="k : ${kinds}" class="kpi" th:href="${'/admin/reports/' + k.key}"><span class="kpi-l"><th:block th:utext="${i['reports']}"></th:block><th:block th:text="${k.title}"></th:block></span><span class="kpi-s" th:text="${k.description}"></span></a>
+    <a class="kpi" href="/admin/requests"><span class="kpi-l"><th:block th:utext="${i['print']}"></th:block>Отчёт производства (PDF)</span><span class="kpi-s">что выпустили за день — в разделе «Заявки на сырьё»</span></a>
+    <a class="kpi" href="/admin/production"><span class="kpi-l"><th:block th:utext="${i['production']}"></th:block>Себестоимость дня</span><span class="kpi-s">норма сырья, выдано, зарплата бригад</span></a>
+</div>
+<p class="cnt" th:if="${kinds.isEmpty()}">Для вашей роли отчётов нет.</p>
+</th:block>
+</body>
+</html>

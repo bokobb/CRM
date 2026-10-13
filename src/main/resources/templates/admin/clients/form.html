@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" th:href="${c.id != null ? '/admin/clients/' + c.id : '/admin/clients'}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${c.id != null ? c.name : 'Все клиенты'}"></th:block></a>
+<div class="oh"><div class="oh-t"><h2 th:text="${c.id != null ? 'Изменить клиента' : 'Новый клиент'}">Клиент</h2></div>
+    <p class="oh-m">Телефон — вход на сайт: покупатель вводит его в магазине и сразу видит свои цены.</p></div>
+<div class="errs errs-top" role="alert" th:if="${!errors.isEmpty()}"><span th:each="e : ${errors}" th:text="${e}"></span></div>
+<form method="post" th:action="${c.id != null ? '/admin/clients/' + c.id : '/admin/clients'}" data-guard="Клиент не сохранён." style="max-width:860px">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <section class="card form-card"><div class="fgrid">
+        <label class="field wide"><span>Магазин или имя</span><input class="inp" name="name" required maxlength="200" th:value="${c.name}" placeholder="Магазин «Береке»"></label>
+        <label class="field"><span>Контактное лицо</span><input class="inp" name="contactPerson" maxlength="200" th:value="${c.contactPerson}"></label>
+        <label class="field"><span>Телефон</span><input class="inp" name="phone" type="tel" maxlength="40" th:value="${c.phone}" placeholder="+7 700 000 00 00"></label>
+        <label class="field"><span>Почта</span><input class="inp" name="email" type="email" maxlength="200" th:value="${c.email}"></label>
+        <label class="field"><span>БИН/ИИН</span><input class="inp" name="bin" inputmode="numeric" maxlength="12" th:value="${c.bin}"></label>
+        <label class="field wide"><span>Адрес</span><input class="inp" name="address" maxlength="300" th:value="${c.address}"></label>
+        <label class="field"><span>Оплата по умолчанию</span><select class="sel full" name="defaultPayment"><option value="">Наличными при выдаче</option>
+            <option th:each="p : ${payments}" th:if="${p.name() != 'CASH'}" th:value="${p.name()}" th:text="${p.label}" th:selected="${c.defaultPayment == p}"></option></select></label>
+        <label class="field wide"><span>Заметка</span><textarea class="ta" name="notes" maxlength="2000" th:text="${c.notes}"></textarea></label>
+    </div>
+    <div class="form-acts"><a class="btn btn-soft" th:href="${c.id != null ? '/admin/clients/' + c.id : '/admin/clients'}">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div></section>
+</form>
+</th:block>
+</body>
+</html>

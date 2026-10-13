@@ -188,17 +188,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  /// Куда откатится статус; заказ клиента из «В процессе сборки» — обратно в «Новая» (не принят).
+  String? _rollbackTarget(Order o) =>
+      o.status == 'CONFIRMED' ? (o.byClient ? 'Новая' : null) : _previousStatusLabel[o.status];
+
   static const _previousStatusLabel = {
     'COMPLETED': 'Отгружен',
     'DELIVERED': 'Готов к отгрузке',
     'READY': 'В процессе сборки',
-    'CONFIRMED': 'В процессе сборки',
-    'IN_PRODUCTION': 'В процессе сборки',
-    'CANCELLED': 'В процессе сборки',
+    'NO_SHOW': 'Готов к отгрузке',
+    'NEW': 'Принят',
+    'IN_PRODUCTION': 'Принят',
+    'CANCELLED': 'статус до отмены',
   };
 
   Future<void> _rollbackDialog(Order o) async {
-    final target = _previousStatusLabel[o.status] ?? '';
+    final target = _rollbackTarget(o) ?? '';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -688,14 +693,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   const SizedBox(height: 12),
                   Text(o.notes!, style: TextStyle(color: context.pal.muted)),
                 ],
-                if (isAdmin && _previousStatusLabel.containsKey(o.status)) ...[
+                if (isAdmin && _rollbackTarget(o) != null) ...[
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: _actionInProgress ? null : () => _rollbackDialog(o),
                       icon: const Icon(Icons.undo),
-                      label: Text('Откатить в «${_previousStatusLabel[o.status]}»'),
+                      label: Text('Откатить в «${_rollbackTarget(o)}»'),
                     ),
                   ),
                 ],
@@ -704,7 +709,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   // Цена фиксируется при создании заказа: если тогда у товара не было цены, в позиции 0.
                   // Кнопка берёт текущую цену из прайса клиента (сервер, OrderPriceFillService).
                   if (canManageOrder &&
-                      const {'NEW', 'CONFIRMED', 'IN_PRODUCTION', 'READY'}.contains(o.status) &&
+                      const {'PLACED', 'NEW', 'CONFIRMED', 'IN_PRODUCTION', 'READY'}.contains(o.status) &&
                       o.items.any((it) => it.price == 0)) ...[
                     Text(
                       'Без цены: ${o.items.where((it) => it.price == 0).length} поз. — поставьте цену в «Индивидуальных ценах» '
@@ -718,6 +723,48 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         onPressed: _actionInProgress ? null : () => _runAction(() => _api.fillOrderPrices(o.id)),
                         icon: const Icon(Icons.price_change_outlined),
                         label: const Text('Подтянуть цены из прайса'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  // Заказ клиента с сайта/WhatsApp: «Принять» — клиент на сайте видит «Принят», дальше сборка чек-листом.
+                  if (o.status == 'PLACED' && canShip) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _actionInProgress ? null : () => _runAction(() => _api.acceptOrder(o.id)),
+                        icon: const Icon(Icons.how_to_reg_outlined),
+                        label: const Text('Принять'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  // Принят (заказ сотрудника или принятый заказ клиента) — склад берёт его в сборку.
+                  if (o.status == 'CONFIRMED' && canShip) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _actionInProgress ? null : () => _runAction(() => _api.startOrder(o.id)),
+                        icon: const Icon(Icons.inventory_2_outlined),
+                        label: const Text('Начать сборку'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (o.status == 'NO_SHOW') ...[
+                    Text(
+                      'Клиент не приехал за заказом. Перенести выдачу можно в админке; если клиент приехал — отгрузите.',
+                      style: TextStyle(color: context.pal.danger, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (o.status == 'NO_SHOW' && canShip) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _actionInProgress ? null : () => _shipDialog(o),
+                        icon: const Icon(Icons.local_shipping_outlined),
+                        label: const Text('Отгрузил'),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -757,6 +804,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             : () => _shipDialog(o),
                         icon: const Icon(Icons.local_shipping_outlined),
                         label: const Text('Отгрузил'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _actionInProgress ? null : () => _runAction(() => _api.noShowOrder(o.id)),
+                        icon: const Icon(Icons.schedule_outlined),
+                        label: const Text('Клиент не пришёл'),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -804,7 +860,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                     const SizedBox(height: 10),
                   ],
-                  if ((o.status == 'NEW' ||
+                  if ((o.status == 'PLACED' ||
+                          o.status == 'CONFIRMED' ||
+                          o.status == 'NO_SHOW' ||
+                          o.status == 'NEW' ||
                           o.status == 'IN_PRODUCTION' ||
                           o.status == 'READY') &&
                       (canManageOrder || canShip))

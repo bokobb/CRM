@@ -2,6 +2,10 @@ package com.confectionery.crm.config;
 
 import com.confectionery.crm.security.JwtAuthFilter;
 import com.confectionery.crm.security.JwtService;
+import com.confectionery.crm.security.AdminLoginLockFilter;
+import com.confectionery.crm.security.LoginAttemptService;
+import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,8 +30,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * своим Cache-Control (см. ниже, почему отдельным чейном), /app/** — статика веб-сборки
  * Flutter (см. WebAppConfig) — сама по себе публичная (index.html/JS/иконки), авторизация
  * происходит уже ВНУТРИ приложения через тот же /api/auth/login, что и у мобильного, всё
- * остальное (Thymeleaf-веб) — сессионный логин через форму, теми же учётками/ролями, что и у
- * мобильного приложения (см. CrmUserDetailsService — общий для обоих). H2-консоль
+ * остальное: /admin/** — админка (сессионный логин через форму, теми же учётками/ролями, что и у
+ * мобильного приложения, см. CrmUserDetailsService — общий для обоих), публичные страницы сайта. H2-консоль
  * оставлена открытой сознательно — это dev-инструмент, не часть бизнес-функциональности.
  */
 @Configuration
@@ -118,33 +122,79 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Админка (/admin/**, см. пакет admin): вход формой /admin/login теми же учётками и ролями, что
+     * у приложения (CrmUserDetailsService, пароли BCrypt), CSRF включён, «Запомнить меня» — токены
+     * в таблице persistent_logins, после пяти неудачных попыток подряд — минута паузы
+     * (LoginAttemptService). Права по разделам — AdminAccessInterceptor.
+     */
     @Bean
     @Order(5)
+    public SecurityFilterChain adminFilterChain(HttpSecurity http, LoginAttemptService attempts,
+                                                PersistentTokenRepository tokenRepository) throws Exception {
+        http.securityMatcher("/admin/**")
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/admin/login", "/admin/assets/**").permitAll()
+                        .anyRequest().authenticated())
+                .formLogin(form -> form
+                        .loginPage("/admin/login")
+                        .loginProcessingUrl("/admin/login")
+                        .successHandler((req, res, a) -> {
+                            attempts.succeeded(a.getName());
+                            req.getSession().removeAttribute("ADMIN_LOGIN_USER");
+                            var saved = new org.springframework.security.web.savedrequest.HttpSessionRequestCache().getRequest(req, res);
+                            res.sendRedirect(saved != null && saved.getRedirectUrl().contains("/admin/")
+                                    ? saved.getRedirectUrl() : req.getContextPath() + "/admin/dashboard");
+                        })
+                        .failureHandler((req, res, ex) -> {
+                            String username = req.getParameter("username");
+                            attempts.failed(username);
+                            req.getSession().setAttribute("ADMIN_LOGIN_USER", username);
+                            long left = attempts.secondsLeft(username);
+                            res.sendRedirect(req.getContextPath() + "/admin/login?" + (left > 0 ? "locked=" + left : "error"));
+                        })
+                        .permitAll())
+                .rememberMe(rm -> rm
+                        .key(rememberMeSecret)
+                        .rememberMeParameter("remember-me")
+                        .tokenRepository(tokenRepository)
+                        .tokenValiditySeconds(rememberMeValiditySeconds)
+                        .userDetailsService(userDetailsService))
+                .logout(logout -> logout
+                        .logoutUrl("/admin/logout")
+                        .logoutSuccessUrl("/admin/login?logout")
+                        .permitAll())
+                .addFilterBefore(new AdminLoginLockFilter(attempts), UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    /** Токены «Запомнить меня» админки — в БД (таблица создаётся при старте, если её нет). */
+    @Bean
+    public PersistentTokenRepository persistentTokenRepository(javax.sql.DataSource dataSource) {
+        org.springframework.jdbc.core.JdbcTemplate jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        jdbc.execute("create table if not exists persistent_logins (username varchar(64) not null, "
+                + "series varchar(64) primary key, token varchar(64) not null, last_used timestamp not null)");
+        JdbcTokenRepositoryImpl repository = new JdbcTokenRepositoryImpl();
+        repository.setDataSource(dataSource);
+        return repository;
+    }
+
+    /**
+     * Всё остальное: публичные страницы (реклама "/", контакты, вакансии, статика). Старой
+     * веб-админки больше нет — любой другой адрес требует входа и ведёт на /admin/login.
+     */
+    @Bean
+    @Order(6)
     public SecurityFilterChain webFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher("/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/promo/**").permitAll()
                         .requestMatchers("/contacts", "/vacancies", "/vacancies/reply").permitAll()
-                        .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/h2-console/**", "/firebase-messaging-sw.js").permitAll()
+                        .requestMatchers("/login", "/images/**", "/h2-console/**", "/firebase-messaging-sw.js", "/error").permitAll()
                         .anyRequest().authenticated())
-                .formLogin(form -> form
-                        .loginPage("/login")
-                        .defaultSuccessUrl("/", false)
-                        .failureUrl("/login?error")
-                        .permitAll())
-                // "Запомнить меня" — чекбокс с именем "remember-me" на форме логина (см.
-                // login.html), стандартное для Spring Security имя параметра, ничего в
-                // formLogin для этого настраивать не нужно. Без галочки — обычная сессионная
-                // кука, слетает при закрытии браузера, как и раньше.
-                .rememberMe(rm -> rm
-                        .key(rememberMeSecret)
-                        .tokenValiditySeconds(rememberMeValiditySeconds)
-                        .userDetailsService(userDetailsService))
-                .logout(logout -> logout
-                        .logoutUrl("/logout")
-                        .logoutSuccessUrl("/login")
-                        .permitAll())
+                .exceptionHandling(eh -> eh.authenticationEntryPoint(
+                        (req, res, ex) -> res.sendRedirect(req.getContextPath() + "/admin/login")))
                 .headers(headers -> headers.frameOptions(frame -> frame.disable())); // нужно для /h2-console
         return http.build();
     }

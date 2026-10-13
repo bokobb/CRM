@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<body>
+<th:block th:fragment="content">
+<form class="tools" method="get" action="/admin/stock" data-autosubmit>
+    <label class="search"><span class="sr">Поиск товара</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Найти товар" autocomplete="off" th:value="${q}"></label>
+    <label class="switch"><input type="checkbox" name="pf" value="1" th:checked="${pf}"> Полуфабрикаты</label>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" href="/admin/stock/movements">Движения</a>
+    <a th:if="${canEdit}" class="btn btn-soft btn-sm" href="/admin/stock/doc?type=out">Списание</a>
+    <a th:if="${canEdit}" class="btn btn-primary btn-sm" href="/admin/stock/doc?type=in"><th:block th:utext="${i['plus']}"></th:block>Поступление</a>
+</form>
+<section class="card" aria-label="Остатки">
+    <div class="tbl-w">
+        <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
+        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
+            <thead><tr><th>Товар</th><th class="r">Остаток</th><th class="r">Коробок</th><th class="r">Цена</th><th class="r">На сумму</th><th class="acts-col"></th></tr></thead>
+            <tbody>
+            <tr th:each="p : ${rows}">
+                <td class="c-full"><div class="prod"><img th:if="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" class="th" th:src="${p.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p><b th:text="${p.name}"></b><small th:if="${p.hiddenFromClients}">скрыт с витрины</small></p></div></td>
+                <td class="r num" th:classappend="${p.quantityInStock != null and p.quantityInStock.signum() < 0} ? 'low'" th:text="${@fmt.num(p.quantityInStock) + ' ' + (p.unit != null and !#strings.isEmpty(p.unit) ? p.unit : 'шт')}"></td>
+                <td class="r num" th:with="u=${p.unitsPerBox}" th:text="${u != null and u.signum() > 0 and p.quantityInStock != null and p.quantityInStock.signum() > 0 ? @fmt.boxText(p.quantityInStock, u) : '—'}"></td>
+                <td class="r num" th:text="${@fmt.money(p.price)}"></td>
+                <td class="r num" th:text="${p.quantityInStock != null and p.quantityInStock.signum() > 0 ? @fmt.money(p.quantityInStock.multiply(p.price)) : '—'}"></td>
+                <td><div class="tbl-actions"><a th:if="${canEdit}" class="btn btn-soft btn-sm" th:href="${'/admin/stock/doc?type=in&item=' + p.id}">Приход</a></div></td>
+            </tr>
+            </tbody>
+            <tfoot><tr><td colspan="4">Готовая продукция на складе по ценам прайса</td><td class="r num" th:text="${@fmt.money(value)}"></td><td></td></tr></tfoot>
+        </table>
+    </div>
+</section>
+<form th:if="${isAdmin}" method="post" action="/admin/stock/sync-1c" class="pager">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <p class="cnt">Остаток уменьшается при выдаче заказа, растёт при оприходовании продукции из цеха; сверяется с 1С по расписанию.</p>
+    <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Обновить из 1С</button>
+</form>
+</th:block>
+</body>
+</html>
