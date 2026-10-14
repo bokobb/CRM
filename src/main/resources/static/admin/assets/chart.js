@@ -41,13 +41,13 @@
     if (!box || box.hidden) return;
     var total = days.reduce(function (s, x) { return s + x.sum; }, 0);
     var W = Math.max(300, Math.round(box.clientWidth - 16)), H = 236, L = 60, R = 8, T = 14, B = 40;
-    var max = Math.max.apply(null, days.map(function (x) { return x.sum; }).concat([0])) || 1;
+    var max = Math.max.apply(null, days.map(function (x) { return x.sum; }).concat([0])) || 4000;
     var step = niceStep(max / 4), top = Math.ceil(max / step) * step;
     var pw = W - L - R, ph = H - T - B, band = pw / Math.max(1, days.length), bw = Math.min(24, band * 0.62);
     var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Выручка по дням за ' + P + ' дней, всего ' + money(total) + '. Подробно — во вкладке «Таблица». Нажмите на день, чтобы открыть его.">' +
       '<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#F3E2C2"/><rect width="2.4" height="6" fill="#A8692B"/></pattern>' +
       '<pattern id="hatch-on" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#EBCB95"/><rect width="2.6" height="6" fill="#83501E"/></pattern></defs>';
-    for (var v = 0; v <= top + 1; v += step) {
+    for (var v = 0; v <= top + step / 2; v += step) {
       var y = T + ph - v / top * ph;
       s += '<line class="' + (v ? 'gl' : 'base') + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>' +
         '<text class="yl" x="' + (L - 10) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end">' + shortMoney(v) + '</text>';

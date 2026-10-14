@@ -960,3 +960,4 @@ a.kpi--alert:hover{box-shadow:var(--shadow),0 0 0 2px var(--crimson-deep)}
   .tbl--rx .x-q{color:var(--ink-soft);font-size:13.5px}
   .tbl--rx .x-s{text-align:right;font-weight:600}
 }
+.top li.empty{display:block;padding:20px 0}
