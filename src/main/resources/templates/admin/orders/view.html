@@ -51,10 +51,10 @@
                 <div><dt>объём</dt><dd th:text="${t.volumeKnown ? @fmt.dec(t.volume, 2) + ' м³' : '—'}">0,33 м³</dd></div>
             </dl>
         </section>
-        <section class="card" th:each="r : ${o.returns}" th:attr="aria-labelledby=${'h-ret' + r.id}">
+        <section class="card" th:each="r : ${o.returns}" th:id="${'ret-' + r.id}" th:attr="aria-labelledby=${'h-ret' + r.id}">
             <div class="card-h"><div><h2 th:id="${'h-ret' + r.id}" th:text="${'Возврат № ' + r.id}">Возврат № 111</h2>
-                <p th:text="${@fmt.when(r.createdAt) + ' · ' + r.createdBy + ' · ' + @fmt.count(r.items.size(), 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(@fmt.retPcs(r)) + ' шт · всё в списание'}"></p></div>
-                <div class="card-acts"><a class="btn btn-soft btn-sm" th:href="${'/admin/returns/' + r.id + '/edit'}">Изменить</a><a class="btn btn-soft btn-sm" th:href="${'/admin/returns/' + r.id}">Акт возврата</a></div></div>
+                <p th:text="${@fmt.when(r.createdAt) + ' · ' + (retBy[r.createdBy] != null ? retBy[r.createdBy] : r.createdBy) + ' · ' + @fmt.count(r.items.size(), 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(@fmt.retPcs(r)) + ' шт · всё в списание'}"></p></div>
+                <div class="card-acts"><a th:if="${canReturn}" class="btn btn-soft btn-sm" th:href="${'/admin/orders/' + o.id + '/return?r=' + r.id}">Изменить</a><a class="btn btn-soft btn-sm" th:href="${'/admin/orders/' + o.id + '/return/' + r.id + '/act'}" target="_blank"><th:block th:utext="${i['print']}"></th:block>Акт возврата</a></div></div>
             <div class="tbl-w"><table class="tbl tbl--l tbl--ret">
                 <thead><tr><th>Товар</th><th class="r">Кол-во</th><th class="r">Цена</th><th class="r">Сумма</th></tr></thead>
                 <tbody>
@@ -68,7 +68,7 @@
                 <tfoot><tr><td class="l-p">Возврат</td><td class="r num l-q" th:text="${@fmt.num(@fmt.retPcs(r)) + ' шт'}"></td><td class="l-b"></td><td class="r num l-s" th:text="${@fmt.money(r.totalSum.negate())}"></td></tr></tfoot>
             </table></div>
         </section>
-        <a th:if="${o.returns.isEmpty() and (row.badge == 'new' or row.badge == 'work' or row.badge == 'ready' or row.badge == 'done')}" class="card ret-add" th:href="${'/admin/returns/new?order=' + o.id}">
+        <a th:if="${o.returns.isEmpty() and canReturn}" class="card ret-add" th:href="${'/admin/orders/' + o.id + '/return'}">
             <th:block th:utext="${i['returns']}"></th:block><span><b>Добавить возврат</b><small>Клиент привёз возврат — он вычтется из суммы этого заказа и сразу уйдёт в списание.</small></span></a>
         <section class="card" aria-labelledby="h-calc"><div class="card-h"><h2 id="h-calc">Расчёт</h2></div>
             <div class="rcpt">
@@ -76,7 +76,9 @@
                     <p class="rcpt-r"><span th:text="${'Сумма заказа · ' + @fmt.num(t.packs) + ' шт'}">Сумма заказа</span><i></i><b th:text="${@fmt.money(t.sum)}"></b></p>
                     <p class="rcpt-r rcpt-ret" th:each="r : ${o.returns}"><span th:text="${'Возврат № ' + r.id + ' · ' + @fmt.num(@fmt.retPcs(r)) + ' шт'}"></span><i></i><b th:text="${@fmt.money(r.totalSum.negate())}"></b></p>
                 </th:block>
-                <p class="rcpt-r rcpt-tot"><span th:text="${o.isPaid() ? 'Итого' : 'К оплате'}">К оплате</span><i></i><b th:text="${@fmt.money(t.net())}"></b></p>
+                <p class="rcpt-r rcpt-tot"><span th:text="${o.isPaid() ? 'Итого' : 'К оплате'}">К оплате</span><i></i><b th:text="${@fmt.money(t.pay())}"></b></p>
+                <p class="warn-s" th:if="${overpay.signum() > 0}"><th:block th:utext="${i['alert']}"></th:block><span th:text="${'Заказ оплатили до возврата — переплату ' + @fmt.money(overpay) + ' нужно вернуть клиенту.'}"></span></p>
+                <p class="warn-s" th:if="${overpay.signum() == 0 and t.net().signum() < 0}"><th:block th:utext="${i['alert']}"></th:block><span th:text="${'Возврат больше заказа на ' + @fmt.money(t.net().negate()) + ' — разницу нужно вернуть клиенту.'}"></span></p>
             </div>
         </section>
     </div>
@@ -103,7 +105,7 @@
             <dl class="kv">
                 <div><dt>Способ</dt><dd th:text="${row.pay.methodLong}"></dd></div>
                 <div><dt>Статус</dt><dd th:classappend="${row.pay.bad} ? 'pay-bad' : 'pay-ok'"><b th:text="${@fmt.cap(row.pay.status)}"></b></dd></div>
-                <div><dt th:text="${o.isPaid() ? 'Сумма' : 'К оплате'}">К оплате</dt><dd class="num"><b th:text="${@fmt.money(t.net())}"></b><small th:if="${!o.returns.isEmpty()}" th:text="${'после возврата № ' + o.returns[0].id}"></small></dd></div>
+                <div><dt th:text="${o.isPaid() ? 'Сумма' : 'К оплате'}">К оплате</dt><dd class="num"><b th:text="${@fmt.money(t.pay())}"></b><small th:if="${!o.returns.isEmpty()}" th:text="${'после возврата № ' + o.returns[0].id}"></small></dd></div>
                 <div th:if="${o.paidAt != null}"><dt>Отметил</dt><dd th:text="${(o.paidByName != null ? o.paidByName + ', ' : '') + @fmt.when(o.paidAt)}"></dd></div>
                 <div th:if="${o.debtDueDate != null and !o.isPaid()}"><dt>Долг до</dt><dd class="pay-bad" th:text="${@fmt.date(o.debtDueDate)}"></dd></div>
             </dl>

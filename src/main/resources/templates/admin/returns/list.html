@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
 <form class="tools" method="get" action="/admin/returns" data-autosubmit>
@@ -10,7 +10,7 @@
         <option th:each="p : ${pers}" th:value="${p.value}" th:text="${'Период: ' + p.label}" th:selected="${p.on}"></option></select></label>
     <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
     <span class="grow"></span>
-    <a class="btn btn-primary btn-sm" href="/admin/returns/new"><th:block th:utext="${i['plus']}"></th:block><span>Возврат к заказу</span></a>
+    <button class="btn btn-primary btn-sm" type="button" id="rt-add" data-dialog="dlg-pick" th:attr="data-open=${pick ? '1' : null}"><th:block th:utext="${i['plus']}"></th:block><span>Возврат к заказу</span></button>
 </form>
 
 <div class="kpis kpis--3">
@@ -38,8 +38,8 @@
         <table th:if="${!rows.isEmpty() and view == 'list'}" class="tbl tbl--r">
             <thead><tr><th>№</th><th>Клиент</th><th>К заказу</th><th class="r r-pos">Позиций</th><th class="r">Штук</th><th class="r">Сумма</th></tr></thead>
             <tbody>
-            <tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/returns/' + r.id}">
-                <td class="r-no"><a th:href="${'/admin/returns/' + r.id}" th:text="${r.id}">111</a>
+            <tr th:each="r : ${rows}" class="rowlink" th:with="href=${r.order != null ? '/admin/orders/' + r.order.id + '#ret-' + r.id : '/admin/returns/' + r.id}" th:attr="data-href=${href}">
+                <td class="r-no"><a th:href="${href}" th:text="${r.id}">111</a>
                     <small th:text="${@fmt.cap(@fmt.relDay(r.returnDate)) + ', ' + @fmt.time(r.createdAt)}"></small>
                     <span th:if="${r.oneCSyncError != null}" class="tag tag--bad" th:title="${r.oneCSyncError}">1С: ошибка</span></td>
                 <td class="r-cl"><b th:text="${r.client.name}"></b><small th:text="${r.client.contactPerson}"></small></td>
@@ -86,6 +86,47 @@
     </div>
 </section>
 <p class="cnt">Доля — сколько штук вернули от отгруженных за тот же период. Возврат уменьшает сумму заказа; товар уходит на склад «Испорченные товары» в 1С.</p>
+
+<template id="dlg-pick">
+    <div class="dlg-in"><h2 id="dlg-h">К какому заказу возврат?</h2>
+        <p class="muted">Клиент отдаёт возврат, когда забирает заказ, — сумма возврата вычтется из этого заказа.</p>
+        <label class="search"><span class="sr">Найти заказ</span><th:block th:utext="${i['search']}"></th:block><input class="inp" id="rp-q" type="search" placeholder="№ заказа, магазин или телефон" autocomplete="off" th:value="${q}"></label>
+        <div class="opick opick--list" id="rp-l">
+            <a th:each="p : ${picks}" th:href="${'/admin/orders/' + p.id + '/return'}" th:attr="data-s=${p.search}"><b th:text="${p.title}">№ 1052 · Магазин «Береке»</b><span th:text="${p.state}">Готов к выдаче · выдача сегодня, 10:00–11:00</span><small th:text="${p.note}">заказ на 68 930 ₸</small></a>
+        </div>
+        <p class="muted" id="rp-none" hidden>Подходящих заказов нет. Возврат прикрепляют к заказу, который клиент забирает: готов к выдаче, собирается, принят — или выдан за последние 3 дня.</p>
+    </div>
+</template>
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="none">
+(function () {
+  'use strict';
+  function norm(s) { return String(s || '').toLowerCase().replace(/ё/g, 'е').trim(); }
+  document.addEventListener('admin:dialog', function (e) {
+    if (e.detail.id !== 'dlg-pick') return;
+    var d = e.detail.dialog, q = d.querySelector('#rp-q'), none = d.querySelector('#rp-none');
+    var items = Array.prototype.slice.call(d.querySelectorAll('#rp-l a'));
+    function filter() {
+      var v = norm(q.value), n = 0;
+      items.forEach(function (a) {
+        var hay = a.getAttribute('data-s'), ok = !v || v.split(/\s+/).every(function (w) {
+          var wd = w.replace(/\D/g, '');
+          return hay.indexOf(w) >= 0 || (wd.length >= 3 && wd === w.replace(/[\s()+-]/g, '') && hay.indexOf(wd) >= 0);
+        });
+        a.hidden = !ok;
+        if (ok) n++;
+      });
+      none.hidden = n > 0;
+    }
+    q.addEventListener('input', filter);
+    filter();
+    q.focus();
+  });
+  var add = document.getElementById('rt-add');
+  if (add && add.hasAttribute('data-open')) add.click();     // /admin/returns?pick=1 — сразу выбрать заказ
+})();
+</script>
 </th:block>
 </body>
 </html>

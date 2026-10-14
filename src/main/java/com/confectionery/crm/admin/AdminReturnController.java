@@ -17,6 +17,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static com.confectionery.crm.admin.AdminSupport.*;
@@ -37,6 +38,7 @@ public class AdminReturnController {
     private final ProductRepository productRepository;
     private final ClientPriceService clientPriceService;
     private final CurrentUserService currentUserService;
+    private final AdminFormat fmt;
 
     static final List<String> REASONS = List.of("Брак", "Истёк срок годности", "Пересорт", "Повреждена упаковка", "Другая причина");
 
@@ -57,7 +59,7 @@ public class AdminReturnController {
     @GetMapping
     @Transactional(readOnly = true)
     public String list(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "30") String per,
-                       @RequestParam(defaultValue = "list") String view, Model model) {
+                       @RequestParam(defaultValue = "list") String view, @RequestParam(defaultValue = "0") int pick, Model model) {
         LocalDate today = LocalDate.now(), f, t = today;
         switch (per) {
             case "7" -> f = today.minusDays(6);
@@ -141,8 +143,53 @@ public class AdminReturnController {
                 .stream().map(p -> new Per(p.value(), p.label(), p.value().equals(perSel))).toList();
         model.addAttribute("pers", pers);
         model.addAttribute("perLabel", pers.stream().filter(Per::on).map(Per::label).findFirst().orElse("").toLowerCase());
+        model.addAttribute("picks", picks(today));
+        model.addAttribute("pick", pick == 1);
         page(model, "Возвраты", "что привезли клиенты — всё в списание", "returns");
         return "admin/returns/list";
+    }
+
+    /** Заказ в окне «К какому заказу возврат?»: строка поиска, подписи. */
+    public record Pick(Long id, String title, String state, String note, String search) {
+    }
+
+    /**
+     * Куда можно прикрепить возврат: заказ, который клиент забирает, — готов к выдаче, собирается или принят (выдача
+     * не позже завтра), или выдан за последние 3 дня. Сначала готовые, дальше по окну выдачи; выданные — новые сверху.
+     */
+    List<Pick> picks(LocalDate today) {
+        record Cand(Order o, int rank, String key) {
+        }
+        List<Cand> cands = new ArrayList<>();
+        for (Order o : orderRepository.findByStatusIn(EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.NEW, OrderStatus.IN_PRODUCTION, OrderStatus.READY))) {
+            LocalDate d = AdminOrders.day(o);
+            if (d.isAfter(today.plusDays(1))) continue;
+            int rank = switch (o.getStatus().badge()) {
+                case "ready" -> 0;
+                case "work" -> 1;
+                default -> 2;
+            };
+            cands.add(new Cand(o, rank, d + String.format("%02d", o.getPickupHour() == null ? 99 : o.getPickupHour()) + String.format("%09d", o.getId())));
+        }
+        for (Order o : orderRepository.findByShippedAtBetween(today.minusDays(3).atStartOfDay(), LocalDateTime.now().plusMinutes(1))) {
+            if (!o.getStatus().isShipped()) continue;
+            cands.add(new Cand(o, 3, String.format("%09d", 999999999 - o.getId())));
+        }
+        cands.sort(Comparator.comparing(Cand::rank).thenComparing(Cand::key));
+        List<Pick> out = new ArrayList<>();
+        for (Cand c : cands) {
+            Order o = c.o();
+            LocalDateTime done = AdminOrders.doneAt(o);
+            String when = c.rank() == 3 && done != null ? "выдан " + fmt.when(done)
+                    : "выдача " + fmt.relDay(AdminOrders.day(o)) + (o.getPickupHour() != null ? ", " + fmt.win(o.getPickupHour()) : "");
+            String note = o.getReturns().isEmpty() ? "заказ на " + fmt.money(o.getTotalPrice())
+                    : "уже есть возврат № " + o.getReturns().get(0).getId() + " — откроется он";
+            Client cl = o.getClient();
+            String search = AdminOrderController.norm(o.getId() + " " + cl.getName() + " " + (cl.getContactPerson() == null ? "" : cl.getContactPerson()))
+                    + " " + (cl.getPhone() == null ? "" : cl.getPhone().replaceAll("\\D", ""));
+            out.add(new Pick(o.getId(), "№ " + o.getId() + " · " + cl.getName(), o.getStatus().badgeLabel() + " · " + when, note, search));
+        }
+        return out;
     }
 
     private static BigDecimal[] zeros() {
@@ -168,6 +215,7 @@ public class AdminReturnController {
             fail(ra, e);
             return "redirect:/admin/returns";
         }
+        if (r.getOrder() != null) return "redirect:/admin/orders/" + r.getOrder().getId() + "#ret-" + r.getId();   // возврат живёт в заказе
         model.addAttribute("r", r);
         model.addAttribute("canDelete", currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT));
         page(model, "Возвраты", "", "returns");
@@ -180,19 +228,18 @@ public class AdminReturnController {
     @GetMapping("/new")
     @Transactional(readOnly = true)
     public String newForm(@RequestParam(required = false) Long order, @RequestParam(required = false) Long client, Model model) {
-        Order o = order == null ? null : orderRepository.findById(order).orElse(null);
-        List<FormLine> lines = new ArrayList<>();
-        if (o != null) {
-            for (OrderItem i : o.getItems()) lines.add(new FormLine(i.getProduct().getId(), "", plain(i.getPrice())));
-        }
-        return form(null, o != null ? o.getClient().getId() : client, o == null ? null : o.getId(), LocalDate.now(),
-                REASONS.get(0), "", lines, List.of(), model);
+        // возврат пишут в заказ, который клиент забирает: с заказом — сразу в форму заказа, без — выбрать заказ
+        if (order != null) return "redirect:/admin/orders/" + order + "/return";
+        String q = client == null ? "" : clientRepository.findById(client).map(Client::getName).orElse("");
+        return "redirect:/admin/returns?pick=1" + (q.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(q, java.nio.charset.StandardCharsets.UTF_8));
     }
 
     @GetMapping("/{id}/edit")
     @Transactional(readOnly = true)
     public String editForm(@PathVariable Long id, Model model) {
         ProductReturn r = returnService.findById(id);
+        if (r.getOrder() != null) return "redirect:/admin/orders/" + r.getOrder().getId() + "/return?r=" + id;
+        // старый возврат без заказа (из приложения) — прежняя форма: можно закрепить за заказом
         List<FormLine> lines = r.getItems().stream()
                 .map(i -> new FormLine(i.getProduct().getId(), plain(i.getQuantity()), plain(i.getPrice()))).toList();
         String reason = r.getReason() == null ? "" : r.getReason();

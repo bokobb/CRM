@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" th:href="${'/admin/orders/' + o.id}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${'Заказ № ' + o.id}">Заказ № 1052</th:block></a>
+<div class="oh">
+    <div class="oh-t"><h2 th:text="${ret != null ? 'Возврат № ' + ret.id : 'Новый возврат'}">Новый возврат</h2>
+        <span class="st" th:classappend="${'st--' + row.badge}"><th:block th:utext="${i16['s-' + row.badge]}"></th:block><span th:text="${row.badgeLabel}"></span></span></div>
+    <p class="oh-m" th:text="${'К заказу № ' + o.id + ' · ' + o.client.name + ' · ' + (row.badge == 'done' and doneAt != null ? 'выдан ' + @fmt.when(doneAt) : 'выдача ' + @fmt.relDay(row.day) + (o.pickupHour != null ? ', ' + @fmt.win(o.pickupHour) : ''))}"></p>
+</div>
+<form id="re-form" method="post" th:action="${'/admin/orders/' + o.id + '/return'}" novalidate
+      th:attr="data-guard=${'Возврат к заказу № ' + o.id + ' не сохранён.'}">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <input type="hidden" name="r" th:value="${ret != null ? ret.id : ''}">
+    <div id="re-hidden"></div>
+    <div class="of">
+        <div class="of-main">
+            <section class="card of-sec" aria-labelledby="re-h"><div class="card-h"><h2 id="re-h">Что привезли</h2><p>в штуках · всё в списание</p></div>
+                <div class="card-b" style="padding-bottom:0"><div id="re-quick"></div><div class="lines" id="re-lines"></div></div>
+                <button class="add" type="button" id="re-add"><th:block th:utext="${i['plus']}"></th:block><span>Добавить товар</span></button></section>
+        </div>
+        <aside class="card of-sum" id="re-sum" aria-label="Итог возврата"></aside>
+    </div>
+</form>
+<form th:if="${canDelete}" id="re-del-f" method="post" th:action="${'/admin/orders/' + o.id + '/return/' + ret.id + '/delete'}" hidden>
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+</form>
+</th:block>
+<th:block th:fragment="scripts">
+<script type="application/json" id="re-state" th:utext="${stateJson}"></script>
+<script type="application/json" id="re-catalog" th:utext="${catalogJson}"></script>
+<script type="application/json" id="re-quick-keys" th:utext="${quickJson}"></script>
+<script type="application/json" id="re-errors" th:utext="${errorsJson}"></script>
+<script src="/admin/assets/return-form.js?v=1"></script>
+</th:block>
+</body>
+</html>

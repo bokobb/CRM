@@ -60,21 +60,35 @@ public final class AdminOrders {
         return o.getSource() == OrderSource.WHATSAPP ? "через WhatsApp" : byClient(o) ? "через сайт" : "через менеджера";
     }
 
-    /** Итоги заказа. Коробки по каждой строке с округлением вверх — как в истории заказов у покупателя. */
+    /**
+     * Итоги заказа. Коробки по каждой строке с округлением вверх — как в истории заказов у покупателя.
+     * ret / retPcs — закреплённые возвраты (сумма и штуки); net — сумма минус возврат, pay — к оплате (не меньше нуля:
+     * если возврат больше заказа, разницу возвращают клиенту).
+     */
     public record Totals(int positions, BigDecimal packs, int boxes, boolean boxesKnown, BigDecimal kg,
-                         BigDecimal volume, boolean volumeKnown, BigDecimal sum, BigDecimal ret) {
+                         BigDecimal volume, boolean volumeKnown, BigDecimal sum, BigDecimal ret, BigDecimal retPcs) {
         public BigDecimal net() {
             return sum.subtract(ret);
+        }
+
+        public BigDecimal pay() {
+            return net().max(BigDecimal.ZERO);
         }
     }
 
     public static Totals totals(Order o) {
+        BigDecimal retPcs = BigDecimal.ZERO;
+        for (ProductReturn r : o.getReturns()) for (ProductReturnItem i : r.getItems()) retPcs = retPcs.add(i.getQuantity());
         return totals(o.getItems().stream().map(i -> new Object[]{i.getProduct(), i.getQuantity(), i.getPrice()}).toList(),
-                o.getReturnTotal());
+                o.getReturnTotal(), retPcs);
     }
 
     /** rows: [Product, quantity, price]. */
     public static Totals totals(List<Object[]> rows, BigDecimal ret) {
+        return totals(rows, ret, BigDecimal.ZERO);
+    }
+
+    public static Totals totals(List<Object[]> rows, BigDecimal ret, BigDecimal retPcs) {
         BigDecimal packs = BigDecimal.ZERO, grams = BigDecimal.ZERO, vol = BigDecimal.ZERO, sum = BigDecimal.ZERO;
         int boxes = 0;
         boolean boxesKnown = true, volKnown = true;
@@ -101,7 +115,7 @@ public final class AdminOrders {
             if (g != null) grams = grams.add(g.multiply(q));
         }
         return new Totals(rows.size(), packs, boxes, boxesKnown, grams.movePointLeft(3), vol, volKnown && !rows.isEmpty(),
-                sum, ret == null ? BigDecimal.ZERO : ret);
+                sum, ret == null ? BigDecimal.ZERO : ret, retPcs == null ? BigDecimal.ZERO : retPcs);
     }
 
     /** Оплата в списке и карточке: способ, статус, красным ли. Как payInfo в макете. */
@@ -233,6 +247,7 @@ public final class AdminOrders {
                 String icon = switch (e.getType()) {
                     case MOVE -> "clock";
                     case PAY -> "cash";
+                    case RETURN, RETURN_EDIT, RETURN_DELETE -> "returns";
                     default -> "s-new";
                 };
                 out.add(new Hist("st--new", icon, e.getType().getLabel(), e.getAt(), e.getByName(), e.getNote()));

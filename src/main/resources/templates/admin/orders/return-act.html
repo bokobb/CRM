@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--/* Акт возврата для печати: A4, два экземпляра — для склада и для клиента. Своя страница без меню админки. */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title th:text="${'Акт возврата № ' + r.id + ' — Админка Юг Сладости'}">Акт возврата</title>
+    <link rel="icon" href="/admin/assets/logo.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:wght@700;800&family=Golos+Text:wght@400;500;600;700&display=swap">
+    <style>
+        :root{--ink:#2A1712;--ink-soft:#6B564B;--line:rgba(42,23,18,.14);--paper:#F3F2E9;--crimson:#B9203C;--crimson-deep:#96172E;--yolk:#FFC646;
+            --display:"Vollkorn","PT Serif",Georgia,serif;--body:"Golos Text","Segoe UI",system-ui,sans-serif}
+        *{box-sizing:border-box}
+        body{margin:0;background:var(--paper);color:var(--ink);font:400 14px/1.45 var(--body);-webkit-font-smoothing:antialiased}
+        .bar{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:12px 16px;background:var(--paper);border-bottom:1px solid var(--line)}
+        .bar a{color:var(--crimson-deep);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+        .bar p{margin:0;color:var(--ink-soft);font-size:13.5px}
+        .btn{display:inline-flex;align-items:center;min-height:40px;padding:0 18px;border:0;border-radius:999px;background:var(--crimson);color:#fff;font:600 15px/1 var(--body);box-shadow:0 3px 0 var(--crimson-deep);cursor:pointer}
+        .sheets{display:grid;gap:24px;justify-items:center;padding:24px 16px 48px}
+        .sheet{width:min(210mm,100%);padding:14mm 14mm 12mm;background:#fff;box-shadow:0 18px 40px -26px rgba(80,40,0,.55)}
+        .sheet h1{margin:0;font:800 26px/1.15 var(--display)}
+        .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 16px;margin-bottom:14px}
+        .head p{margin:4px 0 0;color:var(--ink-soft)}
+        .copy{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+        dl{display:grid;gap:6px;margin:0 0 14px}
+        dl div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:12px}
+        dt{color:var(--ink-soft)}
+        dd{margin:0;font-weight:600}
+        dd small{display:block;font-weight:400;color:var(--ink-soft)}
+        table{width:100%;border-collapse:collapse;font-size:13.5px}
+        th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+        th{font:600 11.5px var(--body);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
+        .r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+        tfoot td{font-weight:700;border-bottom:0;border-top:1.5px solid var(--ink)}
+        .note{margin:14px 0 0}
+        .sign{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:26px;font-size:13px;color:var(--ink-soft)}
+        .sign span{display:block;margin-top:28px;border-top:1px solid var(--ink)}
+        @media (max-width:560px){.sheet{padding:18px 14px}dl div{grid-template-columns:minmax(0,1fr);gap:0}.sign{grid-template-columns:minmax(0,1fr)}}
+        @page{size:A4;margin:12mm}
+        @media print{
+            body{background:#fff}
+            .bar{display:none}
+            .sheets{display:block;padding:0}
+            .sheet{width:auto;padding:0;box-shadow:none;page-break-after:always;break-after:page}
+            .sheet:last-child{page-break-after:auto;break-after:auto}
+        }
+    </style>
+</head>
+<body>
+<div class="bar">
+    <a th:href="${'/admin/orders/' + o.id + '#ret-' + r.id}" th:text="${'← Заказ № ' + o.id}">← Заказ</a>
+    <button class="btn" type="button" onclick="window.print()">Печать</button>
+    <p>Печатается в двух экземплярах — для склада и для клиента.</p>
+</div>
+<div class="sheets">
+<section class="sheet" th:each="copy : ${copies}">
+    <div class="head">
+        <div><h1 th:text="${'Акт возврата № ' + r.id}">Акт возврата № 111</h1>
+            <p th:text="${'от ' + @fmt.dml(r.returnDate) + ' ' + r.returnDate.year + ' г. · к заказу № ' + o.id + (doneAt != null ? ', выдан ' + @fmt.dml(doneAt.toLocalDate()) : '')}"></p></div>
+        <span class="copy" th:text="${copy}">Экземпляр склада</span>
+    </div>
+    <dl>
+        <div><dt>Поставщик</dt><dd><th:block th:text="${company}"></th:block><small th:if="${companyInfo != null}" th:text="${companyInfo}"></small></dd></div>
+        <div><dt>Покупатель</dt><dd><th:block th:text="${o.client.name}"></th:block><small th:text="${(o.client.contactPerson != null and !#strings.isEmpty(o.client.contactPerson) ? o.client.contactPerson + ' · ' : '') + (o.client.phone != null ? @fmt.phone(o.client.phone) : '')}"></small></dd></div>
+        <div><dt>Оформил</dt><dd th:text="${by + ', ' + @fmt.when(r.createdAt)}"></dd></div>
+    </dl>
+    <table>
+        <thead><tr><th>№</th><th>Товар</th><th class="r">Кол-во</th><th class="r">Цена</th><th class="r">Сумма</th></tr></thead>
+        <tbody><tr th:each="l : ${lines}"><td class="r" th:text="${l.n}">1</td><td th:text="${l.product.name}"></td>
+            <td class="r" th:text="${@fmt.num(l.qty) + ' шт'}"></td><td class="r" th:text="${@fmt.money(l.price)}"></td><td class="r" th:text="${@fmt.money(l.sum)}"></td></tr></tbody>
+        <tfoot><tr><td></td><td>Итого</td><td class="r" th:text="${@fmt.num(pcs) + ' шт'}"></td><td></td><td class="r" th:text="${@fmt.money(r.totalSum)}"></td></tr></tfoot>
+    </table>
+    <p class="note" th:text="${'Товар негодный — принят в списание. Сумма возврата вычтена из заказа № ' + o.id + ': заказ на ' + @fmt.money(t.sum) + ', к оплате ' + @fmt.money(t.pay()) + '.'}"></p>
+    <div class="sign"><div>Сдал (покупатель)<span></span></div><div>Принял (завсклад)<span></span></div><div>Дата<span></span></div></div>
+</section>
+</div>
+</body>
+</html>

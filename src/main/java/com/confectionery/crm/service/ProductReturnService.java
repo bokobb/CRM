@@ -2,6 +2,8 @@ package com.confectionery.crm.service;
 
 import com.confectionery.crm.domain.Client;
 import com.confectionery.crm.domain.Order;
+import com.confectionery.crm.domain.OrderEventType;
+import com.confectionery.crm.domain.OrderItem;
 import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.ProductReturn;
 import com.confectionery.crm.domain.ProductReturnItem;
@@ -12,8 +14,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Возвраты испорченного / просроченного товара — см. {@link ProductReturn}. Создаются с нуля,
@@ -31,6 +39,7 @@ public class ProductReturnService {
     private final ClientPriceService clientPriceService;
     private final OneCReturnSyncService oneCReturnSyncService;
     private final OneCQueue oneCQueue;
+    private final CurrentUserService currentUserService;
 
     /** price == null — берётся цена клиента (см. ClientPriceService.resolvePrice). */
     public record ItemInput(Long productId, BigDecimal quantity, BigDecimal price) {
@@ -162,6 +171,111 @@ public class ProductReturnService {
         ProductReturn productReturn = findById(returnId);
         productReturn.setOrder(null);
         return productReturnRepository.save(productReturn);
+    }
+
+    // ---------------------------------------------------------------- возврат к заказу (админка)
+
+    /**
+     * К каким заказам крепят возврат: дистрибьютор отдаёт собранный у магазинов возврат, когда забирает
+     * заказ, — значит, заказ принят, собирается, готов к выдаче или уже выдан.
+     */
+    public static boolean acceptsReturn(Order order) {
+        String b = order.getStatus().badge();
+        return b.equals("new") || b.equals("work") || b.equals("ready") || b.equals("done");
+    }
+
+    /**
+     * Возврат к заказу из админки: что привезли, в штуках. Весь товар негодный — сразу в списание (в 1С — склад
+     * «Испорченные товары»), без приёмки и без причины; сумма возврата вычитается из заказа. Цена строки — цена
+     * этого товара в заказе, если он в заказе есть, иначе цена клиента; у товаров, которые уже были в возврате,
+     * цена прежняя. returnId == null — новый возврат, иначе — изменить этот (только возврат этого же заказа).
+     * В историю заказа пишется, кто и что сделал.
+     */
+    @Transactional
+    public ProductReturn saveForOrder(Long orderId, Long returnId, List<ItemInput> items, String createdBy) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Заказ не найден: " + orderId));
+        if (!acceptsReturn(order)) {
+            throw new IllegalStateException("К заказу в статусе «" + order.getStatus().badgeLabel()
+                    + "» возврат не прикрепить: клиент отдаёт возврат, когда забирает заказ");
+        }
+        ProductReturn productReturn;
+        String before = null;
+        if (returnId == null) {
+            productReturn = new ProductReturn();
+            productReturn.setCreatedBy(createdBy);
+            productReturn.setOrder(order);
+        } else {
+            productReturn = findById(returnId);
+            if (productReturn.getOrder() == null || !productReturn.getOrder().getId().equals(orderId)) {
+                throw new IllegalArgumentException("Возврат № " + returnId + " не от заказа № " + orderId);
+            }
+            before = describe(productReturn);
+        }
+        Map<Long, BigDecimal> kept = new HashMap<>();
+        for (ProductReturnItem i : productReturn.getItems()) kept.putIfAbsent(i.getProduct().getId(), i.getPrice());
+        List<ItemInput> priced = new ArrayList<>();
+        for (ItemInput in : items) {
+            BigDecimal price = in.price();
+            if (price == null && in.productId() != null) price = kept.get(in.productId());
+            if (price == null && in.productId() != null) price = orderPrice(order, in.productId());
+            priced.add(new ItemInput(in.productId(), in.quantity(), price));   // null — цена клиента (см. fill)
+        }
+        LocalDate date = productReturn.getReturnDate() != null ? productReturn.getReturnDate() : LocalDate.now();
+        fill(productReturn, order.getClient().getId(), priced, date, productReturn.getReason());
+        productReturn = productReturnRepository.save(productReturn);
+        if (returnId == null) order.getReturns().add(productReturn);
+        String now = describe(productReturn);
+        if (returnId == null) {
+            OrderService.log(order, OrderEventType.RETURN, null, "Возврат № " + productReturn.getId() + ": " + now, actor());
+        } else if (!now.equals(before)) {
+            OrderService.log(order, OrderEventType.RETURN_EDIT, null,
+                    "Возврат № " + productReturn.getId() + ": было " + before + ", стало " + now, actor());
+        }
+        oneCQueue.productReturn(productReturn);
+        return productReturn;
+    }
+
+    /** Удалить возврат заказа: сначала в 1С (если она не ответила — возврат остаётся), потом запись в истории заказа. */
+    @Transactional
+    public void deleteForOrder(Long orderId, Long returnId) {
+        ProductReturn productReturn = findById(returnId);
+        Order order = productReturn.getOrder();
+        if (order == null || !order.getId().equals(orderId)) {
+            throw new IllegalArgumentException("Возврат № " + returnId + " не от заказа № " + orderId);
+        }
+        String what = describe(productReturn);
+        oneCReturnSyncService.deleteOrThrow(productReturn);
+        order.getReturns().remove(productReturn);
+        productReturnRepository.delete(productReturn);
+        OrderService.log(order, OrderEventType.RETURN_DELETE, null, "Возврат № " + returnId + ": " + what, actor());
+    }
+
+    /** Цена товара в этом заказе; null — товара в заказе нет. */
+    public static BigDecimal orderPrice(Order order, Long productId) {
+        for (OrderItem i : order.getItems()) {
+            if (i.getProduct().getId().equals(productId)) return i.getPrice();
+        }
+        return null;
+    }
+
+    /** Штук в возврате. */
+    public static BigDecimal pieces(ProductReturn productReturn) {
+        return productReturn.getItems().stream().map(ProductReturnItem::getQuantity).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** «16 шт на 30 550 ₸» — для истории заказа. */
+    static String describe(ProductReturn productReturn) {
+        DecimalFormatSymbols sym = new DecimalFormatSymbols(new Locale("ru"));
+        sym.setGroupingSeparator('\u00A0');
+        sym.setDecimalSeparator(',');
+        return new DecimalFormat("#,##0.###", sym).format(pieces(productReturn)) + "\u00A0шт на "
+                + new DecimalFormat("#,##0", sym).format(productReturn.getTotalSum()) + "\u00A0₸";
+    }
+
+    private String actor() {
+        String name = currentUserService.displayName();
+        return name != null ? name : "Сотрудник";
     }
 
     /** Повторная ручная выгрузка в 1С — см. OneCReturnSyncService.syncOrThrow. */

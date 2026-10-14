@@ -4,6 +4,7 @@ import com.confectionery.crm.domain.*;
 import com.confectionery.crm.repository.ClientRepository;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductRepository;
+import com.confectionery.crm.repository.UserRepository;
 import com.confectionery.crm.service.*;
 import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +33,7 @@ public class AdminOrderController {
     private final OrderRepository orderRepository;
     private final ClientRepository clientRepository;
     private final ProductRepository productRepository;
+    private final UserRepository userRepository;
     private final OrderService orderService;
     private final OrderStateMachine stateMachine;
     private final PickupSlotService pickupSlotService;
@@ -207,6 +209,21 @@ public class AdminOrderController {
         OrderEvent off = AdminOrders.last(o, OrderStatus.CANCELLED);
         model.addAttribute("offEvent", off);
         model.addAttribute("ret", o.getReturns().isEmpty() ? null : o.getReturns().get(0));
+        // возврат к заказу: можно ли добавить или изменить, кто оформил (ФИО по логину), переплата, если заказ оплатили до возврата
+        model.addAttribute("canReturn", ProductReturnService.acceptsReturn(o));
+        Map<String, String> retBy = new HashMap<>();
+        for (ProductReturn r : o.getReturns()) {
+            if (r.getCreatedBy() != null && !retBy.containsKey(r.getCreatedBy())) {
+                userRepository.findByUsername(r.getCreatedBy()).map(User::getFullName).filter(n -> !n.isBlank())
+                        .ifPresent(n -> retBy.put(r.getCreatedBy(), n));
+            }
+        }
+        model.addAttribute("retBy", retBy);
+        BigDecimal overpay = BigDecimal.ZERO;
+        if (o.isPaid() && o.getPaidAt() != null) {
+            for (ProductReturn r : o.getReturns()) if (r.getCreatedAt().isAfter(o.getPaidAt())) overpay = overpay.add(r.getTotalSum());
+        }
+        model.addAttribute("overpay", overpay);
         model.addAttribute("slotWeek", AdminJson.of(slotWeek(o.getId())));
         model.addAttribute("stamp", OrderService.stamp(o));
         return "admin/orders/view";

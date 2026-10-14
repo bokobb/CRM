@@ -846,7 +846,8 @@ public class OrderService {
         log(order, type, status, note, actor());
     }
 
-    private static void log(Order order, OrderEventType type, OrderStatus status, String note, String by) {
+    /** Запись в журнал заказа; пакетный доступ — и для возвратов к заказу (ProductReturnService). */
+    static void log(Order order, OrderEventType type, OrderStatus status, String note, String by) {
         OrderEvent e = new OrderEvent();
         e.setOrder(order);
         e.setType(type);
