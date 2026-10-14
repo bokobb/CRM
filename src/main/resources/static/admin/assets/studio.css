@@ -1,0 +1,102 @@
+/* Редактор с предпросмотром (по макету «Фото товара»): слева рабочая панель, справа — карточка так, как её увидит покупатель
+   или соискатель на сайте. Страницы: admin/photos/product.html (фото товара) и admin/jobs/form.html (вакансия). */
+.st-cols{display:grid;grid-template-columns:minmax(0,1fr) 360px;align-items:start;gap:clamp(20px,3vw,40px)}
+.st-panel{min-width:0;padding:clamp(18px,2.6vw,30px);border-radius:24px;background:var(--white);box-shadow:var(--shadow)}
+.st-head{display:grid;gap:6px;margin-bottom:18px}
+.st-eyebrow{font:italic 600 18px/1.2 var(--display);color:var(--crimson-deep)}
+.st-head h2{font-weight:800;font-size:clamp(26px,3vw,38px);line-height:1.06}
+.st-lead{max-width:44rem;color:var(--ink-soft)}
+.st-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin-bottom:14px}
+.st-count{color:var(--ink-soft)}
+.st-count b{font:800 26px/1 var(--display);font-variant-numeric:lining-nums tabular-nums;color:var(--ink)}
+.st-status{min-height:1.5em;margin-top:12px;font-weight:600;color:var(--crimson-deep)}
+.st-rules{display:grid;gap:6px;margin:14px 0 0;padding:16px 0 0 20px;border-top:1px solid var(--line);list-style:disc;font-size:14.5px;line-height:1.45;color:var(--ink-soft)}
+.st-tools{display:grid;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.st-tools-t{font-weight:600}
+.st-tools-t.is-hint{font-weight:400;color:var(--ink-soft)}
+.st-actions{display:flex;flex-wrap:wrap;gap:8px}
+.st-panel.is-over{outline:3px dashed var(--crimson);outline-offset:-8px;background:var(--cream)}
+.st-panel.is-busy{opacity:.7;pointer-events:none}
+
+/* слоты фото: заполненный — кнопка выбора, пустой — выбор файлов */
+.slots{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.slot{position:relative;aspect-ratio:3/4}
+.tile,.add{display:block;width:100%;height:100%;padding:0;border-radius:14px;cursor:pointer}
+.tile{position:relative;overflow:hidden;border:0;background:var(--cream);box-shadow:0 0 0 1.5px var(--line-strong);transition:transform .15s,box-shadow .15s}
+.tile img{width:100%;height:100%;object-fit:cover}
+.tile:hover{transform:translateY(-2px)}
+.tile[aria-pressed="true"]{box-shadow:0 0 0 3.5px var(--crimson),0 14px 18px -12px rgba(80,40,0,.6);transform:translateY(-4px)}
+.tile .n{position:absolute;left:7px;top:7px;display:grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:rgba(42,23,18,.88);color:var(--cream);font:700 13px/1 var(--body);font-variant-numeric:tabular-nums}
+.tile .cover-tag{position:absolute;left:0;right:0;bottom:0;padding:6px 6px 7px;background:rgba(42,23,18,.86);color:#fff;font:600 12.5px/1.1 var(--body);text-align:center}
+.add{display:grid;place-content:center;justify-items:center;gap:6px;border:2px dashed var(--ink-mute);background:var(--paper);color:var(--ink-soft);font:600 13.5px/1.2 var(--body);text-align:center}
+.add:hover{border-color:var(--crimson);background:var(--cream);color:var(--crimson-deep)}
+.add .i{width:24px;height:24px}
+
+/* правая колонка: карточка как на сайте */
+.st-side{position:sticky;top:84px;display:grid;gap:12px;min-width:0}
+.st-card{display:grid;gap:10px;padding:clamp(18px,2.2vw,24px);border-radius:24px;background:var(--white);box-shadow:var(--shadow)}
+.st-card h3{font-weight:700;font-size:21px;line-height:1.15;color:var(--crimson);overflow-wrap:anywhere}
+.st-side .btn{width:100%}
+.st-note{font-size:14px;line-height:1.4;color:var(--ink-soft)}
+.frame{position:relative;display:block;background:var(--cream);padding:7px;box-shadow:0 22px 30px -22px rgba(80,40,0,.55);transition:transform .25s}
+.frame img{width:100%;aspect-ratio:3/4;object-fit:cover}
+.frame::before{content:"";position:absolute;z-index:1;left:-9%;top:-1%;width:30%;height:8%;background:rgba(255,241,196,.78);box-shadow:0 1px 2px rgba(80,40,0,.14);transform:rotate(-38deg)}
+.shot{position:relative;display:block;width:100%;margin:6px 0 8px;padding:0;border:0;background:none;cursor:zoom-in}
+.shot:hover .frame{transform:translateY(-3px)}
+.noshot{display:grid;place-items:center;aspect-ratio:3/4;margin:6px 0 8px;border:2px dashed var(--ink-mute);background:var(--paper);color:var(--ink-soft);text-align:center}
+.st-spec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 0;margin:0}
+.st-spec>div{padding-left:12px;border-left:1px solid var(--line)}
+.st-spec>div:nth-child(odd){padding-left:0;border-left:0}
+.st-spec dt{font-size:12px;line-height:1.25;font-weight:600;color:var(--crimson-deep)}
+.st-spec dd{margin:3px 0 0;font-size:15px;line-height:1.25;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.st-spec dd.is-empty{color:var(--ink-mute);font-weight:400}
+
+/* вакансия: поля по разделам и карточка вакансии справа */
+.st-sec{display:grid;gap:12px;padding-top:18px;margin-top:18px;border-top:1px solid var(--line)}
+.st-sec:first-of-type{margin-top:0;padding-top:0;border-top:0}
+.st-sec-t{font:700 19px/1.2 var(--display)}
+.st-sec-t small{display:block;margin-top:3px;font:400 14px/1.35 var(--body);color:var(--ink-soft)}
+.st-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 16px}
+.st-grid .wide{grid-column:1/-1}
+.st-lists{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 16px}
+.st-lists .ta{min-height:170px}
+.field .cnt-l{justify-self:end;font-size:12.5px;color:var(--ink-mute);font-variant-numeric:tabular-nums}
+.field .cnt-l.is-over{color:var(--crimson-deep);font-weight:600}
+.req{color:var(--crimson)}
+.st-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.st-foot .form-acts{margin:0}
+.st-errs{display:grid;gap:4px;margin-bottom:16px;padding:12px 16px;border-radius:14px;background:var(--crimson-soft);color:var(--crimson-deep);font-weight:600}
+.job-t{font:700 23px/1.1 var(--display);color:var(--crimson);overflow-wrap:anywhere}
+.job-note{font-size:15px;line-height:1.4;color:var(--ink-soft)}
+.job-spec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 0;margin:4px 0 0}
+.job-spec>div{padding-left:14px;border-left:1px solid var(--line-strong)}
+.job-spec>div:nth-child(2){padding-left:0;border-left:0}
+.job-spec .sp-pay{grid-column:1/-1;padding:0 0 10px;border-left:0;border-bottom:1px solid var(--line)}
+.job-spec dt{font-size:12px;font-weight:600;color:var(--crimson-deep)}
+.job-spec dd{margin:3px 0 0;font-size:15.5px;font-weight:600;overflow-wrap:anywhere}
+.job-spec .sp-pay dd{font-size:17px;font-weight:700}
+.job-spec dd.is-empty{color:var(--ink-mute);font-weight:400}
+.job-more summary{display:inline-flex;align-items:center;gap:6px;min-height:40px;font-size:15px;font-weight:600;color:var(--crimson-deep);cursor:pointer;list-style:none}
+.job-more summary::-webkit-details-marker{display:none}
+.job-more summary .i{width:18px;height:18px;transition:rotate .2s}
+.job-more[open] summary .i{rotate:180deg}
+.job-cols{display:grid;gap:14px;padding:12px 0 4px;border-top:1px solid var(--line)}
+.job-cols h4{margin:0 0 4px;font:italic 600 16px/1.25 var(--display);color:var(--crimson-deep)}
+.job-cols ul{padding-left:18px;list-style:disc;font-size:15px;line-height:1.45}
+.job-cols li+li{margin-top:3px}
+.st-hidden-tag{justify-self:start}
+.btn[aria-disabled="true"]{pointer-events:none}
+
+@media (max-width:1180px){
+  .st-cols{grid-template-columns:minmax(0,1fr)}
+  .st-side{position:static;max-width:400px}
+}
+@media (max-width:900px){
+  .slots{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .st-grid,.st-lists{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:560px){
+  .st-actions .btn{flex:1 1 calc(50% - 4px)}
+  .st-bar .btn{width:100%}
+}
+@media (prefers-reduced-motion:reduce){.tile,.frame,.job-more summary .i{transition:none}}

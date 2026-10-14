@@ -32,6 +32,7 @@ public class AdminProductController {
     private final ProductPhotoService photoService;
     private final OrderPriceFillService orderPriceFillService;
     private final CurrentUserService currentUserService;
+    private final PromoPageService promoPageService;
 
     public record Chip(String key, String label, int count, boolean on, String href) {
     }
@@ -201,12 +202,16 @@ public class AdminProductController {
 
     @GetMapping("/admin/photos/{id:\\d+}")
     @Transactional(readOnly = true)
-    public String productPhotos(@PathVariable Long id, Model model) {
+    public String productPhotos(@PathVariable Long id, @RequestParam(required = false) Long sel, Model model) {
         Product p = productService.findById(id);
         List<ProductPhoto> album = new ArrayList<>(p.getPhotos());
         album.sort(Comparator.comparingInt(ProductPhoto::getPosition));
         model.addAttribute("p", p);
         model.addAttribute("album", album);
+        model.addAttribute("card", promoPageService.card(p));
+        model.addAttribute("sel", sel);
+        // слоты рядами по 6, как в макете; хотя бы один пустой — «Добавить»
+        model.addAttribute("emptySlots", Math.max(1, (6 - album.size() % 6) % 6));
         page(model, "Фото товаров", p.getName(), "photos");
         return "admin/photos/product";
     }
@@ -257,6 +262,6 @@ public class AdminProductController {
         } catch (RuntimeException e) {
             fail(ra, e);
         }
-        return "redirect:/admin/photos/" + id;
+        return "redirect:/admin/photos/" + id + "?sel=" + photoId;
     }
 }

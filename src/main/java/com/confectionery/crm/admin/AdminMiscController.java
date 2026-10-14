@@ -64,22 +64,38 @@ public class AdminMiscController {
     @GetMapping({"/admin/jobs/new", "/admin/jobs/{id:\\d+}"})
     @Transactional(readOnly = true)
     public String jobForm(@PathVariable(required = false) Long id, Model model) {
-        model.addAttribute("v", id == null ? new Vacancy() : vacancyService.get(id));
-        page(model, "Вакансии", "", "jobs");
+        return jobForm(id == null ? new Vacancy() : vacancyService.get(id), null, model);
+    }
+
+    private String jobForm(Vacancy v, String error, Model model) {
+        model.addAttribute("v", v);
+        model.addAttribute("error", error);
+        page(model, "Вакансии", v.getId() == null ? "новая вакансия" : v.getTitle(), "jobs");
         return "admin/jobs/form";
     }
 
     @PostMapping({"/admin/jobs", "/admin/jobs/{id:\\d+}"})
-    public String saveJob(@PathVariable(required = false) Long id, @RequestParam Map<String, String> f, RedirectAttributes ra) {
+    public String saveJob(@PathVariable(required = false) Long id, @RequestParam Map<String, String> f, Model model, RedirectAttributes ra) {
+        boolean active = "true".equals(f.get("active"));
         try {
             Vacancy v = vacancyService.save(id, new VacancyService.VacancyFields(t(f, "title"), t(f, "summary"), t(f, "schedule"),
-                    t(f, "experience"), t(f, "salary"), t(f, "duties"), t(f, "requirements"), t(f, "conditions"),
-                    id == null || "true".equals(f.get("active"))));
-            ok(ra, "Вакансия «" + v.getTitle() + "» сохранена");
+                    t(f, "experience"), t(f, "salary"), t(f, "duties"), t(f, "requirements"), t(f, "conditions"), active));
+            ok(ra, "Вакансия «" + v.getTitle() + "» сохранена" + (v.isActive() ? " и показана на сайте" : ", на сайте не показана"));
             return "redirect:/admin/jobs";
         } catch (RuntimeException e) {
-            fail(ra, e);
-            return id == null ? "redirect:/admin/jobs/new" : "redirect:/admin/jobs/" + id;
+            // показываем форму снова с тем, что ввели, а не пустую
+            Vacancy v = new Vacancy();
+            v.setId(id);
+            v.setTitle(t(f, "title"));
+            v.setSummary(t(f, "summary"));
+            v.setSchedule(t(f, "schedule"));
+            v.setExperience(t(f, "experience"));
+            v.setSalary(t(f, "salary"));
+            v.setDuties(t(f, "duties"));
+            v.setRequirements(t(f, "requirements"));
+            v.setConditions(t(f, "conditions"));
+            v.setActive(active);
+            return jobForm(v, e.getMessage(), model);
         }
     }
 

@@ -1,24 +1,132 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<!--/* Вакансия по образцу макета «Фото товара»: слева поля по разделам, справа карточка вакансии так, как её увидят на /vacancies
+     (обновляется по мере ввода). Пункты «Что делать / Кого ищем / Что предлагаем» — по строке на пункт, как разбирает SitePagesController. */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
+<link rel="stylesheet" href="/admin/assets/studio.css?v=1">
 <a class="back" href="/admin/jobs"><th:block th:utext="${i['back']}"></th:block>Вакансии</a>
-<div class="oh"><div class="oh-t"><h2 th:text="${v.id != null ? v.title : 'Новая вакансия'}">Вакансия</h2></div></div>
-<form method="post" th:action="${v.id != null ? '/admin/jobs/' + v.id : '/admin/jobs'}" data-guard="Вакансия не сохранена." style="max-width:900px">
+<form method="post" th:action="${v.id != null ? '/admin/jobs/' + v.id : '/admin/jobs'}" data-guard="Вакансия не сохранена." class="st-cols" id="job-form">
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-    <section class="card form-card"><div class="fgrid">
-        <label class="field wide"><span>Должность</span><input class="inp" name="title" required maxlength="200" th:value="${v.title}" placeholder="Пекарь-кондитер"></label>
-        <label class="field wide"><span>Коротко</span><input class="inp" name="summary" maxlength="300" th:value="${v.summary}"></label>
-        <label class="field"><span>График</span><input class="inp" name="schedule" th:value="${v.schedule}" placeholder="5/2, с 7:00"></label>
-        <label class="field"><span>Опыт</span><input class="inp" name="experience" th:value="${v.experience}" placeholder="без опыта — научим"></label>
-        <label class="field"><span>Зарплата</span><input class="inp" name="salary" th:value="${v.salary}" placeholder="от 200 000 ₸"></label>
-        <label class="field wide"><span>Обязанности — по строке на пункт</span><textarea class="ta" name="duties" th:text="${v.duties}"></textarea></label>
-        <label class="field wide"><span>Требования</span><textarea class="ta" name="requirements" th:text="${v.requirements}"></textarea></label>
-        <label class="field wide"><span>Условия</span><textarea class="ta" name="conditions" th:text="${v.conditions}"></textarea></label>
-        <label class="switch wide" th:if="${v.id != null}"><input type="checkbox" name="active" value="true" th:checked="${v.active}"> Показывать на сайте</label>
-    </div>
-    <div class="form-acts"><a class="btn btn-soft" href="/admin/jobs">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div></section>
+    <section class="st-panel" aria-labelledby="h-job">
+        <header class="st-head">
+            <p class="st-eyebrow">Страница «Вакансии» на сайте</p>
+            <h2 id="h-job" th:text="${v.id != null ? v.title : 'Новая вакансия'}">Новая вакансия</h2>
+            <p class="st-lead">Заполните, как рассказали бы человеку по телефону: кто нужен, когда работать и сколько платим. Справа видно, как вакансия будет выглядеть на сайте.</p>
+        </header>
+        <div class="st-errs" th:if="${error}" role="alert" th:text="${error}">Ошибка</div>
+
+        <div class="st-sec">
+            <p class="st-sec-t">Главное<small>Это видно сразу, без раскрытия подробностей. Поля со <span class="req">*</span> обязательны.</small></p>
+            <div class="st-grid">
+                <label class="field wide"><span>Должность <span class="req">*</span></span>
+                    <input class="inp" name="title" required maxlength="80" th:value="${v.title}" placeholder="Пекарь-кондитер" data-p="title" data-max="80"></label>
+                <label class="field wide"><span>Строка под названием</span>
+                    <input class="inp" name="summary" maxlength="140" th:value="${v.summary}" placeholder="Работа в цехе, обучим на месте" data-p="summary" data-max="140"></label>
+                <label class="field"><span>График <span class="req">*</span></span>
+                    <input class="inp" name="schedule" required maxlength="60" th:value="${v.schedule}" placeholder="5/2, с 7:00 до 16:00" data-p="schedule"></label>
+                <label class="field"><span>Опыт <span class="req">*</span></span>
+                    <input class="inp" name="experience" required maxlength="60" th:value="${v.experience}" placeholder="без опыта — научим" data-p="experience"></label>
+                <label class="field"><span>Зарплата</span>
+                    <input class="inp" name="salary" maxlength="60" th:value="${v.salary}" placeholder="от 200 000 ₸" data-p="salary"></label>
+            </div>
+        </div>
+
+        <div class="st-sec">
+            <p class="st-sec-t">Подробнее о вакансии<small>По строке на пункт — на сайте каждая строка станет пунктом списка. Пустой раздел не показывается.</small></p>
+            <div class="st-lists">
+                <label class="field"><span>Что делать</span>
+                    <textarea class="ta" name="duties" maxlength="4000" th:text="${v.duties}" placeholder="Замес теста&#10;Выпечка коржей&#10;Порядок на рабочем месте" data-p="duties"></textarea></label>
+                <label class="field"><span>Кого ищем</span>
+                    <textarea class="ta" name="requirements" maxlength="4000" th:text="${v.requirements}" placeholder="Аккуратность&#10;Медкнижка или готовность её сделать" data-p="requirements"></textarea></label>
+                <label class="field"><span>Что предлагаем</span>
+                    <textarea class="ta" name="conditions" maxlength="4000" th:text="${v.conditions}" placeholder="Обед за счёт компании&#10;Оплата два раза в месяц" data-p="conditions"></textarea></label>
+            </div>
+        </div>
+
+        <div class="st-foot">
+            <label class="switch"><input type="checkbox" name="active" value="true" id="active" th:checked="${v.active}"> Показывать на сайте</label>
+            <div class="form-acts"><a class="btn btn-soft" href="/admin/jobs">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div>
+        </div>
+    </section>
+
+    <aside class="st-side" aria-labelledby="h-side">
+        <p class="st-eyebrow" id="h-side">Так вакансию увидят на сайте</p>
+        <div class="st-card">
+            <span class="tag tag--warn st-hidden-tag" id="pv-off" th:hidden="${v.active}">Не показывается на сайте</span>
+            <h3 class="job-t" id="pv-title" th:text="${v.title ?: 'Должность'}">Должность</h3>
+            <p class="job-note" id="pv-summary" th:text="${v.summary}" th:hidden="${v.summary == null}"></p>
+            <dl class="job-spec">
+                <div class="sp-pay"><dt>зарплата</dt><dd id="pv-salary" th:text="${v.salary ?: 'по договорённости'}">по договорённости</dd></div>
+                <div><dt>график</dt><dd id="pv-schedule" th:text="${v.schedule ?: 'не указан'}">не указан</dd></div>
+                <div><dt>опыт</dt><dd id="pv-experience" th:text="${v.experience ?: 'не указан'}">не указан</dd></div>
+            </dl>
+            <details class="job-more" id="pv-more" open>
+                <summary>Подробнее о вакансии <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></summary>
+                <div class="job-cols">
+                    <div id="pv-duties"><h4>Что делать</h4><ul></ul></div>
+                    <div id="pv-requirements"><h4>Кого ищем</h4><ul></ul></div>
+                    <div id="pv-conditions"><h4>Что предлагаем</h4><ul></ul></div>
+                </div>
+            </details>
+            <span class="btn btn-primary btn-sm" aria-disabled="true">Откликнуться</span>
+        </div>
+        <a class="btn btn-soft btn-sm" href="/vacancies" target="_blank">Открыть страницу на сайте</a>
+        <p class="st-note">Отклики приходят в «Вакансии › Отклики», директору и бухгалтеру — уведомлением.</p>
+    </aside>
 </form>
+</th:block>
+<th:block th:fragment="scripts">
+<script>
+/* Предпросмотр: карточка справа повторяет поля формы, как SitePagesController собирает её для /vacancies. */
+(function () {
+  'use strict';
+  var form = document.getElementById('job-form');
+  if (!form) return;
+  function $(id) { return document.getElementById(id); }
+  function val(name) { return (form.elements[name].value || '').trim(); }
+  function lines(text) {   // один пункт — одна строка; маркеры «-», «•» в начале убираем
+    return text.split(/\r?\n/).map(function (s) { return s.trim().replace(/^[-•*–—]\s*/, ''); }).filter(Boolean);
+  }
+  function setText(id, text, empty) {
+    var dd = $(id);
+    dd.textContent = text || empty;
+    dd.classList.toggle('is-empty', !text);
+  }
+  function render() {
+    $('pv-title').textContent = val('title') || 'Должность';
+    var sum = val('summary');
+    $('pv-summary').textContent = sum;
+    $('pv-summary').hidden = !sum;
+    setText('pv-salary', val('salary'), 'по договорённости');
+    $('pv-salary').classList.remove('is-empty');
+    setText('pv-schedule', val('schedule'), 'не указан');
+    setText('pv-experience', val('experience'), 'не указан');
+    var any = false;
+    ['duties', 'requirements', 'conditions'].forEach(function (k) {
+      var box = $('pv-' + k), ul = box.querySelector('ul'), items = lines(form.elements[k].value || '');
+      ul.textContent = '';
+      items.forEach(function (t) { var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+      box.hidden = !items.length;
+      any = any || items.length > 0;
+    });
+    $('pv-more').hidden = !any;
+    $('pv-off').hidden = $('active').checked;
+  }
+  /* счётчик символов у коротких полей с ограничением */
+  form.querySelectorAll('[data-max]').forEach(function (inp) {
+    var max = Number(inp.getAttribute('data-max')), c = document.createElement('small');
+    c.className = 'cnt-l';
+    inp.parentNode.appendChild(c);
+    function upd() { var n = inp.value.length; c.textContent = n + ' из ' + max; c.classList.toggle('is-over', n > max * 0.9); }
+    inp.addEventListener('input', upd);
+    upd();
+  });
+  form.addEventListener('input', render);
+  form.addEventListener('change', render);
+  render();
+})();
+</script>
 </th:block>
 </body>
 </html>

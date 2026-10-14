@@ -1,33 +1,164 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<!--/* Фото товара по макету «Фото товара»: слева слоты-отпечатки (нажать — выбрать, потом «Левее/Правее/Обложкой/Удалить»,
+     пустой слот или перетаскивание — загрузка), справа карточка каталога как на сайте, по нажатию — альбом (static/promo/album.js). */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marck+Script&display=swap">
+<link rel="stylesheet" href="/promo/album.css">
+<link rel="stylesheet" href="/admin/assets/studio.css?v=1">
 <a class="back" href="/admin/photos"><th:block th:utext="${i['back']}"></th:block>Фото товаров</a>
-<div class="oh"><div class="oh-t"><h2 th:text="${p.name}">Товар</h2></div>
-    <p class="oh-m">Первое фото — обложка на сайте, в магазине и в приложении. Фото 3:4, до 10 МБ каждое.</p>
-    <div class="acts"><a class="btn btn-soft" th:href="${'/admin/products/' + p.id}">Карточка товара</a></div></div>
-<section class="card form-card" style="margin-bottom:18px">
-    <form th:action="${'/admin/photos/' + p.id + '/add'}" method="post" enctype="multipart/form-data" class="split">
-        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-        <label class="field" style="flex:1 1 280px"><span>Добавить фото</span><input class="inp" type="file" name="files" accept="image/*" multiple required></label>
-        <button class="btn btn-primary" type="submit"><th:block th:utext="${i['upload']}"></th:block>Загрузить</button>
-    </form>
-</section>
-<div class="ph-grid">
-    <div th:each="ph, it : ${album}" class="ph">
-        <img th:src="${ph.url}" alt="">
-        <span th:if="${it.first}" class="tag tag--now">обложка</span>
-        <div class="ph-acts">
-            <form th:action="${'/admin/photos/' + p.id + '/' + ph.id + '/move'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <button th:unless="${it.first}" class="btn btn-soft" type="submit" name="dir" value="first">Обложка</button>
-                <button th:unless="${it.first}" class="btn btn-soft" type="submit" name="dir" value="up" aria-label="Левее">←</button>
-                <button th:unless="${it.last}" class="btn btn-soft" type="submit" name="dir" value="down" aria-label="Правее">→</button></form>
-            <form th:action="${'/admin/photos/' + p.id + '/' + ph.id + '/delete'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <button class="btn btn-danger" type="submit" aria-label="Удалить фото" data-confirm="Фото удалится из альбома товара." data-confirm-title="Удалить фото?" data-confirm-ok="Удалить">✕</button></form>
+<div class="st-cols">
+    <section class="st-panel" id="drop" aria-labelledby="h-photos">
+        <header class="st-head">
+            <p class="st-eyebrow" th:text="${'Карточка товара · ' + p.name}">Карточка товара · Коржик</p>
+            <h2 id="h-photos">Фотографии товара</h2>
+            <p class="st-lead">Первое фото — обложка: его видно в каталоге, в магазине и в заказе. Остальные покупатель листает в альбоме.</p>
+        </header>
+        <div class="st-bar">
+            <p class="st-count"><b th:text="${album.size()}">0</b> фото в альбоме</p>
+            <button class="btn btn-primary btn-sm" type="button" data-pick><th:block th:utext="${i['plus']}"></th:block>Добавить фото</button>
         </div>
-    </div>
+        <ul class="slots" id="slots">
+            <li class="slot" th:each="ph, it : ${album}">
+                <button type="button" class="tile" th:attr="data-id=${ph.id},data-i=${it.index},aria-label=${'Фото ' + it.count + ' из ' + album.size() + (it.first ? ', обложка' : '')}" aria-pressed="false">
+                    <img th:src="${ph.url}" alt="" loading="lazy">
+                    <span class="n" aria-hidden="true" th:text="${it.count}">1</span>
+                    <span class="cover-tag" th:if="${it.first}">Обложка</span>
+                </button>
+            </li>
+            <li class="slot" th:each="k : ${#numbers.sequence(1, emptySlots)}">
+                <button type="button" class="add" data-pick aria-label="Добавить фото"><th:block th:utext="${i['plus']}"></th:block><span th:if="${k == 1}">Добавить</span></button>
+            </li>
+        </ul>
+        <form id="up" th:action="${'/admin/photos/' + p.id + '/add'}" method="post" enctype="multipart/form-data" hidden>
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="file" id="file" name="files" accept="image/jpeg,image/png,image/webp" multiple>
+        </form>
+        <form id="act" method="post" class="st-tools">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <p class="st-tools-t is-hint" id="tools-t">Нажмите на фото, чтобы поменять его место или удалить. Файлы можно перетащить прямо сюда.</p>
+            <div class="st-actions" id="actions" hidden>
+                <button class="btn btn-line btn-sm" type="submit" name="dir" value="up" id="a-left">← Левее</button>
+                <button class="btn btn-line btn-sm" type="submit" name="dir" value="down" id="a-right">Правее →</button>
+                <button class="btn btn-line btn-sm" type="submit" name="dir" value="first" id="a-cover">Сделать обложкой</button>
+                <button class="btn btn-danger btn-sm" type="button" id="a-del" data-confirm="Фото удалится из альбома товара — на сайте, в магазине и в приложении." data-confirm-title="Удалить фото?" data-confirm-ok="Удалить">Удалить</button>
+            </div>
+        </form>
+        <p class="st-status" id="status" role="status"></p>
+        <ul class="st-rules">
+            <li>Подходят JPG, PNG и WebP, каждый файл до 10 МБ. Можно выбрать несколько сразу.</li>
+            <li>Порядок фото здесь — это порядок страниц в альбоме.</li>
+            <li>В каталоге обложка обрезается до формата 3:4, в альбоме любое фото видно целиком.</li>
+            <li>Если фото нет, карточка показывает заглушку.</li>
+        </ul>
+    </section>
+
+    <aside class="st-side" aria-labelledby="h-side">
+        <p class="st-eyebrow" id="h-side">Так карточку увидит покупатель</p>
+        <div class="st-card">
+            <button class="shot alb-fan" type="button" th:if="${!card.photos.isEmpty()}" id="shot"
+                    th:attr="data-photos=${card.photosJson()},data-title=${card.name},data-meta=${card.meta}">
+                <span class="frame"><img th:src="${card.photos[0].src}" th:alt="${card.name + ' — обложка карточки'}"></span>
+            </button>
+            <div class="noshot" th:if="${card.photos.isEmpty()}">Фото пока нет</div>
+            <h3 th:text="${card.name}">Коржик</h3>
+            <dl class="st-spec">
+                <div><dt>вес</dt><dd th:text="${card.weight ?: 'не указан'}" th:classappend="${card.weight == null} ? 'is-empty'">550 г</dd></div>
+                <div><dt>в коробке</dt><dd th:text="${card.perBox ?: 'не указано'}" th:classappend="${card.perBox == null} ? 'is-empty'">12 шт</dd></div>
+                <div th:if="${card.boxWeight}"><dt>вес коробки</dt><dd th:text="${card.boxWeight}">6,6 кг</dd></div>
+            </dl>
+        </div>
+        <button class="btn btn-line btn-sm" type="button" id="open" th:disabled="${card.photos.isEmpty()}">Открыть альбом</button>
+        <a class="btn btn-soft btn-sm" th:href="${'/admin/products/' + p.id}">Вес и коробка — в карточке товара</a>
+        <p class="st-note">На сайте и в магазине альбом открывается по нажатию на фото в карточке.</p>
+    </aside>
 </div>
-<p class="cnt" th:if="${album.isEmpty()}">В альбоме пока нет фото.</p>
+</th:block>
+<th:block th:fragment="scripts">
+<script src="/promo/album.js"></script>
+<script th:inline="javascript">
+(function () {
+  'use strict';
+  var BASE = /*[[${'/admin/photos/' + p.id + '/'}]]*/ '/admin/photos/1/';
+  var SEL = /*[[${sel}]]*/ null;
+  var MAX_MB = 10, TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  var tiles = Array.prototype.slice.call(document.querySelectorAll('.tile'));
+  var selected = -1;
+  function $(id) { return document.getElementById(id); }
+  function say(t) { $('status').textContent = t || ''; }
+
+  /* ---- выбор фото и действия с ним ---- */
+  function select(i) {
+    selected = i;
+    tiles.forEach(function (t, k) { t.setAttribute('aria-pressed', String(k === i)); });
+    var on = i >= 0, title = $('tools-t');
+    $('actions').hidden = !on;
+    title.classList.toggle('is-hint', !on);
+    title.textContent = on ? 'Фото ' + (i + 1) + (i === 0 ? ' — обложка' : '')
+      : 'Нажмите на фото, чтобы поменять его место или удалить. Файлы можно перетащить прямо сюда.';
+    if (!on) return;
+    var id = tiles[i].getAttribute('data-id');
+    $('act').action = BASE + id + '/move';
+    $('a-del').setAttribute('formaction', BASE + id + '/delete');
+    $('a-left').disabled = i === 0;
+    $('a-right').disabled = i === tiles.length - 1;
+    $('a-cover').disabled = i === 0;
+  }
+  $('slots').addEventListener('click', function (e) {
+    var t = e.target.closest('.tile');
+    if (!t) return;
+    var i = tiles.indexOf(t);
+    select(selected === i ? -1 : i);
+  });
+  $('act').addEventListener('submit', function () { say('Сохраняем порядок…'); });
+  if (SEL !== null) {
+    tiles.forEach(function (t, k) { if (t.getAttribute('data-id') === String(SEL)) { select(k); t.focus(); } });
+  }
+
+  /* ---- загрузка: кнопка, пустой слот или перетаскивание файлов на панель ---- */
+  var file = $('file'), drop = $('drop'), depth = 0;
+  function upload(list) {
+    var notes = [], good = [];
+    Array.prototype.forEach.call(list, function (f) {
+      if (TYPES.indexOf(f.type) === -1) { notes.push('«' + f.name + '» не добавлен: подходят JPG, PNG и WebP.'); return; }
+      if (f.size > MAX_MB * 1024 * 1024) { notes.push('«' + f.name + '» не добавлен: файл больше ' + MAX_MB + ' МБ.'); return; }
+      good.push(f);
+    });
+    if (!good.length) { say(notes.join(' ') || 'Файлы не выбраны.'); return; }
+    try {
+      var dt = new DataTransfer();
+      good.forEach(function (f) { dt.items.add(f); });
+      file.files = dt.files;
+    } catch (err) {
+      if (notes.length) { say(notes.join(' ') + ' Выберите только подходящие файлы.'); return; }
+    }
+    say((good.length === 1 ? 'Загружаем фото…' : 'Загружаем ' + good.length + ' фото…') + (notes.length ? ' ' + notes.join(' ') : ''));
+    drop.classList.add('is-busy');
+    $('up').submit();
+  }
+  document.querySelectorAll('[data-pick]').forEach(function (b) { b.addEventListener('click', function () { file.click(); }); });
+  file.addEventListener('change', function () { if (file.files.length) upload(file.files); });
+  function hasFiles(e) { return !!e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') !== -1; }
+  drop.addEventListener('dragenter', function (e) { if (!hasFiles(e)) return; e.preventDefault(); depth += 1; drop.classList.add('is-over'); });
+  drop.addEventListener('dragover', function (e) { if (hasFiles(e)) e.preventDefault(); });
+  drop.addEventListener('dragleave', function (e) { if (!hasFiles(e)) return; depth -= 1; if (depth <= 0) { depth = 0; drop.classList.remove('is-over'); } });
+  drop.addEventListener('drop', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0; drop.classList.remove('is-over');
+    upload(e.dataTransfer.files);
+  });
+
+  /* ---- «Открыть альбом» — с выбранного фото ---- */
+  $('open').addEventListener('click', function () {
+    var shot = $('shot');
+    if (!shot || !window.YugAlbum) return;
+    var photos = JSON.parse(shot.getAttribute('data-photos'));
+    window.YugAlbum.open({ title: shot.getAttribute('data-title'), meta: shot.getAttribute('data-meta'), photos: photos, index: Math.max(0, selected) });
+  });
+})();
+</script>
 </th:block>
 </body>
 </html>
