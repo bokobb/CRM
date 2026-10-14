@@ -4,18 +4,27 @@
 <th:block th:fragment="content">
 <div class="dash">
     <div class="kpis">
-        <a class="kpi" href="/admin/orders?date=today"><span class="kpi-l"><th:block th:utext="${i['truck']}"></th:block>Выдача сегодня</span>
+        <a th:if="${dayHref != null}" class="kpi" th:href="${dayHref}"><span class="kpi-l"><th:block th:utext="${i['truck']}"></th:block><th:block th:text="${'Выдача ' + dayLbl}">Выдача сегодня</th:block></span>
             <span class="kpi-v"><th:block th:text="${kToday.count}">5</th:block> <small th:text="${@fmt.plural(kToday.count, 'заказ', 'заказа', 'заказов')}">заказов</small></span>
             <span class="kpi-s" th:text="${kToday.sub}">66 кор.</span></a>
+        <div th:unless="${dayHref != null}" class="kpi"><span class="kpi-l"><th:block th:utext="${i['truck']}"></th:block><th:block th:text="${'Выдача ' + dayLbl}">Выдача 10 окт</th:block></span>
+            <span class="kpi-v"><th:block th:text="${kToday.count}">5</th:block> <small th:text="${@fmt.plural(kToday.count, 'заказ', 'заказа', 'заказов')}">заказов</small></span>
+            <span class="kpi-s" th:text="${kToday.sub}">66 кор.</span></div>
         <a class="kpi kpi--warm" href="/admin/orders?unpaid=1"><span class="kpi-l"><th:block th:utext="${i['cash']}"></th:block>Неоплаченные счета</span>
             <span class="kpi-v"><th:block th:text="${unpaidN}">3</th:block><small th:if="${unpaidN > 0}" th:text="${' · ' + @fmt.money(unpaidSum)}"></small></span>
             <span class="kpi-s" th:text="${unpaidN == 0 ? 'все счета оплачены' : '№ ' + unpaidNos}"></span></a>
         <div class="kpi"><span class="kpi-l"><th:block th:utext="${i['reports']}"></th:block>Выручка за 7 дней</span>
             <span class="kpi-v"><th:block th:text="${@fmt.dec(rev7, 0)}">947 810</th:block> <small>₸</small></span>
-            <span class="kpi-s"><th:block th:text="${@fmt.count(rev7n, 'заказ', 'заказа', 'заказов')}"></th:block> · <span class="delta"><th:block th:utext="${i[revDelta >= 0 ? 'arrow-up' : 'arrow-down']}"></th:block><th:block th:text="${@fmt.abs(revDelta) + ' %'}"></th:block></span> к прошлым 7 дням</span></div>
-        <a class="kpi kpi--alert" href="/admin/orders?date=today"><span class="kpi-l"><th:block th:utext="${i['reports']}"></th:block>Продажи за день</span>
+            <span class="kpi-s"><th:block th:if="${rev7End != null}" th:text="${'по ' + @fmt.dm(rev7End) + ' · '}"></th:block><th:block th:text="${@fmt.count(rev7n, 'заказ', 'заказа', 'заказов')}"></th:block> · <span class="delta"><th:block th:utext="${i[revDelta >= 0 ? 'arrow-up' : 'arrow-down']}"></th:block><th:block th:text="${@fmt.abs(revDelta) + ' %'}"></th:block></span> к прошлым 7 дням</span></div>
+        <a th:if="${isToday}" class="kpi kpi--alert" href="/admin/orders?date=today"><span class="kpi-l"><th:block th:utext="${i['reports']}"></th:block>Продажи за день</span>
             <span class="kpi-v"><th:block th:text="${@fmt.dec(salesToday, 0)}">0</th:block> <small>₸</small></span>
-            <span class="kpi-s"><th:block th:text="${salesTodayN == 0 ? 'сегодня ещё не выдавали' : 'выдано ' + @fmt.count(salesTodayN, 'заказ', 'заказа', 'заказов')}"></th:block> · вчера <b th:text="${@fmt.money(salesYesterday)}">0 ₸</b></span></a>
+            <span class="kpi-s"><th:block th:text="${(salesTodayN == 0 ? 'сегодня ещё не выдавали' : 'выдано ' + @fmt.count(salesTodayN, 'заказ', 'заказа', 'заказов')) + (salesRet.signum() > 0 ? ' · возврат ' + @fmt.num(salesRet) + ' шт' : '')}"></th:block> · вчера <b th:text="${@fmt.money(salesYesterday)}">0 ₸</b></span></a>
+        <div th:if="${!isToday and !isFuture}" class="kpi kpi--alert"><span class="kpi-l"><th:block th:utext="${i['reports']}"></th:block><th:block th:text="${'Продажи ' + dayLbl}">Продажи вчера</th:block></span>
+            <span class="kpi-v"><th:block th:text="${@fmt.dec(salesToday, 0)}">0</th:block> <small>₸</small></span>
+            <span class="kpi-s"><th:block th:text="${(salesTodayN == 0 ? 'выдач не было' : 'выдано ' + @fmt.count(salesTodayN, 'заказ', 'заказа', 'заказов')) + (salesRet.signum() > 0 ? ' · возврат ' + @fmt.num(salesRet) + ' шт' : '')}"></th:block> · <th:block th:text="${prevLbl}"></th:block> <b th:text="${@fmt.money(salesYesterday)}">0 ₸</b></span></div>
+        <div th:if="${isFuture}" class="kpi kpi--alert"><span class="kpi-l"><th:block th:utext="${i['reports']}"></th:block><th:block th:text="${'К выдаче ' + dayLbl}">К выдаче завтра</th:block></span>
+            <span class="kpi-v"><th:block th:text="${@fmt.dec(salesToday, 0)}">0</th:block> <small>₸</small></span>
+            <span class="kpi-s" th:text="${planN == 0 ? 'заказов на этот день пока нет' : 'сумма ' + @fmt.count(planN, 'заказа', 'заказов', 'заказов') + ' на этот день'}"></span></div>
     </div>
 
     <div class="dash-col c-7">
@@ -34,7 +43,7 @@
                         <span class="ev-tip" role="tooltip"><b th:text="${e.label + ' · ' + e.time}">Заказ с сайта · 10:24</b>
                             <th:block th:text="${'№ ' + e.row.id + ' · ' + e.row.client.name}"></th:block>
                             <th:block th:if="${e.by != null}"><br><th:block th:text="${'Кто: ' + e.by}"></th:block></th:block>
-                            <br><th:block th:text="${e.row.totals.positions + ' поз. · ' + e.row.totals.boxes + ' кор. · ' + @fmt.money(e.row.totals.net())}"></th:block>
+                            <br><th:block th:text="${e.row.totals.positions + ' поз. · ' + e.row.totals.boxes + ' кор. · ' + @fmt.money(e.row.totals.net()) + (e.row.totals.retPcs.signum() > 0 ? ' · возврат ' + @fmt.num(e.row.totals.retPcs) + ' шт' : '')}"></th:block>
                             <br><th:block th:text="${'Сейчас: ' + e.row.badgeLabel}"></th:block></span>
                     </a>
                     <span th:if="${w.evs.isEmpty()}" class="win-free" th:text="${w.past ? '—' : 'пусто'}">пусто</span>
@@ -47,7 +56,7 @@
     </div>
     <div class="dash-col c-5">
     <section class="card" aria-labelledby="h-att">
-        <div class="card-h"><h2 id="h-att">Требуют внимания</h2></div>
+        <div class="card-h"><h2 id="h-att">Требуют внимания</h2><p>сейчас</p></div>
         <ul class="att card-b">
             <li th:each="a : ${attention}"><span class="dot" th:classappend="${a.dot}" th:utext="${i[a.icon]}"></span><div><p th:text="${a.title}"></p><small th:text="${a.text}"></small></div><a class="btn btn-soft" th:href="${a.href}" th:text="${a.button}">Открыть</a></li>
             <li th:if="${attention.isEmpty()}" class="empty">Всё спокойно.</li>
@@ -55,30 +64,32 @@
     </section>
 
     <section class="card" aria-labelledby="h-top">
-        <div class="card-h"><div><h2 id="h-top">Что берут</h2><p>штук за 14 дней, по выданным заказам</p></div></div>
+        <div class="card-h"><div><h2 id="h-top">Что берут</h2><p th:text="${'штук за ' + period + ' дней по выданным заказам, ' + @fmt.dm(revFrom) + ' — ' + @fmt.dm(revEnd)}">штук за 14 дней, по выданным заказам</p></div></div>
         <ol class="top card-b">
             <li th:each="t : ${top}"><img th:if="${t.product.imageUrl != null and !#strings.isEmpty(t.product.imageUrl)}" class="th" th:src="${t.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${t.product.imageUrl != null and !#strings.isEmpty(t.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p th:title="${t.product.name}" th:text="${t.product.name}"></p><b><th:block th:text="${@fmt.num(t.pcs)}"></th:block>&nbsp;<small>шт</small></b><span class="track" aria-hidden="true"><i th:style="${'width:' + #numbers.formatDecimal(t.share, 1, 1, 'POINT') + '%'}"></i></span></li>
-            <li th:if="${top.isEmpty()}" class="empty">Пока нет выданных заказов.</li>
+            <li th:if="${top.isEmpty()}" class="empty">За эти дни выданных заказов нет.</li>
         </ol>
     </section>
     <section class="card" aria-labelledby="h-rev">
-        <div class="card-h"><div><h2 id="h-rev">Выручка</h2><p th:text="${'по выданным заказам, ' + @fmt.dml(revFrom) + ' — ' + @fmt.dml(@fmt.today())}"></p></div>
-            <div class="seg" role="group" aria-label="Вид" id="db-view"><button type="button" data-v="chart" aria-pressed="true">График</button><button type="button" data-v="table" aria-pressed="false">Таблица</button></div></div>
+        <div class="card-h"><div><h2 id="h-rev">Выручка</h2><p th:text="${'по выданным заказам, за вычетом возвратов, ' + @fmt.dml(revFrom) + ' — ' + @fmt.dml(revEnd)}"></p></div>
+            <div class="db-segs"><div class="seg" role="group" aria-label="Период для выручки и «Что берут»"><a th:each="x : ${periods}" th:href="${x.href}" th:attr="aria-pressed=${x.on}" th:text="${x.days + ' дней'}">14 дней</a></div>
+            <div class="seg" role="group" aria-label="Вид" id="db-view"><button type="button" data-v="chart" aria-pressed="true">График</button><button type="button" data-v="table" aria-pressed="false">Таблица</button></div></div></div>
         <div class="chart" id="db-chart"></div>
         <div class="ctable" id="db-table" hidden>
-            <table class="tbl"><thead><tr><th>День</th><th class="r">Заказов</th><th class="r">Выручка</th></tr></thead><tbody>
-            <tr th:each="x : ${revTable}"><td><th:block th:text="${@fmt.wday(@fmt.parse(x.d)) + ', ' + @fmt.dm(@fmt.parse(x.d))}"></th:block> <span th:if="${@fmt.isToday(x.d)}" class="tag tag--now">сегодня</span></td><td class="r num" th:text="${x.n}">0</td><td class="r num" th:text="${@fmt.money(x.sum)}">0 ₸</td></tr>
+            <table class="tbl"><thead><tr><th>День</th><th class="r">Заказов</th><th class="r">Выручка</th><th class="r">Возвраты</th></tr></thead><tbody>
+            <tr th:each="x : ${revTable}" th:classappend="${x.d == day} ? 'is-sel'"><td><a class="db-day" th:href="${'/admin/dashboard?day=' + x.d + (period != 14 ? '&p=' + period : '')}" th:text="${@fmt.wday(x.d) + ', ' + @fmt.dm(x.d)}"></a> <span th:if="${@fmt.isToday(x.d.toString())}" class="tag tag--now">сегодня</span></td>
+                <td class="r num" th:text="${x.n}">0</td><td class="r num" th:text="${@fmt.money(x.sum)}">0 ₸</td><td class="r num" th:text="${x.rpcs.signum() > 0 ? @fmt.num(x.rpcs) + ' шт' : '—'}">—</td></tr>
             </tbody></table>
         </div>
-        <div class="card-f"><span>За 14 дней: <b class="num" style="color:var(--ink)" th:text="${@fmt.money(revTotal)}"></b> · <th:block th:text="${@fmt.count(revCount, 'заказ', 'заказа', 'заказов')}"></th:block></span><span>Возвраты — отдельно, в разделе «Возвраты»</span></div>
+        <div class="card-f"><span><th:block th:text="${'За ' + period + ' дней: '}">За 14 дней: </th:block><b class="num" style="color:var(--ink)" th:text="${@fmt.money(revTotal)}"></b> · <th:block th:text="${@fmt.count(revCount, 'заказ', 'заказа', 'заказов') + ' · возвраты ' + @fmt.num(revRetPcs) + ' шт на ' + @fmt.money(revRetSum)}"></th:block></span><a class="link" href="/admin/returns">Все возвраты</a></div>
     </section>
     </div>
 </div>
 </th:block>
 <th:block th:fragment="scripts">
 <script type="application/json" id="rev-data" th:utext="${revJson}"></script>
-<script src="/admin/assets/chart.js?v=1"></script>
-<script src="/admin/assets/daypick.js?v=1"></script>
+<script src="/admin/assets/chart.js?v=2"></script>
+<script src="/admin/assets/daypick.js?v=2"></script>
 </th:block>
 </body>
 </html>

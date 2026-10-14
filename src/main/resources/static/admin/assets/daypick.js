@@ -8,7 +8,7 @@
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function iso(y, m, d) { return y + '-' + pad(m + 1) + '-' + pad(d); }
   var now = new Date(), today = iso(now.getFullYear(), now.getMonth(), now.getDate());
-  var sel = b.getAttribute('data-day'), min = b.getAttribute('data-min'), max = b.getAttribute('data-max');
+  var sel = b.getAttribute('data-day'), min = b.getAttribute('data-min'), max = b.getAttribute('data-max'), keep = b.getAttribute('data-keep');
   var y = +sel.slice(0, 4), m = +sel.slice(5, 7) - 1;
 
   function render() {
@@ -36,7 +36,12 @@
     e.stopPropagation();
     var mv = e.target.closest('[data-mv]'), d = e.target.closest('[data-d]');
     if (mv && !mv.disabled) { m += +mv.getAttribute('data-mv'); if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } render(); return; }
-    if (d && !d.disabled) location.href = '/admin/dashboard' + (d.getAttribute('data-d') === today ? '' : '?day=' + d.getAttribute('data-d'));
+    if (d && !d.disabled) {
+      var q = [];
+      if (d.getAttribute('data-d') !== today) q.push('day=' + d.getAttribute('data-d'));
+      if (keep) q.push(keep);                                     // период выручки (p=7 / p=30) остаётся
+      location.href = '/admin/dashboard' + (q.length ? '?' + q.join('&') : '');
+    }
   });
   document.addEventListener('click', function () { if (!cal.hidden) close(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !cal.hidden) { close(); b.focus(); } });

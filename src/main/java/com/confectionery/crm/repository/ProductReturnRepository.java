@@ -35,6 +35,20 @@ public interface ProductReturnRepository extends JpaRepository<ProductReturn, Lo
             "AND o.shippedAt BETWEEN :start AND :end")
     BigDecimal sumForSalesBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
+    /**
+     * Возвраты по выданным заказам: [id заказа, сумма возврата] — выручка дашборда за вычетом возвратов, по дню
+     * выдачи заказа (как sumForSalesBetween, только по заказам).
+     */
+    @Query("select o.id, sum(i.price * i.quantity) from ProductReturn r join r.items i join r.order o " +
+            "where o.status in (com.confectionery.crm.domain.OrderStatus.DELIVERED, com.confectionery.crm.domain.OrderStatus.COMPLETED) " +
+            "and o.shippedAt >= :start and o.shippedAt < :end group by o.id")
+    List<Object[]> sumByOrderShippedBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** Возвраты по дням: [день возврата, штук, сумма] — «Возвраты» в выручке дашборда. */
+    @Query("select r.returnDate, sum(i.quantity), sum(i.price * i.quantity) from ProductReturn r join r.items i " +
+            "where r.returnDate between :from and :to group by r.returnDate")
+    List<Object[]> sumByDayBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
     boolean existsByItems_Product_Id(Long productId);
 
     /** Документ 1С уже есть в CRM (создан CRM или импортирован) — дедупликация в OneCReturnImportService. */

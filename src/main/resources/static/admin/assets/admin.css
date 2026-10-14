@@ -855,3 +855,11 @@ a.kpi--alert:hover{box-shadow:var(--shadow),0 0 0 2px var(--crimson-deep)}
   .ckpis .kpi-v small{font-size:15px}
   .cd-grid{grid-template-columns:minmax(0,1fr)}
 }
+/* дашборд за выбранный день: выбранный день в «Выручке», период, возвраты в штуках */
+.chart .col{cursor:pointer}
+.chart .b.sel{fill:var(--caramel-deep)}
+.chart .col.is-sel .hit{fill:rgba(255,198,70,.24)}
+.ctable tr.is-sel td{background:var(--yolk-soft)}
+.db-day{color:inherit;text-decoration:none}
+.db-day:hover{text-decoration:underline;text-underline-offset:3px}
+.db-segs{display:flex;flex-wrap:wrap;gap:8px}

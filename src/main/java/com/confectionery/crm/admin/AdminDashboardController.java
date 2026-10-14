@@ -3,6 +3,7 @@ package com.confectionery.crm.admin;
 import com.confectionery.crm.domain.*;
 import com.confectionery.crm.repository.OrderRepository;
 import com.confectionery.crm.repository.ProductRepository;
+import com.confectionery.crm.repository.ProductReturnRepository;
 import com.confectionery.crm.service.CurrentUserService;
 import com.confectionery.crm.service.IngredientService;
 import com.confectionery.crm.service.PickupSlotService;
@@ -22,9 +23,12 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * Дашборд: четыре плитки («Выдача сегодня», «Неоплаченные счета», «Выручка за 7 дней», «Продажи за день»),
- * «Выдача» — часовые окна рабочего дня 7:00–18:00: заказы с сайта, когда клиент заберёт, и наши действия
- * (принят / собран / отгружен / завершён — когда и кто), «Требуют внимания», «Выручка», «Что берут».
+ * Дашборд за любой день (серая дата в шапке — календарь: год назад и 30 дней вперёд): четыре плитки
+ * («Выдача» дня, «Неоплаченные счета» — сейчас, «Выручка за 7 дней» по выбранный день, «Продажи» дня или
+ * «К выдаче» для будущего дня), «Выдача» — часовые окна рабочего дня 7:00–18:00: заказы с сайта, когда клиент
+ * заберёт, и наши действия (принят / собран / отгружен / завершён — когда и кто), «Требуют внимания» — сейчас,
+ * «Выручка» и «Что берут» — за 7, 14 или 30 дней по выбранный день. Выручка — по дню выдачи заказа, за вычетом
+ * возвратов по этому заказу; возвраты в штуках — по дню возврата.
  */
 @Controller
 @RequiredArgsConstructor
@@ -32,6 +36,7 @@ public class AdminDashboardController {
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
+    private final ProductReturnRepository productReturnRepository;
     private final IngredientService ingredientService;
     private final ProductionRequestService productionRequestService;
     private final CurrentUserService currentUserService;
@@ -67,38 +72,61 @@ public class AdminDashboardController {
     public record Top(Product product, BigDecimal pcs, double share) {
     }
 
+    /** День выручки: выдано заказов на сумму (за вычетом их возвратов), возвраты этого дня — штук и на сумму. */
+    public record DayRev(LocalDate d, BigDecimal sum, int n, BigDecimal rpcs, BigDecimal rsum) {
+    }
+
+    /** Период «Выручки» и «Что берут»: 7, 14 (по умолчанию) или 30 дней по выбранный день. */
+    public record Per(int days, String href, boolean on) {
+    }
+
+    static final int[] PERIODS = {7, 14, 30};
+
     @GetMapping("/admin/dashboard")
     @Transactional(readOnly = true)
     public String dashboard(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day,
-                            Model model) {
+                            @RequestParam(defaultValue = "14") int p, Model model) {
         LocalDate today = LocalDate.now();
         LocalDate shown = day == null || day.isBefore(today.minusYears(1)) || day.isAfter(today.plusDays(30)) ? today : day;
+        int period = p == 7 || p == 30 ? p : 14;
+        LocalDate end = shown.isAfter(today) ? today : shown;          // выручка и «Что берут» — по выбранный день, будущий — по сегодня
+        String lbl = dayLabel(shown, today);
         Role role = currentUserService.role().orElse(Role.ADMIN);
         model.addAttribute("title", "Дашборд");
         model.addAttribute("sub", fmt.dayTitle(shown));
         model.addAttribute("subPick", shown.toString());
+        model.addAttribute("subKeep", period == 14 ? null : "p=" + period);
         model.addAttribute("sec", "dashboard");
+        model.addAttribute("dayLbl", lbl);
+        model.addAttribute("isToday", shown.equals(today));
+        model.addAttribute("isFuture", shown.isAfter(today));
 
-        // 1. Выдача сегодня
-        List<AdminOrders.Row> todayRows = rowsOfDay(today);
+        // 1. Выдача дня: сколько заказов, штук и коробок, в каких они статусах
+        List<AdminOrders.Row> dayRows = rowsOfDay(shown);
         Map<String, Integer> by = new HashMap<>();
         int boxes = 0;
-        for (AdminOrders.Row r : todayRows) {
+        BigDecimal pcs = BigDecimal.ZERO, plan = BigDecimal.ZERO;
+        for (AdminOrders.Row r : dayRows) {
             by.merge(r.badge(), 1, Integer::sum);
             boxes += r.totals().boxes();
+            pcs = pcs.add(r.totals().packs());
+            plan = plan.add(r.totals().net());
         }
         List<String> parts = new ArrayList<>();
         String[][] names = {{"done", "выдан", "выдано", "выдано"}, {"ready", "готов", "готовы", "готовы"},
                 {"work", "собирается", "собираются", "собираются"}, {"new", "принят", "приняты", "приняты"},
                 {"sent", "новый", "новых", "новых"}, {"noshow", "не забран", "не забраны", "не забраны"}};
-        for (String[] p : names) {
-            Integer n = by.get(p[0]);
-            if (n != null) parts.add(n + AdminFormat.NB + fmt.plural(n, p[1], p[2], p[3]));
+        for (String[] x : names) {
+            Integer n = by.get(x[0]);
+            if (n != null) parts.add(n + AdminFormat.NB + fmt.plural(n, x[1], x[2], x[3]));
         }
-        model.addAttribute("kToday", new Kpi(todayRows.size(),
-                boxes + AdminFormat.NB + "кор. · " + (parts.isEmpty() ? "выдач нет" : String.join(" · ", parts))));
+        model.addAttribute("kToday", new Kpi(dayRows.size(), dayRows.isEmpty()
+                ? (shown.isAfter(today) ? "заказов на этот день пока нет" : "выдач не было")
+                : fmt.num(pcs) + AdminFormat.NB + "шт · " + boxes + AdminFormat.NB + "кор. · " + String.join(" · ", parts)));
+        model.addAttribute("dayHref", shown.equals(today) ? "/admin/orders?date=today"
+                : shown.equals(today.plusDays(1)) ? "/admin/orders?date=tomorrow" : null);
 
-        // 2. Неоплаченные счета (новые с сайта — в «Требуют внимания»)
+        // 2. Неоплаченные счета — сейчас (новые с сайта — в «Требуют внимания»)
         List<Order> unpaid = orderRepository.findByStatusIn(EnumSet.complementOf(EnumSet.of(OrderStatus.CANCELLED,
                         OrderStatus.PLACED, OrderStatus.COMPLETED))).stream()
                 .filter(AdminOrders::unpaid).sorted(Comparator.comparing(Order::getId)).toList();
@@ -113,52 +141,76 @@ public class AdminDashboardController {
         model.addAttribute("sent", sent);
         model.addAttribute("sentNos", sent.stream().map(o -> String.valueOf(o.getId())).reduce((a, b) -> a + ", " + b).orElse(""));
 
-        // 3. Выручка: 14 дней по дню выдачи
-        LocalDate from = today.minusDays(13);
-        Map<LocalDate, BigDecimal> sum = new HashMap<>();
-        Map<LocalDate, Integer> cnt = new HashMap<>();
-        for (Object[] r : orderRepository.revenueByOrder(from.atStartOfDay(), today.plusDays(1).atStartOfDay())) {
-            LocalDate d = ((LocalDateTime) r[1]).toLocalDate();
-            sum.merge(d, (BigDecimal) r[2], BigDecimal::add);
-            cnt.merge(d, 1, Integer::sum);
-        }
-        List<Map<String, Object>> days = new ArrayList<>();
-        BigDecimal w1 = BigDecimal.ZERO, w0 = BigDecimal.ZERO, total = BigDecimal.ZERO;
-        int n1 = 0, nTotal = 0;
-        for (LocalDate d = from; !d.isAfter(today); d = d.plusDays(1)) {
-            BigDecimal s = sum.getOrDefault(d, BigDecimal.ZERO);
-            int n = cnt.getOrDefault(d, 0);
-            Map<String, Object> x = new LinkedHashMap<>();
-            x.put("d", d.toString());
-            x.put("sum", s.setScale(0, RoundingMode.HALF_UP));
-            x.put("n", n);
-            days.add(x);
-            total = total.add(s);
-            nTotal += n;
-            if (d.isAfter(today.minusDays(7))) {
-                w1 = w1.add(s);
-                n1 += n;
+        // выручка по дням — одним разом на всё, что нужно: 7 + 7 дней для плитки, период, день до выбранного
+        LocalDate from = end.minusDays(period - 1);
+        LocalDate need = Collections.min(List.of(from, end.minusDays(13), shown.minusDays(1)));
+        Map<LocalDate, DayRev> rev = revDays(need, end);
+
+        // 3. Выручка за 7 дней по выбранный день и сравнение с 7 днями до них
+        BigDecimal w1 = BigDecimal.ZERO, w0 = BigDecimal.ZERO;
+        int n1 = 0;
+        for (LocalDate d = end.minusDays(13); !d.isAfter(end); d = d.plusDays(1)) {
+            DayRev x = rev.get(d);
+            if (d.isAfter(end.minusDays(7))) {
+                w1 = w1.add(x.sum());
+                n1 += x.n();
             } else {
-                w0 = w0.add(s);
+                w0 = w0.add(x.sum());
             }
         }
         int delta = w0.signum() == 0 ? 0 : w1.subtract(w0).multiply(BigDecimal.valueOf(100)).divide(w0, 0, RoundingMode.HALF_UP).intValue();
         model.addAttribute("rev7", w1);
         model.addAttribute("rev7n", n1);
         model.addAttribute("revDelta", delta);
-        model.addAttribute("revDays", days);
-        model.addAttribute("revJson", AdminJson.of(days));
+        model.addAttribute("rev7End", end.equals(today) ? null : end);
+
+        // 4. Продажи дня (выданные в этот день заказы за вычетом их возвратов) и день до него; будущий день — к выдаче
+        DayRev dd = rev.get(end);
+        model.addAttribute("salesToday", shown.isAfter(today) ? plan : dd.sum());
+        model.addAttribute("salesTodayN", dd.n());
+        model.addAttribute("salesRet", shown.isAfter(today) ? BigDecimal.ZERO : dd.rpcs());
+        model.addAttribute("salesYesterday", rev.get(shown.minusDays(1)) == null ? BigDecimal.ZERO : rev.get(shown.minusDays(1)).sum());
+        model.addAttribute("prevLbl", dayLabel(shown.minusDays(1), today));
+        model.addAttribute("planN", dayRows.size());
+
+        // Выручка: период по выбранный день
+        List<DayRev> days = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO, rpcs = BigDecimal.ZERO, rsum = BigDecimal.ZERO;
+        int nTotal = 0;
+        List<Map<String, Object>> chart = new ArrayList<>();
+        for (LocalDate d = from; !d.isAfter(end); d = d.plusDays(1)) {
+            DayRev x = rev.get(d);
+            days.add(x);
+            total = total.add(x.sum());
+            nTotal += x.n();
+            rpcs = rpcs.add(x.rpcs());
+            rsum = rsum.add(x.rsum());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("d", d.toString());
+            m.put("sum", x.sum().setScale(0, RoundingMode.HALF_UP));
+            m.put("n", x.n());
+            m.put("rpcs", x.rpcs().stripTrailingZeros().toPlainString());
+            chart.add(m);
+        }
+        Map<String, Object> revData = new LinkedHashMap<>();
+        revData.put("days", chart);
+        revData.put("sel", shown.toString());
+        revData.put("today", today.toString());
+        revData.put("p", period);
+        model.addAttribute("revJson", AdminJson.of(revData));
         model.addAttribute("revTotal", total);
         model.addAttribute("revCount", nTotal);
+        model.addAttribute("revRetPcs", rpcs);
+        model.addAttribute("revRetSum", rsum);
         model.addAttribute("revFrom", from);
-        List<Map<String, Object>> table = new ArrayList<>(days);
+        model.addAttribute("revEnd", end);
+        model.addAttribute("period", period);
+        List<DayRev> table = new ArrayList<>(days);
         Collections.reverse(table);
         model.addAttribute("revTable", table);
-
-        // 4. Продажи за день: выданные сегодня заказы (как в «Выручке»), сравнение со вчера
-        model.addAttribute("salesToday", sum.getOrDefault(today, BigDecimal.ZERO));
-        model.addAttribute("salesTodayN", cnt.getOrDefault(today, 0));
-        model.addAttribute("salesYesterday", sum.getOrDefault(today.minusDays(1), BigDecimal.ZERO));
+        List<Per> pers = new ArrayList<>();
+        for (int x : PERIODS) pers.add(new Per(x, link(shown, today, x), x == period));
+        model.addAttribute("periods", pers);
 
         // Не забрали — в «Требуют внимания»
         List<Order> noShow = orderRepository.findByStatusOrderByCreatedAtDesc(OrderStatus.NO_SHOW).stream()
@@ -172,7 +224,7 @@ public class AdminDashboardController {
         model.addAttribute("dayMin", today.minusYears(1).toString());
         model.addAttribute("dayMax", today.plusDays(30).toString());
 
-        // Требуют внимания
+        // Требуют внимания — сейчас, какой бы день ни был выбран
         List<Attention> att = new ArrayList<>();
         if (!sent.isEmpty()) {
             att.add(new Attention("d-cream", "s-sent",
@@ -188,7 +240,20 @@ public class AdminDashboardController {
                             + (o.getClient().getPhone() != null ? " · " + fmt.phone(o.getClient().getPhone()) : ""),
                     "/admin/orders/" + o.getId(), "Открыть"));
         }
-        for (AdminOrders.Row r : todayRows) {
+        // долги со сроком «долг до …»: срок прошёл или сегодня
+        boolean seesClients = AdminSections.byKey("clients").visibleTo(role);
+        for (Order o : orderRepository.findUnpaidDebts()) {
+            if (o.isPaid() || o.getDebtDueDate().isAfter(today)) continue;
+            long late = java.time.temporal.ChronoUnit.DAYS.between(o.getDebtDueDate(), today);
+            Client c = o.getClient();
+            att.add(new Attention(late > 0 ? "d-crim" : "d-yolk", "cash",
+                    (late > 0 ? "Просрочен долг: " : "Сегодня срок долга: ") + c.getName(),
+                    fmt.money(AdminOrders.totals(o).pay()) + " по заказу № " + o.getId()
+                            + (late > 0 ? " · срок был " + fmt.dm(o.getDebtDueDate()) + ", " + fmt.count(late, "день", "дня", "дней") + " назад" : "")
+                            + (c.getPhone() != null ? " · " + fmt.phone(c.getPhone()) : ""),
+                    seesClients ? "/admin/clients/" + c.getId() : "/admin/orders/" + o.getId(), seesClients ? "Клиент" : "Открыть"));
+        }
+        for (AdminOrders.Row r : rowsOfDay(today)) {
             Order o = r.order();
             if ((o.getStatus() == OrderStatus.READY || o.getStatus() == OrderStatus.NEW) && !o.isPaid()
                     && o.getPaymentMethod() == PaymentMethod.INVOICE) {
@@ -221,22 +286,62 @@ public class AdminDashboardController {
         }
         model.addAttribute("attention", att);
 
-        // Что берут: штук за 14 дней по выданным заказам — в тех же единицах, что строки заказа
+        // Что берут: штук за период по выбранный день, по выданным заказам — в тех же единицах, что строки заказа
         List<Top> top = new ArrayList<>();
-        List<Object[]> sold = new ArrayList<>(orderRepository.soldByProduct(from.atStartOfDay(), today.plusDays(1).atStartOfDay()));
+        List<Object[]> sold = new ArrayList<>(orderRepository.soldByProduct(from.atStartOfDay(), end.plusDays(1).atStartOfDay()));
         sold.sort((a, b) -> ((BigDecimal) b[1]).compareTo((BigDecimal) a[1]));
         Map<Long, Product> products = new HashMap<>();
-        productRepository.findAllById(sold.stream().map(r -> (Long) r[0]).toList()).forEach(p -> products.put(p.getId(), p));
+        productRepository.findAllById(sold.stream().map(r -> (Long) r[0]).toList()).forEach(x -> products.put(x.getId(), x));
         BigDecimal max = sold.isEmpty() ? BigDecimal.ONE : ((BigDecimal) sold.get(0)[1]).max(BigDecimal.ONE);
         for (Object[] r : sold) {
-            Product p = products.get((Long) r[0]);
-            if (p == null) continue;
-            BigDecimal pcs = (BigDecimal) r[1];
-            top.add(new Top(p, pcs, pcs.doubleValue() / max.doubleValue() * 100));
+            Product x = products.get((Long) r[0]);
+            if (x == null) continue;
+            BigDecimal q = (BigDecimal) r[1];
+            top.add(new Top(x, q, q.doubleValue() / max.doubleValue() * 100));
             if (top.size() == 7) break;
         }
         model.addAttribute("top", top);
         return "admin/dashboard";
+    }
+
+    /** сегодня / вчера / завтра / 10 окт */
+    String dayLabel(LocalDate d, LocalDate today) {
+        return d.equals(today) ? "сегодня" : d.equals(today.minusDays(1)) ? "вчера" : d.equals(today.plusDays(1)) ? "завтра" : fmt.dm(d);
+    }
+
+    /** Ссылка на дашборд: день (без него — сегодня) и период (без него — 14 дней). */
+    static String link(LocalDate d, LocalDate today, int period) {
+        List<String> q = new ArrayList<>();
+        if (!d.equals(today)) q.add("day=" + d);
+        if (period != 14) q.add("p=" + period);
+        return "/admin/dashboard" + (q.isEmpty() ? "" : "?" + String.join("&", q));
+    }
+
+    /**
+     * Выручка по дням с {@code from} по {@code to}: выданные заказы по дню выдачи, за вычетом возвратов по этим
+     * заказам; возвраты дня — штук и на сумму по дню возврата. Дни без выдач — нули.
+     */
+    Map<LocalDate, DayRev> revDays(LocalDate from, LocalDate to) {
+        LocalDateTime start = from.atStartOfDay(), stop = to.plusDays(1).atStartOfDay();
+        Map<Long, BigDecimal> ret = new HashMap<>();
+        for (Object[] r : productReturnRepository.sumByOrderShippedBetween(start, stop)) ret.put((Long) r[0], (BigDecimal) r[1]);
+        Map<LocalDate, BigDecimal> sum = new HashMap<>();
+        Map<LocalDate, Integer> cnt = new HashMap<>();
+        for (Object[] r : orderRepository.revenueByOrder(start, stop)) {
+            LocalDate d = ((LocalDateTime) r[1]).toLocalDate();
+            sum.merge(d, ((BigDecimal) r[2]).subtract(ret.getOrDefault((Long) r[0], BigDecimal.ZERO)), BigDecimal::add);
+            cnt.merge(d, 1, Integer::sum);
+        }
+        Map<LocalDate, BigDecimal[]> rd = new HashMap<>();
+        for (Object[] r : productReturnRepository.sumByDayBetween(from, to)) {
+            rd.put((LocalDate) r[0], new BigDecimal[]{(BigDecimal) r[1], (BigDecimal) r[2]});
+        }
+        Map<LocalDate, DayRev> out = new LinkedHashMap<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            BigDecimal[] x = rd.getOrDefault(d, new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            out.put(d, new DayRev(d, sum.getOrDefault(d, BigDecimal.ZERO).max(BigDecimal.ZERO), cnt.getOrDefault(d, 0), x[0], x[1]));
+        }
+        return out;
     }
 
     /**
