@@ -40,7 +40,7 @@ public final class AdminSections {
             new Section("techcards", "Техкарта", "Производство", EnumSet.of(TECHNOLOGIST)),
             new Section("stock", "Склад", "Склад и закупки", EnumSet.of(WAREHOUSE_FG, SALES, ACCOUNTANT)),
             new Section("materials", "Склад сырья", "Склад и закупки", EnumSet.of(WAREHOUSE_RAW, ACCOUNTANT, TECHNOLOGIST)),
-            new Section("requests", "Заявки на сырьё", "Склад и закупки", EnumSet.of(WAREHOUSE_RAW, TECHNOLOGIST, ACCOUNTANT)),
+            new Section("requests", "Заявки на сырьё", "Склад и закупки", EnumSet.of(WAREHOUSE_RAW, WAREHOUSE_FG, TECHNOLOGIST, ACCOUNTANT)),
             new Section("purchases", "Покупки", "Склад и закупки", EnumSet.of(WAREHOUSE_RAW, ACCOUNTANT)),
             new Section("products", "Товары", "Каталог", EnumSet.of(SALES, WAREHOUSE_FG, ACCOUNTANT)),
             new Section("photos", "Фото товаров", "Каталог", EnumSet.noneOf(Role.class)),

@@ -1,9 +1,11 @@
 package com.confectionery.crm.admin;
 
 import com.confectionery.crm.domain.OrderStatus;
+import com.confectionery.crm.domain.ProductionRequestStatus;
 import com.confectionery.crm.domain.Role;
 import com.confectionery.crm.domain.User;
 import com.confectionery.crm.repository.OrderRepository;
+import com.confectionery.crm.repository.ProductionRequestRepository;
 import com.confectionery.crm.service.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ui.Model;
@@ -17,6 +19,7 @@ public class AdminModelAdvice {
 
     private final CurrentUserService currentUserService;
     private final OrderRepository orderRepository;
+    private final ProductionRequestRepository requestRepository;
     private final AdminIcons icons;
     private java.util.Map<String, String> i20, i16, i15;
 
@@ -55,5 +58,7 @@ public class AdminModelAdvice {
         model.addAttribute("me", new Me(name, roleLabel, name.substring(0, 1).toUpperCase(), user.getRole()));
         model.addAttribute("menu", AdminSections.menu(user.getRole()));
         model.addAttribute("navNew", orderRepository.countByStatus(OrderStatus.PLACED));
+        // «Заявки на сырьё»: новые — ждут, когда склад сырья соберёт и выдаст
+        model.addAttribute("navReq", requestRepository.countByStatus(ProductionRequestStatus.NEW));
     }
 }

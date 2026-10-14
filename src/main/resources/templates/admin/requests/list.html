@@ -1,39 +1,46 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
+<div class="kpis kpis--3">
+    <a th:each="t : ${tiles}" class="kpi" th:classappend="${t.cls}" th:href="${t.href}"><span class="kpi-l"><th:block th:utext="${i[t.icon]}"></th:block><th:block th:text="${t.label}"></th:block></span>
+        <span class="kpi-v" th:text="${t.value}">0</span><span class="kpi-s" th:text="${t.sub}"></span></a>
+</div>
 <form class="tools" method="get" action="/admin/requests" data-autosubmit>
-    <input type="hidden" name="status" th:value="${status}">
-    <label class="pick"><span class="sr">С</span><input class="inp" type="date" name="from" th:value="${from}"></label>
-    <label class="pick"><span class="sr">По</span><input class="inp" type="date" name="to" th:value="${to}"></label>
+    <input type="hidden" name="st" th:value="${st}">
+    <label class="search"><span class="sr">Поиск заявки</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="№ заявки, группа или изделие" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">Дата документа</span><select class="sel" name="per">
+        <option th:each="o : ${periods}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
     <span class="grow"></span>
-    <a class="btn btn-soft btn-sm" th:href="${'/admin/requests/report.pdf?date=' + today}" target="_blank"><th:block th:utext="${i['print']}"></th:block>Отчёт за сегодня</a>
-    <a th:if="${canCreate}" class="btn btn-primary btn-sm" href="/admin/requests/new"><th:block th:utext="${i['plus']}"></th:block>Новая заявка</a>
+    <button class="btn btn-soft btn-sm" type="button" id="rq-mg">Общая рецептура</button>
+    <a class="btn btn-soft btn-sm" href="/admin/requests/report.pdf" target="_blank" rel="noopener"><th:block th:utext="${i['print']}"></th:block><span>Отчёт за день</span></a>
+    <a th:if="${canCreate}" class="btn btn-primary btn-sm" href="/admin/requests/new"><th:block th:utext="${i['plus']}"></th:block><span>Новая заявка</span></a>
 </form>
 <div class="chips" role="group" aria-label="Статус заявки">
-    <a th:each="c : ${chips}" class="chip" th:classappend="${c.key == 'NEW' and c.count > 0} ? 'chip--alert'" th:href="${c.href}" th:attr="aria-pressed=${c.on}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a>
+    <a th:each="c : ${chips}" class="chip" th:classappend="${c.alert} ? 'chip--alert'" th:href="${c.href}" th:attr="aria-pressed=${c.on}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a>
 </div>
-<section class="card" aria-label="Заявки">
-    <div class="tbl-w">
-        <div th:if="${rows.isEmpty()}" class="empty">Заявок нет.</div>
-        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
-            <thead><tr><th>№</th><th>Дата</th><th>Заявка</th><th>Изделия</th><th class="r">Сырья</th><th>Создал</th><th>Статус</th><th>1С</th></tr></thead>
-            <tbody>
-            <tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/requests/' + r.id}">
-                <td><a th:href="${'/admin/requests/' + r.id}" th:text="${r.id}"></a></td>
-                <td th:text="${@fmt.dm(r.documentDate)}"></td>
-                <td class="c-full"><b th:text="${r.title}"></b></td>
-                <td class="c-full" th:text="${#strings.abbreviate(#strings.listJoin(r.lines.![product.name + ' × ' + @fmt.num(batches)], ', '), 100)}"></td>
-                <td class="r num" th:text="${r.items.size()}"></td>
-                <td th:text="${r.createdBy}"></td>
-                <td><span class="tag" th:classappend="${r.status.name() == 'NEW' ? 'tag--warn' : r.status.name() == 'COLLECTED' ? 'tag--site' : r.status.name() == 'RECEIVED' ? 'tag--ok' : 'tag--bad'}" th:text="${r.status.label + (r.requisitionCompleted ? ' · завершена' : '')}"></span></td>
-                <td><span th:if="${r.oneCSyncError != null}" class="tag tag--bad" th:title="${r.oneCSyncError}">ошибка</span><span th:if="${r.oneCSyncError == null and r.oneCReportNumber != null}" class="tag tag--ok" th:text="${r.oneCReportNumber}"></span><span th:if="${r.oneCSyncError == null and r.oneCReportNumber == null}" class="tag">—</span></td>
-            </tr>
-            </tbody>
-        </table>
-    </div>
-</section>
-<p class="cnt">Новые и собранные заявки видны всегда, остальные — за выбранные дни.</p>
+<section class="card" aria-label="Заявки на сырьё"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Заявок не найдено.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--q">
+        <thead><tr><th>№</th><th>Заявка</th><th class="r">Замесов</th><th class="r">План, шт</th><th>На что смотреть</th><th>Статус</th></tr></thead>
+        <tbody><tr th:each="w : ${rows}" class="rowlink" th:classappend="${w.quiet()} ? 'is-quiet'" th:attr="data-href=${'/admin/requests/' + w.r.id}">
+            <td class="q-no"><a th:href="${'/admin/requests/' + w.r.id}" th:text="${w.r.id}">150</a><small th:text="${@fmt.dm(w.r.documentDate)}"></small></td>
+            <td class="q-t"><b th:text="${w.r.title}">Кексы</b><small><th:block th:each="p, s : ${w.parts}"><th:block th:if="${!s.first}"> · </th:block><th:block th:text="${p.name() + ' '}"></th:block><span class="q-bn" th:text="${@fmt.qn(p.batches())}"></span></th:block><th:block th:if="${w.extra > 0}" th:text="${' · сверх заявки ' + w.extra}"></th:block></small></td>
+            <td class="r num q-b"><th:block th:text="${@fmt.qn(w.batches)}"></th:block><span class="mob" th:text="${' ' + w.batchesWord()}"></span></td>
+            <td class="r num q-p"><b><span class="mob">план </span><th:block th:text="${@fmt.num(w.plan)}"></th:block></b><small th:text="${w.got > 0 ? 'факт ' + @fmt.num(w.fact) + (w.got < w.main ? ' · ' + w.got + ' из ' + w.main : '') : 'факта нет'}"></small></td>
+            <td class="q-f"><span th:each="f : ${w.flags}" th:class="${f.cls}" th:text="${f.text}"></span><span th:if="${w.flags.isEmpty()}" class="muted" th:text="${w.r.items.size() + ' поз. сырья'}"></span></td>
+            <td class="q-st"><span class="st" th:classappend="${w.badge.cls}"><th:block th:utext="${i16[w.badge.icon]}"></th:block><span th:text="${w.badge.label}"></span></span><small th:text="${w.next}"></small></td>
+        </tr></tbody>
+    </table>
+</div></section>
+<p class="cnt" th:text="${'Заявок: ' + rows.size() + '. Новые, собранные и не завершённые видны всегда, остальные — по дате документа для 1С.'}"></p>
+</th:block>
+<th:block th:fragment="scripts">
+<script type="application/json" id="rq-merge" th:utext="${mergeJson}"></script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/req.js?v=1"></script>
 </th:block>
 </body>
 </html>

@@ -71,6 +71,16 @@ public class AdminFormat {
         return v.setScale(d, RoundingMode.HALF_UP).toPlainString().replace('.', ',');
     }
 
+    /** Количество сырья и замесов: 1 180 · 41,4 · 0,138 — до трёх знаков после запятой, без лишних нулей. */
+    public String qn(BigDecimal v) {
+        return AdminRequests.qn(v);
+    }
+
+    /** То же с единицей: «41,4 кг». */
+    public String qu(BigDecimal v, String unit) {
+        return AdminRequests.qu(v, unit);
+    }
+
     public String plural(long n, String one, String few, String many) {
         long d = n % 10, h = n % 100;
         return d == 1 && h != 11 ? one : d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;

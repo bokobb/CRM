@@ -175,8 +175,8 @@ public class ProductionRequestApiController {
      */
     @PostMapping("/{id}/complete-1c")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW')")
-    public ProductionRequestDto completeOneC(@PathVariable Long id) {
-        return toDto(requestService.completeRequisition(id));
+    public ProductionRequestDto completeOneC(@PathVariable Long id, Authentication authentication) {
+        return toDto(requestService.completeRequisition(id, authentication.getName()));
     }
 
     /**
@@ -185,8 +185,8 @@ public class ProductionRequestApiController {
      */
     @PostMapping("/{id}/cancel-completion")
     @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT','WAREHOUSE_RAW')")
-    public ProductionRequestDto cancelCompletion(@PathVariable Long id) {
-        return toDto(requestService.cancelCompletion(id));
+    public ProductionRequestDto cancelCompletion(@PathVariable Long id, Authentication authentication) {
+        return toDto(requestService.cancelCompletion(id, authentication.getName()));
     }
 
     /**

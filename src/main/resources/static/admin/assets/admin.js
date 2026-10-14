@@ -40,8 +40,9 @@
 
   /* ---------- dialog ---------- */
   var dlg = $('dlg');
-  function openDlg(html) {
+  function openDlg(html, cls) {
     if (!dlg) return null;
+    dlg.className = 'dlg' + (cls ? ' ' + cls : '');      // «is-wide» — широкое окно (документ, накладная)
     dlg.innerHTML = '<button class="ibtn dlg-x" type="button" data-close aria-label="Закрыть">' + icon('x') + '</button>' + html;
     if (dlg.showModal) { if (!dlg.open) dlg.showModal(); } else dlg.setAttribute('open', '');
     var f = dlg.querySelector('[autofocus], input:not([type=hidden]):not([type=radio]), textarea, .btn-primary');
@@ -59,7 +60,7 @@
     var t = $(b.getAttribute('data-dialog'));
     if (!t) return;
     e.preventDefault();
-    openDlg(t.innerHTML);
+    openDlg(t.innerHTML, t.getAttribute('data-cls'));
     dlg.querySelectorAll('form[method="post"]').forEach(function (f) {
       if (!f.querySelector('input[name="' + CSRF.param + '"]')) f.insertAdjacentHTML('afterbegin', csrfInput());
     });

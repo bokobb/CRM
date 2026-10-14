@@ -734,6 +734,15 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest cancel(Long requestId, String by) {
+        return cancel(requestId, by, null);
+    }
+
+    /**
+     * {@code reason} — причина отмены (необязательна): пишется в историю заявки записью
+     * «Отменена: причина» — её видно в карточке заявки в админке.
+     */
+    @Transactional
+    public ProductionRequest cancel(Long requestId, String by, String reason) {
         ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() == ProductionRequestStatus.CANCELLED) {
             throw new IllegalStateException("Заявка уже отменена");
@@ -758,6 +767,8 @@ public class ProductionRequestService {
 
         request.setStatus(ProductionRequestStatus.CANCELLED);
         request.setRequisitionCompleted(false);
+        String why = reason == null || reason.isBlank() ? null : reason.trim();
+        snapshot(request, by, "Отменена" + (why != null ? ": " + why : ""), false);
         request.setCompositionDiffPending(false);
         request.setCompositionDiffBatches(null);
         oneCQueue.request(request);
@@ -1013,11 +1024,20 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest completeRequisition(Long requestId) {
+        return completeRequisition(requestId, null);
+    }
+
+    /** {@code by} — кто нажал «Завершить»: запись в истории заявки (null — без записи). */
+    @Transactional
+    public ProductionRequest completeRequisition(Long requestId, String by) {
         ProductionRequest request = findForUpdate(requestId);
         if (request.getStatus() != ProductionRequestStatus.RECEIVED) {
             throw new IllegalStateException("Завершить можно только полностью оприходованную заявку");
         }
         request.setRequisitionCompleted(true);
+        if (by != null) {
+            snapshot(request, by, "Завершена — требование-накладная проведена в 1С", false);
+        }
         oneCQueue.request(request);
         notifyReceivedSummary(request);
         return request;
@@ -1029,11 +1049,20 @@ public class ProductionRequestService {
      */
     @Transactional
     public ProductionRequest cancelCompletion(Long requestId) {
+        return cancelCompletion(requestId, null);
+    }
+
+    /** {@code by} — кто отменил завершение: запись в истории заявки (null — без записи). */
+    @Transactional
+    public ProductionRequest cancelCompletion(Long requestId, String by) {
         ProductionRequest request = findForUpdate(requestId);
         if (!request.isRequisitionCompleted()) {
             throw new IllegalStateException("Заявка ещё не завершена");
         }
         request.setRequisitionCompleted(false);
+        if (by != null) {
+            snapshot(request, by, "Завершение отменено — требование-накладная в 1С распроведена", false);
+        }
         oneCQueue.request(request);
         return request;
     }

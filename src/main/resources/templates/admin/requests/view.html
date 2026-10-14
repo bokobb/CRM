@@ -1,67 +1,147 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
+<th:block th:if="${missing != null}">
+    <a class="back" href="/admin/requests"><th:block th:utext="${i['back']}"></th:block>Все заявки</a>
+    <div class="card empty" th:text="${'Заявки № ' + missing + ' нет.'}">Заявки нет.</div>
+</th:block>
+<th:block th:if="${missing == null}">
 <a class="back" href="/admin/requests"><th:block th:utext="${i['back']}"></th:block>Все заявки</a>
 <div class="oh">
-    <div class="oh-t"><h2 th:text="${'Заявка № ' + r.id}">Заявка</h2>
-        <span class="tag" th:classappend="${r.status.name() == 'NEW' ? 'tag--warn' : r.status.name() == 'COLLECTED' ? 'tag--site' : r.status.name() == 'RECEIVED' ? 'tag--ok' : 'tag--bad'}" th:text="${r.status.label}"></span>
-        <span th:if="${r.requisitionCompleted}" class="tag tag--ok">завершена</span></div>
-    <p class="oh-m" th:text="${r.title + ' · от ' + @fmt.dml(r.documentDate) + ' · создал ' + r.createdBy + ', ' + @fmt.when(r.createdAt) + (r.collectedBy != null ? ' · собрал ' + r.collectedBy + ', ' + @fmt.when(r.collectedAt) : '')}"></p>
-    <div class="acts">
-        <form th:if="${canComplete and r.status.name() == 'RECEIVED' and !r.requisitionCompleted}" th:action="${'/admin/requests/' + r.id + '/complete'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-primary" type="submit">Завершить заявку</button></form>
-        <form th:if="${canComplete and r.requisitionCompleted}" th:action="${'/admin/requests/' + r.id + '/reopen'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-soft" type="submit">Отменить завершение</button></form>
-        <form th:if="${canSync and r.status.name() != 'CANCELLED'}" th:action="${'/admin/requests/' + r.id + '/sync-1c'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-soft" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Отправить в 1С ещё раз</button></form>
-        <a class="btn btn-soft" th:href="${'/admin/production?date=' + r.documentDate}">Себестоимость</a>
-        <form th:if="${isAdmin and r.status.name() != 'CANCELLED'}" th:action="${'/admin/requests/' + r.id + '/cancel'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-danger" type="submit" data-confirm="Заявка отменится, документы в 1С пометятся на удаление." data-confirm-title="Отменить заявку?">Отменить заявку</button></form>
-        <form th:if="${isAdmin and r.status.name() == 'CANCELLED'}" th:action="${'/admin/requests/' + r.id + '/delete'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-danger" type="submit" data-confirm="Отменённая заявка удалится из CRM." data-confirm-title="Удалить заявку?">Удалить</button></form>
+    <div class="oh-t"><h2 th:text="${'Заявка № ' + r.id}">Заявка № 150</h2>
+        <span class="st" th:classappend="${badge.cls}"><th:block th:utext="${i16[badge.icon]}"></th:block><span th:text="${badge.label}"></span></span>
+        <span class="tag tag--pf" th:text="${r.title}">Кексы</span></div>
+    <p class="oh-m" th:text="${'Итого ' + zamText + ' · создал ' + createdBy + ', ' + @fmt.when(r.createdAt) + ' · дата документа для 1С: ' + @fmt.dml(r.documentDate)}"></p>
+    <div class="acts" id="rq-acts">
+        <button th:if="${canComplete}" class="btn btn-primary" type="button" data-qa="done">Завершить</button>
+        <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/requests/' + r.id + '/edit'}">Изменить</a>
+        <button th:if="${canReopen}" class="btn btn-soft" type="button" data-qa="undone">Отменить завершение</button>
+        <a th:if="${canRepeat}" class="btn btn-soft" th:href="${'/admin/requests/new?from=' + r.id}">Повторить заявку</a>
+        <button th:if="${canDelete}" class="btn btn-danger" type="button" data-qa="del">Удалить</button>
+        <button th:if="${canCancel}" class="btn btn-danger" type="button" data-qa="off">Отменить заявку</button>
+        <a th:if="${canCost}" class="btn btn-soft" th:href="${'/admin/production/requests/' + r.id}">Себестоимость</a>
     </div>
 </div>
-<div class="section-gap">
-<section class="card">
-    <div class="card-h"><h2>Продукция</h2><p th:if="${mass != null and mass.plannedKg != null}" th:text="${'по массе: план ' + @fmt.dec(mass.plannedKg, 1) + ' кг' + (mass.actualKg != null ? ', факт ' + @fmt.dec(mass.actualKg, 1) + ' кг' : '')}"></p></div>
-    <div class="tbl-w"><table class="tbl tbl--cards">
-        <thead><tr><th>Изделие</th><th class="r">Замесов</th><th class="r">План</th><th class="r">Оприходовано</th><th th:if="${canReceive}"></th></tr></thead>
-        <tbody><tr th:each="l : ${r.lines}">
-            <td class="c-full"><b th:text="${l.product.name}"></b><small th:if="${l.receivedAt != null}" th:text="${l.receivedBy + ', ' + @fmt.when(l.receivedAt)}"></small></td>
-            <td class="r num" th:text="${@fmt.num(l.batches)}"></td>
-            <td class="r num" th:text="${l.plannedQuantity != null ? @fmt.num(l.plannedQuantity) : '—'}"></td>
-            <td class="r num" th:classappend="${l.insufficient} ? 'low'" th:text="${l.receivedQuantity != null ? @fmt.num(l.receivedQuantity) : '—'}"></td>
-            <td th:if="${canReceive}">
-                <form th:if="${r.status.name() == 'COLLECTED' and !l.received}" th:action="${'/admin/requests/' + r.id + '/lines/' + l.id + '/receive'}" method="post" class="tbl-actions"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input class="inp num-in" name="qty" inputmode="decimal" th:value="${l.plannedQuantity != null ? @fmt.num(l.plannedQuantity).replace(' ', '') : ''}" aria-label="Сколько оприходовать"><button class="btn btn-primary btn-sm" type="submit">Оприходовать</button></form>
-                <form th:if="${isAdmin and l.received}" th:action="${'/admin/requests/' + r.id + '/lines/' + l.id + '/received'}" method="post" class="tbl-actions"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input class="inp num-in" name="qty" inputmode="decimal" th:value="${@fmt.num(l.receivedQuantity).replace(' ', '')}" aria-label="Исправить количество"><button class="btn btn-soft btn-sm" type="submit">Исправить</button></form>
+<p th:if="${k == 'off'}" class="banner banner--off"><th:block th:utext="${i['s-off']}"></th:block><span th:text="${'Отменена' + (off != null ? ' ' + @fmt.when(off.createdAt) + ' · ' + offBy : '') + (offNote != null ? ': ' + offNote : '') + '. ' + (r.collectedAt != null ? 'Выданное сырьё вернули на склад.' : 'Сырьё не выдавали.') + ' Документы в 1С помечены на удаление.'}"></span></p>
+<ol th:if="${k != 'off'}" class="psteps" aria-label="Путь заявки">
+    <li th:each="s : ${steps}" th:classappend="${s.done ? 'is-done' : (s.cur ? 'is-cur' : '')}" th:attr="aria-current=${s.cur ? 'step' : null}"><span class="ps-n"><th:block th:if="${s.done}" th:utext="${i16['check']}"></th:block><th:block th:unless="${s.done}" th:text="${s.n}"></th:block></span><p><b th:text="${s.title}">Создана</b><small th:text="${s.sub}"></small></p></li>
+</ol>
+<div class="od"><div class="od-main">
+<section class="card" aria-labelledby="h-ql">
+    <div class="card-h"><div><h2 id="h-ql">Что выпускаем</h2><p th:text="${@fmt.count(mainN, 'позиция', 'позиции', 'позиций') + ' · ' + zamText + ' · по норме ' + @fmt.num(plan) + ' шт' + (mass != null and mass.plannedKg != null ? ' · по массе ' + @fmt.dec(mass.plannedKg, 1) + ' кг' + (mass.actualKg != null ? ', факт ' + @fmt.dec(mass.actualKg, 1) + ' кг' : '') : '')}"></p></div>
+        <button th:if="${canExtra}" class="btn btn-soft btn-sm" type="button" data-qa="extra">Оприходовать сверх заявки</button></div>
+    <div class="tbl-w"><table class="tbl tbl--ql">
+        <thead><tr><th>Изделие</th><th class="r">Замесов</th><th class="r">Норма, шт</th><th class="r">Факт, шт</th></tr></thead>
+        <tbody><tr th:each="o : ${outs}">
+            <td class="ql-p"><div class="prod"><img th:if="${o.photo != null and !#strings.isEmpty(o.photo)}" class="th" th:src="${o.photo}" alt="" width="30" height="40" loading="lazy"><span th:unless="${o.photo != null and !#strings.isEmpty(o.photo)}" class="th th-none" th:utext="${i['cookie']}"></span>
+                <p><b th:text="${o.name}">Кекс</b><small th:text="${o.extra ? 'из того же замеса, сырьё не меняется' : (o.yield != null ? @fmt.num(o.yield) + ' шт с замеса' : 'рецептуры нет')}"></small></p></div></td>
+            <td class="r num ql-b"><th:block th:text="${o.extra ? '—' : @fmt.qn(o.l.batches)}"></th:block><span class="mob"> зам.</span></td>
+            <td class="r num ql-n"><th:block th:text="${o.extra ? '—' : @fmt.num(o.l.plannedQuantity)}"></th:block><span class="mob"> шт по норме</span></td>
+            <td class="r num ql-f" th:classappend="${k == 'new'} ? 'ql-f--none'">
+                <span th:if="${k == 'new'}" class="muted">—</span>
+                <th:block th:if="${k != 'new' and o.received()}"><b th:text="${@fmt.num(o.l.receivedQuantity)}">975</b>
+                    <small th:if="${o.dev.signum() < 0}" class="pay-bad" th:text="${'недостаточно — ' + @fmt.num(o.dev.negate()) + ' шт'}"></small>
+                    <small th:unless="${o.dev.signum() < 0}" th:text="${o.extra ? 'сверх заявки' : (o.dev.signum() > 0 ? '+' + @fmt.num(o.dev) + ' к норме' : 'по норме')}"></small>
+                    <small th:text="${o.by + ', ' + @fmt.when(o.l.receivedAt)}"></small>
+                    <button th:if="${canFix}" class="link q-fix" type="button" th:attr="data-fix=${o.l.id},data-name=${o.name},data-q=${o.l.receivedQuantity}">исправить</button></th:block>
+                <div th:if="${k != 'new' and !o.received() and canReceive}" class="q-recv"><span class="qin"><label class="sr" th:for="${'qi-' + o.l.id}" th:text="${'Факт, шт: ' + o.name}"></label><input class="inp" th:id="${'qi-' + o.l.id}" th:attr="data-recv=${o.l.id},data-plan=${o.l.plannedQuantity},placeholder=${o.l.plannedQuantity != null ? @fmt.num(o.l.plannedQuantity).replace(' ', '') : ''}" inputmode="numeric" autocomplete="off"><i>шт</i></span>
+                    <button class="btn btn-primary btn-sm" type="button" th:attr="data-rok=${o.l.id}">Оприходовать</button><small class="q-dev" th:id="${'qd-' + o.l.id}"></small></div>
+                <span th:if="${k != 'new' and !o.received() and !canReceive}" class="muted">—</span>
             </td>
         </tr></tbody>
+        <tfoot><tr><td class="ql-p">Итого</td><td class="r num ql-b"><th:block th:text="${@fmt.qn(batches)}"></th:block><span class="mob"> зам.</span></td><td class="r num ql-n"><th:block th:text="${@fmt.num(plan)}"></th:block><span class="mob"> шт по норме</span></td>
+            <td class="r num ql-f" th:classappend="${k == 'new'} ? 'ql-f--none'"><span class="mob">факт </span><th:block th:text="${gotN > 0 ? @fmt.num(fact) : '—'}"></th:block><th:block th:if="${gotN > 0 and (k == 'received' or k == 'done') and fact.compareTo(plan) != 0}"> <small th:classappend="${fact.compareTo(plan) < 0} ? 'pay-bad'" th:text="${(fact.compareTo(plan) > 0 ? '+' : '−') + @fmt.num(fact.subtract(plan).abs())}"></small></th:block></td></tr></tfoot>
     </table></div>
+    <p th:if="${k == 'new'}" class="card-f">Норма = замесы × выход по рецептуре. Оприходовать можно, когда склад сырья выдаст сырьё в цех.</p>
+    <p th:if="${k == 'collected'}" class="card-f">Склад ГП вводит факт по каждой позиции — в приложении или здесь. Когда оприходовано всё, отчёт производства в 1С проводится сам.</p>
 </section>
-<section class="card">
-    <div class="card-h"><h2>Сырьё по рецептуре</h2><p th:text="${@fmt.count(r.items.size(), 'позиция', 'позиции', 'позиций')}"></p></div>
-    <form th:id="${'collect-' + r.id}" th:action="${'/admin/requests/' + r.id + '/collect'}" method="post"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-    <div class="tbl-w"><table class="tbl tbl--cards">
-        <thead><tr><th th:if="${canCollect and r.status.name() == 'NEW'}">Выдано</th><th>Сырьё</th><th class="r">Нужно</th><th class="r">На складе</th><th th:if="${canCollect and r.status.name() != 'CANCELLED'}" class="acts-col"></th></tr></thead>
-        <tbody><tr th:each="it : ${r.items}">
-            <td th:if="${canCollect and r.status.name() == 'NEW'}"><input type="checkbox" name="item" th:value="${it.id}" checked style="width:20px;height:20px;accent-color:var(--crimson)" th:attr="aria-label=${'Выдано: ' + it.ingredient.name}"></td>
-            <td class="c-full"><b th:text="${it.ingredient.name}"></b><small th:if="${it.originalIngredientName != null}" th:text="${'вместо: ' + it.originalIngredientName}"></small></td>
-            <td class="r num" th:text="${@fmt.num(it.requiredQuantity) + ' ' + it.ingredient.unit}"></td>
-            <td class="r num" th:classappend="${it.ingredient.quantityInStock.compareTo(it.requiredQuantity) < 0 and r.status.name() == 'NEW'} ? 'low'" th:text="${@fmt.num(it.ingredient.quantityInStock) + ' ' + it.ingredient.unit}"></td>
-            <td th:if="${canCollect and r.status.name() != 'CANCELLED'}"><button class="ibtn" type="submit" th:formaction="${'/admin/requests/' + r.id + '/items/' + it.id + '/remove'}" aria-label="Убрать из заявки" th:utext="${i['trash']}" data-confirm="Позиция уберётся из заявки." data-confirm-title="Убрать сырьё?" data-confirm-ok="Убрать"></button></td>
+
+<section th:if="${k == 'new'}" class="card" aria-labelledby="h-qr" id="q-raw">
+    <div class="card-h"><div><h2 id="h-qr">Сырьё — общая рецептура</h2><p th:text="${'рецептура × замесы по всем изделиям · ' + @fmt.count(raw.size(), 'позиция', 'позиции', 'позиций') + (canCollect ? ' · чек-лист для склада сырья' : '')}"></p></div></div>
+    <p th:if="${!stockShort.isEmpty()}" class="warn-s q-warn"><th:block th:utext="${i['alert']}"></th:block><span><th:block th:text="${'Не хватает на складе: ' + shortText + '. «Собрано» всё равно можно нажать — остаток уйдёт в минус до сверки. '}"></th:block><a class="link" th:href="${'/admin/purchases/new?ingredient=' + stockShort[0].ingredient.id}">Оформить покупку</a></span></p>
+    <form id="q-collect" method="post" th:action="${'/admin/requests/' + r.id + '/collect'}">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <div th:if="${canCollect}" class="q-ckbar"><label class="check"><input type="checkbox" id="qr-all">Отметить всё</label>
+        <span id="qr-cnt" th:classappend="${!stockShort.isEmpty()} ? 'pay-bad'" th:text="${'Отмечено 0 из ' + raw.size() + (!stockShort.isEmpty() ? ' · красным — не хватает на складе' : '')}"></span></div>
+    <div class="tbl-w"><table class="tbl tbl--qr">
+        <thead><tr><th th:if="${canCollect}" class="q-ck"><span class="sr">Выдано</span></th><th>Сырьё</th><th class="r">Нужно</th><th class="r">На складе</th><th th:if="${canItems}" class="q-a"><span class="sr">Действия</span></th></tr></thead>
+        <tbody><tr th:each="x : ${raw}" th:classappend="${x.shortage} ? 'is-short'">
+            <td th:if="${canCollect}" class="q-ck"><input type="checkbox" name="item" th:value="${x.itemId}" th:id="${'ck-' + x.itemId}" data-ck></td>
+            <td class="q-m"><label th:for="${'ck-' + x.itemId}"><b th:text="${x.name}">Мука</b></label><small th:if="${!#strings.isEmpty(x.note)}" th:text="${x.note}"></small></td>
+            <td class="r num q-need"><b th:text="${x.q(x.current)}"></b></td>
+            <td class="r num q-has"><span th:if="${x.free}" class="muted">—</span><th:block th:if="${!x.free and x.shortage}"><span class="pay-bad" th:text="${x.q(x.stock)}"></span><small class="pay-bad" th:text="${'не хватает ' + x.q(x.current.subtract(x.stock))}"></small></th:block><th:block th:if="${!x.free and !x.shortage}" th:text="${x.q(x.stock)}"></th:block></td>
+            <td th:if="${canItems}" class="q-a"><th:block th:replace="~{admin/requests/view :: itemActs(${x})}"></th:block></td>
         </tr></tbody>
     </table></div>
-    <div class="card-f" th:if="${canCollect and r.status.name() == 'NEW'}"><span>Снимите галочки с того, что не выдали. Выданное спишется со склада сырья.</span><button class="btn btn-primary" type="submit">Собрать и выдать</button></div>
-    </form>
-    <form th:if="${canCollect and r.status.name() != 'CANCELLED'}" th:action="${'/admin/requests/' + r.id + '/items/add'}" method="post" class="card-f">
-        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-        <select class="sel" name="ingredient" required style="flex:1 1 260px"><option value="">Добавить сырьё…</option><option th:each="g : ${ingredients}" th:value="${g.id}" th:text="${g.name + ' (' + g.unit + ')'}"></option></select>
-        <input class="inp num-in" name="qty" inputmode="decimal" placeholder="Сколько" required style="max-width:140px">
-        <button class="btn btn-soft btn-sm" type="submit">Добавить</button>
+    <div class="card-f"><span th:text="${canCollect ? 'Собрали и отдали в цех всё по списку — «Собрано»: сырьё спишется со склада, заявка уйдёт на оприход.' : 'Сырьё собирает и выдаёт в цех склад сырья.'}"></span>
+        <span class="card-acts"><button th:if="${canItems}" class="btn btn-soft btn-sm" type="button" data-qa="add"><th:block th:utext="${i['plus']}"></th:block>Добавить сырьё</button>
+            <button th:if="${canCollect}" class="btn btn-primary btn-sm" type="submit" id="qr-go" disabled>Собрано</button></span></div>
     </form>
 </section>
-<section class="card card-b" th:if="${r.oneCSyncError != null or r.oneCReportNumber != null}">
-    <h3 class="big" style="font-size:19px">1С</h3>
-    <p th:if="${r.oneCReportNumber != null}" th:text="${'Отчёт производства № ' + r.oneCReportNumber + (r.oneCRequisitionNumber != null ? ' · Требование-накладная № ' + r.oneCRequisitionNumber : '')}"></p>
-    <p th:if="${r.oneCSyncError != null}" class="note" th:text="${r.oneCSyncError}"></p>
+
+<section th:if="${k == 'off'}" class="card" aria-labelledby="h-qr">
+    <div class="card-h"><div><h2 id="h-qr">Сырьё — общая рецептура</h2><p th:text="${'что было в заявке · ' + @fmt.count(raw.size(), 'позиция', 'позиции', 'позиций')}"></p></div></div>
+    <div class="tbl-w"><table class="tbl tbl--qd"><thead><tr><th>Сырьё</th><th class="r">Было в заявке</th></tr></thead>
+        <tbody><tr th:each="x : ${raw}"><td><b th:text="${x.name}"></b></td><td class="r num" th:text="${x.q(x.current)}"></td></tr></tbody></table></div>
+</section>
+
+<section th:if="${k == 'collected' or k == 'received' or k == 'done'}" class="card" aria-labelledby="h-qr" id="q-raw">
+    <div class="card-h"><div><h2 id="h-qr">Сырьё — общая рецептура</h2><p th:text="${(r.collectedAt != null ? 'выдано в цех ' + @fmt.when(r.collectedAt) + ' · ' + collectedBy + ' · ' : '') + @fmt.count(r.items.size(), 'позиция', 'позиции', 'позиций')}"></p></div></div>
+    <div th:if="${!diff.isEmpty() and k != 'done'}" class="q-diff"><p><th:block th:utext="${i['alert']}"></th:block><span><b>Состав изменён после выдачи.</b> <th:block th:text="${(!#strings.isEmpty(diffText.batches) ? 'Замесы: ' + diffText.batches + '. ' : '') + (!#strings.isEmpty(diffText.give) ? 'Довыдать в цех: ' + diffText.give + '. ' : '') + (!#strings.isEmpty(diffText.back) ? 'Забрать на склад: ' + diffText.back + '. ' : '') + 'Остаток склада уже сдвинут — когда цех получит или вернёт разницу, нажмите «Рассчитались».'}"></th:block></span></p>
+        <button th:if="${canSettle}" class="btn btn-primary btn-sm" type="button" data-qa="settle">Рассчитались</button></div>
+    <div class="tbl-w"><table class="tbl tbl--qi">
+        <thead><tr><th>Сырьё</th><th class="r">Норма</th><th class="r">В заявке</th><th class="r">Выдано</th><th class="r">Разница</th><th th:if="${canItems}" class="q-a"><span class="sr">Действия</span></th></tr></thead>
+        <tbody><tr th:each="x : ${raw}" th:classappend="${x.diff != null and x.diff.signum() > 0 and !x.free ? 'is-give' : (x.diff != null and x.diff.signum() < 0 and !x.free ? 'is-back' : '')}">
+            <td class="q-m"><b th:text="${x.name}">Мука</b><small th:if="${!#strings.isEmpty(x.note)}" th:text="${x.note}"></small></td>
+            <td class="r num q-nm" th:text="${x.norm != null ? x.q(x.norm) : '—'}"></td>
+            <td class="r num q-cur"><b th:text="${x.removed ? '—' : x.q(x.current)}"></b></td>
+            <td class="r num q-iss" th:text="${x.issued != null ? x.q(x.issued) : '—'}"></td>
+            <td class="r num q-d" th:classappend="${x.free or x.diff == null or x.diff.signum() == 0} ? 'q-d--none'">
+                <span th:if="${x.free or x.diff == null or x.diff.signum() == 0}" class="muted">—</span>
+                <th:block th:if="${!x.free and x.diff != null and x.diff.signum() > 0}"><b class="q-give" th:text="${'+' + x.q(x.diff)}"></b><small>довыдать</small></th:block>
+                <th:block th:if="${!x.free and x.diff != null and x.diff.signum() < 0}"><b class="pay-bad" th:text="${'−' + x.q(x.diff.negate())}"></b><small>вернуть</small></th:block></td>
+            <td th:if="${canItems}" class="q-a"><th:block th:if="${!x.removed}"><th:block th:replace="~{admin/requests/view :: itemActs(${x})}"></th:block></th:block></td>
+        </tr></tbody>
+    </table></div>
+    <div th:if="${k != 'done'}" class="card-f"><span>Норма — рецептура × замесы. Правки сразу двигают остаток склада сырья; в 1С уходят в требование-накладную до «Завершить».</span>
+        <span th:if="${canItems}" class="card-acts"><button class="btn btn-soft btn-sm" type="button" data-qa="add"><th:block th:utext="${i['plus']}"></th:block>Добавить сырьё</button></span></div>
+    <p th:if="${k == 'done'}" class="card-f">Требование-накладная проведена в 1С — состав больше не меняется. Чтобы поправить, нажмите «Отменить завершение».</p>
 </section>
 </div>
+
+<aside class="od-side">
+    <section class="card card-b box" aria-labelledby="h-q1"><h3 id="h-q1">1С</h3>
+        <th:block th:if="${r.oneCSyncError != null and k != 'off'}"><p class="warn-s"><th:block th:utext="${i['alert']}"></th:block><span th:text="${'Не отправлено в 1С: ' + r.oneCSyncError + '. Заявка уйдёт сама при следующей правке — или отправьте сейчас.'}"></span></p>
+            <p th:if="${canSync}"><button class="btn btn-soft btn-sm" type="button" data-qa="sync"><th:block th:utext="${i['refresh']}"></th:block>Отправить в 1С ещё раз</button></p></th:block>
+        <p th:if="${(r.oneCSyncError == null or k == 'off') and r.oneCReportNumber == null}" class="muted" th:text="${r.oneCPending ? 'Отправляется в 1С…' : 'Документов в 1С нет.'}"></p>
+        <th:block th:if="${(r.oneCSyncError == null or k == 'off') and r.oneCReportNumber != null}">
+            <dl class="kv1c">
+                <div><dt>Отчёт производства</dt><dd><b class="num" th:text="${'№ ' + r.oneCReportNumber}"></b><small th:text="${k == 'off' ? 'помечен на удаление' : (k == 'received' or k == 'done' ? 'проведён: весь выпуск оприходован' : 'не проведён — проведётся сам, когда оприходуют всё')}"></small></dd></div>
+                <div><dt>Требование-накладная</dt><dd><b class="num" th:text="${'№ ' + (r.oneCRequisitionNumber != null ? r.oneCRequisitionNumber : '—')}"></b><small th:classappend="${k == 'received'} ? 'pay-bad'" th:text="${k == 'off' ? 'помечена на удаление' : (k == 'done' ? 'проведена кнопкой «Завершить»' : (k == 'received' ? 'не проведена — проверьте сырьё и нажмите «Завершить»' : 'не проведена — списание сырья в 1С'))}"></small></dd></div>
+            </dl>
+            <p class="hint">Оба документа создаются с заявкой и меняются сами при каждой правке. Дата в 1С — дата документа, время 06:00.</p>
+        </th:block>
+    </section>
+    <section class="card card-b box" aria-labelledby="h-qh"><h3 id="h-qh">История</h3>
+        <ol class="hist"><li th:each="h : ${hist}"><span class="dot" th:classappend="${h.cls()}" th:utext="${i15[h.icon()]}"></span><div><p th:text="${h.text}"></p><small th:text="${(h.at.year == 9999 ? 'последняя попытка' : @fmt.when(h.at)) + ' · ' + h.by}"></small></div></li></ol>
+    </section>
+    <section class="card card-b box" aria-labelledby="h-qw"><h3 id="h-qw">Кто что делает</h3>
+        <ul class="roles">
+            <li><b>Бухгалтер, технолог, директор</b>создают заявку и меняют замесы, пока выпуск не оприходовали</li>
+            <li><b>Завсклад сырья</b>собирает по чек-листу и выдаёт в цех, правит состав, «Рассчитались», «Завершить»</li>
+            <li><b>Завсклад ГП</b>оприходует выпуск — факт по каждой позиции</li>
+            <li><b>Директор</b>отменяет заявку и исправляет оприходованное</li></ul>
+        <p class="hint">Кнопки здесь — по вашей роли. Склады делают то же в приложении на телефоне.</p>
+    </section>
+</aside></div>
 </th:block>
+</th:block>
+<th:block th:fragment="scripts">
+<script th:if="${missing == null}" type="application/json" id="rq-page" th:utext="${pageJson}"></script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/req.js?v=1"></script>
+</th:block>
+<th:block th:fragment="itemActs(x)"><span class="q-acts" th:attr="data-item=${x.itemId},data-name=${x.name},data-unit=${x.unit},data-q=${x.current},data-ing=${x.ingredientId}"><button class="ibtn" type="button" data-it="edit" th:attr="aria-label=${'Изменить количество: ' + x.name}" title="Изменить количество" th:utext="${i['edit']}"></button><button class="ibtn" type="button" data-it="swap" th:attr="aria-label=${'Заменить: ' + x.name}" title="Заменить другим сырьём" th:utext="${i['swap']}"></button><button class="ibtn" type="button" data-it="del" th:attr="aria-label=${'Убрать: ' + x.name}" title="Убрать из заявки" th:utext="${i['trash']}"></button></span></th:block>
 </body>
 </html>

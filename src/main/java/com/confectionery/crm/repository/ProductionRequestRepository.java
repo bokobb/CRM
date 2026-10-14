@@ -16,6 +16,8 @@ public interface ProductionRequestRepository extends JpaRepository<ProductionReq
 
     List<ProductionRequest> findAllByOrderByCreatedAtDesc();
 
+    long countByStatus(ProductionRequestStatus status);
+
     boolean existsByLinesProductId(Long productId);
 
     /** Заявки смены за период по дате документа — себестоимость на экране «Производство». */
