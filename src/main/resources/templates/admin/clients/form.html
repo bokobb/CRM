@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!--/* Новый клиент и изменение отдельной страницей: сюда ведут ссылки без JS и сюда же сервер возвращает ошибки
+     проверки. Поля и проверки — те же, что в окне (clients/dlg.html, client-dlg.js). */-->
 <html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
 <body>
 <th:block th:fragment="content">
@@ -8,18 +10,19 @@
 <div class="errs errs-top" role="alert" th:if="${!errors.isEmpty()}"><span th:each="e : ${errors}" th:text="${e}"></span></div>
 <form method="post" th:action="${c.id != null ? '/admin/clients/' + c.id : '/admin/clients'}" data-guard="Клиент не сохранён." style="max-width:860px">
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-    <section class="card form-card"><div class="fgrid">
-        <label class="field wide"><span>Магазин или имя</span><input class="inp" name="name" required maxlength="200" th:value="${c.name}" placeholder="Магазин «Береке»"></label>
-        <label class="field"><span>Контактное лицо</span><input class="inp" name="contactPerson" maxlength="200" th:value="${c.contactPerson}"></label>
-        <label class="field"><span>Телефон</span><input class="inp" name="phone" type="tel" maxlength="40" th:value="${c.phone}" placeholder="+7 700 000 00 00"></label>
-        <label class="field"><span>Почта</span><input class="inp" name="email" type="email" maxlength="200" th:value="${c.email}"></label>
-        <label class="field"><span>БИН/ИИН</span><input class="inp" name="bin" inputmode="numeric" maxlength="12" th:value="${c.bin}"></label>
-        <label class="field wide"><span>Адрес</span><input class="inp" name="address" maxlength="300" th:value="${c.address}"></label>
-        <label class="field"><span>Оплата по умолчанию</span><select class="sel full" name="defaultPayment"><option value="">Наличными при выдаче</option>
-            <option th:each="p : ${payments}" th:if="${p.name() != 'CASH'}" th:value="${p.name()}" th:text="${p.label}" th:selected="${c.defaultPayment == p}"></option></select></label>
-        <label class="field wide"><span>Заметка</span><textarea class="ta" name="notes" maxlength="2000" th:text="${c.notes}"></textarea></label>
+    <section class="card form-card"><div class="cd-grid">
+        <div class="field wide"><label class="lbl" for="cf-name">Название — как на вывеске или в документах</label><input class="inp" id="cf-name" name="name" required maxlength="200" th:value="${c.name}" placeholder="Например: Магазин «Айгүл»"></div>
+        <div class="field"><label class="lbl" for="cf-person">Контактное лицо</label><input class="inp" id="cf-person" name="contactPerson" maxlength="200" th:value="${c.contactPerson}" placeholder="Имя"></div>
+        <div class="field"><label class="lbl" for="cf-phone">Телефон — по нему входят на сайт</label><input class="inp" id="cf-phone" name="phone" type="tel" inputmode="tel" maxlength="40" th:value="${c.phone}" placeholder="+7 7__ ___ __ __"></div>
+        <fieldset class="fs wide"><legend class="lbl">Как обычно платит</legend><div class="radios">
+            <label class="radio" th:each="p : ${payments}"><input type="radio" name="defaultPayment" th:value="${p.name()}" th:checked="${c.defaultPayment == p or (c.defaultPayment == null and p.name() == 'CASH')}"><th:block th:text="${p.label}"></th:block></label>
+        </div></fieldset>
+        <div class="field"><label class="lbl" for="cf-bin">БИН или ИИН — для счёта и ЭСФ</label><input class="inp" id="cf-bin" name="bin" inputmode="numeric" maxlength="12" th:value="${c.bin}" placeholder="12 цифр, можно позже"></div>
+        <div class="field"><label class="lbl" for="cf-email">Почта</label><input class="inp" id="cf-email" name="email" type="email" maxlength="200" th:value="${c.email}" placeholder="Необязательно"></div>
+        <div class="field wide"><label class="lbl" for="cf-addr">Адрес</label><input class="inp" id="cf-addr" name="address" maxlength="300" th:value="${c.address}" placeholder="Необязательно"></div>
+        <div class="field wide"><label class="lbl" for="cf-note">Заметка</label><textarea class="ta" id="cf-note" name="notes" maxlength="2000" th:text="${c.notes}" placeholder="Например: забирает по субботам, звонить за час"></textarea></div>
     </div>
-    <div class="form-acts"><a class="btn btn-soft" th:href="${c.id != null ? '/admin/clients/' + c.id : '/admin/clients'}">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div></section>
+    <div class="form-acts"><a class="btn btn-soft" th:href="${c.id != null ? '/admin/clients/' + c.id : '/admin/clients'}">Отмена</a><button class="btn btn-primary" type="submit" th:text="${c.id != null ? 'Сохранить' : 'Добавить клиента'}">Сохранить</button></div></section>
 </form>
 </th:block>
 </body>

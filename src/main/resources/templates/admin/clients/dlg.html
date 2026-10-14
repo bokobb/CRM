@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<!--/* Окно «Новый клиент» / «Изменить клиента» — подключается в список клиентов, карточку и форму заказа.
+     Поведение — client-dlg.js; телефоны для проверки на повтор — #cd-phones на странице. */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="dlg">
+<template id="dlg-client">
+    <form class="dlg-in" id="cd" method="post" action="/admin/clients" novalidate>
+        <h2 id="dlg-h">Новый клиент</h2>
+        <div class="cd-grid">
+            <div class="field wide"><label class="lbl" for="cd-name">Название — как на вывеске или в документах</label><input class="inp" id="cd-name" name="name" maxlength="200" autocomplete="off" placeholder="Например: Магазин «Айгүл»"></div>
+            <div class="field"><label class="lbl" for="cd-person">Контактное лицо</label><input class="inp" id="cd-person" name="contactPerson" maxlength="200" autocomplete="off" placeholder="Имя"></div>
+            <div class="field"><label class="lbl" for="cd-phone">Телефон — по нему входят на сайт</label><input class="inp" id="cd-phone" name="phone" type="tel" inputmode="tel" maxlength="40" autocomplete="off" placeholder="+7 7__ ___ __ __"></div>
+            <fieldset class="fs wide"><legend class="lbl">Как обычно платит</legend><div class="radios">
+                <label class="radio"><input type="radio" name="defaultPayment" value="CASH" checked>Наличными при выдаче</label>
+                <label class="radio"><input type="radio" name="defaultPayment" value="INVOICE">По счёту</label>
+                <label class="radio"><input type="radio" name="defaultPayment" value="KASPI">Kaspi</label>
+            </div></fieldset>
+            <div class="field"><label class="lbl" for="cd-bin">БИН или ИИН — для счёта и ЭСФ</label><input class="inp" id="cd-bin" name="bin" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="12 цифр, можно позже"></div>
+            <div class="field"><label class="lbl" for="cd-email">Почта</label><input class="inp" id="cd-email" name="email" type="email" maxlength="200" autocomplete="off" placeholder="Необязательно"></div>
+            <div class="field wide"><label class="lbl" for="cd-addr">Адрес</label><input class="inp" id="cd-addr" name="address" maxlength="300" autocomplete="off" placeholder="Необязательно"></div>
+        </div>
+        <div class="errs" id="cd-e" role="alert" hidden></div>
+        <div class="dlg-acts"><button class="btn btn-soft" type="button" data-close>Отмена</button><button class="btn btn-primary" type="submit" id="cd-go">Добавить клиента</button></div>
+    </form>
+</template>
+</th:block>
+</body>
+</html>

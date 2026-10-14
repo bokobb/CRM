@@ -95,7 +95,7 @@
         </section>
         <section class="card card-b box" aria-labelledby="h-cl"><h3 id="h-cl">Клиент</h3>
             <dl class="kv">
-                <div><dt>Магазин</dt><dd><b th:text="${o.client.name}"></b></dd></div>
+                <div><dt>Магазин</dt><dd><a th:if="${canClient}" class="cl-link" th:href="${'/admin/clients/' + o.client.id}" th:text="${o.client.name}"></a><b th:unless="${canClient}" th:text="${o.client.name}"></b></dd></div>
                 <div th:if="${o.client.contactPerson != null and !#strings.isEmpty(o.client.contactPerson)}"><dt>Контакт</dt><dd th:text="${o.client.contactPerson}"></dd></div>
                 <div th:if="${o.client.phone != null and !#strings.isEmpty(o.client.phone)}"><dt>Телефон</dt><dd class="phone"><span th:text="${@fmt.phone(o.client.phone)}"></span><button class="link" type="button" th:attr="data-copy=${o.client.phone}"><th:block th:utext="${i['copy']}"></th:block>Копировать</button></dd></div>
                 <div><dt>Заказов</dt><dd><th:block th:text="${clientOrders}"></th:block> · <a class="link" th:href="${'/admin/orders?client=' + o.client.id}">все заказы клиента</a></dd></div>

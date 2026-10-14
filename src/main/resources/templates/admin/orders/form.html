@@ -6,7 +6,7 @@
 <div class="oh">
     <div class="oh-t"><h2 th:text="${st.no != null ? 'Изменить заказ № ' + st.no : 'Новый заказ'}">Новый заказ</h2>
         <span th:if="${o != null}" class="st" th:classappend="${'st--' + o.status.badge()}"><th:block th:utext="${i16['s-' + o.status.badge()]}"></th:block><span th:text="${o.status.badgeLabel()}"></span></span></div>
-    <p class="oh-m" th:text="${st.no != null ? 'Состав, окно выдачи и оплату можно менять, пока заказ не начали собирать.' : (repeat ? 'Повтор заказа: тот же клиент и товары, цены — сегодняшние.' : 'Заказ по телефону или WhatsApp. Из админки заказ сразу получает статус «Принят».')}"></p>
+    <p class="oh-m" th:text="${st.no != null ? 'Состав, окно выдачи и оплату можно менять, пока заказ не начали собирать.' : (repeat ? 'Повтор заказа: тот же клиент и товары, цены — сегодняшние.' : (usual ? 'Обычный заказ клиента: товары, которые он берёт чаще всего, по обычному числу коробок. Проверьте количество и выберите окно выдачи.' : 'Заказ по телефону или WhatsApp. Из админки заказ сразу получает статус «Принят».'))}"></p>
 </div>
 <form id="of-form" method="post" th:action="${st.no != null ? '/admin/orders/' + st.no : '/admin/orders'}" novalidate
       th:attr="data-guard=${st.no != null ? 'Изменения заказа № ' + st.no + ' не сохранены.' : 'Новый заказ ещё не создан.'}">
@@ -30,15 +30,18 @@
         <aside class="card of-sum" id="f-sum" aria-label="Итог заказа"></aside>
     </div>
 </form>
+<th:block th:if="${canAddClient}"><th:block th:replace="~{admin/clients/dlg :: dlg}"></th:block></th:block>
 </th:block>
 <th:block th:fragment="scripts">
+<th:block th:if="${canAddClient}"><script type="application/json" id="cd-phones" th:utext="${phonesJson}"></script>
+<script src="/admin/assets/client-dlg.js?v=1"></script></th:block>
 <script type="application/json" id="of-state" th:utext="${stateJson}"></script>
 <script type="application/json" id="of-catalog" th:utext="${catalogJson}"></script>
 <script type="application/json" id="of-clients" th:utext="${clientsJson}"></script>
 <script type="application/json" id="of-slots" th:utext="${slotsJson}"></script>
 <script type="application/json" id="of-errors" th:utext="${errorsJson}"></script>
 <script src="/admin/assets/slots.js?v=1"></script>
-<script src="/admin/assets/order-form.js?v=1"></script>
+<script src="/admin/assets/order-form.js?v=2"></script>
 </th:block>
 </body>
 </html>

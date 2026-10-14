@@ -69,14 +69,17 @@
     var box = $('f-client');
     if (F.client && CL[F.client]) {
       var c = CL[F.client];
-      box.innerHTML = '<div class="cl-card"><p><b>' + esc(c.org) + '</b><span>' + esc([c.person, c.phone].filter(Boolean).join(' · ')).replace(/ /g, NB) + '</span></p>' +
+      var late = c.late == null ? null : +c.late;
+      box.innerHTML = '<div class="cl-card"><p><b>' + esc(c.org) + '</b><span>' + esc([c.person, c.phone].filter(Boolean).join(' · ')).replace(/ /g, NB) + '</span>' +
+        (+c.debt > 0 ? '<small class="cl-debt' + (late != null && late >= 0 ? ' pay-bad' : '') + '">Долг ' + money(+c.debt) +
+          (late > 0 ? ', просрочен ' + late + NB + 'дн.' : late === 0 ? ', срок сегодня' : '') + '</small>' : '') + '</p>' +
         '<button class="btn btn-soft btn-sm" type="button" id="f-cl-x">Другой клиент</button></div>';
       $('f-cl-x').onclick = function () { F.client = null; dirty(); fClient(); fSum(); $('f-cq').focus(); };
       return;
     }
     box.innerHTML = '<div class="field"><label class="lbl" for="f-cq">Магазин, имя или телефон</label>' +
       '<input class="inp' + (F.tried ? ' is-bad' : '') + '" id="f-cq" autocomplete="off" spellcheck="false" placeholder="Начните вводить — название магазина или цифры телефона" value="' + esc(F.cq) + '"></div>' +
-      '<div id="f-csug"></div><p class="hint">Нового клиента добавляют в разделе <a class="link" href="/admin/clients/new">«Клиенты»</a>.</p>';
+      '<div id="f-csug"></div>' + (window.ClientDlg && $('dlg-client') ? '<p><button class="link" type="button" id="f-cnew">' + icon('plus') + 'Новый клиент</button></p>' : '');
     var inp = $('f-cq');
     inp.addEventListener('input', function () { F.cq = this.value; F.chi = 0; cSug(); });
     inp.addEventListener('keydown', function (e) {
@@ -92,6 +95,15 @@
     $('f-csug').addEventListener('mousedown', function (e) {
       var b = e.target.closest('button[data-key]'); if (!b) return;
       e.preventDefault(); cPick(+b.getAttribute('data-key'));
+    });
+    if ($('f-cnew')) $('f-cnew').addEventListener('click', function () {
+      // набранное в поиске — в окно: цифры телефона в «Телефон», остальное — в название
+      var q = F.cq.trim(), d = q.replace(/\D/g, ''), pre = null;
+      if (q) pre = d.length >= 10 && d.length === q.replace(/[\s()+-]/g, '').length ? { phone: q } : { name: q };
+      ClientDlg.open(pre, function (c) {
+        CLIENTS.push(c); CL[c.key] = c;
+        cPick(c.key);
+      });
     });
   }
   function clientMatches(text) {

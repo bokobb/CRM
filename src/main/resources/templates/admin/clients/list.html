@@ -1,32 +1,47 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<form class="tools" method="get" action="/admin/clients" data-autosubmit>
-    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block><input class="inp" name="q" type="search" placeholder="Магазин, контакт, телефон, адрес" autocomplete="off" th:value="${q}"></label>
+<form class="tools tools--c" method="get" action="/admin/clients" data-autosubmit>
+    <input type="hidden" name="seg" th:value="${seg}">
+    <label class="search"><span class="sr">Поиск клиента</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Магазин, имя или телефон" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">Порядок</span><select class="sel" name="sort">
+        <option th:each="o : ${sorts}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
     <span class="grow"></span>
-    <a class="btn btn-primary btn-sm" href="/admin/clients/new"><th:block th:utext="${i['plus']}"></th:block>Новый клиент</a>
+    <a class="btn btn-primary btn-sm" href="/admin/clients/new" data-client-dlg="new"><th:block th:utext="${i['plus']}"></th:block><span>Новый клиент</span></a>
 </form>
-<div class="chips">
-    <a th:if="${isAdmin}" class="chip" th:classappend="${accessCount > 0} ? 'chip--alert'" href="/admin/clients/access">Доступ на сайт <span th:text="${accessCount}"></span></a>
-    <a class="chip" th:classappend="${callbackCount > 0} ? 'chip--alert'" href="/admin/clients/callbacks">«Перезвоните мне» <span th:text="${callbackCount}"></span></a>
-    <a class="chip" th:classappend="${debtCount > 0} ? 'chip--alert'" href="/admin/clients/debts">Долги <span th:text="${debtCount}"></span></a>
+<div class="chips" role="group" aria-label="Кого показать">
+    <a th:each="g : ${segs}" class="chip" th:classappend="${g.alert} ? 'chip--alert'" th:href="${g.href}" th:attr="aria-pressed=${g.on}"><th:block th:text="${g.label}"></th:block> <span th:text="${g.count}"></span></a>
+    <span class="chips-sep" aria-hidden="true"></span>
+    <a th:if="${isAdmin}" class="chip chip--link" th:classappend="${accessCount > 0} ? 'chip--alert'" href="/admin/clients/access">Доступ на сайт <span th:text="${accessCount}"></span></a>
+    <a class="chip chip--link" th:classappend="${callbackCount > 0} ? 'chip--alert'" href="/admin/clients/callbacks">«Перезвоните мне» <span th:text="${callbackCount}"></span></a>
+    <a class="chip chip--link" th:classappend="${debtCount > 0} ? 'chip--alert'" href="/admin/clients/debts">Долги со сроком <span th:text="${debtCount}"></span></a>
 </div>
-<section class="card"><div class="tbl-w">
-    <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
-    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
-        <thead><tr><th>Клиент</th><th>Телефон</th><th class="r">Заказов</th><th class="r">Куплено</th><th>Последний заказ</th><th class="r">Долг</th></tr></thead>
+<section class="card" aria-label="Клиенты"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Никого не нашлось.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--c">
+        <thead><tr><th>Клиент</th><th class="c-ph">Телефон</th><th>Выдано</th><th>Последний заказ</th><th class="r c-30">За 30 дней</th><th class="r">Долг</th><th>Статус</th></tr></thead>
         <tbody><tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/clients/' + r.client.id}">
-            <td class="c-full"><a th:href="${'/admin/clients/' + r.client.id}" style="text-decoration:none"><b th:text="${r.client.name}"></b></a><small th:text="${!#strings.isEmpty(r.client.contactPerson) ? r.client.contactPerson : r.client.address}"></small></td>
-            <td class="num" th:text="${@fmt.phone(r.client.phone)}"></td>
-            <td class="r num" th:text="${r.orders}"></td>
-            <td class="r num"><b th:text="${@fmt.money(r.sales)}"></b></td>
-            <td th:text="${r.last != null ? @fmt.cap(@fmt.relDay(r.last)) : '—'}"></td>
-            <td class="r num" th:classappend="${r.debt.signum() > 0} ? 'pay-bad'" th:text="${r.debt.signum() > 0 ? @fmt.money(r.debt) : '—'}"></td>
+            <td class="c-nm"><div class="cl-n"><span class="cav" aria-hidden="true" th:text="${r.initial}">Б</span>
+                <p><a th:href="${'/admin/clients/' + r.client.id}" th:text="${r.client.name}">Магазин</a>
+                    <small th:text="${!#strings.isEmpty(r.client.contactPerson) ? r.client.contactPerson : (!#strings.isEmpty(r.client.address) ? r.client.address : '—')}"></small></p></div></td>
+            <td class="c-ph num" th:text="${r.client.phone != null ? @fmt.phone(r.client.phone) : '—'}"></td>
+            <td class="c-or"><b th:text="${r.orTitle}"></b><small th:text="${r.orSub}"></small></td>
+            <td class="c-last"><b th:text="${r.lastTitle}"></b><small th:classappend="${r.lastBad} ? 'pay-bad'" th:text="${r.lastSub}"></small></td>
+            <td class="c-30 r num"><th:block th:if="${r.s.sum30.signum() > 0}" th:text="${@fmt.money(r.s.sum30)}"></th:block><span th:unless="${r.s.sum30.signum() > 0}" class="muted">—</span></td>
+            <td class="c-debt r num"><th:block th:if="${r.s.debt.signum() > 0}"><b th:classappend="${r.s.hasOverdue()} ? 'pay-bad'" th:text="${@fmt.money(r.s.debt)}"></b><small th:classappend="${r.debtBad} ? 'pay-bad'" th:text="${r.debtSub}"></small></th:block><span th:unless="${r.s.debt.signum() > 0}" class="muted">—</span></td>
+            <td class="c-st"><span class="cst" th:classappend="${'cst--' + r.s.st}" th:text="${r.s.stLabel()}">Заказывает</span></td>
         </tr></tbody>
     </table>
 </div></section>
-<p class="cnt" th:text="${'Клиентов: ' + rows.size() + '. Вход клиента на сайт — по телефону из этого списка.'}"></p>
+<p class="cnt" th:text="${'Клиентов: ' + rows.size() + ' из ' + total + '. Долг всего ' + @fmt.money(debtAll) + (lateAll.signum() > 0 ? ', из него просрочено ' + @fmt.money(lateAll) : '') + '. «Пора напомнить» — не заказывает дольше полутора своих обычных перерывов между заказами. Вход клиента на сайт — по телефону из этого списка.'}"></p>
+<th:block th:replace="~{admin/clients/dlg :: dlg}"></th:block>
+</th:block>
+<th:block th:fragment="scripts">
+<script type="application/json" id="cd-phones" th:utext="${phonesJson}"></script>
+<script src="/admin/assets/client-dlg.js?v=1"></script>
 </th:block>
 </body>
 </html>

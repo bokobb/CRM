@@ -151,7 +151,7 @@
     openDlg('<div class="dlg-in"><h2 id="dlg-h">' + esc(b.getAttribute('data-confirm-title') || 'Подтвердите') + '</h2>' +
       '<p class="muted">' + esc(b.getAttribute('data-confirm')) + '</p><div class="dlg-acts">' +
       '<button class="btn btn-soft" type="button" data-close>Отмена</button>' +
-      '<button class="btn ' + (b.classList.contains('btn-danger') ? 'btn-danger' : 'btn-primary') + '" type="button" id="cf-ok">' + esc(b.getAttribute('data-confirm-ok') || b.textContent.trim()) + '</button></div></div>');
+      '<button class="btn ' + (b.classList.contains('btn-danger') || b.classList.contains('link--danger') ? 'btn-danger' : 'btn-primary') + '" type="button" id="cf-ok">' + esc(b.getAttribute('data-confirm-ok') || b.textContent.trim()) + '</button></div></div>');
     $('cf-ok').onclick = function () {
       closeDlg();
       b.setAttribute('data-confirmed', '');

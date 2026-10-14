@@ -201,6 +201,7 @@ public class AdminOrderController {
         model.addAttribute("canMove", stateMachine.canMove(o, role));
         model.addAttribute("canPay", stateMachine.canMarkPaid(o, role));
         model.addAttribute("isAdmin", role == Role.ADMIN);
+        model.addAttribute("canClient", canClients(role));
         model.addAttribute("clientOrders", orderRepository.findByClientIdOrderByCreatedAtDesc(o.getClient().getId()).size());
         model.addAttribute("placedBy", AdminOrders.byClient(o)
                 ? (o.getSource() == OrderSource.WHATSAPP ? "покупателем в WhatsApp" : "покупателем на сайте")
@@ -311,7 +312,7 @@ public class AdminOrderController {
     }
 
     @PostMapping("/orders/{id}/paid")
-    public String paid(@PathVariable Long id, RedirectAttributes ra) {
+    public String paid(@PathVariable Long id, @RequestParam(required = false) String next, RedirectAttributes ra) {
         try {
             orderService.markPaid(id);
             ra.addFlashAttribute("toast", "Оплата по заказу № " + id + " отмечена");
@@ -319,7 +320,13 @@ public class AdminOrderController {
             ra.addFlashAttribute("toast", e.getMessage());
             ra.addFlashAttribute("toastError", true);
         }
-        return "redirect:/admin/orders/" + id;
+        return next != null && next.startsWith("/admin/") ? "redirect:" + next : "redirect:/admin/orders/" + id;
+    }
+
+    /** Раздел «Клиенты» виден роли: ссылка на карточку клиента и «Новый клиент» в форме заказа. */
+    static boolean canClients(Role role) {
+        AdminSections.Section s = AdminSections.byKey("clients");
+        return role != null && s != null && s.visibleTo(role);
     }
 
     // ------------------------------------------------------------------ новый заказ, изменение
@@ -331,11 +338,22 @@ public class AdminOrderController {
 
     @GetMapping("/orders/new")
     @Transactional(readOnly = true)
-    public String newForm(@RequestParam(required = false) Long repeat, @RequestParam(required = false) Long client, Model model) {
+    public String newForm(@RequestParam(required = false) Long repeat, @RequestParam(required = false) Long client,
+                          @RequestParam(defaultValue = "0") int usual, Model model) {
         Order src = repeat == null ? null : orderRepository.findById(repeat).orElse(null);
         List<Map<String, Object>> rows = new ArrayList<>();
         Long clientId = client;
         String pay = null;
+        boolean usualOn = false;
+        if (src == null && client != null && usual == 1) {
+            // обычный заказ клиента — товары, которые есть хотя бы в 40 % его выданных заказов, по обычному числу коробок
+            Client c = clientRepository.findById(client).orElse(null);
+            if (c != null) {
+                rows.addAll(AdminClients.usual(AdminClients.stats(c, orderRepository.findByClientIdOrderByCreatedAtDesc(client), LocalDate.now())));
+                usualOn = !rows.isEmpty();
+            }
+        }
+        model.addAttribute("usual", usualOn);
         if (src != null) {
             clientId = src.getClient().getId();
             pay = src.getPaymentMethod() == null ? null : src.getPaymentMethod().name();
@@ -383,6 +401,10 @@ public class AdminOrderController {
         model.addAttribute("clientsJson", AdminJson.of(clients()));
         model.addAttribute("slotsJson", AdminJson.of(slotWeek(st.no())));
         model.addAttribute("payments", PaymentMethod.values());
+        if (!model.containsAttribute("usual")) model.addAttribute("usual", false);
+        boolean canAdd = canClients(currentUserService.role().orElse(null));
+        model.addAttribute("canAddClient", canAdd);
+        if (canAdd) model.addAttribute("phonesJson", AdminJson.of(AdminClientController.phones(clientRepository.findAll())));
         return "admin/orders/form";
     }
 
@@ -408,6 +430,15 @@ public class AdminOrderController {
     }
 
     List<Map<String, Object>> clients() {
+        LocalDate today = LocalDate.now();
+        Map<Long, BigDecimal> debt = new HashMap<>();
+        Map<Long, Long> late = new HashMap<>();
+        for (Order o : orderRepository.findByStatusOrderByCreatedAtDesc(OrderStatus.DELIVERED)) {
+            if (o.isPaid()) continue;
+            Long cid = o.getClient().getId();
+            debt.merge(cid, AdminOrders.totals(o).pay(), BigDecimal::add);
+            if (o.getDebtDueDate() != null) late.merge(cid, java.time.temporal.ChronoUnit.DAYS.between(o.getDebtDueDate(), today), Math::max);
+        }
         List<Map<String, Object>> out = new ArrayList<>();
         for (Client c : clientRepository.findAll()) {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -416,6 +447,11 @@ public class AdminOrderController {
             m.put("person", c.getContactPerson() == null ? "" : c.getContactPerson());
             m.put("phone", c.getPhone() == null ? "" : c.getPhone());
             m.put("pay", c.getDefaultPayment() == null ? "" : c.getDefaultPayment().name());
+            BigDecimal d = debt.get(c.getId());
+            if (d != null && d.signum() > 0) {
+                m.put("debt", d);
+                m.put("late", late.get(c.getId()));
+            }
             out.add(m);
         }
         return out;
