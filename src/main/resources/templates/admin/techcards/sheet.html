@@ -76,7 +76,7 @@
             <td class="r"><b th:text="${@fmt.num(x.qty.multiply(nb)) + ' ' + x.unit}">12 кг</b></td><td class="r muted">________</td></tr></tbody>
         <tfoot th:if="${c.allMass}"><tr><td></td><td>Закладка</td><td class="r" th:text="${@fmt.fix(c.batchKg.multiply(nb), 3) + ' кг'}"></td><td></td></tr></tfoot>
     </table>
-    <p class="out" th:if="${outQty != null}">Выход: <b th:text="${@fmt.num(outQty) + ' ' + t.unit}"></b><th:block th:if="${outBoxes != null}" th:text="${' → ' + outBoxes + ' кор.' + (outRest > 0 ? ' + ' + outRest + ' ' + t.unit : '')}"></th:block></p>
+    <p class="out" th:if="${outQty != null}">Выход: <b th:text="${@fmt.num(outQty) + ' ' + (t.unit ?: 'шт')}"></b><th:block th:if="${outBoxes != null}" th:text="${' → ' + outBoxes + ' кор.' + (outRest > 0 ? ' + ' + outRest + ' ' + (t.unit ?: 'шт') : '')}"></th:block></p>
     <h2 th:unless="${t.stages.isEmpty()}">Этапы</h2>
     <ol th:unless="${t.stages.isEmpty()}">
         <li th:each="s, it : ${t.stages}" th:classappend="${s.ccp} ? 'ccp'"><span class="n" th:text="${it.count}">1</span><div>

@@ -29,11 +29,11 @@
     <section class="card" id="tc-pass"><div class="card-h"><h2><span class="sn">1</span>Паспорт изделия</h2></div>
         <div class="card-b"><dl class="pass">
             <div><dt>Группа</dt><dd th:text="${t.group != null ? t.group : '—'}"></dd></div>
-            <div><dt>Выход с замеса</dt><dd th:text="${c.yield != null ? @fmt.num(c.yield) + ' ' + t.unit : '—'}"></dd></div>
+            <div><dt>Выход с замеса</dt><dd th:text="${c.yield != null ? @fmt.num(c.yield) + ' ' + (t.unit ?: 'шт') : '—'}"></dd></div>
             <div th:if="${semi}"><dt>Назначение</dt><dd>Полуфабрикат: идёт в другие изделия, на продажу не фасуется</dd></div>
             <div th:unless="${semi}"><dt>Масса нетто</dt><dd><th:block th:if="${c.finished != null}" th:text="${@fmt.num(c.finished) + ' г'}"></th:block><span th:unless="${c.finished != null}" class="stale">не задана</span></dd></div>
-            <div th:unless="${semi}"><dt>В коробке</dt><dd th:text="${c.perBox != null ? @fmt.num(c.perBox) + ' ' + t.unit : '—'}"></dd></div>
-            <div th:unless="${semi}"><dt>Цена в каталоге</dt><dd th:text="${c.salePrice != null ? @fmt.money(c.salePrice) + ' за ' + t.unit : '—'}"></dd></div>
+            <div th:unless="${semi}"><dt>В коробке</dt><dd th:text="${c.perBox != null ? @fmt.num(c.perBox) + ' ' + (t.unit ?: 'шт') : '—'}"></dd></div>
+            <div th:unless="${semi}"><dt>Цена в каталоге</dt><dd th:text="${c.salePrice != null ? @fmt.money(c.salePrice) + ' за ' + (t.unit ?: 'шт') : '—'}"></dd></div>
             <div><dt>Срок годности</dt><dd><th:block th:if="${t.shelfLife != null}" th:text="${t.shelfLife}"></th:block><span th:unless="${t.shelfLife != null}" class="stale">не указан</span></dd></div>
             <div class="wide"><dt>Условия хранения</dt><dd th:text="${t.storageConditions ?: '—'}"></dd></div>
             <div class="wide" th:unless="${semi}"><dt>Упаковка</dt><dd th:text="${t.packaging ?: '—'}"></dd></div>
@@ -44,9 +44,9 @@
         <div class="card-b" th:unless="${c.hasRows()}"><p>Рецептура не заполнена. <a class="link" th:href="${'/admin/recipes/' + t.productId}">Заполнить в «Рецептах»</a></p></div>
         <th:block th:if="${c.hasRows()}">
         <div class="card-b"><p class="muted">Состав берётся из рецептуры — один источник для цеха, склада и себестоимости.
-            <th:block th:if="${c.allMass}">Замес <b class="ok-t" th:text="${@fmt.fix(c.batchKg, 3) + ' кг'}"></b> → <b class="ok-t" th:text="${@fmt.num(c.yield) + ' ' + t.unit}"></b>.</th:block></p>
+            <th:block th:if="${c.allMass}">Замес <b class="ok-t" th:text="${@fmt.fix(c.batchKg, 3) + ' кг'}"></b> → <b class="ok-t" th:text="${@fmt.num(c.yield) + ' ' + (t.unit ?: 'шт')}"></b>.</th:block></p>
             <div class="flow" th:if="${c.dough != null}">
-                <div><span th:text="${'Тесто на 1 ' + t.unit}">Тесто на 1 шт</span><b th:text="${@fmt.fix(c.dough, 1) + ' г'}"></b><small>закладка ÷ выход с замеса</small></div>
+                <div><span th:text="${'Тесто на 1 ' + (t.unit ?: 'шт')}">Тесто на 1 шт</span><b th:text="${@fmt.fix(c.dough, 1) + ' г'}"></b><small>закладка ÷ выход с замеса</small></div>
                 <div><span>Готовое изделие</span><b th:text="${c.finished != null ? @fmt.num(c.finished) + ' г' : '—'}"></b><small th:text="${c.finished != null ? 'масса нетто из «Товаров»' : 'масса нетто не задана'}"></small></div>
                 <div th:classappend="${c.lossBad()} ? 'is-bad'"><span>Упёк</span><b th:text="${c.loss != null ? @fmt.fix(c.loss, 1) + ' %' : '—'}"></b><small>тесто − готовое, от теста</small></div>
             </div></div>
@@ -69,8 +69,8 @@
         <div class="card-b" th:unless="${c.hasRows()}"><p class="muted">Посчитаем, когда будет рецептура.</p></div>
         <div class="card-b" th:if="${c.hasRows()}" style="display:grid;gap:14px">
             <div class="costs">
-                <div class="cost"><span>Сырьё на замес<small th:text="${(c.allMass ? @fmt.fix(c.batchKg, 3) + ' кг → ' : '') + @fmt.num(c.yield) + ' ' + t.unit}"></small></span><b th:text="${@fmt.money(c.batchCost)}"></b></div>
-                <div class="cost" th:if="${c.perUnit != null}"><span th:text="${'Сырьё на 1 ' + t.unit}">Сырьё на 1 шт</span><b th:text="${@fmt.fix(c.perUnit, c.perUnitScale()) + ' ₸'}"></b></div>
+                <div class="cost"><span>Сырьё на замес<small th:text="${(c.allMass ? @fmt.fix(c.batchKg, 3) + ' кг → ' : '') + @fmt.num(c.yield) + ' ' + (t.unit ?: 'шт')}"></small></span><b th:text="${@fmt.money(c.batchCost)}"></b></div>
+                <div class="cost" th:if="${c.perUnit != null}"><span th:text="${'Сырьё на 1 ' + (t.unit ?: 'шт')}">Сырьё на 1 шт</span><b th:text="${@fmt.fix(c.perUnit, c.perUnitScale()) + ' ₸'}"></b></div>
                 <div class="cost" th:if="${c.perKg != null}"><span>Сырьё на 1 кг теста</span><b th:text="${@fmt.money(c.perKg)}"></b></div>
                 <div class="cost-tot" th:if="${!semi and c.salePrice != null}"><span>Цена в каталоге</span><b th:text="${@fmt.money(c.salePrice)}"></b></div>
             </div>
@@ -87,7 +87,7 @@
             <div class="plan-c"><label class="sr" for="pl-n">Сколько</label><input class="inp" id="pl-n" inputmode="numeric" maxlength="5" value="1">
                 <div class="seg" role="group" aria-label="Единица" id="pl-u">
                     <button th:if="${c.perBox != null}" type="button" data-u="box" aria-pressed="false">коробок</button>
-                    <button type="button" data-u="pcs" aria-pressed="false" th:text="${t.unit == 'шт' ? 'штук' : t.unit}">штук</button>
+                    <button type="button" data-u="pcs" aria-pressed="false" th:text="${(t.unit ?: 'шт') == 'шт' ? 'штук' : (t.unit ?: 'шт')}">штук</button>
                     <button type="button" data-u="batch" aria-pressed="true">замесов</button></div></div>
             <p class="plan-r" id="pl-r" aria-live="polite"></p></div>
         <div class="tbl-w" id="pl-t"></div>
@@ -128,12 +128,12 @@
 </div>
 <aside class="tc-aside">
     <section class="card card-b box">
-        <div class="sum-big" th:if="${labor and c.perUnit != null}"><span th:text="${'Сырьё на 1 ' + t.unit}">Сырьё на 1 шт</span><b th:text="${@fmt.fix(c.perUnit, c.perUnitScale()) + ' ₸'}"></b></div>
-        <div class="sum-big" th:unless="${labor and c.perUnit != null}"><span>Выход с замеса</span><b th:text="${c.yield != null ? @fmt.num(c.yield) + ' ' + t.unit : '—'}"></b></div>
+        <div class="sum-big" th:if="${labor and c.perUnit != null}"><span th:text="${'Сырьё на 1 ' + (t.unit ?: 'шт')}">Сырьё на 1 шт</span><b th:text="${@fmt.fix(c.perUnit, c.perUnitScale()) + ' ₸'}"></b></div>
+        <div class="sum-big" th:unless="${labor and c.perUnit != null}"><span>Выход с замеса</span><b th:text="${c.yield != null ? @fmt.num(c.yield) + ' ' + (t.unit ?: 'шт') : '—'}"></b></div>
         <dl class="sum-k">
             <div th:if="${!semi}"><dt>Цена в каталоге</dt><dd th:text="${c.salePrice != null ? @fmt.money(c.salePrice) : '—'}"></dd></div>
             <div th:if="${labor and !semi}"><dt>Сырьё в цене</dt><dd th:text="${c.rawShare != null ? c.rawShare + ' %' : '—'}"></dd></div>
-            <div th:if="${labor and c.perUnit != null}"><dt>Выход с замеса</dt><dd th:text="${@fmt.num(c.yield) + ' ' + t.unit}"></dd></div>
+            <div th:if="${labor and c.perUnit != null}"><dt>Выход с замеса</dt><dd th:text="${@fmt.num(c.yield) + ' ' + (t.unit ?: 'шт')}"></dd></div>
             <div><dt>Упёк</dt><dd th:classappend="${c.lossBad()} ? 'no-t'" th:text="${c.loss != null ? @fmt.fix(c.loss, 1) + ' %' : '—'}"></dd></div>
             <div th:if="${!semi}"><dt>Масса нетто</dt><dd th:text="${c.finished != null ? @fmt.num(c.finished) + ' г' : '—'}"></dd></div>
             <div><dt>Контрольных точек</dt><dd th:text="${c.ccp}">0</dd></div>
