@@ -33,7 +33,7 @@ public class CallbackRequest {
     @Column(nullable = false, length = 40)
     private String phone;
 
-    /** «Ваш бизнес»: магазин, кафе, столовая… */
+    /** «Ваш бизнес»: клиент пишет сам — название компании, магазина, дистрибуция… */
     @Column(length = 100)
     private String business;
 

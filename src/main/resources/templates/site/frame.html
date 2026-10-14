@@ -86,13 +86,7 @@
       </div>
       <div class="field">
         <label for="lead-type">Ваш бизнес</label>
-        <select id="lead-type" name="type">
-          <option>Магазин или минимаркет</option>
-          <option>Кафе или кофейня</option>
-          <option>Столовая или буфет</option>
-          <option>Оптовая компания</option>
-          <option>Другое</option>
-        </select>
+        <input id="lead-type" name="type" type="text" autocomplete="organization" maxlength="100" placeholder="Название компании, дистрибуция">
       </div>
       <button class="btn btn-primary" type="submit">Жду звонка</button>
       <p class="form-status" id="lead-status" role="status" hidden></p>
