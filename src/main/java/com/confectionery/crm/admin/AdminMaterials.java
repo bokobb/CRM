@@ -150,7 +150,7 @@ public final class AdminMaterials {
         }
 
         public String needNos() {
-            return need == null ? "" : "№ " + String.join(", ", need.requests().stream().sorted().map(String::valueOf).toList());
+            return need == null ? "" : "№\u00a0" + String.join(", ", need.requests().stream().sorted().map(String::valueOf).toList());
         }
     }
 

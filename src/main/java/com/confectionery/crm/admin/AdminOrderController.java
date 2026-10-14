@@ -10,6 +10,10 @@ import com.confectionery.crm.web.dto.OrderForm;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -40,6 +45,13 @@ public class AdminOrderController {
     private final ClientPriceService clientPriceService;
     private final CurrentUserService currentUserService;
     private final AdminFormat fmt;
+    private final InvoicePdfService invoicePdfService;
+    private final OneCInvoiceService oneCInvoiceService;
+    private final CompanyProfileService companyProfileService;
+
+    /** Склад в шапке накладной — как он назван в 1С (тот же параметр, что у приложения). */
+    @org.springframework.beans.factory.annotation.Value("${crm.invoice.warehouse-name:Гатовая Продукция}")
+    private String warehouseName;
 
     static final int PAGE = 50;
 
@@ -227,7 +239,21 @@ public class AdminOrderController {
         model.addAttribute("overpay", overpay);
         model.addAttribute("slotWeek", AdminJson.of(slotWeek(o.getId())));
         model.addAttribute("stamp", OrderService.stamp(o));
+        model.addAttribute("invJson", AdminJson.of(AdminInvoice.data(o, companyProfileService.get().getName(), warehouseName,
+                oneCInvoiceService.warehouseManager())));
         return "admin/orders/view";
+    }
+
+    /** Накладная по заказу в PDF — та же, что в приложении (InvoicePdfService: документы 1С и возвраты). */
+    @GetMapping("/orders/{id}/invoice.pdf")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> invoicePdf(@PathVariable Long id) {
+        Order o = orderRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Заказ не найден: " + id));
+        byte[] pdf = invoicePdfService.generate(o);
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                        .filename(OrderService.invoiceFileName(o), StandardCharsets.UTF_8).build().toString())
+                .body(pdf);
     }
 
     /** Неделя окон для «Перенести» и формы заказа: дни с местами и окна. */

@@ -2,34 +2,45 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
 <body>
 <th:block th:fragment="content">
+<div class="kpis kpis--3">
+    <th:block th:each="t : ${tiles}">
+        <a th:if="${t.href != null}" class="kpi" th:classappend="${t.cls}" th:href="${t.href}"><span class="kpi-l"><th:block th:utext="${i[t.icon]}"></th:block><th:block th:text="${t.label}"></th:block></span>
+            <span class="kpi-v"><th:block th:text="${t.value}"></th:block><th:block th:if="${t.unit != null}"> <small th:text="${t.unit}"></small></th:block></span><span class="kpi-s" th:text="${t.sub}"></span></a>
+        <div th:if="${t.href == null}" class="kpi" th:classappend="${t.cls}"><span class="kpi-l"><th:block th:utext="${i[t.icon]}"></th:block><th:block th:text="${t.label}"></th:block></span>
+            <span class="kpi-v"><th:block th:text="${t.value}"></th:block><th:block th:if="${t.unit != null}"> <small th:text="${t.unit}"></small></th:block></span><span class="kpi-s" th:text="${t.sub}"></span></div>
+    </th:block>
+</div>
 <form class="tools" method="get" action="/admin/purchases" data-autosubmit>
-    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block>
-        <input class="inp" name="q" type="search" placeholder="№, поставщик, сырьё" autocomplete="off" th:value="${q}"></label>
-    <label class="pick"><span class="sr">С</span><input class="inp" type="date" name="from" th:value="${from}"></label>
-    <label class="pick"><span class="sr">По</span><input class="inp" type="date" name="to" th:value="${to}"></label>
+    <input type="hidden" name="seg" th:value="${seg}">
+    <label class="search"><span class="sr">Поиск покупки</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="№, поставщик или сырьё" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">Период</span><select class="sel" name="per"><option th:each="o : ${pers}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
+    <label class="pick"><span class="sr">Поставщик</span><select class="sel" name="sup"><option value="all">Все поставщики</option><option th:each="o : ${sups}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
     <span class="grow"></span>
     <a class="btn btn-soft btn-sm" href="/admin/purchases/suppliers">Поставщики</a>
-    <a th:if="${canEdit}" class="btn btn-primary btn-sm" href="/admin/purchases/new"><th:block th:utext="${i['plus']}"></th:block>Новая покупка</a>
+    <a th:if="${canEdit}" class="btn btn-primary btn-sm" href="/admin/purchases/new"><th:block th:utext="${i['plus']}"></th:block><span>Новая покупка</span></a>
 </form>
-<section class="card" aria-label="Покупки">
-    <div class="tbl-w">
-        <div th:if="${rows.isEmpty()}" class="empty">За эти дни покупок нет.</div>
-        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
-            <thead><tr><th>№</th><th>Дата</th><th>Поставщик</th><th>Сырьё</th><th class="r">Сумма</th><th>1С</th></tr></thead>
-            <tbody>
-            <tr th:each="p : ${rows}" class="rowlink" th:attr="data-href=${'/admin/purchases/' + p.id}">
-                <td><a th:href="${'/admin/purchases/' + p.id}" th:text="${p.id}"></a></td>
-                <td th:text="${@fmt.dm(p.purchaseDate)}"></td>
-                <td class="c-full"><b th:text="${p.counterparty.name}"></b></td>
-                <td class="c-full"><th:block th:text="${#strings.abbreviate(#strings.listJoin(p.items.![ingredient.name], ', '), 90)}"></th:block><small th:text="${@fmt.count(p.items.size(), 'позиция', 'позиции', 'позиций')}"></small></td>
-                <td class="r num"><b th:text="${@fmt.money(p.totalSum)}"></b></td>
-                <td><span th:if="${p.oneCSyncError != null}" class="tag tag--bad" th:title="${p.oneCSyncError}">ошибка</span><span th:if="${p.oneCSyncError == null and p.oneCDocumentNumber != null}" class="tag tag--ok" th:text="${p.oneCDocumentNumber}"></span><span th:if="${p.oneCSyncError == null and p.oneCDocumentNumber == null}" class="tag">в очереди</span></td>
-            </tr>
-            </tbody>
-            <tfoot><tr><td colspan="4">Итого</td><td class="r num" th:text="${@fmt.money(sum)}"></td><td></td></tr></tfoot>
-        </table>
-    </div>
-</section>
+<div class="chips" role="group" aria-label="Что показать">
+    <a th:each="c : ${chips}" class="chip" th:classappend="${c.alert} ? 'chip--alert'" th:href="${c.href}" th:attr="aria-pressed=${c.on}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a>
+</div>
+<section class="card" aria-label="Покупки"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Покупок не найдено.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--pu">
+        <thead><tr><th>№</th><th>Дата</th><th>Поставщик</th><th>Сырьё</th><th class="r">Сумма</th><th>Накладная</th><th>1С</th></tr></thead>
+        <tbody><tr th:each="w : ${rows}" class="rowlink" th:attr="data-href=${'/admin/purchases/' + w.p.id}">
+            <td class="pu-no"><a th:href="${'/admin/purchases/' + w.p.id}" th:text="${w.p.id}">58</a></td>
+            <td class="pu-d"><th:block th:text="${@fmt.cap(@fmt.relDay(w.p.purchaseDate))}"></th:block><small th:text="${@fmt.wday(w.p.purchaseDate) + (w.p.createdAt != null and w.p.createdAt.toLocalDate().equals(w.p.purchaseDate) ? ', ' + @fmt.time(w.p.createdAt) : '')}"></small></td>
+            <td class="pu-s"><b th:text="${w.p.counterparty != null ? w.p.counterparty.name : '—'}"></b></td>
+            <td class="pu-m"><th:block th:text="${w.names}"></th:block><small th:text="${w.qtys}"></small></td>
+            <td class="r num pu-sum"><b th:text="${@fmt.money(w.sum)}"></b></td>
+            <td class="pu-ph"><span th:if="${w.photo()}" class="ph-ok"><th:block th:utext="${i['photo']}"></th:block>фото</span><span th:unless="${w.photo()}" class="pay-bad">нет фото</span></td>
+            <td class="pu-1c" th:classappend="${w.oneC.key == 'err'} ? 'pu-1c--err'"><span class="tag" th:classappend="${w.oneC.cls}" th:text="${w.oneC.key == 'err' ? w.oneC.big : w.oneC.label}" th:attr="title=${w.p.oneCSyncError}"></span></td>
+        </tr></tbody>
+        <tfoot><tr><td colspan="4">Итого за период</td><td class="r num"><b th:text="${@fmt.money(sum)}"></b></td><td colspan="2"></td></tr></tfoot>
+    </table>
+</div></section>
+<p class="cnt" th:text="${'Покупок: ' + rows.size() + ' на ' + @fmt.money(sum) + '. Сырьё приходит на склад сразу; в 1С уходит «Поступление товаров» от поставщика.'}"></p>
 </th:block>
 </body>
 </html>

@@ -189,7 +189,7 @@ a.mv-doc:hover{text-decoration:underline}
 .ph-ok{display:inline-flex;align-items:center;gap:5px;font-size:13.5px;color:var(--ink-soft)}
 .ph-ok .i{width:16px;height:16px}
 .tbl--pl .l-b small{display:block}
-.pphoto{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border:1.5px solid var(--line-strong);border-radius:14px;background:var(--paper);text-align:left;font:inherit}
+.pphoto{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border:1.5px solid var(--line-strong);border-radius:14px;background:var(--paper);text-align:left;font:inherit;color:inherit;text-decoration:none}
 .pphoto:hover{border-color:var(--ink);background:var(--white)}
 .pphoto-i{display:grid;place-items:center;flex:none;width:48px;height:60px;border-radius:6px;background:var(--white);box-shadow:0 1px 3px rgba(42,23,18,.2);color:var(--ink-soft)}
 .pphoto-i .i{width:24px;height:24px}
@@ -219,14 +219,18 @@ a.mv-doc:hover{text-decoration:underline}
 .inv-h{display:grid;gap:5px;margin:0 0 10px}
 .inv-h div{display:grid;grid-template-columns:120px minmax(0,1fr)}
 .inv-h dd{margin:0;font-weight:700}
-.inv-t{width:100%;border-collapse:collapse;border:2px solid #333;font-size:11.5px}
+.inv-t{width:100%;border-collapse:collapse;font-size:11.5px}
 .inv-t th,.inv-t td{padding:3px 5px;border:1px solid #777;vertical-align:top}
+.inv-t thead th{border-top:2px solid #333}
+.inv-t thead th:first-child,.inv-t tbody td:first-child{border-left:2px solid #333}
+.inv-t thead th:last-child,.inv-t tbody td:last-child{border-right:2px solid #333}
+.inv-t tbody tr:last-child td{border-bottom:2px solid #333}
+.inv-t tfoot td{padding-top:8px;border:0;font-size:12.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
 .inv-t th{font-weight:700;text-align:center;background:#fff}
+.inv-t th:first-child{white-space:nowrap}
 .inv-t td.r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .inv-t .inv-u{width:22px;border-left:0}
 .inv-t .inv-n{width:44%}
-.inv-tot{display:flex;justify-content:flex-end;gap:28px;margin-top:8px;font-size:12.5px}
-.inv-tot--3 b:first-child{margin-right:auto;padding-left:52%}
 .inv-cnt{margin-top:10px;text-decoration:underline;text-underline-offset:2px}
 .inv-sep{height:22px}
 .inv-res{display:grid;gap:4px;margin:0}
@@ -236,6 +240,8 @@ a.mv-doc:hover{text-decoration:underline}
 .inv-sign{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:26px}
 .inv-sign p{display:flex;align-items:baseline;gap:8px}
 .inv-sign span{flex:1 1 auto;padding:0 0 1px 6px;border-bottom:1px solid #555;font-size:11px}
+.inv-words{margin-top:6px;font-weight:700}
+.inv-miss{margin-top:8px;font-size:11px}
 
 @media (max-width:1240px){
   .tbl--m .m-min{display:none}
@@ -625,7 +631,18 @@ a.mv-doc:hover{text-decoration:underline}
   .pc-ph{width:56px;height:74px}
   .pf-dim3 .inp{width:76px}
   .od-stock{margin-inline:16px}
+  .tools .grow{display:none}
 }
 @media (max-width:560px){
   .bp{flex:1 1 100%}
+}
+/* «Печать» накладной «Объём и масса»: на бумагу — только бланк из окна */
+@media print{
+  body.inv-print>:not(#dlg){display:none!important}
+  body.inv-print #dlg{position:absolute;inset:0 auto auto 0;width:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;overflow:visible;background:#fff;transform:none}
+  body.inv-print #dlg::backdrop{background:none}
+  body.inv-print #dlg>:not(.dlg-in),body.inv-print #dlg .dlg-in>:not(.inv-w){display:none!important}
+  body.inv-print .dlg-in{padding:0}
+  body.inv-print .inv-w{padding:0;overflow:visible;background:none}
+  body.inv-print .inv{min-width:0;padding:0;box-shadow:none}
 }

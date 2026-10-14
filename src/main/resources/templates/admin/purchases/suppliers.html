@@ -1,27 +1,60 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
 <a class="back" href="/admin/purchases"><th:block th:utext="${i['back']}"></th:block>Покупки</a>
-<div class="tools">
-    <form th:if="${canEdit}" method="post" action="/admin/purchases/suppliers" class="tools" style="margin:0;flex:1 1 auto">
-        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-        <label class="search" style="flex:1 1 260px;max-width:420px"><span class="sr">Новый поставщик</span><th:block th:utext="${i['plus']}"></th:block><input class="inp" name="name" required maxlength="200" placeholder="Новый поставщик"></label>
-        <button class="btn btn-primary btn-sm" type="submit">Добавить</button>
-    </form>
-    <form th:if="${isAdmin}" method="post" action="/admin/purchases/suppliers/sync-1c" style="margin:0"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Загрузить из 1С</button></form>
-</div>
-<section class="card"><div class="tbl-w">
-    <div th:if="${rows.isEmpty()}" class="empty">Поставщиков пока нет.</div>
-    <table th:unless="${rows.isEmpty()}" class="tbl">
-        <thead><tr><th>Поставщик</th><th>1С</th><th class="acts-col"></th></tr></thead>
-        <tbody><tr th:each="c : ${rows}">
-            <td><b th:text="${c.name}"></b></td>
-            <td><span th:if="${c.oneCContragentKey != null}" class="tag tag--ok">связан</span><span th:if="${c.oneCSyncError != null}" class="tag tag--bad" th:title="${c.oneCSyncError}">ошибка</span><span th:if="${c.oneCContragentKey == null and c.oneCSyncError == null}" class="tag">нет в 1С</span></td>
-            <td><form th:if="${canEdit}" th:action="${'/admin/purchases/suppliers/' + c.id + '/delete'}" method="post"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="ibtn" type="submit" aria-label="Удалить" th:utext="${i['trash']}" data-confirm="Поставщик удалится, если по нему нет покупок." data-confirm-title="Удалить поставщика?" data-confirm-ok="Удалить"></button></form></td>
+<form class="tools" method="get" action="/admin/purchases/suppliers" data-autosubmit>
+    <label class="search"><span class="sr">Поиск поставщика</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Поставщик или сырьё" autocomplete="off" th:value="${q}"></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
+    <span class="grow"></span>
+    <button th:if="${isAdmin}" class="btn btn-soft btn-sm" type="button" data-sp="sync"><th:block th:utext="${i['refresh']}"></th:block><span>Загрузить из 1С</span></button>
+    <button th:if="${canEdit}" class="btn btn-primary btn-sm" type="button" data-sp="new"><th:block th:utext="${i['plus']}"></th:block><span>Новый поставщик</span></button>
+</form>
+<section class="card" aria-label="Поставщики"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Никого не нашлось.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--sp">
+        <thead><tr><th>Поставщик</th><th>Последняя покупка</th><th class="r">За 30 дней</th><th>1С</th></tr></thead>
+        <tbody><tr th:each="s : ${rows}">
+            <td class="sp-n"><b th:text="${s.c.name}"></b><small th:text="${(!#strings.isEmpty(s.what) ? s.what : 'покупок не было') + (s.materials > 0 ? ' · ' + @fmt.count(s.materials, 'позиция', 'позиции', 'позиций') + ' сырья' : '')}"></small></td>
+            <td class="sp-l"><th:block th:if="${s.last != null}"><a class="link" th:href="${'/admin/purchases/' + s.last.id}" th:text="${'№ ' + s.last.id}"></a><small th:text="${@fmt.relDay(s.last.purchaseDate) + ' · ' + @fmt.money(s.last.totalSum)}"></small></th:block><span th:if="${s.last == null}" class="muted">покупок нет</span></td>
+            <td class="r num sp-s"><th:block th:if="${s.sum30.signum() > 0}" th:text="${@fmt.money(s.sum30)}"></th:block><span th:unless="${s.sum30.signum() > 0}" class="muted">—</span></td>
+            <td class="sp-1c"><span th:if="${s.linked}" class="tag tag--ok">связан</span><span th:unless="${s.linked}" class="tag tag--bad" th:attr="title=${s.c.oneCSyncError}">нет в 1С</span>
+                <form th:if="${canEdit and !s.hasPurchases}" th:action="${'/admin/purchases/suppliers/' + s.c.id + '/delete'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="link link--danger" type="submit" th:attr="data-confirm=${s.linked ? 'Покупок по нему нет. В 1С контрагент пометится на удаление.' : 'Покупок по нему нет. Чтобы поставщик появился и в 1С, создайте его заново.'}" data-confirm-title="Удалить поставщика?" data-confirm-ok="Удалить">Удалить</button></form></td>
         </tr></tbody>
     </table>
 </div></section>
+<p class="cnt">Связь с 1С нужна, чтобы покупки уходили туда «Поступлением товаров». Новый поставщик создаётся и в 1С; если 1С не ответила — удалите его и добавьте заново или загрузите из 1С.</p>
+<form id="sp-sync" method="post" action="/admin/purchases/suppliers/sync-1c" hidden><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"></form>
+</th:block>
+<th:block th:fragment="scripts">
+<script type="application/json" id="sp-names" th:utext="${namesJson}"></script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script>
+(function () {
+  var O = window.Ops, $ = Admin.$, names = O.json('sp-names') || [];
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sp]'); if (!b) return;
+    if (b.getAttribute('data-sp') === 'sync') {
+      O.askDlg({ title: 'Загрузить из 1С?', text: 'Контрагенты из 1С обновятся и добавятся; заведённые здесь вручную не тронутся.', ok: 'Загрузить',
+        onOk: function () { $('sp-sync').submit(); } });
+      return;
+    }
+    Admin.openDlg('<form class="dlg-in" id="sd"><h2 id="dlg-h">Новый поставщик</h2><div class="fgrid">' +
+      '<label class="field wide"><span>Название</span><input class="inp" id="sd-n" maxlength="200" placeholder="Например: ТОО «…» или ИП Фамилия"></label></div>' +
+      '<p class="hint">Поставщик сразу создастся и в 1С — чтобы покупки уходили туда «Поступлением товаров».</p><p class="errs" id="sd-e" hidden></p>' +
+      '<div class="dlg-acts"><button class="btn btn-soft" type="button" data-close>Отмена</button><button class="btn btn-primary" type="submit">Добавить</button></div></form>');
+    $('sd').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var n = $('sd-n').value.trim();
+      if (!n) { $('sd-e').textContent = 'Напишите название.'; $('sd-e').hidden = false; $('sd-n').focus(); return; }
+      if (names.some(function (x) { return O.norm(x) === O.norm(n); })) { $('sd-e').textContent = 'Такой поставщик уже есть.'; $('sd-e').hidden = false; return; }
+      Admin.closeDlg();
+      O.post('/admin/purchases/suppliers', { name: n });
+    });
+  });
+})();
+</script>
 </th:block>
 </body>
 </html>

@@ -222,7 +222,7 @@ public class AdminMaterialController {
         List<Long> nr = reqs.stream().filter(r -> r.getStatus() == ProductionRequestStatus.NEW).map(ProductionRequest::getId).sorted().toList();
         String nos = String.join(", ", nr.stream().map(String::valueOf).toList());
         String s1 = !sh.isEmpty() ? String.join(" · ", sh.stream().map(r -> r.m().getName() + " — нужно " + r.q(r.need().q()) + ", есть " + r.q(r.m().getQuantityInStock())).toList())
-                + " · заявки № " + nos : !nr.isEmpty() ? "сырья хватает на заявки № " + nos : "новых заявок нет";
+                + " · заявки №\u00a0" + nos : !nr.isEmpty() ? "сырья хватает на заявки №\u00a0" + nos : "новых заявок нет";
         String s2 = low.isEmpty() ? "всё выше минимального остатка" : String.join(", ", low.stream().limit(4).map(r -> r.m().getName()).toList())
                 + (low.size() > 4 ? " и ещё " + (low.size() - 4) : "") + " — ниже минимального остатка";
         BigDecimal kg = BigDecimal.ZERO;
@@ -330,7 +330,7 @@ public class AdminMaterialController {
     @PostMapping("/{id:\\d+}/min")
     public String saveMin(@PathVariable Long id, @RequestParam(required = false) String min, RedirectAttributes ra) {
         try {
-            if (!can(Role.ADMIN, Role.WAREHOUSE_RAW, Role.ACCOUNTANT)) throw new IllegalStateException("Минимальный остаток меняют склад сырья, бухгалтер и директор");
+            if (!can(Role.ADMIN, Role.WAREHOUSE_RAW, Role.ACCOUNTANT)) throw new IllegalStateException("Минимальный остаток меняют склад сырья, бухгалтер и администратор");
             BigDecimal v = num(min);
             if (v != null && v.signum() < 0) throw new IllegalArgumentException("Минимальный остаток не может быть меньше нуля");
             Ingredient m = ingredientService.findById(id);
@@ -417,7 +417,7 @@ public class AdminMaterialController {
         ing.setMinThreshold(min == null ? BigDecimal.ZERO : min);
         ing.setActive(id == null || active);
         List<String> errors = new ArrayList<>();
-        if (!can(Role.ADMIN, Role.WAREHOUSE_RAW, Role.ACCOUNTANT)) errors.add("Справочник сырья меняют склад сырья, бухгалтер и директор.");
+        if (!can(Role.ADMIN, Role.WAREHOUSE_RAW, Role.ACCOUNTANT)) errors.add("Справочник сырья меняют склад сырья, бухгалтер и администратор.");
         if (ing.getName().isEmpty()) errors.add("Укажите название сырья.");
         if (ing.getMinThreshold().signum() < 0) errors.add("Минимальный остаток не может быть меньше нуля.");
         if (errors.isEmpty()) {

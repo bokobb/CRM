@@ -1,44 +1,62 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
 <a class="back" href="/admin/purchases"><th:block th:utext="${i['back']}"></th:block>Все покупки</a>
+<div th:if="${missing != null}" class="card empty" th:text="${'Покупки № ' + missing + ' нет.'}"></div>
+<th:block th:if="${missing == null}">
 <div class="oh">
-    <div class="oh-t"><h2 th:text="${'Покупка № ' + p.id}">Покупка</h2>
-        <span th:if="${p.oneCSyncError != null}" class="tag tag--bad">1С: ошибка</span>
-        <span th:if="${p.oneCSyncError == null and p.oneCDocumentNumber != null}" class="tag tag--ok" th:text="${'1С: № ' + p.oneCDocumentNumber}"></span></div>
-    <p class="oh-m" th:text="${'от ' + @fmt.dml(p.purchaseDate) + ' · ' + p.counterparty.name + ' · оформил ' + p.createdBy}"></p>
+    <div class="oh-t"><h2 th:text="${'Покупка № ' + p.id}">Покупка № 58</h2><span class="tag" th:classappend="${oneC.cls}" th:text="${oneC.big}"></span></div>
+    <p class="oh-m" th:text="${@fmt.dayTitle(p.purchaseDate) + (p.createdAt != null and p.createdAt.toLocalDate().equals(p.purchaseDate) ? ', ' + @fmt.time(p.createdAt) : '') + ' · ' + (p.counterparty != null ? p.counterparty.name : '—') + ' · оформил ' + by}"></p>
     <div class="acts">
         <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/purchases/' + p.id + '/edit'}">Изменить</a>
-        <form th:if="${canSync}" th:action="${'/admin/purchases/' + p.id + '/sync-1c'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-soft" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Отправить в 1С ещё раз</button></form>
+        <a class="btn btn-soft" th:href="${'/admin/purchases/' + p.id + '/invoice.pdf'}" target="_blank" rel="noopener"><th:block th:utext="${i['download']}"></th:block>Приходная накладная</a>
+        <form th:if="${oneC.key == 'err' and canSync}" th:action="${'/admin/purchases/' + p.id + '/sync-1c'}" method="post" style="display:contents"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button class="btn btn-soft" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Отправить в 1С ещё раз</button></form>
     </div>
 </div>
-<div class="od">
-    <section class="card">
-        <div class="card-h"><h2>Сырьё</h2><p th:text="${@fmt.count(p.items.size(), 'позиция', 'позиции', 'позиций')}"></p></div>
-        <div class="tbl-w"><table class="tbl tbl--l">
+<div class="od"><div class="od-main">
+    <section class="card" aria-labelledby="h-pl"><div class="card-h"><h2 id="h-pl">Сырьё</h2><p th:text="${@fmt.count(p.items.size(), 'позиция', 'позиции', 'позиций') + ' · пришло на склад сразу'}"></p></div>
+        <div class="tbl-w"><table class="tbl tbl--l tbl--pl">
             <thead><tr><th>Сырьё</th><th class="r">Количество</th><th class="r">Цена за ед.</th><th class="r">Сумма</th></tr></thead>
-            <tbody><tr th:each="it : ${p.items}">
-                <td class="l-p"><b th:text="${it.ingredient.name}"></b></td>
-                <td class="r num l-q" th:text="${@fmt.num(it.quantity) + ' ' + it.ingredient.unit}"></td>
-                <td class="r num l-b" th:text="${@fmt.unitPrice(it.totalPrice, it.quantity)}"></td>
-                <td class="r num l-s" th:text="${@fmt.money(it.totalPrice)}"></td></tr></tbody>
+            <tbody><tr th:each="l : ${lines}">
+                <td class="l-p"><a class="cl-link" th:href="${'/admin/materials/' + l.it.ingredient.id}" th:text="${l.it.ingredient.name}"></a></td>
+                <td class="r num l-q" th:text="${@fmt.qu(l.it.quantity, l.unit())}"></td>
+                <td class="r num l-b"><th:block th:text="${l.price != null ? @fmt.money(l.price) : '—'}"></th:block><small th:text="${l.diff}"></small></td>
+                <td class="r num l-s" th:text="${l.it.totalPrice != null ? @fmt.money(l.it.totalPrice) : '—'}"></td></tr></tbody>
         </table></div>
         <div class="rcpt"><p class="rcpt-r rcpt-tot"><span>Итого</span><i></i><b th:text="${@fmt.money(p.totalSum)}"></b></p></div>
     </section>
-    <aside class="od-side">
-        <section class="card card-b box"><h3>Накладная</h3>
-            <a th:if="${p.imageUrl != null}" th:href="${p.imageUrl}" target="_blank"><img th:src="${p.imageUrl}" alt="Фото накладной" style="border-radius:12px"></a>
-            <p th:if="${p.imageUrl == null}" class="muted">Фото накладной не прикреплено.</p>
-            <form th:if="${canEdit}" th:action="${'/admin/purchases/' + p.id + '/image'}" method="post" enctype="multipart/form-data" class="field">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <input class="inp" type="file" name="file" accept="image/*" required>
-                <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['upload']}"></th:block>Загрузить фото</button>
-            </form>
-        </section>
-        <section class="card card-b box" th:if="${p.oneCSyncError != null}"><h3>1С</h3><p class="note" th:text="${p.oneCSyncError}"></p></section>
-    </aside>
 </div>
+<aside class="od-side">
+    <section class="card card-b box" aria-labelledby="h-ps"><h3 id="h-ps">Поставщик</h3>
+        <dl class="kv"><div><dt>Название</dt><dd><b th:text="${p.counterparty != null ? p.counterparty.name : '—'}"></b></dd></div>
+            <div th:if="${!#strings.isEmpty(what)}"><dt>Привозит</dt><dd th:text="${what}"></dd></div>
+            <div><dt>1С</dt><dd><th:block th:if="${p.counterparty != null and p.counterparty.oneCContragentKey != null}">связан с контрагентом</th:block><th:block th:unless="${p.counterparty != null and p.counterparty.oneCContragentKey != null}"><span class="pay-bad">не связан</span><small>покупки не уходят в 1С</small></th:block></dd></div></dl>
+        <p><a class="link" href="/admin/purchases/suppliers">Все поставщики</a></p></section>
+    <section class="card card-b box" aria-labelledby="h-pp"><h3 id="h-pp">Накладная поставщика</h3>
+        <a th:if="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" class="pphoto" th:href="${p.imageUrl}" target="_blank" rel="noopener"><span class="pphoto-i" th:utext="${i['doc']}"></span><span><b>Фото накладной</b><small th:text="${'сфотографировал ' + by + ' при приёмке · открыть'}"></small></span></a>
+        <th:block th:unless="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}"><p class="muted">Фото накладной не прикреплено — бухгалтеру нечем сверить суммы.</p></th:block>
+        <form th:if="${canEdit}" th:action="${'/admin/purchases/' + p.id + '/image'}" method="post" enctype="multipart/form-data" class="pp-up" id="pp-up">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <label class="btn btn-soft btn-sm"><th:block th:utext="${i['photo']}"></th:block><span th:text="${p.imageUrl != null ? 'Заменить фото' : 'Загрузить фото'}"></span><input type="file" name="file" accept="image/*" class="sr" id="pp-file"></label>
+            <noscript><button class="btn btn-soft btn-sm" type="submit">Отправить</button></noscript></form>
+    </section>
+    <section class="card card-b box" aria-labelledby="h-p1"><h3 id="h-p1">1С</h3>
+        <p th:if="${oneC.key == 'err'}" class="warn-s"><th:block th:utext="${i['alert']}"></th:block><span th:text="${p.oneCSyncError}"></span></p>
+        <p th:if="${oneC.key == 'queue'}" class="muted">В очереди — уйдёт в 1С через минуту.</p>
+        <p th:if="${oneC.key == 'ok'}">«Поступление товаров» № <b class="num" th:text="${p.oneCDocumentNumber}"></b> — проведено.</p></section>
+    <section class="card card-b box" aria-labelledby="h-pw"><h3 id="h-pw">Сейчас на складе</h3>
+        <ul class="mreq"><li th:each="s : ${stock}"><a class="link" th:href="${'/admin/materials/' + s.i.id}" th:text="${s.i.name}"></a><span></span><b class="num" th:text="${@fmt.qu(s.stock, s.i.unit)}"></b></li></ul></section>
+</aside></div>
+</th:block>
+</th:block>
+<th:block th:fragment="scripts">
+<script>
+(function () {
+  var f = document.getElementById('pp-file');
+  if (f) f.addEventListener('change', function () { if (f.files.length) { Admin.guard.set(false); document.getElementById('pp-up').submit(); } });
+})();
+</script>
 </th:block>
 </body>
 </html>

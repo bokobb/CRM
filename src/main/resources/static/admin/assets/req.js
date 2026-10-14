@@ -100,7 +100,7 @@
   document.querySelectorAll('[data-fix]').forEach(function (b) {
     b.addEventListener('click', function () {
       var id = b.getAttribute('data-fix');
-      O.qtyDlg({ title: 'Исправить оприходованное', text: esc(b.getAttribute('data-name')) + '. Склад готовой продукции сдвинется на разницу, отчёт производства в 1С перепроведётся. Исправляет директор.',
+      O.qtyDlg({ title: 'Исправить оприходованное', text: esc(b.getAttribute('data-name')) + '. Склад готовой продукции сдвинется на разницу, отчёт производства в 1С перепроведётся. Исправляет администратор.',
         label: 'Факт', unit: 'шт', int: true, value: +b.getAttribute('data-q'), ok: 'Исправить',
         onOk: function (q) { O.post(base + '/lines/' + id + '/received', { qty: Math.round(q) }); } });
     });

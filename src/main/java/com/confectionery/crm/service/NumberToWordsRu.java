@@ -6,9 +6,10 @@ import java.math.RoundingMode;
 /**
  * Сумма прописью для накладной — "Два миллиона сто пятьдесят три тысячи шестьсот
  * пятьдесят теңге 00 тиын". Тенге/тиын не склоняются (как и в реальных бланках), но
- * тысяча/миллион/миллиард — да (одна тысяча / две тысячи / пять тысяч и т.п.).
+ * тысяча/миллион/миллиард — да (одна тысяча / две тысячи / пять тысяч и т.п.). Ею же подписана
+ * накладная в админке (AdminInvoice) — прописью так же, как в PDF.
  */
-final class NumberToWordsRu {
+public final class NumberToWordsRu {
 
     private NumberToWordsRu() {
     }
@@ -31,7 +32,7 @@ final class NumberToWordsRu {
     private static final Scale MILLION = new Scale("миллион", "миллиона", "миллионов", false);
     private static final Scale BILLION = new Scale("миллиард", "миллиарда", "миллиардов", false);
 
-    static String amountInWords(BigDecimal amount) {
+    public static String amountInWords(BigDecimal amount) {
         BigDecimal rounded = amount.setScale(2, RoundingMode.HALF_UP);
         long whole = rounded.longValue();
         int tiyn = rounded.subtract(BigDecimal.valueOf(whole)).movePointRight(2)

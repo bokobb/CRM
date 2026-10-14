@@ -234,7 +234,7 @@ public class AdminRequestController {
     @Transactional(readOnly = true)
     public String newForm(@RequestParam(required = false) Long from, Model model, RedirectAttributes ra) {
         if (!can(Role.ADMIN, Role.ACCOUNTANT, Role.TECHNOLOGIST)) {
-            fail(ra, new IllegalStateException("Создавать заявки могут бухгалтер, технолог и директор"));
+            fail(ra, new IllegalStateException("Создавать заявки могут бухгалтер, технолог и администратор"));
             return "redirect:/admin/requests";
         }
         ProductionRequest src = null;

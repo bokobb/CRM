@@ -31,7 +31,8 @@
 <div class="od">
     <div class="od-main">
         <section class="card" aria-labelledby="h-comp">
-            <div class="card-h"><h2 id="h-comp">Состав</h2><p th:text="${@fmt.count(t.positions, 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(t.packs) + ' шт'}"></p></div>
+            <div class="card-h"><div><h2 id="h-comp">Состав</h2><p th:text="${@fmt.count(t.positions, 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(t.packs) + ' шт'}"></p></div>
+                <button th:if="${o.status.name() != 'CANCELLED'}" class="btn btn-soft btn-sm" type="button" id="inv-open"><th:block th:utext="${i['doc']}"></th:block>Накладная</button></div>
             <div class="tbl-w"><table class="tbl tbl--l">
                 <thead><tr><th>Товар</th><th class="r">Кол-во</th><th class="r">Коробок</th><th class="r">Сумма</th></tr></thead>
                 <tbody>
@@ -165,6 +166,8 @@
 <th:block th:fragment="scripts">
 <th:block th:if="${missing == null}">
 <script type="application/json" id="slot-week" th:utext="${slotWeek}"></script>
+<script type="application/json" id="inv-data" th:utext="${invJson}"></script>
+<script src="/admin/assets/inv.js?v=1"></script>
 <script th:inline="javascript">window.ORDER_DAY = /*[[${o.dueDate != null and !o.dueDate.isBefore(@fmt.today()) ? o.dueDate.toString() : @fmt.today().toString()}]]*/ '';</script>
 <script src="/admin/assets/slots.js?v=1"></script>
 <script th:inline="none">
