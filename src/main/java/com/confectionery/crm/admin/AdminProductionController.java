@@ -5,7 +5,11 @@ import com.confectionery.crm.api.dto.TechCardDto;
 import com.confectionery.crm.api.dto.TechCardRequest;
 import com.confectionery.crm.api.dto.TechCardSummaryDto;
 import com.confectionery.crm.domain.Employee;
+import com.confectionery.crm.domain.Ingredient;
+import com.confectionery.crm.domain.Product;
 import com.confectionery.crm.domain.Role;
+import com.confectionery.crm.repository.IngredientRepository;
+import com.confectionery.crm.repository.ProductRepository;
 import com.confectionery.crm.service.*;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +19,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -34,6 +39,8 @@ public class AdminProductionController {
     private final EmployeeService employeeService;
     private final TechCardService techCardService;
     private final CurrentUserService currentUserService;
+    private final ProductRepository productRepository;
+    private final IngredientRepository ingredientRepository;
 
     private boolean labor() {
         return currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT);
@@ -113,16 +120,54 @@ public class AdminProductionController {
         return "admin/techcards/list";
     }
 
+    /**
+     * Техкарта как в макете: паспорт, состав и выход, себестоимость (цены видят директор и бухгалтер), расчёт на план
+     * с остатками сырья, процесс с ККТ, качество, этикетка; справа — итог и замечания. ?edit=1 — правка полей техкарты.
+     */
     @GetMapping("/admin/techcards/{productId}")
     @Transactional(readOnly = true)
     public String techcard(@PathVariable Long productId, @RequestParam(defaultValue = "0") int edit, Model model) {
         TechCardDto t = techCardService.get(productId);
+        AdminTechCards.Calc c = calc(t);
         model.addAttribute("t", t);
+        model.addAttribute("c", c);
+        model.addAttribute("semi", productRepository.findById(productId).map(Product::isSemiFinished).orElse(false));
+        model.addAttribute("planJson", AdminJson.of(AdminTechCards.planData(c, t.unit())));
         model.addAttribute("edit", edit == 1 && canEditCard());
         model.addAttribute("canEdit", canEditCard());
         model.addAttribute("labor", labor());
         page(model, "Техкарта", t.name(), "techcards");
         return "admin/techcards/view";
+    }
+
+    /** Карта на замес для бригады: сырьё на n замесов с отметками, выход, этапы с фактом по ККТ, подписи. A4. */
+    @GetMapping("/admin/techcards/{productId}/sheet")
+    @Transactional(readOnly = true)
+    public String techcardSheet(@PathVariable Long productId, @RequestParam(defaultValue = "1") int n, Model model) {
+        TechCardDto t = techCardService.get(productId);
+        AdminTechCards.Calc c = calc(t);
+        int batches = Math.max(1, Math.min(50, n));
+        BigDecimal nb = BigDecimal.valueOf(batches);
+        BigDecimal out = c.yield() == null ? null : c.yield().multiply(nb);
+        model.addAttribute("t", t);
+        model.addAttribute("c", c);
+        model.addAttribute("n", batches);
+        model.addAttribute("nb", nb);
+        model.addAttribute("outQty", out);
+        // выход в коробках: целые коробки и остаток в штуках
+        boolean boxes = out != null && c.perBox() != null && c.perBox().signum() > 0;
+        model.addAttribute("outBoxes", boxes ? out.divideToIntegralValue(c.perBox()).longValue() : null);
+        model.addAttribute("outRest", boxes ? out.remainder(c.perBox()).longValue() : 0L);
+        return "admin/techcards/sheet";
+    }
+
+    private AdminTechCards.Calc calc(TechCardDto t) {
+        Map<Long, BigDecimal> stock = new HashMap<>();
+        List<Long> ids = t.items().stream().map(TechCardDto.Item::ingredientId).filter(Objects::nonNull).toList();
+        for (Ingredient i : ingredientRepository.findAllById(ids)) stock.put(i.getId(), i.getQuantityInStock());
+        Product p = productRepository.findById(t.productId()).orElse(null);
+        BigDecimal perBox = p == null ? null : AdminOrders.boxUnits(p);
+        return AdminTechCards.calc(t, stock, perBox, p != null && p.isSemiFinished(), labor(), LocalDate.now());
     }
 
     private boolean canEditCard() {

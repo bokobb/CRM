@@ -1,37 +1,149 @@
 <!DOCTYPE html>
+<!--/* Техкарта как в макете: разделы 1–7 с переходом по ним, справа — итог и замечания. Расчёты — AdminTechCards;
+     «Расчёт на план» и копирование этикетки — techcard.js. ?edit=1 — правка полей техкарты (прежняя форма). */-->
 <html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<a class="back" href="/admin/techcards"><th:block th:utext="${i['back']}"></th:block>Все техкарты</a>
-<div class="oh"><div class="oh-t"><h2 th:text="${t.name}">Техкарта</h2><span th:if="${t.draft}" class="tag tag--warn">черновик</span></div>
-    <p class="oh-m" th:text="${'Группа: ' + t.group + (t.yieldQuantity != null ? ' · с замеса ' + @fmt.num(t.yieldQuantity) + ' ' + t.unit : '') + (t.netWeightGrams != null ? ' · ' + @fmt.num(t.netWeightGrams) + ' г' : '')}"></p>
-    <div class="acts">
-        <a th:if="${canEdit and !edit}" class="btn btn-primary" th:href="${'/admin/techcards/' + t.productId + '?edit=1'}"><th:block th:utext="${i['edit']}"></th:block>Изменить</a>
+<a class="back" th:href="${edit ? '/admin/techcards/' + t.productId : '/admin/techcards'}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${edit ? 'Техкарта без изменений' : 'Все техкарты'}">Все техкарты</th:block></a>
+<div class="tch">
+    <span class="rx-photo" th:classappend="${t.imageUrl != null and !#strings.isEmpty(t.imageUrl)} ? 'has-img'"><img th:if="${t.imageUrl != null and !#strings.isEmpty(t.imageUrl)}" th:src="${t.imageUrl}" alt=""><th:block th:unless="${t.imageUrl != null and !#strings.isEmpty(t.imageUrl)}" th:utext="${i['cookie']}"></th:block></span>
+    <div><h2 th:text="${t.name}">Техкарта</h2>
+        <p class="tch-m"><span class="tcs" th:classappend="${t.draft ? 'tcs--draft' : 'tcs--approved'}" th:text="${t.draft ? 'Черновик' : 'Готова'}">Готова</span>
+            <span th:text="${t.group != null ? t.group : 'Без группы'}">Группа</span><span th:if="${semi}" class="tag tag--pf">полуфабрикат</span></p></div>
+    <div class="tch-acts" th:unless="${edit}">
+        <a th:if="${canEdit}" class="btn btn-primary" th:href="${'/admin/techcards/' + t.productId + '?edit=1'}"><th:block th:utext="${i['edit']}"></th:block>Изменить</a>
         <a class="btn btn-soft" th:href="${'/admin/recipes/' + t.productId}">Рецептура</a>
-        <button class="btn btn-soft" type="button" onclick="window.print()"><th:block th:utext="${i['print']}"></th:block>Печать</button>
-    </div></div>
-<div class="two" th:unless="${edit}">
-    <div class="section-gap">
-        <section class="card"><div class="card-h"><h2>Этапы приготовления</h2></div><div class="card-b stages">
-            <div th:each="s, it : ${t.stages}" class="stage"><span class="step" th:text="${it.count}"></span><div>
-                <p><b th:text="${s.title}"></b> <span th:if="${s.ccp}" class="tag tag--bad">ККТ</span></p>
-                <p th:text="${s.description}"></p>
-                <small th:text="${(s.temperature != null and !#strings.isEmpty(s.temperature) ? 'Температура: ' + s.temperature : '') + (s.duration != null and !#strings.isEmpty(s.duration) ? ' · Время: ' + s.duration : '')}"></small></div></div>
-            <p th:if="${t.stages.isEmpty()}" class="muted">Этапы ещё не описаны.</p>
-        </div></section>
-        <section class="card"><div class="card-h"><h2>Сырьё на замес</h2></div><div class="tbl-w"><table class="tbl">
-            <thead><tr><th>Сырьё</th><th class="r">Количество</th><th class="r" th:if="${labor}">Цена</th></tr></thead>
-            <tbody><tr th:each="x : ${t.items}"><td th:text="${x.name}"></td><td class="r num" th:text="${@fmt.num(x.quantity) + ' ' + x.unit}"></td><td class="r num" th:if="${labor}" th:text="${x.unitPrice != null ? @fmt.money(x.unitPrice) : '—'}"></td></tr></tbody></table></div></section>
+        <a th:if="${c.hasRows()}" class="btn btn-soft" th:href="${'/admin/techcards/' + t.productId + '/sheet'}" target="_blank" rel="noopener"><th:block th:utext="${i['print']}"></th:block>Карта на замес</a>
     </div>
-    <aside class="two-side">
-        <section class="card card-b box"><h3>Органолептика</h3><dl class="kv">
-            <div><dt>Внешний вид</dt><dd th:text="${t.qualityLook ?: '—'}"></dd></div><div><dt>Цвет</dt><dd th:text="${t.qualityColor ?: '—'}"></dd></div>
-            <div><dt>Мякиш</dt><dd th:text="${t.qualityCrumb ?: '—'}"></dd></div><div><dt>Вкус и запах</dt><dd th:text="${t.qualityTaste ?: '—'}"></dd></div></dl></section>
-        <section class="card card-b box"><h3>Хранение</h3><dl class="kv">
-            <div><dt>Срок годности</dt><dd th:text="${t.shelfLife ?: '—'}"></dd></div><div><dt>Условия</dt><dd th:text="${t.storageConditions ?: '—'}"></dd></div>
-            <div><dt>Упаковка</dt><dd th:text="${t.packaging ?: '—'}"></dd></div></dl></section>
-    </aside>
 </div>
+
+<th:block th:unless="${edit}">
+<nav class="tc-nav" id="tc-nav" aria-label="Разделы техкарты">
+    <a href="#tc-pass" aria-current="true">1. Паспорт</a><a href="#tc-comp">2. Состав</a><a th:if="${labor}" href="#tc-cost">3. Себестоимость</a>
+    <a href="#tc-plan" th:text="${labor ? '4. На план' : '3. На план'}">4. На план</a><a href="#tc-proc" th:text="${labor ? '5. Процесс' : '4. Процесс'}">5. Процесс</a>
+    <a href="#tc-qual" th:text="${labor ? '6. Качество' : '5. Качество'}">6. Качество</a><a th:unless="${semi}" href="#tc-label" th:text="${labor ? '7. Этикетка' : '6. Этикетка'}">7. Этикетка</a>
+</nav>
+<div class="tc">
+<div class="tc-main">
+    <!--/* 1. Паспорт */-->
+    <section class="card" id="tc-pass"><div class="card-h"><h2><span class="sn">1</span>Паспорт изделия</h2></div>
+        <div class="card-b"><dl class="pass">
+            <div><dt>Группа</dt><dd th:text="${t.group != null ? t.group : '—'}"></dd></div>
+            <div><dt>Выход с замеса</dt><dd th:text="${c.yield != null ? @fmt.num(c.yield) + ' ' + t.unit : '—'}"></dd></div>
+            <div th:if="${semi}"><dt>Назначение</dt><dd>Полуфабрикат: идёт в другие изделия, на продажу не фасуется</dd></div>
+            <div th:unless="${semi}"><dt>Масса нетто</dt><dd><th:block th:if="${c.finished != null}" th:text="${@fmt.num(c.finished) + ' г'}"></th:block><span th:unless="${c.finished != null}" class="stale">не задана</span></dd></div>
+            <div th:unless="${semi}"><dt>В коробке</dt><dd th:text="${c.perBox != null ? @fmt.num(c.perBox) + ' ' + t.unit : '—'}"></dd></div>
+            <div th:unless="${semi}"><dt>Цена в каталоге</dt><dd th:text="${c.salePrice != null ? @fmt.money(c.salePrice) + ' за ' + t.unit : '—'}"></dd></div>
+            <div><dt>Срок годности</dt><dd><th:block th:if="${t.shelfLife != null}" th:text="${t.shelfLife}"></th:block><span th:unless="${t.shelfLife != null}" class="stale">не указан</span></dd></div>
+            <div class="wide"><dt>Условия хранения</dt><dd th:text="${t.storageConditions ?: '—'}"></dd></div>
+            <div class="wide" th:unless="${semi}"><dt>Упаковка</dt><dd th:text="${t.packaging ?: '—'}"></dd></div>
+        </dl></div></section>
+
+    <!--/* 2. Состав и выход */-->
+    <section class="card" id="tc-comp"><div class="card-h"><h2><span class="sn">2</span>Состав и выход</h2><a class="link" th:href="${'/admin/recipes/' + t.productId}">Изменить в «Рецептах»</a></div>
+        <div class="card-b" th:unless="${c.hasRows()}"><p>Рецептура не заполнена. <a class="link" th:href="${'/admin/recipes/' + t.productId}">Заполнить в «Рецептах»</a></p></div>
+        <th:block th:if="${c.hasRows()}">
+        <div class="card-b"><p class="muted">Состав берётся из рецептуры — один источник для цеха, склада и себестоимости.
+            <th:block th:if="${c.allMass}">Замес <b class="ok-t" th:text="${@fmt.fix(c.batchKg, 3) + ' кг'}"></b> → <b class="ok-t" th:text="${@fmt.num(c.yield) + ' ' + t.unit}"></b>.</th:block></p>
+            <div class="flow" th:if="${c.dough != null}">
+                <div><span th:text="${'Тесто на 1 ' + t.unit}">Тесто на 1 шт</span><b th:text="${@fmt.fix(c.dough, 1) + ' г'}"></b><small>закладка ÷ выход с замеса</small></div>
+                <div><span>Готовое изделие</span><b th:text="${c.finished != null ? @fmt.num(c.finished) + ' г' : '—'}"></b><small th:text="${c.finished != null ? 'масса нетто из «Товаров»' : 'масса нетто не задана'}"></small></div>
+                <div th:classappend="${c.lossBad()} ? 'is-bad'"><span>Упёк</span><b th:text="${c.loss != null ? @fmt.fix(c.loss, 1) + ' %' : '—'}"></b><small>тесто − готовое, от теста</small></div>
+            </div></div>
+        <div class="tbl-w"><table class="tbl tbl--rx">
+            <thead><tr><th>Сырьё</th><th class="r">Количество</th><th class="r x-hide">Доля</th><th th:if="${labor}" class="r x-hide">Цена</th><th th:if="${labor}" class="r">На замес</th></tr></thead>
+            <tbody><tr th:each="x : ${c.rows}">
+                <td class="x-n" th:text="${x.name}">Мука</td>
+                <td class="r num x-q" th:text="${@fmt.num(x.qty) + ' ' + x.unit}">12 кг</td>
+                <td class="r num x-hide" th:text="${x.share != null ? @fmt.fix(x.share, 1) + ' %' : '—'}"></td>
+                <td th:if="${labor}" class="r num x-hide"><th:block th:text="${x.unitPrice != null ? @fmt.money(x.unitPrice) + ' за ' + x.unit : '—'}"></th:block><small th:if="${x.priceDate != null}" th:classappend="${x.stale} ? 'stale'" th:text="${'от ' + @fmt.dm(x.priceDate)}"></small></td>
+                <td th:if="${labor}" class="r num x-s" th:text="${x.cost != null ? @fmt.money(x.cost) : '—'}"></td></tr></tbody>
+            <tfoot><tr><td class="x-n">Итого на замес</td><td class="r num x-q" th:text="${c.allMass ? @fmt.fix(c.batchKg, 3) + ' кг' : ''}"></td><td class="r num x-hide" th:text="${c.allMass ? '100 %' : ''}"></td>
+                <td th:if="${labor}" class="x-hide"></td><td th:if="${labor}" class="r num x-s"><th:block th:text="${@fmt.money(c.batchCost)}"></th:block><small th:unless="${c.costFull}">без сырья без цены</small></td></tr></tfoot>
+        </table></div>
+        <p class="card-f" th:text="${(labor ? 'Цены — по последней закупке; старше 45 дней — красным. ' : '') + (c.allMass ? 'Доля — от массы закладки.' : 'Доля — от массы закладки; сырьё в штуках в неё не входит.')}"></p>
+        </th:block></section>
+
+    <!--/* 3. Себестоимость — директор и бухгалтер */-->
+    <section th:if="${labor}" class="card" id="tc-cost"><div class="card-h"><h2><span class="sn">3</span>Себестоимость</h2><p>по сырью</p></div>
+        <div class="card-b" th:unless="${c.hasRows()}"><p class="muted">Посчитаем, когда будет рецептура.</p></div>
+        <div class="card-b" th:if="${c.hasRows()}" style="display:grid;gap:14px">
+            <div class="costs">
+                <div class="cost"><span>Сырьё на замес<small th:text="${(c.allMass ? @fmt.fix(c.batchKg, 3) + ' кг → ' : '') + @fmt.num(c.yield) + ' ' + t.unit}"></small></span><b th:text="${@fmt.money(c.batchCost)}"></b></div>
+                <div class="cost" th:if="${c.perUnit != null}"><span th:text="${'Сырьё на 1 ' + t.unit}">Сырьё на 1 шт</span><b th:text="${@fmt.fix(c.perUnit, c.perUnitScale()) + ' ₸'}"></b></div>
+                <div class="cost" th:if="${c.perKg != null}"><span>Сырьё на 1 кг теста</span><b th:text="${@fmt.money(c.perKg)}"></b></div>
+                <div class="cost-tot" th:if="${!semi and c.salePrice != null}"><span>Цена в каталоге</span><b th:text="${@fmt.money(c.salePrice)}"></b></div>
+            </div>
+            <p class="plan-r" th:if="${c.rawShare != null}">Сырьё — <b th:text="${c.rawShare + ' %'}">38 %</b> цены в каталоге.</p>
+            <p class="hint" th:unless="${c.costFull}">Не у всего сырья есть цена закупки — сумма меньше настоящей.</p>
+            <p class="hint">Упаковка и накладные (энергия, зарплата цеха, аренда) сюда пока не входят: в CRM нет цен упаковки и процента накладных. Себестоимость дня с зарплатой бригад — в «Производстве».</p>
+        </div></section>
+
+    <!--/* 4. Расчёт на план */-->
+    <section class="card" id="tc-plan"><div class="card-h"><h2><span class="sn" th:text="${labor ? 4 : 3}">4</span>Расчёт на план</h2><p>сырьё под заказ и остатки на складе</p></div>
+        <div class="card-b" th:unless="${c.hasRows()}"><p class="muted">Нужна рецептура.</p></div>
+        <th:block th:if="${c.hasRows()}">
+        <div class="card-b" style="display:grid;gap:12px">
+            <div class="plan-c"><label class="sr" for="pl-n">Сколько</label><input class="inp" id="pl-n" inputmode="numeric" maxlength="5" value="1">
+                <div class="seg" role="group" aria-label="Единица" id="pl-u">
+                    <button th:if="${c.perBox != null}" type="button" data-u="box" aria-pressed="false">коробок</button>
+                    <button type="button" data-u="pcs" aria-pressed="false" th:text="${t.unit == 'шт' ? 'штук' : t.unit}">штук</button>
+                    <button type="button" data-u="batch" aria-pressed="true">замесов</button></div></div>
+            <p class="plan-r" id="pl-r" aria-live="polite"></p></div>
+        <div class="tbl-w" id="pl-t"></div>
+        <div class="card-f"><span>Остатки — со «Склада сырья».</span><a class="btn btn-soft btn-sm" id="pl-sheet" th:href="${'/admin/techcards/' + t.productId + '/sheet'}" target="_blank" rel="noopener"><th:block th:utext="${i['print']}"></th:block>Карта на замес</a>
+            <span class="no-t" id="pl-short" style="flex-basis:100%" hidden></span></div>
+        </th:block></section>
+
+    <!--/* 5. Процесс */-->
+    <section class="card" id="tc-proc"><div class="card-h"><h2><span class="sn" th:text="${labor ? 5 : 4}">5</span>Технологический процесс</h2>
+        <p th:text="${@fmt.count(t.stages.size(), 'этап', 'этапа', 'этапов') + ' · ККТ — критические контрольные точки'}"></p></div>
+        <div class="card-b"><ol class="st-list" th:unless="${t.stages.isEmpty()}">
+            <li th:each="s, it : ${t.stages}" th:classappend="${s.ccp} ? 'is-ccp'"><span class="st-n" th:text="${it.count}">1</span><div>
+                <p class="st-t"><th:block th:text="${s.title}"></th:block><span th:if="${s.ccp}" class="ccp-tag">ККТ</span></p>
+                <p class="st-d" th:if="${s.description != null}" th:text="${s.description}"></p>
+                <p class="chipz" th:if="${(s.temperature != null and !#strings.isEmpty(s.temperature)) or (s.duration != null and !#strings.isEmpty(s.duration))}">
+                    <span th:if="${s.temperature != null and !#strings.isEmpty(s.temperature)}">t° <b th:text="${s.temperature}"></b></span>
+                    <span th:if="${s.duration != null and !#strings.isEmpty(s.duration)}">время <b th:text="${s.duration}"></b></span></p></div></li>
+        </ol><p th:if="${t.stages.isEmpty()}" class="muted">Этапы ещё не описаны.<th:block th:if="${canEdit}"> <a class="link" th:href="${'/admin/techcards/' + t.productId + '?edit=1'}">Описать</a></th:block></p></div></section>
+
+    <!--/* 6. Качество */-->
+    <section class="card" id="tc-qual"><div class="card-h"><h2><span class="sn" th:text="${labor ? 6 : 5}">6</span>Качество</h2><p>органолептика</p></div>
+        <div class="card-b qgrid"><dl>
+            <div><dt>Внешний вид</dt><dd th:text="${t.qualityLook ?: '—'}"></dd></div><div><dt>Цвет</dt><dd th:text="${t.qualityColor ?: '—'}"></dd></div></dl>
+            <dl><div><dt>Мякиш / структура</dt><dd th:text="${t.qualityCrumb ?: '—'}"></dd></div><div><dt>Вкус и запах</dt><dd th:text="${t.qualityTaste ?: '—'}"></dd></div></dl></div></section>
+
+    <!--/* 7. Этикетка */-->
+    <section th:unless="${semi}" class="card" id="tc-label"><div class="card-h"><h2><span class="sn" th:text="${labor ? 7 : 6}">7</span>Этикетка</h2>
+        <button th:if="${c.hasRows()}" class="btn btn-soft btn-sm" type="button" id="lb-copy"><th:block th:utext="${i['copy']}"></th:block>Скопировать текст</button></div>
+        <div class="card-b" th:unless="${c.hasRows()}"><p class="muted">Состав для этикетки появится вместе с рецептурой.</p></div>
+        <div class="card-b" th:if="${c.hasRows()}" style="display:grid;gap:12px">
+            <div class="sticker" id="lb"><h4 th:text="${t.name}"></h4>
+                <p><b>Состав:</b> <th:block th:text="${c.labelText() + '.'}"></th:block></p>
+                <div class="grid2"><span><b>Масса нетто:</b> <th:block th:text="${c.finished != null ? @fmt.num(c.finished) + ' г' : '—'}"></th:block></span>
+                    <span><b>Срок годности:</b> <th:block th:text="${t.shelfLife ?: '—'}"></th:block></span>
+                    <span><b>Хранить:</b> <th:block th:text="${t.storageConditions ?: '—'}"></th:block></span><span><b>Дата изготовления:</b> ____.____.______</span></div></div>
+            <p class="hint" th:text="${'Состав — по убыванию массы при закладке' + (c.allMass ? '' : '; сырьё в штуках стоит в конце — проверьте порядок') + '. Аллергены и пищевую ценность допишите сами: в CRM у сырья пока нет этих данных. Изготовитель, адрес и документ, по которому выпускается продукция, — как на ваших этикетках.'}"></p>
+        </div></section>
+</div>
+<aside class="tc-aside">
+    <section class="card card-b box">
+        <div class="sum-big" th:if="${labor and c.perUnit != null}"><span th:text="${'Сырьё на 1 ' + t.unit}">Сырьё на 1 шт</span><b th:text="${@fmt.fix(c.perUnit, c.perUnitScale()) + ' ₸'}"></b></div>
+        <div class="sum-big" th:unless="${labor and c.perUnit != null}"><span>Выход с замеса</span><b th:text="${c.yield != null ? @fmt.num(c.yield) + ' ' + t.unit : '—'}"></b></div>
+        <dl class="sum-k">
+            <div th:if="${!semi}"><dt>Цена в каталоге</dt><dd th:text="${c.salePrice != null ? @fmt.money(c.salePrice) : '—'}"></dd></div>
+            <div th:if="${labor and !semi}"><dt>Сырьё в цене</dt><dd th:text="${c.rawShare != null ? c.rawShare + ' %' : '—'}"></dd></div>
+            <div th:if="${labor and c.perUnit != null}"><dt>Выход с замеса</dt><dd th:text="${@fmt.num(c.yield) + ' ' + t.unit}"></dd></div>
+            <div><dt>Упёк</dt><dd th:classappend="${c.lossBad()} ? 'no-t'" th:text="${c.loss != null ? @fmt.fix(c.loss, 1) + ' %' : '—'}"></dd></div>
+            <div th:if="${!semi}"><dt>Масса нетто</dt><dd th:text="${c.finished != null ? @fmt.num(c.finished) + ' г' : '—'}"></dd></div>
+            <div><dt>Контрольных точек</dt><dd th:text="${c.ccp}">0</dd></div>
+            <div><dt>Срок годности</dt><dd th:text="${t.shelfLife ?: '—'}"></dd></div>
+        </dl></section>
+    <ul class="warns" th:if="${!c.warns.isEmpty()}" aria-label="Замечания"><li th:each="w : ${c.warns}"><th:block th:utext="${i['alert']}"></th:block><span th:text="${w}"></span></li></ul>
+</aside>
+</div>
+</th:block>
+
 <form th:if="${edit}" method="post" th:action="${'/admin/techcards/' + t.productId}" data-guard="Техкарта не сохранена.">
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
     <div class="section-gap">
@@ -64,6 +176,10 @@
     <td><select class="sel" name="stCcp"><option value="0">нет</option><option value="1">ККТ</option></select></td>
     <td><button class="rx-del" type="button" data-del-row aria-label="Удалить этап" th:utext="${i['trash']}"></button></td></tr></template>
 </th:block>
-<th:block th:fragment="scripts"><script th:if="${edit}" src="/admin/assets/lines.js?v=1"></script></th:block>
+<th:block th:fragment="scripts">
+<script th:if="${edit}" src="/admin/assets/lines.js?v=1"></script>
+<th:block th:unless="${edit}"><script type="application/json" id="tc-plan-data" th:utext="${planJson}"></script>
+<script src="/admin/assets/techcard.js?v=1"></script></th:block>
+</th:block>
 </body>
 </html>
