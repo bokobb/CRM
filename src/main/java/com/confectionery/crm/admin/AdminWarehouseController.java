@@ -18,9 +18,9 @@ import java.util.*;
 import static com.confectionery.crm.admin.AdminSupport.*;
 
 /**
- * Склад сырья (/admin/materials) и склад готовой продукции (/admin/stock): остатки, справочник
- * сырья, журнал поступлений и списаний, документы «Поступление»/«Списание» (StockService —
- * уходят в 1С проведёнными, как из приложения). Остаток — из журнала движений и синхронизации с 1С.
+ * Склад готовой продукции (/admin/stock): остатки, журнал поступлений и списаний, документы
+ * «Поступление»/«Списание» (StockService — уходят в 1С проведёнными, как из приложения). Склад сырья —
+ * AdminMaterialController.
  */
 @Controller
 @RequiredArgsConstructor
@@ -31,70 +31,6 @@ public class AdminWarehouseController {
     private final StockService stockService;
     private final CurrentUserService currentUserService;
     private final OneCStockSyncService oneCStockSyncService;
-
-    // ------------------------------------------------------------------ склад сырья
-
-    @GetMapping("/admin/materials")
-    @Transactional(readOnly = true)
-    public String materials(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int low,
-                            @RequestParam(defaultValue = "0") int archived, Model model) {
-        String nq = AdminOrderController.norm(q);
-        List<Ingredient> all = archived == 1 ? ingredientService.findAll() : ingredientService.findAllActive();
-        Set<Long> lowIds = new HashSet<>();
-        ingredientService.findLowStock().forEach(i -> lowIds.add(i.getId()));
-        List<Ingredient> rows = all.stream()
-                .filter(i -> nq.isEmpty() || AdminOrderController.norm(i.getName()).contains(nq))
-                .filter(i -> low == 0 || lowIds.contains(i.getId()))
-                .sorted(Comparator.comparing(Ingredient::getName, String.CASE_INSENSITIVE_ORDER)).toList();
-        model.addAttribute("rows", rows);
-        model.addAttribute("lowIds", lowIds);
-        model.addAttribute("lowCount", lowIds.size());
-        model.addAttribute("q", q);
-        model.addAttribute("low", low == 1);
-        model.addAttribute("archived", archived == 1);
-        model.addAttribute("canEdit", currentUserService.hasRole(Role.ADMIN, Role.WAREHOUSE_RAW, Role.ACCOUNTANT));
-        page(model, "Склад сырья", "остатки, минимум, поступления и списания", "materials");
-        return "admin/warehouse/materials";
-    }
-
-    @GetMapping({"/admin/materials/new", "/admin/materials/{id}/edit"})
-    @Transactional(readOnly = true)
-    public String ingredientForm(@PathVariable(required = false) Long id, Model model) {
-        Ingredient ing = id == null ? new Ingredient() : ingredientService.findById(id);
-        if (id == null) ing.setUnit("кг");
-        model.addAttribute("ing", ing);
-        model.addAttribute("errors", List.of());
-        page(model, "Склад сырья", "", "materials");
-        return "admin/warehouse/ingredient";
-    }
-
-    @PostMapping({"/admin/materials", "/admin/materials/{id}"})
-    public String saveIngredient(@PathVariable(required = false) Long id, @RequestParam String name, @RequestParam String unit,
-                                 @RequestParam(required = false) String minThreshold, @RequestParam(defaultValue = "false") boolean active,
-                                 Model model, RedirectAttributes ra) {
-        Ingredient ing = id == null ? new Ingredient() : ingredientService.findById(id);
-        ing.setName(name == null ? "" : name.trim());
-        ing.setUnit(unit == null || unit.isBlank() ? "кг" : unit.trim());
-        BigDecimal min = num(minThreshold);
-        ing.setMinThreshold(min == null ? BigDecimal.ZERO : min);
-        ing.setActive(id == null || active);
-        List<String> errors = new ArrayList<>();
-        if (ing.getName().isEmpty()) errors.add("Укажите название сырья.");
-        if (ing.getMinThreshold().signum() < 0) errors.add("Минимальный остаток не может быть меньше нуля.");
-        if (errors.isEmpty()) {
-            try {
-                ingredientService.save(ing);
-                ok(ra, "Сырьё «" + ing.getName() + "» сохранено");
-                return "redirect:/admin/materials";
-            } catch (RuntimeException e) {
-                errors.add(e.getMessage() != null && e.getMessage().contains("constraint") ? "Такое сырьё уже есть в справочнике." : e.getMessage());
-            }
-        }
-        model.addAttribute("ing", ing);
-        model.addAttribute("errors", errors);
-        page(model, "Склад сырья", "", "materials");
-        return "admin/warehouse/ingredient";
-    }
 
     // ------------------------------------------------------------------ склад готовой продукции
 
@@ -136,7 +72,7 @@ public class AdminWarehouseController {
         return sec.equals("stock");
     }
 
-    @GetMapping("/admin/{sec:materials|stock}/movements")
+    @GetMapping("/admin/{sec:stock}/movements")
     @Transactional(readOnly = true)
     public String movements(@PathVariable String sec, @RequestParam(defaultValue = "all") String type,
                             @RequestParam(required = false) String from, @RequestParam(required = false) String to,
@@ -158,7 +94,7 @@ public class AdminWarehouseController {
         return "admin/warehouse/movements";
     }
 
-    @PostMapping("/admin/{sec:materials|stock}/movements/{id}/delete")
+    @PostMapping("/admin/{sec:stock}/movements/{id}/delete")
     public String deleteMovement(@PathVariable String sec, @PathVariable Long id, RedirectAttributes ra) {
         try {
             if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Удалить движение может администратор");
@@ -173,7 +109,7 @@ public class AdminWarehouseController {
     public record DocLine(Long itemId, String qty) {
     }
 
-    @GetMapping("/admin/{sec:materials|stock}/doc")
+    @GetMapping("/admin/{sec:stock}/doc")
     @Transactional(readOnly = true)
     public String docForm(@PathVariable String sec, @RequestParam(defaultValue = "in") String type,
                           @RequestParam(required = false) Long item, Model model) {
@@ -209,7 +145,7 @@ public class AdminWarehouseController {
     public record Item(Long id, String name, String unit, BigDecimal stock) {
     }
 
-    @PostMapping("/admin/{sec:materials|stock}/doc")
+    @PostMapping("/admin/{sec:stock}/doc")
     public String saveDoc(@PathVariable String sec, HttpServletRequest req, Model model, RedirectAttributes ra) {
         boolean product = isProduct(sec);
         String type = "out".equals(req.getParameter("type")) ? "out" : "in";

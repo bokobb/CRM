@@ -13,6 +13,19 @@
 .ac-x{margin-left:auto;padding-left:10px;white-space:nowrap}
 .ln--q+.ac-sug{margin-left:50px}
 .lbl{display:block}
+/* общее из макета, чего не было в admin.css: строка-день в журналах, плашка, неактивная иконка-кнопка */
+.tbl .grp th{padding:16px 20px 8px;background:var(--paper);border-bottom:1px solid var(--line);font:700 16px/1.2 var(--display);letter-spacing:0;text-transform:none;color:var(--ink)}
+.tbl .grp th span{margin-left:8px;font:500 13px var(--body);color:var(--ink-soft)}
+.tbl .grp th{font-variant-numeric:lining-nums}
+.banner{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;padding:12px 14px;border-radius:14px;background:var(--cream);box-shadow:inset 0 0 0 1.5px rgba(237,174,37,.6);font-size:14.5px;line-height:1.45}
+.banner .i{flex:none;width:20px;height:20px;margin-top:1px;color:var(--caramel-deep)}
+.ibtn:disabled{opacity:.35;cursor:default}
+.warn-s .link{min-height:0;font-size:13.5px}
+.sel.is-bad{border-color:var(--crimson);box-shadow:0 0 0 1px var(--crimson)}
+@media (max-width:560px){
+  .kpis--3 .kpi-l{grid-column:1/-1}
+  .kpis--3 .kpi-s{grid-column:1/-1}
+}
 /* material states and movements */
 .ms{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;font:600 12.5px/1 var(--body);white-space:nowrap}
 .ms--short{background:var(--crimson);color:#fff}

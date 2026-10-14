@@ -281,7 +281,7 @@ public class AdminDashboardController {
                         + fmt.plural(low.size(), "позиция", "позиции", "позиций"),
                         low.stream().limit(5).map(m -> m.getName() + " — " + fmt.dec(m.getQuantityInStock(), 0) + AdminFormat.NB + m.getUnit())
                                 .reduce((a, b) -> a + " · " + b).orElse("") + (low.size() > 5 ? " · …" : ""),
-                        "/admin/materials?low=1", "Склад"));
+                        "/admin/materials?seg=low", "Склад"));
             }
         }
         model.addAttribute("attention", att);

@@ -1,39 +1,112 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<form class="tools" method="get" action="/admin/materials" data-autosubmit>
-    <label class="search"><span class="sr">Поиск сырья</span><th:block th:utext="${i['search']}"></th:block>
-        <input class="inp" name="q" type="search" placeholder="Найти сырьё" autocomplete="off" th:value="${q}"></label>
-    <label class="switch"><input type="checkbox" name="low" value="1" th:checked="${low}"> Только на исходе</label>
-    <label class="switch"><input type="checkbox" name="archived" value="1" th:checked="${archived}"> Показать снятое с учёта</label>
-    <span class="grow"></span>
-    <a class="btn btn-soft btn-sm" href="/admin/materials/movements">Движения</a>
-    <a th:if="${canEdit}" class="btn btn-soft btn-sm" href="/admin/materials/doc?type=out">Списание</a>
-    <a th:if="${canEdit}" class="btn btn-primary btn-sm" href="/admin/materials/doc?type=in"><th:block th:utext="${i['plus']}"></th:block>Поступление</a>
-</form>
-<div class="mini-kpis">
-    <a class="kpi" href="/admin/materials"><span class="kpi-l">Позиций сырья</span><span class="kpi-v" th:text="${rows.size()}"></span></a>
-    <a class="kpi" th:classappend="${lowCount > 0} ? 'kpi--alert'" href="/admin/materials?low=1"><span class="kpi-l">На исходе</span><span class="kpi-v" th:text="${lowCount}"></span><span class="kpi-s">ниже минимального остатка</span></a>
+<div class="kpis kpis--3">
+    <a th:each="t : ${tiles}" class="kpi" th:classappend="${t.cls}" th:href="${t.href}"><span class="kpi-l"><th:block th:utext="${i[t.icon]}"></th:block><th:block th:text="${t.label}"></th:block></span>
+        <span class="kpi-v"><th:block th:text="${t.value}">0</th:block><th:block th:if="${t.unit != null}"> <small th:text="${t.unit}">кг</small></th:block></span><span class="kpi-s" th:text="${t.sub}"></span></a>
 </div>
-<section class="card" aria-label="Сырьё">
-    <div class="tbl-w">
-        <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
-        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
-            <thead><tr><th>Сырьё</th><th class="r">Остаток</th><th class="r">Минимум</th><th>Состояние</th><th class="acts-col"></th></tr></thead>
-            <tbody>
-            <tr th:each="m : ${rows}">
-                <td class="c-full"><b th:text="${m.name}"></b><small th:if="${!m.active}">снято с учёта</small></td>
-                <td class="r num" th:classappend="${lowIds.contains(m.id)} ? 'low'" th:text="${@fmt.num(m.quantityInStock) + ' ' + m.unit}"></td>
-                <td class="r num" th:text="${m.minThreshold.signum() > 0 ? @fmt.num(m.minThreshold) + ' ' + m.unit : '—'}"></td>
-                <td><span th:if="${lowIds.contains(m.id)}" class="tag tag--bad">на исходе</span><span th:if="${!lowIds.contains(m.id) and m.quantityInStock.signum() > 0}" class="tag tag--ok">есть</span><span th:if="${!lowIds.contains(m.id) and m.quantityInStock.signum() <= 0}" class="tag">нет</span></td>
-                <td><div class="tbl-actions"><a th:if="${canEdit}" class="btn btn-soft btn-sm" th:href="${'/admin/materials/doc?type=in&item=' + m.id}">Приход</a><a th:if="${canEdit}" class="ibtn" th:href="${'/admin/materials/' + m.id + '/edit'}" aria-label="Изменить" th:utext="${i['edit']}"></a></div></td>
-            </tr>
-            </tbody>
-        </table>
-    </div>
-</section>
-<p class="cnt">Остаток считается из поступлений, расхода в производство по заявкам и списаний; раз в несколько минут сверяется с 1С. <a th:if="${canEdit}" class="link" href="/admin/materials/new">Добавить сырьё в справочник</a></p>
+<div class="seg rt-seg" role="group" aria-label="Что показать">
+    <a href="/admin/materials" th:attr="aria-pressed=${tab == 'stock'}">Остатки</a>
+    <a href="/admin/materials?tab=moves" th:attr="aria-pressed=${tab == 'moves'}">Движения</a>
+</div>
+
+<th:block th:if="${tab == 'stock'}">
+<form class="tools" method="get" action="/admin/materials" data-autosubmit>
+    <input type="hidden" name="seg" th:value="${seg}">
+    <label class="search"><span class="sr">Поиск сырья</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Найти сырьё или поставщика" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">Порядок</span><select class="sel" name="sort">
+        <option th:each="o : ${sorts}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
+    <span class="grow"></span>
+    <button th:if="${canSync}" class="btn btn-soft btn-sm" type="button" data-sync><th:block th:utext="${i['refresh']}"></th:block><span>Сверить с 1С</span></button>
+    <button th:if="${canOff}" class="btn btn-soft btn-sm" type="button" data-doc="off">Списание</button>
+    <button th:if="${canIn}" class="btn btn-primary btn-sm" type="button" data-doc="in"><th:block th:utext="${i['plus']}"></th:block><span>Поступление</span></button>
+</form>
+<div class="chips" role="group" aria-label="Что показать">
+    <a th:each="c : ${chips}" class="chip" th:classappend="${c.alert} ? 'chip--alert'" th:href="${c.href}" th:attr="aria-pressed=${c.on and !archOn}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a>
+    <th:block th:if="${archCount > 0}"><span class="chips-sep" aria-hidden="true"></span>
+        <a class="chip chip--link" href="/admin/materials?seg=arch" th:attr="aria-pressed=${archOn}">Снято с учёта <span th:text="${archCount}"></span></a></th:block>
+</div>
+<section class="card" aria-label="Остатки сырья"><div class="tbl-w">
+    <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--m">
+        <thead><tr><th>Сырьё</th><th class="r">Остаток</th><th class="r m-min">Минимум</th><th class="r">Нужно по новым заявкам</th><th class="m-d">Хватит на</th><th class="r m-p">Цена</th><th>Состояние</th></tr></thead>
+        <tbody><tr th:each="x : ${rows}" class="rowlink" th:classappend="${x.s.key == 'short'} ? 'is-short'" th:attr="data-href=${'/admin/materials/' + x.m.id}">
+            <td class="m-n"><a th:href="${'/admin/materials/' + x.m.id}" th:text="${x.m.name}">Мука</a><small th:text="${x.price != null and x.price.supplier != null ? x.price.supplier : (x.free() ? 'из водопровода, не учитывается' : (!x.m.active ? 'снято с учёта' : '—'))}"></small></td>
+            <td class="r num m-s"><span th:if="${x.free()}" class="muted">—</span><b th:unless="${x.free()}" th:classappend="${x.bad()} ? 'pay-bad'" th:text="${x.q(x.m.quantityInStock)}"></b></td>
+            <td class="r num m-min"><th:block th:if="${x.m.minThreshold != null and x.m.minThreshold.signum() > 0}" th:text="${x.q(x.m.minThreshold)}"></th:block><span th:unless="${x.m.minThreshold != null and x.m.minThreshold.signum() > 0}" class="muted">—</span></td>
+            <td class="r num m-need" th:classappend="${x.need == null or x.free()} ? 'm-need--none'"><th:block th:if="${x.need != null and !x.free()}"><b><span class="mob">нужно </span><th:block th:text="${x.q(x.need.q)}"></th:block></b><small th:classappend="${x.needShort()} ? 'pay-bad'" th:text="${x.needShort() ? 'не хватает ' + x.q(x.need.q.subtract(x.m.quantityInStock)) : x.needNos()}"></small></th:block><span th:if="${x.need == null or x.free()}" class="muted">—</span></td>
+            <td class="m-d"><span th:if="${x.days == null}" class="muted">—</span><b th:if="${x.days != null and x.daysText().bad}" class="pay-bad" th:text="${x.daysText().text}"></b><th:block th:if="${x.days != null and !x.daysText().bad}" th:text="${x.daysText().text}"></th:block></td>
+            <td class="r num m-p"><th:block th:if="${x.price != null}"><th:block th:text="${@fmt.money(x.price.unit)}"></th:block><small th:classappend="${x.price.stale()} ? 'pay-bad'" th:text="${(x.price.stale() ? 'старая · ' : '') + 'от ' + @fmt.dm(x.price.date)}"></small></th:block><span th:if="${x.price == null}" class="muted">—</span></td>
+            <td class="m-st"><span class="ms" th:classappend="${x.s.cls}" th:text="${x.s.label}">Есть</span><a th:if="${x.bad() and x.m.active}" class="link m-buy" th:href="${'/admin/purchases/new?ingredient=' + x.m.id}">Купить</a></td>
+        </tr></tbody>
+    </table>
+</div></section>
+<p class="cnt"><th:block th:text="${'Позиций: ' + rows.size() + ' из ' + total + '. Остаток сверяется с 1С каждые 5 минут, пока в CRM работают. «Хватит на» — по среднему расходу в цех за две недели. '}"></th:block><a th:if="${canEdit}" class="link" href="/admin/materials/new">Добавить сырьё в справочник</a></p>
 </th:block>
+
+<th:block th:if="${tab == 'moves'}">
+<form class="tools" method="get" action="/admin/materials" data-autosubmit>
+    <input type="hidden" name="tab" value="moves"><input type="hidden" name="t" th:value="${t}">
+    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" name="q" type="search" placeholder="Сырьё, № заявки или покупки" autocomplete="off" th:value="${mq}"></label>
+    <label class="pick"><span class="sr">Период</span><select class="sel" name="per">
+        <option th:each="o : ${pers}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
+    <span class="grow"></span>
+    <button th:if="${canOff}" class="btn btn-soft btn-sm" type="button" data-doc="off">Списание</button>
+    <button th:if="${canIn}" class="btn btn-primary btn-sm" type="button" data-doc="in"><th:block th:utext="${i['plus']}"></th:block><span>Поступление</span></button>
+</form>
+<div class="chips" role="group" aria-label="Вид движения">
+    <a th:each="c : ${typeChips}" class="chip" th:href="${c.href}" th:attr="aria-pressed=${c.on}"><th:block th:text="${c.label}"></th:block> <span th:text="${c.count}"></span></a>
+</div>
+<section class="card" aria-label="Движения сырья"><div class="tbl-w">
+    <div th:if="${days.isEmpty()}" class="empty">За эти дни движений нет.</div>
+    <table th:unless="${days.isEmpty()}" class="tbl tbl--mv">
+        <thead><tr><th>Время</th><th>Сырьё</th><th>Движение</th><th class="r">Количество</th><th>Документ</th><th>Кто</th></tr></thead>
+        <tbody>
+        <th:block th:each="d : ${days}">
+            <tr class="grp"><th colspan="6"><th:block th:text="${d.title}"></th:block><span th:text="${d.countText()}"></span></th></tr>
+            <th:block th:each="g, gs : ${d.groups}">
+                <tr th:if="${g.single()}">
+                    <td class="mv-at num" th:text="${@fmt.time(g.first.x.createdAt)}"></td>
+                    <td class="mv-m"><a class="cl-link" th:href="${'/admin/materials/' + g.first.x.ingredient.id}" th:text="${g.first.name()}"></a></td>
+                    <td class="mv-t"><span class="mt" th:classappend="${g.first.kind.cls}" th:text="${g.first.kind.label}"></span></td>
+                    <td class="r num mv-q"><b class="mq" th:classappend="${g.first.plus() ? 'mq--in' : (g.first.kind.key == 'off' ? 'mq--off' : '')}" th:text="${g.first.qty()}"></b></td>
+                    <td class="mv-d"><th:block th:replace="~{admin/warehouse/materials :: docRef(${g.first})}"></th:block></td>
+                    <td class="mv-by" th:text="${g.first.by}"></td>
+                </tr>
+                <th:block th:unless="${g.single()}">
+                <tr class="mv-g">
+                    <td class="mv-at num" th:text="${@fmt.time(g.first.x.createdAt)}"></td>
+                    <td class="mv-m"><button class="mv-x" type="button" aria-expanded="false" th:attr="data-mvg=${d.day + '-' + gs.index}"><th:block th:utext="${i16['chev']}"></th:block><th:block th:text="${g.count()}"></th:block></button></td>
+                    <td class="mv-t"><span class="mt" th:classappend="${g.first.kind.cls}" th:text="${g.first.kind.label}"></span></td>
+                    <td class="r num mv-q"><b class="mq" th:classappend="${g.first.plus() ? 'mq--in' : (g.first.kind.key == 'off' ? 'mq--off' : '')}" th:text="${g.qty()}"></b></td>
+                    <td class="mv-d"><th:block th:replace="~{admin/warehouse/materials :: docRef(${g.first})}"></th:block></td>
+                    <td class="mv-by" th:text="${g.first.by}"></td>
+                </tr>
+                <tr th:each="y : ${g.items}" class="mv-sub" th:attr="data-of=${d.day + '-' + gs.index}" hidden>
+                    <td class="mv-at"></td><td class="mv-m"><a class="cl-link" th:href="${'/admin/materials/' + y.x.ingredient.id}" th:text="${y.name()}"></a></td><td class="mv-t"></td>
+                    <td class="r num mv-q"><b class="mq" th:classappend="${y.plus() ? 'mq--in' : (y.kind.key == 'off' ? 'mq--off' : '')}" th:text="${y.qty()}"></b></td><td class="mv-d"></td><td class="mv-by"></td>
+                </tr>
+                </th:block>
+            </th:block>
+        </th:block>
+        </tbody>
+    </table>
+    <a th:if="${rest > 0}" class="add" th:href="${moreHref}" th:text="${'Показать ещё ' + (rest > 60 ? 60 : rest) + ' · осталось ' + rest}"></a>
+</div></section>
+<p class="cnt" th:text="${'Движений: ' + moveCount + ' · пришло ' + @fmt.dec(inKg, 0) + ' кг, ушло ' + @fmt.dec(outKg, 0) + ' кг. Выдача в цех — по заявкам на сырьё, приход — из покупок и документов «Поступление».'}"></p>
+</th:block>
+<form id="mt-sync" method="post" action="/admin/materials/sync-1c" hidden><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"></form>
+</th:block>
+<th:block th:fragment="scripts">
+<script type="application/json" id="mt-doc" th:utext="${docJson}"></script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/mat.js?v=1"></script>
+</th:block>
+<th:block th:fragment="docRef(m)"><a th:if="${m.href != null}" class="link mv-doc" th:href="${m.href}" th:text="${m.doc}"></a><span th:if="${m.href == null}" class="mv-doc" th:text="${m.doc}"></span><small th:if="${!#strings.isEmpty(m.sub)}" th:text="${m.sub}"></small></th:block>
 </body>
 </html>

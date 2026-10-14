@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/materials"><th:block th:utext="${i['back']}"></th:block>Склад сырья</a>
+<div th:if="${missing != null}" class="card empty">Такого сырья нет.</div>
+<th:block th:if="${missing == null}">
+<div class="ch"><span class="cav cav--lg cav--m" aria-hidden="true" th:utext="${i['materials']}"></span>
+    <div><h2 th:text="${m.name}">Мука</h2>
+        <p class="ch-m"><span class="ms" th:classappend="${row.s.cls}" th:text="${row.s.label}">Есть</span><span th:text="${unit}">кг</span>
+            <span th:if="${row.price != null and row.price.supplier != null}">поставщик: <a class="cl-link" href="/admin/purchases/suppliers" th:text="${row.price.supplier}"></a></span>
+            <span th:if="${!m.active}">снято с учёта</span></p></div>
+    <div class="ch-acts" th:if="${!row.free()}">
+        <a th:if="${canBuy and m.active}" class="btn btn-primary" th:href="${'/admin/purchases/new?ingredient=' + m.id}"><th:block th:utext="${i['purchases']}"></th:block>Купить</a>
+        <button th:if="${canIn and m.active}" class="btn btn-soft" type="button" data-doc="in">Поступление</button>
+        <button th:if="${canOff and m.active}" class="btn btn-soft" type="button" data-doc="off">Списание</button>
+        <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/materials/' + m.id + '/edit'}">Изменить</a>
+    </div>
+</div>
+<div class="ckpis">
+    <div class="kpi" th:classappend="${row.s.key == 'low' or row.s.key == 'zero'} ? 'kpi--warm'"><span class="kpi-l">Остаток</span>
+        <span class="kpi-v"><th:block th:if="${row.free()}">—</th:block><th:block th:unless="${row.free()}"><th:block th:text="${@fmt.qn(m.quantityInStock)}"></th:block> <small th:text="${unit}"></small></th:block></span>
+        <span class="kpi-s" th:text="${row.free() ? 'не учитывается на складе' : (m.minThreshold != null and m.minThreshold.signum() > 0 ? 'минимум ' + row.q(m.minThreshold) + (m.quantityInStock.compareTo(m.minThreshold) < 0 ? ' — ниже на ' + row.q(m.minThreshold.subtract(m.quantityInStock)) : '') : 'минимум не задан')}"></span></div>
+    <div class="kpi" th:classappend="${row.s.key == 'short'} ? 'kpi--alert'"><span class="kpi-l">Нужно по новым заявкам</span>
+        <span class="kpi-v"><th:block th:if="${row.need != null and !row.free()}"><th:block th:text="${@fmt.qn(row.need.q)}"></th:block> <small th:text="${unit}"></small></th:block><th:block th:unless="${row.need != null and !row.free()}">—</th:block></span>
+        <span class="kpi-s" th:text="${row.need != null and !row.free() ? (row.needShort() ? 'не хватает ' + row.q(row.need.q.subtract(m.quantityInStock)) + ' · ' : '') + row.needNos() : 'в новых заявках нет'}"></span></div>
+    <div class="kpi"><span class="kpi-l">Расход в цех</span>
+        <span class="kpi-v"><th:block th:if="${row.use != null}"><th:block th:text="${'≈ ' + @fmt.dec(row.use, row.use.doubleValue() >= 10 ? 0 : 1)}"></th:block> <small th:text="${unit + '/день'}"></small></th:block><th:block th:unless="${row.use != null}">—</th:block></span>
+        <span class="kpi-s" th:text="${row.use != null ? 'за две недели · хватит ' + (row.days < 1 ? 'меньше чем на день' : 'на ' + row.daysText().text) : 'за две недели не расходовалось'}"></span></div>
+    <div class="kpi" th:classappend="${row.price != null and row.price.stale()} ? 'kpi--warm'"><span class="kpi-l">Цена</span>
+        <span class="kpi-v"><th:block th:if="${row.price != null}"><th:block th:text="${@fmt.num(row.price.unit)}"></th:block> <small th:text="${'₸/' + unit}"></small></th:block><th:block th:unless="${row.price != null}">—</th:block></span>
+        <span class="kpi-s" th:text="${row.price != null ? (row.price.purchaseId != null ? 'покупка № ' + row.price.purchaseId + ' от ' : 'от ') + @fmt.dm(row.price.date) + (row.price.stale() ? ' · старая' : '') : 'покупок не было'}"></span></div>
+</div>
+<div class="cgrid"><div class="cmain">
+    <section class="card" aria-labelledby="h-mm"><div class="card-h"><div><h2 id="h-mm">Движения</h2><p>за две недели · остаток после каждого движения</p></div></div>
+        <div th:if="${hist.isEmpty()}" class="card-b muted" th:text="${row.free() ? 'Вода и лёд не учитываются на складе — их нет в движениях.' : 'За две недели движений не было.'}"></div>
+        <div th:unless="${hist.isEmpty()}" class="tbl-w"><table class="tbl tbl--mm">
+            <thead><tr><th>Когда</th><th>Движение</th><th class="r">Количество</th><th class="r">Остаток после</th><th>Документ</th></tr></thead>
+            <tbody><tr th:each="y : ${hist}">
+                <td class="mm-at" th:text="${@fmt.when(y.m.x.createdAt)}"></td>
+                <td class="mm-t"><span class="mt" th:classappend="${y.m.kind.cls}" th:text="${y.m.kind.label}"></span></td>
+                <td class="r num mm-q"><b class="mq" th:classappend="${y.m.plus() ? 'mq--in' : (y.m.kind.key == 'off' ? 'mq--off' : '')}" th:text="${y.m.qty()}"></b></td>
+                <td class="r num mm-b" th:text="${row.q(y.after)}"></td>
+                <td class="mm-d"><th:block th:replace="~{admin/warehouse/materials :: docRef(${y.m})}"></th:block></td>
+            </tr></tbody>
+        </table></div>
+        <p th:if="${histTotal > 60}" class="card-f" th:text="${'Показаны последние 60 из ' + histTotal + '.'}"></p>
+    </section>
+</div>
+<aside class="cside">
+    <section class="card card-b box" aria-labelledby="h-mr"><h3 id="h-mr">Заявки в работе</h3>
+        <ul th:unless="${work.isEmpty()}" class="mreq"><li th:each="w : ${work}"><a class="link" th:href="${'/admin/requests/' + w.r.id}" th:text="${'№ ' + w.r.id + ' «' + w.r.title + '»'}"></a><span th:text="${w.status}"></span><b class="num" th:text="${row.q(w.q)}"></b></li></ul>
+        <p th:if="${work.isEmpty()}" class="muted">В новых и собранных заявках нет.</p></section>
+    <section class="card card-b box" aria-labelledby="h-mu"><h3 id="h-mu">Где используется</h3>
+        <th:block th:unless="${uses.isEmpty()}"><ul class="muse"><li th:each="u : ${uses}"><a class="link" th:href="${'/admin/recipes/' + u.product.id}" th:text="${u.name()}"></a><b class="num" th:text="${row.q(u.q)}"></b><span class="track" aria-hidden="true"><i th:style="${'width:' + u.share + '%'}"></i></span></li></ul>
+            <p class="hint" th:text="${'На один замес по рецептуре' + (usesMore > 0 ? ' · ещё ' + usesMore + ' изделий' : '') + '.'}"></p></th:block>
+        <p th:if="${uses.isEmpty()}" class="muted">Ни в одной рецептуре нет.</p></section>
+    <section class="card card-b box" aria-labelledby="h-mp"><h3 id="h-mp">Покупки</h3>
+        <ul th:unless="${bought.isEmpty()}" class="mreq"><li th:each="b : ${bought}"><a class="link" th:href="${'/admin/purchases/' + b.p.id}" th:text="${'№ ' + b.p.id + ' · ' + @fmt.dm(b.p.purchaseDate)}"></a><span th:text="${row.q(b.q) + ' · ' + (b.p.counterparty != null ? b.p.counterparty.name : '')}"></span><b class="num" th:text="${@fmt.money(b.unitPrice)}"></b></li></ul>
+        <p th:if="${bought.isEmpty()}" class="muted">Покупок не было.</p></section>
+    <section th:if="${!row.free() and canEdit}" class="card card-b box" aria-labelledby="h-ms"><h3 id="h-ms">Минимальный остаток</h3>
+        <form method="post" th:action="${'/admin/materials/' + m.id + '/min'}" class="qin qin--row" id="ms-form"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <label class="sr" for="ms-v" th:text="${'Минимальный остаток, ' + unit}"></label><input class="inp" id="ms-v" name="min" inputmode="decimal" autocomplete="off" th:value="${m.minThreshold != null and m.minThreshold.signum() > 0 ? @fmt.qn(m.minThreshold).replace(' ', '') : ''}" placeholder="0 — не следить" th:attr="data-was=${m.minThreshold != null ? m.minThreshold : 0}"><i th:text="${unit}">кг</i>
+            <button class="btn btn-soft btn-sm" type="submit" id="ms-save" hidden>Сохранить</button></form>
+        <p class="hint" th:text="${'Ниже минимума — «на исходе» в списке и на дашборде.' + (minDays != null ? ' При нынешнем расходе это ≈ ' + minDays + ' дн.' : '')}"></p></section>
+</aside></div>
+</th:block>
+</th:block>
+<th:block th:fragment="scripts">
+<script th:if="${missing == null}" type="application/json" id="mt-doc" th:utext="${docJson}"></script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/mat.js?v=1"></script>
+</th:block>
+</body>
+</html>

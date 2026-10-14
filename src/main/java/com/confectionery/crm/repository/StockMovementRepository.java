@@ -13,6 +13,12 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
 
     boolean existsByProductId(Long productId);
 
+    /** Все движения сырья за период (ручные и по заявкам) — журнал «Склада сырья», расход в цех. */
+    List<StockMovement> findByIngredientIsNotNullAndCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime from, LocalDateTime to);
+
+    /** Движения одного сырья с даты — карточка сырья. */
+    List<StockMovement> findByIngredientIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(Long ingredientId, LocalDateTime from);
+
     /**
      * Только ручные движения (см. StockMovement.manual) — тип/период необязательны
      * (null = без ограничения по этому полю). Фильтр по названию — уже в StockService,
