@@ -51,7 +51,7 @@ public class AdminModelAdvice {
         User user = currentUserService.user().orElse(null);
         if (user == null) return;
         String name = user.getFullName() == null || user.getFullName().isBlank() ? user.getUsername() : user.getFullName();
-        String roleLabel = user.getRole() == Role.ADMIN ? "директор" : user.getRole().getLabel().toLowerCase();
+        String roleLabel = user.getRole().getLabel().toLowerCase();   // как в приложении: «администратор», «бухгалтер»…
         model.addAttribute("me", new Me(name, roleLabel, name.substring(0, 1).toUpperCase(), user.getRole()));
         model.addAttribute("menu", AdminSections.menu(user.getRole()));
         model.addAttribute("navNew", orderRepository.countByStatus(OrderStatus.PLACED));

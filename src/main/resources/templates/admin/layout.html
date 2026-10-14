@@ -50,7 +50,7 @@
             <button class="ibtn s-btn" type="button" id="s-btn" aria-label="Поиск заказа" aria-expanded="false" th:utext="${i['search']}"></button>
             <a class="btn btn-primary btn-sm bar-new" href="/admin/orders/new" aria-label="Новый заказ"><th:block th:utext="${i['plus']}"></th:block><span>Новый заказ</span></a>
             <div class="me">
-                <button class="me-b" type="button" id="me-b" aria-expanded="false" aria-controls="me-pop"><span class="ava" aria-hidden="true" th:text="${me.initial}">А</span><span class="me-n"><b th:text="${me.name}">Администратор</b><span th:text="${me.roleLabel}">директор</span></span><span class="sr">Меню пользователя</span></button>
+                <button class="me-b" type="button" id="me-b" aria-expanded="false" aria-controls="me-pop"><span class="ava" aria-hidden="true" th:text="${me.initial}">А</span><span class="me-n"><b th:text="${me.name}">Администратор</b><span th:text="${me.roleLabel}">администратор</span></span><span class="sr">Меню пользователя</span></button>
                 <div class="me-pop" id="me-pop" hidden>
                     <p><b th:text="${me.name}">Администратор</b><th:block th:text="${'Роль: ' + me.roleLabel + (me.isAdmin() ? ', видит все разделы' : '')}">Роль</th:block></p>
                     <a href="/admin/settings" th:if="${me.isAdmin()}"><th:block th:utext="${i['settings']}"></th:block>Настройки</a>

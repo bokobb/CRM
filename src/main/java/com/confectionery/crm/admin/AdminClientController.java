@@ -444,7 +444,7 @@ public class AdminClientController {
     @PostMapping("/{id:\\d+}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Удалить клиента может директор");
+            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Удалить клиента может администратор");
             clientService.delete(id);
             ok(ra, "Клиент удалён вместе с его заказами");
             return "redirect:/admin/clients";
@@ -457,7 +457,7 @@ public class AdminClientController {
     @PostMapping("/{id:\\d+}/prices")
     public String setPrice(@PathVariable Long id, @RequestParam Long product, @RequestParam String price, RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN, Role.SALES, Role.ACCOUNTANT)) throw new IllegalStateException("Цены меняют продажи, бухгалтер и директор");
+            if (!currentUserService.hasRole(Role.ADMIN, Role.SALES, Role.ACCOUNTANT)) throw new IllegalStateException("Цены меняют продажи, бухгалтер и администратор");
             BigDecimal p = num(price);
             if (p == null || p.signum() < 0) throw new IllegalArgumentException("Укажите цену");
             clientPriceService.upsert(id, product, p.setScale(2, RoundingMode.HALF_UP));
@@ -493,7 +493,7 @@ public class AdminClientController {
     @PostMapping("/access/{id}/{decision:approve|reject}")
     public String decide(@PathVariable Long id, @PathVariable String decision, RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Пускать на сайт может директор");
+            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Пускать на сайт может администратор");
             String who = currentUserService.username().orElse("admin");
             if (decision.equals("approve")) {
                 ShopAccessRequest r = shopAccessService.approve(id, who);

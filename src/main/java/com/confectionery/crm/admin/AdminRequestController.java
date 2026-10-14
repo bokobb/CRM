@@ -210,7 +210,7 @@ public class AdminRequestController {
     @PostMapping("/{id:\\d+}/cancel")
     public String cancel(@PathVariable Long id, RedirectAttributes ra) {
         return act(id, ra, "Заявка № " + id + " отменена", () -> {
-            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Отменить заявку может директор");
+            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Отменить заявку может администратор");
             requestService.cancel(id, by());
         });
     }
@@ -218,7 +218,7 @@ public class AdminRequestController {
     @PostMapping("/{id:\\d+}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Удалить заявку может директор");
+            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Удалить заявку может администратор");
             requestService.delete(id);
             ok(ra, "Заявка № " + id + " удалена");
             return "redirect:/admin/requests";

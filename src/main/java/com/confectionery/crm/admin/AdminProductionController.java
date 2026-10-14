@@ -28,7 +28,7 @@ import static com.confectionery.crm.admin.AdminSupport.*;
 /**
  * Производство: заявки дня × техкарты — норма сырья, выдано, зарплата бригад, себестоимость и
  * выручка (ProductionCostService), бригады на заявку. Техкарта: этапы, температура и время, ККТ,
- * органолептика, упаковка, срок годности (TechCardService). Зарплату видят директор и бухгалтер.
+ * органолептика, упаковка, срок годности (TechCardService). Зарплату видят администратор и бухгалтер.
  */
 @Controller
 @RequiredArgsConstructor
@@ -121,7 +121,7 @@ public class AdminProductionController {
     }
 
     /**
-     * Техкарта как в макете: паспорт, состав и выход, себестоимость (цены видят директор и бухгалтер), расчёт на план
+     * Техкарта как в макете: паспорт, состав и выход, себестоимость (цены видят администратор и бухгалтер), расчёт на план
      * с остатками сырья, процесс с ККТ, качество, этикетка; справа — итог и замечания. ?edit=1 — правка полей техкарты.
      */
     @GetMapping("/admin/techcards/{productId}")
@@ -177,7 +177,7 @@ public class AdminProductionController {
     @PostMapping("/admin/techcards/{productId}")
     public String saveTechcard(@PathVariable Long productId, HttpServletRequest req, RedirectAttributes ra) {
         try {
-            if (!canEditCard()) throw new IllegalStateException("Техкарту правит технолог или директор");
+            if (!canEditCard()) throw new IllegalStateException("Техкарту правит технолог или администратор");
             String[] ti = arr(req, "stTitle"), de = arr(req, "stDesc"), te = arr(req, "stTemp"), du = arr(req, "stDur"), cc = arr(req, "stCcp");
             List<TechCardDto.Stage> stages = new ArrayList<>();
             for (int i = 0; i < ti.length; i++) {

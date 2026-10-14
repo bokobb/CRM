@@ -288,7 +288,7 @@ public class AdminOrderController {
     @PostMapping("/orders/{id}/rollback")
     public String rollback(@PathVariable Long id, RedirectAttributes ra) {
         try {
-            if (currentUserService.role().orElse(null) != Role.ADMIN) throw new IllegalStateException("Вернуть статус может только директор");
+            if (currentUserService.role().orElse(null) != Role.ADMIN) throw new IllegalStateException("Вернуть статус может только администратор");
             orderService.rollback(id);
             ra.addFlashAttribute("toast", "Вернули как было.");
         } catch (RuntimeException e) {

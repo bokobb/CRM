@@ -224,7 +224,7 @@ public class AdminMiscController {
     @PostMapping("/admin/settings/profile")
     public String saveProfile(@RequestParam Map<String, String> f, RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT)) throw new IllegalStateException("Реквизиты меняет директор или бухгалтер");
+            if (!currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT)) throw new IllegalStateException("Реквизиты меняет администратор или бухгалтер");
             CompanyProfile p = profileService.save(t(f, "name"), t(f, "address"), t(f, "phone"), t(f, "email"), t(f, "pickupHours"),
                     t(f, "about"), t(f, "legalInfo"), t(f, "instagramUrl"), t(f, "whatsappPhone"), t(f, "tiktokUrl"),
                     t(f, "workHours"), t(f, "jobsPhone"), t(f, "mapPoint"));
@@ -239,7 +239,7 @@ public class AdminMiscController {
     public String saveShop(@RequestParam(required = false) String pickupChoice,
                            @RequestParam(required = false) String paymentChoice, RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Настройки магазина меняет директор");
+            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Настройки магазина меняет администратор");
             CompanyProfile p = profileService.saveShopOptions(pickupChoice != null, paymentChoice != null);
             ok(ra, "Магазин: выбор времени выдачи " + (p.pickupChoiceOn() ? "включён" : "выключен")
                     + ", выбор оплаты " + (p.paymentChoiceOn() ? "включён" : "выключен"));

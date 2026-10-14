@@ -216,7 +216,7 @@ public class AdminOrderReturnController {
     @PostMapping("/{rid}/delete")
     public String delete(@PathVariable Long orderId, @PathVariable Long rid, RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT)) throw new IllegalStateException("Удалить возврат может директор или бухгалтер");
+            if (!currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT)) throw new IllegalStateException("Удалить возврат может администратор или бухгалтер");
             returnService.deleteForOrder(orderId, rid);
             ok(ra, "Возврат № " + rid + " удалён — сумма заказа № " + orderId + " снова без возврата");
             return "redirect:/admin/orders/" + orderId;

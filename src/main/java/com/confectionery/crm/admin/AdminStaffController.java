@@ -29,7 +29,7 @@ import static com.confectionery.crm.admin.AdminSupport.*;
 /**
  * Команда: сотрудники цеха и офиса (ставка, оклад, группа затрат, загрузка из 1С), табель по дням
  * месяца с выгрузкой в Excel, учётные записи для входа в админку и приложение (роль, пароль).
- * Ставки и оклады видят директор и бухгалтер; учётки — тоже они. Свой пароль меняет каждый.
+ * Ставки и оклады видят администратор и бухгалтер; учётки — тоже они. Свой пароль меняет каждый.
  */
 @Controller
 @RequiredArgsConstructor
@@ -188,8 +188,8 @@ public class AdminStaffController {
                            @RequestParam Role role, @RequestParam(defaultValue = "false") boolean enabled,
                            @RequestParam(required = false) String password, RedirectAttributes ra) {
         try {
-            if (!money()) throw new IllegalStateException("Учётные записи ведут директор и бухгалтер");
-            if (role == Role.ADMIN && !currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Роль директора даёт только директор");
+            if (!money()) throw new IllegalStateException("Учётные записи ведут администратор и бухгалтер");
+            if (role == Role.ADMIN && !currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Роль администратора даёт только администратор");
             String pw = password == null || password.isBlank() ? null : password;
             if (pw != null && pw.length() < 6) throw new IllegalArgumentException("Пароль — не короче 6 знаков");
             if (id == null) {
@@ -198,7 +198,7 @@ public class AdminStaffController {
             } else {
                 User me = currentUserService.user().orElse(null);
                 if (me != null && me.getId().equals(id) && (!enabled || role != me.getRole())) {
-                    throw new IllegalStateException("Свою роль и доступ изменить нельзя — попросите другого директора");
+                    throw new IllegalStateException("Свою роль и доступ изменить нельзя — попросите другого администратора");
                 }
                 userService.update(id, username.trim(), fullName.trim(), role, enabled, pw);
             }

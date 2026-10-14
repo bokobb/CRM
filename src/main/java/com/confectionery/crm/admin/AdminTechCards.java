@@ -67,7 +67,7 @@ public final class AdminTechCards {
      * @param stock  остатки сырья на складе по id
      * @param perBox упаковок (единиц товара) в коробке, null — не задано
      * @param semi   полуфабрикат: на продажу не фасуется, этикетки и цены в каталоге нет
-     * @param prices показывать ли замечания о ценах (цены видят директор и бухгалтер)
+     * @param prices показывать ли замечания о ценах (цены видят администратор и бухгалтер)
      */
     public static Calc calc(TechCardDto t, Map<Long, BigDecimal> stock, BigDecimal perBox, boolean semi, boolean prices, LocalDate today) {
         List<Row> raw = new ArrayList<>();

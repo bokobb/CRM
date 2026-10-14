@@ -64,7 +64,7 @@
         <p class="card-f" th:text="${(labor ? 'Цены — по последней закупке; старше 45 дней — красным. ' : '') + (c.allMass ? 'Доля — от массы закладки.' : 'Доля — от массы закладки; сырьё в штуках в неё не входит.')}"></p>
         </th:block></section>
 
-    <!--/* 3. Себестоимость — директор и бухгалтер */-->
+    <!--/* 3. Себестоимость — администратор и бухгалтер */-->
     <section th:if="${labor}" class="card" id="tc-cost"><div class="card-h"><h2><span class="sn">3</span>Себестоимость</h2><p>по сырью</p></div>
         <div class="card-b" th:unless="${c.hasRows()}"><p class="muted">Посчитаем, когда будет рецептура.</p></div>
         <div class="card-b" th:if="${c.hasRows()}" style="display:grid;gap:14px">

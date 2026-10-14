@@ -21,7 +21,7 @@ import static com.confectionery.crm.admin.AdminSupport.*;
 
 /**
  * Товары (карточка товара: название, группы, вес, коробка, объём, цена, показ на сайте) и фото товаров
- * (альбом для сайта: обложка — первое фото, порядок, загрузка, удаление). Править — только директор.
+ * (альбом для сайта: обложка — первое фото, порядок, загрузка, удаление). Править — только администратор.
  */
 @Controller
 @RequiredArgsConstructor
@@ -101,7 +101,7 @@ public class AdminProductController {
     @PostMapping({"/admin/products", "/admin/products/{id:\\d+}"})
     public String save(@PathVariable(required = false) Long id, @RequestParam Map<String, String> f, Model model, RedirectAttributes ra) {
         if (!isAdmin()) {
-            fail(ra, new IllegalStateException("Менять товары может директор"));
+            fail(ra, new IllegalStateException("Менять товары может администратор"));
             return "redirect:/admin/products";
         }
         Product p = id == null ? new Product() : productService.findById(id);
@@ -146,7 +146,7 @@ public class AdminProductController {
     public String visibility(@PathVariable Long id, @RequestParam boolean hidden, @RequestParam(required = false) String until,
                              RedirectAttributes ra) {
         try {
-            if (!isAdmin()) throw new IllegalStateException("Скрыть товар может директор");
+            if (!isAdmin()) throw new IllegalStateException("Скрыть товар может администратор");
             LocalDate u = until == null || until.isBlank() ? null : LocalDate.parse(until);
             Product p = productService.setHiddenFromClients(id, hidden, u);
             ok(ra, hidden ? "«" + p.getName() + "» скрыт от покупателей" + (u != null ? " до " + u.getDayOfMonth() + "." + u.getMonthValue() : "")
@@ -160,7 +160,7 @@ public class AdminProductController {
     @PostMapping("/admin/products/{id:\\d+}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes ra) {
         try {
-            if (!isAdmin()) throw new IllegalStateException("Удалить товар может директор");
+            if (!isAdmin()) throw new IllegalStateException("Удалить товар может администратор");
             ProductService.DeleteOutcome out = productService.delete(id);
             ok(ra, out == ProductService.DeleteOutcome.ARCHIVED
                     ? "У товара есть история — он перенесён в архив" : "Товар удалён");
@@ -174,7 +174,7 @@ public class AdminProductController {
     @PostMapping("/admin/products/{id:\\d+}/restore")
     public String restore(@PathVariable Long id, RedirectAttributes ra) {
         try {
-            if (!isAdmin()) throw new IllegalStateException("Вернуть товар может директор");
+            if (!isAdmin()) throw new IllegalStateException("Вернуть товар может администратор");
             productService.restore(id);
             ok(ra, "Товар возвращён из архива");
         } catch (RuntimeException e) {

@@ -121,7 +121,7 @@ public class AdminWarehouseController {
     @PostMapping("/admin/stock/sync-1c")
     public String syncStock(RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Синхронизацию запускает директор");
+            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Синхронизацию запускает администратор");
             oneCStockSyncService.sync();
             ok(ra, "Остатки обновлены из 1С");
         } catch (RuntimeException e) {
@@ -161,7 +161,7 @@ public class AdminWarehouseController {
     @PostMapping("/admin/{sec:materials|stock}/movements/{id}/delete")
     public String deleteMovement(@PathVariable String sec, @PathVariable Long id, RedirectAttributes ra) {
         try {
-            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Удалить движение может директор");
+            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Удалить движение может администратор");
             stockService.deleteMovement(id);
             ok(ra, "Движение удалено, остаток пересчитан");
         } catch (RuntimeException e) {
