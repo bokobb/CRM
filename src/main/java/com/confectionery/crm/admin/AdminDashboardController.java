@@ -64,7 +64,7 @@ public class AdminDashboardController {
     public record Attention(String dot, String icon, String title, String text, String href, String button) {
     }
 
-    public record Top(Product product, BigDecimal boxes, double share) {
+    public record Top(Product product, BigDecimal pcs, double share) {
     }
 
     @GetMapping("/admin/dashboard")
@@ -72,10 +72,11 @@ public class AdminDashboardController {
     public String dashboard(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day,
                             Model model) {
         LocalDate today = LocalDate.now();
-        LocalDate shown = day == null || day.isBefore(today) || day.isAfter(today.plusDays(2)) ? today : day;
+        LocalDate shown = day == null || day.isBefore(today.minusYears(1)) || day.isAfter(today.plusDays(30)) ? today : day;
         Role role = currentUserService.role().orElse(Role.ADMIN);
         model.addAttribute("title", "Дашборд");
-        model.addAttribute("sub", fmt.dayTitle(today));
+        model.addAttribute("sub", fmt.dayTitle(shown));
+        model.addAttribute("subPick", shown.toString());
         model.addAttribute("sec", "dashboard");
 
         // 1. Выдача сегодня
@@ -168,7 +169,8 @@ public class AdminDashboardController {
         model.addAttribute("wins", windows(shown, today));
         model.addAttribute("capacity", pickupSlotService.capacity());
         model.addAttribute("day", shown);
-        model.addAttribute("dayTabs", List.of(today, today.plusDays(1), today.plusDays(2)));
+        model.addAttribute("dayMin", today.minusYears(1).toString());
+        model.addAttribute("dayMax", today.plusDays(30).toString());
 
         // Требуют внимания
         List<Attention> att = new ArrayList<>();
@@ -219,26 +221,19 @@ public class AdminDashboardController {
         }
         model.addAttribute("attention", att);
 
-        // Что берут: коробок за 14 дней по выданным заказам
+        // Что берут: штук за 14 дней по выданным заказам — в тех же единицах, что строки заказа
         List<Top> top = new ArrayList<>();
-        Map<Long, BigDecimal> qty = new HashMap<>();
-        for (Object[] r : orderRepository.soldByProduct(from.atStartOfDay(), today.plusDays(1).atStartOfDay())) {
-            qty.put((Long) r[0], (BigDecimal) r[1]);
-        }
+        List<Object[]> sold = new ArrayList<>(orderRepository.soldByProduct(from.atStartOfDay(), today.plusDays(1).atStartOfDay()));
+        sold.sort((a, b) -> ((BigDecimal) b[1]).compareTo((BigDecimal) a[1]));
         Map<Long, Product> products = new HashMap<>();
-        productRepository.findAllById(qty.keySet()).forEach(p -> products.put(p.getId(), p));
-        List<Map.Entry<Product, BigDecimal>> boxesBy = new ArrayList<>();
-        for (Map.Entry<Long, BigDecimal> e : qty.entrySet()) {
-            Product p = products.get(e.getKey());
+        productRepository.findAllById(sold.stream().map(r -> (Long) r[0]).toList()).forEach(p -> products.put(p.getId(), p));
+        BigDecimal max = sold.isEmpty() ? BigDecimal.ONE : ((BigDecimal) sold.get(0)[1]).max(BigDecimal.ONE);
+        for (Object[] r : sold) {
+            Product p = products.get((Long) r[0]);
             if (p == null) continue;
-            BigDecimal units = AdminOrders.boxUnits(p);
-            BigDecimal b = units == null ? e.getValue() : e.getValue().divide(units, 1, RoundingMode.HALF_UP);
-            boxesBy.add(Map.entry(p, b));
-        }
-        boxesBy.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-        BigDecimal max = boxesBy.isEmpty() ? BigDecimal.ONE : boxesBy.get(0).getValue().max(BigDecimal.ONE);
-        for (Map.Entry<Product, BigDecimal> e : boxesBy.subList(0, Math.min(7, boxesBy.size()))) {
-            top.add(new Top(e.getKey(), e.getValue(), e.getValue().doubleValue() / max.doubleValue() * 100));
+            BigDecimal pcs = (BigDecimal) r[1];
+            top.add(new Top(p, pcs, pcs.doubleValue() / max.doubleValue() * 100));
+            if (top.size() == 7) break;
         }
         model.addAttribute("top", top);
         return "admin/dashboard";
@@ -288,7 +283,7 @@ public class AdminDashboardController {
                     .toList();
             int nowH = now.getHour();
             boolean cur = isToday && h == nowH;
-            boolean past = isToday && h < nowH;
+            boolean past = d.isBefore(today) || isToday && h < nowH;
             out.add(new Win(h, fmt.win(h), evs, pickups.getOrDefault(h, 0), past, cur));
         }
         return out;

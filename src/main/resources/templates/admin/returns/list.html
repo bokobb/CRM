@@ -3,35 +3,89 @@
 <body>
 <th:block th:fragment="content">
 <form class="tools" method="get" action="/admin/returns" data-autosubmit>
+    <input type="hidden" name="view" th:value="${view}">
     <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block>
-        <input class="inp" name="q" type="search" placeholder="№, клиент, причина, № заказа" autocomplete="off" th:value="${q}"></label>
-    <label class="pick"><span class="sr">С</span><input class="inp" type="date" name="from" th:value="${from}"></label>
-    <label class="pick"><span class="sr">По</span><input class="inp" type="date" name="to" th:value="${to}"></label>
+        <input class="inp" name="q" type="search" placeholder="Клиент, № заказа или возврата" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">Период</span><select class="sel" name="per">
+        <option th:each="p : ${pers}" th:value="${p.value}" th:text="${'Период: ' + p.label}" th:selected="${p.on}"></option></select></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
     <span class="grow"></span>
-    <a class="btn btn-primary btn-sm" href="/admin/returns/new"><th:block th:utext="${i['plus']}"></th:block>Оформить возврат</a>
+    <a class="btn btn-primary btn-sm" href="/admin/returns/new"><th:block th:utext="${i['plus']}"></th:block><span>Возврат к заказу</span></a>
 </form>
+
+<div class="kpis kpis--3">
+    <div class="kpi"><span class="kpi-l"><th:block th:utext="${i['returns']}"></th:block>Принято</span>
+        <span class="kpi-v"><th:block th:text="${@fmt.num(pcs)}">0</th:block> <small>шт</small></span>
+        <span class="kpi-s" th:text="${@fmt.count(rows.size(), 'возврат', 'возврата', 'возвратов') + ' · ' + (per == 'all' ? 'за всё время' : 'период: ' + perLabel)}"></span></div>
+    <div class="kpi"><span class="kpi-l"><th:block th:utext="${i['cash']}"></th:block>На сумму</span>
+        <span class="kpi-v"><th:block th:text="${@fmt.dec(sum, 0)}">0</th:block> <small>₸</small></span>
+        <span class="kpi-s">вычтено из заказов, всё в списание</span></div>
+    <div class="kpi"><span class="kpi-l"><th:block th:utext="${i['reports']}"></th:block>От отгруженного</span>
+        <span class="kpi-v"><th:block th:text="${#numbers.formatDecimal(share, 1, 1, 'COMMA')}">0,0</th:block> <small>%</small></span>
+        <span class="kpi-s" th:text="${'вернули ' + @fmt.num(pcs) + ' из ' + @fmt.num(shipped) + ' шт'}"></span></div>
+</div>
+
+<div class="seg rt-seg" role="group" aria-label="Как показать">
+    <a th:href="@{/admin/returns(q=${q},per=${per},view='list')}" th:attr="aria-pressed=${view == 'list'}">Возвраты</a>
+    <a th:href="@{/admin/returns(q=${q},per=${per},view='prod')}" th:attr="aria-pressed=${view == 'prod'}">По товарам</a>
+    <a th:href="@{/admin/returns(q=${q},per=${per},view='client')}" th:attr="aria-pressed=${view == 'client'}">По клиентам</a>
+</div>
+
 <section class="card" aria-label="Возвраты">
     <div class="tbl-w">
-        <div th:if="${rows.isEmpty()}" class="empty">За эти дни возвратов нет.</div>
-        <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards">
-            <thead><tr><th>№</th><th>Дата</th><th>Клиент</th><th>Заказ</th><th class="r">Позиций</th><th class="r">Сумма</th><th>Причина</th><th>1С</th></tr></thead>
+        <div th:if="${rows.isEmpty()}" class="empty">За этот период возвратов нет.</div>
+
+        <table th:if="${!rows.isEmpty() and view == 'list'}" class="tbl tbl--r">
+            <thead><tr><th>№</th><th>Клиент</th><th>К заказу</th><th class="r r-pos">Позиций</th><th class="r">Штук</th><th class="r">Сумма</th></tr></thead>
             <tbody>
             <tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/returns/' + r.id}">
-                <td><a th:href="${'/admin/returns/' + r.id}" th:text="${r.id}"><b></b></a></td>
-                <td th:text="${@fmt.dm(r.returnDate)}"></td>
-                <td class="c-full"><b th:text="${r.client.name}"></b></td>
-                <td><a th:if="${r.order != null}" class="link" th:href="${'/admin/orders/' + r.order.id}" th:text="${'№ ' + r.order.id}"></a><span th:if="${r.order == null}" class="muted">не закреплён</span></td>
-                <td class="r num" th:text="${r.items.size()}"></td>
-                <td class="r num"><b th:text="${@fmt.money(r.totalSum)}"></b></td>
-                <td class="c-full" th:text="${r.reason}"></td>
-                <td><span th:if="${r.oneCSyncError != null}" class="tag tag--bad" th:title="${r.oneCSyncError}">ошибка</span><span th:if="${r.oneCSyncError == null and r.oneCDocumentNumber != null}" class="tag tag--ok" th:text="${r.oneCDocumentNumber}"></span><span th:if="${r.oneCSyncError == null and r.oneCDocumentNumber == null}" class="tag">в очереди</span></td>
+                <td class="r-no"><a th:href="${'/admin/returns/' + r.id}" th:text="${r.id}">111</a>
+                    <small th:text="${@fmt.cap(@fmt.relDay(r.returnDate)) + ', ' + @fmt.time(r.createdAt)}"></small>
+                    <span th:if="${r.oneCSyncError != null}" class="tag tag--bad" th:title="${r.oneCSyncError}">1С: ошибка</span></td>
+                <td class="r-cl"><b th:text="${r.client.name}"></b><small th:text="${r.client.contactPerson}"></small></td>
+                <td class="r-or"><th:block th:if="${r.order != null}"><th:block th:text="${'№ ' + r.order.id}"></th:block><small th:text="${'заказ на ' + @fmt.money(r.order.totalPrice)}"></small></th:block>
+                    <span th:if="${r.order == null}" class="muted">не закреплён</span></td>
+                <td class="r-pos r num" th:text="${r.items.size()}"></td>
+                <td class="r-pcs r num"><b th:text="${@fmt.num(@fmt.retPcs(r)) + ' шт'}"></b></td>
+                <td class="r-sum r num" th:text="${@fmt.money(r.totalSum)}"></td>
             </tr>
             </tbody>
-            <tfoot><tr><td colspan="5">Итого</td><td class="r num" th:text="${@fmt.money(sum)}"></td><td colspan="2"></td></tr></tfoot>
+        </table>
+
+        <table th:if="${!rows.isEmpty() and view == 'prod'}" class="tbl tbl--rp">
+            <thead><tr><th>Товар</th><th class="r">Вернули</th><th class="r rp-x">Сумма</th><th class="r rp-x">Отгружено</th><th class="r">Доля</th></tr></thead>
+            <tbody>
+            <tr th:each="a : ${aggP}">
+                <td class="rp-p"><div class="prod"><img th:if="${a.key.imageUrl != null and !#strings.isEmpty(a.key.imageUrl)}" class="th" th:src="${a.key.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${a.key.imageUrl != null and !#strings.isEmpty(a.key.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span>
+                    <p><b th:text="${a.key.name}"></b><span class="track" aria-hidden="true"><i th:style="${'width:' + #numbers.formatDecimal(a.bar, 1, 1, 'POINT') + '%'}"></i></span>
+                        <small th:text="${'в ' + a.n + ' ' + @fmt.plural(a.n, 'возврате', 'возвратах', 'возвратах')}"></small></p></div></td>
+                <td class="r num"><b th:text="${@fmt.num(a.pcs) + ' шт'}"></b></td>
+                <td class="r num rp-x" th:text="${@fmt.money(a.sum)}"></td>
+                <td class="r num rp-x" th:text="${a.shipped != null ? @fmt.num(a.shipped) + ' шт' : '—'}"></td>
+                <td class="r num" th:text="${a.share() != null ? #numbers.formatDecimal(a.share(), 1, 1, 'COMMA') + ' %' : '—'}"></td>
+            </tr>
+            </tbody>
+            <tfoot><tr><td>Всего</td><td class="r num" th:text="${@fmt.num(pcs) + ' шт'}"></td><td class="r num rp-x" th:text="${@fmt.money(sum)}"></td>
+                <td class="r num rp-x" th:text="${@fmt.num(shipped) + ' шт'}"></td><td class="r num" th:text="${#numbers.formatDecimal(share, 1, 1, 'COMMA') + ' %'}"></td></tr></tfoot>
+        </table>
+
+        <table th:if="${!rows.isEmpty() and view == 'client'}" class="tbl tbl--rk">
+            <thead><tr><th>Клиент</th><th class="r">Возвратов</th><th class="r">Вернули</th><th class="r rp-x">Сумма</th><th class="r rp-x">Отгружено</th><th class="r">Доля</th></tr></thead>
+            <tbody>
+            <tr th:each="a : ${aggC}" class="rowlink" th:attr="data-href=${'/admin/clients/' + a.key.id}">
+                <td><div class="cl-n"><span class="cav" aria-hidden="true" th:text="${#strings.substring(a.key.name, 0, 1)}">М</span>
+                    <p><a th:href="${'/admin/clients/' + a.key.id}" th:text="${a.key.name}"></a><small th:text="${a.key.contactPerson}"></small></p></div></td>
+                <td class="r num" th:text="${a.n}"></td>
+                <td class="r num"><b th:text="${@fmt.num(a.pcs) + ' шт'}"></b></td>
+                <td class="r num rp-x" th:text="${@fmt.money(a.sum)}"></td>
+                <td class="r num rp-x" th:text="${a.shipped != null ? @fmt.num(a.shipped) + ' шт' : '—'}"></td>
+                <td class="r num" th:text="${a.share() != null ? #numbers.formatDecimal(a.share(), 1, 1, 'COMMA') + ' %' : '—'}"></td>
+            </tr>
+            </tbody>
         </table>
     </div>
 </section>
-<p class="cnt" th:text="${'Возвратов: ' + rows.size() + ' с ' + @fmt.dm(from) + ' по ' + @fmt.dm(to) + '. Возврат уменьшает сумму заказа и попадает в отчёты; товар уходит на склад «Испорченные товары» в 1С.'}"></p>
+<p class="cnt">Доля — сколько штук вернули от отгруженных за тот же период. Возврат уменьшает сумму заказа; товар уходит на склад «Испорченные товары» в 1С.</p>
 </th:block>
 </body>
 </html>

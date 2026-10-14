@@ -40,24 +40,122 @@ public class AdminReturnController {
 
     static final List<String> REASONS = List.of("Брак", "Истёк срок годности", "Пересорт", "Повреждена упаковка", "Другая причина");
 
+    /** Строка «По товарам» / «По клиентам»: сколько вернули, на какую сумму, сколько отгрузили за тот же период. */
+    public record Agg(Object key, int n, BigDecimal pcs, BigDecimal sum, BigDecimal shipped, double bar) {
+        public Double share() {
+            return shipped == null || shipped.signum() == 0 ? null : pcs.doubleValue() / shipped.doubleValue() * 100;
+        }
+    }
+
+    public record Per(String value, String label, boolean on) {
+    }
+
+    private static final String[] MONTHS = {"Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август",
+            "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"};
+
+    /** Раздел «Возвраты», как в макете: что привезли клиенты — в штуках, списком, по товарам, по клиентам. */
     @GetMapping
     @Transactional(readOnly = true)
-    public String list(@RequestParam(defaultValue = "") String q, @RequestParam(required = false) String from,
-                       @RequestParam(required = false) String to, Model model) {
-        LocalDate f = date(from, LocalDate.now().minusDays(30)), t = date(to, LocalDate.now());
+    public String list(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "30") String per,
+                       @RequestParam(defaultValue = "list") String view, Model model) {
+        LocalDate today = LocalDate.now(), f, t = today;
+        switch (per) {
+            case "7" -> f = today.minusDays(6);
+            case "month" -> f = today.withDayOfMonth(1);
+            case "prev" -> {
+                f = today.minusMonths(1).withDayOfMonth(1);
+                t = today.withDayOfMonth(1).minusDays(1);
+            }
+            case "all" -> f = LocalDate.of(2000, 1, 1);
+            default -> {
+                per = "30";
+                f = today.minusDays(29);
+            }
+        }
+        if (!List.of("list", "prod", "client").contains(view)) view = "list";
         String nq = AdminOrderController.norm(q);
+        String digits = q.replaceAll("\\D", "");
+        java.util.function.Predicate<Client> clientMatch = c -> nq.isEmpty()
+                || AdminOrderController.norm(c.getName() + " " + (c.getContactPerson() == null ? "" : c.getContactPerson())).contains(nq)
+                || digits.length() >= 3 && c.getPhone() != null && c.getPhone().replaceAll("\\D", "").contains(digits);
         List<ProductReturn> rows = returnService.findByDateRange(f, t).stream()
-                .filter(r -> nq.isEmpty() || AdminOrderController.norm(r.getId() + " " + r.getClient().getName() + " "
-                        + (r.getReason() == null ? "" : r.getReason()) + " " + (r.getOrder() == null ? "" : r.getOrder().getId())).contains(nq))
+                .filter(r -> nq.isEmpty() || clientMatch.test(r.getClient())
+                        || AdminOrderController.norm(r.getId() + " " + (r.getOrder() == null ? "" : r.getOrder().getId())).contains(nq))
+                .sorted(Comparator.comparing(ProductReturn::getId).reversed())
                 .toList();
-        BigDecimal sum = rows.stream().map(ProductReturn::getTotalSum).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<Long, Product> prods = new LinkedHashMap<>();
+        Map<Long, Client> cls = new LinkedHashMap<>();
+        Map<Long, BigDecimal[]> byP = new HashMap<>(), byC = new HashMap<>();   // [штук, сумма, возвратов]
+        BigDecimal pcs = BigDecimal.ZERO, sum = BigDecimal.ZERO;
+        Set<Long> clientIds = new HashSet<>();
+        for (ProductReturn r : rows) {
+            clientIds.add(r.getClient().getId());
+            cls.putIfAbsent(r.getClient().getId(), r.getClient());
+            BigDecimal[] c = byC.computeIfAbsent(r.getClient().getId(), k -> zeros());
+            Set<Long> seen = new HashSet<>();
+            for (ProductReturnItem i : r.getItems()) {
+                BigDecimal s = i.getPrice().multiply(i.getQuantity());
+                pcs = pcs.add(i.getQuantity());
+                sum = sum.add(s);
+                prods.putIfAbsent(i.getProduct().getId(), i.getProduct());
+                BigDecimal[] p = byP.computeIfAbsent(i.getProduct().getId(), k -> zeros());
+                p[0] = p[0].add(i.getQuantity());
+                p[1] = p[1].add(s);
+                if (seen.add(i.getProduct().getId())) p[2] = p[2].add(BigDecimal.ONE);
+                c[0] = c[0].add(i.getQuantity());
+                c[1] = c[1].add(s);
+            }
+            c[2] = c[2].add(BigDecimal.ONE);
+        }
+
+        // отгружено за тот же период: при поиске — только у найденных клиентов
+        Map<Long, BigDecimal> shipP = new HashMap<>(), shipC = new HashMap<>();
+        BigDecimal shipped = BigDecimal.ZERO;
+        Map<Long, Client> shipClients = new HashMap<>();
+        if (!nq.isEmpty()) clientRepository.findAll().forEach(c -> shipClients.put(c.getId(), c));
+        for (Object[] x : orderRepository.soldByClientProduct(f.atStartOfDay(), t.plusDays(1).atStartOfDay())) {
+            Long cid = (Long) x[0];
+            if (!nq.isEmpty() && !(clientIds.contains(cid) || shipClients.containsKey(cid) && clientMatch.test(shipClients.get(cid)))) continue;
+            BigDecimal qn = (BigDecimal) x[2];
+            shipped = shipped.add(qn);
+            shipP.merge((Long) x[1], qn, BigDecimal::add);
+            shipC.merge(cid, qn, BigDecimal::add);
+        }
+
+        List<Agg> aggP = agg(byP, prods, shipP), aggC = agg(byC, cls, shipC);
         model.addAttribute("rows", rows);
+        model.addAttribute("aggP", aggP);
+        model.addAttribute("aggC", aggC);
+        model.addAttribute("pcs", pcs);
         model.addAttribute("sum", sum);
+        model.addAttribute("shipped", shipped);
+        model.addAttribute("share", shipped.signum() == 0 ? 0.0 : pcs.doubleValue() / shipped.doubleValue() * 100);
         model.addAttribute("q", q);
-        model.addAttribute("from", f);
-        model.addAttribute("to", t);
-        page(model, "Возвраты", "испорченный и непроданный товар от клиентов", "returns");
+        model.addAttribute("per", per);
+        model.addAttribute("view", view);
+        int m = today.getMonthValue() - 1;
+        String perSel = per;
+        List<Per> pers = List.of(new Per("7", "7 дней", false), new Per("30", "30 дней", false),
+                        new Per("month", MONTHS[m], false), new Per("prev", MONTHS[(m + 11) % 12], false), new Per("all", "Всё время", false))
+                .stream().map(p -> new Per(p.value(), p.label(), p.value().equals(perSel))).toList();
+        model.addAttribute("pers", pers);
+        model.addAttribute("perLabel", pers.stream().filter(Per::on).map(Per::label).findFirst().orElse("").toLowerCase());
+        page(model, "Возвраты", "что привезли клиенты — всё в списание", "returns");
         return "admin/returns/list";
+    }
+
+    private static BigDecimal[] zeros() {
+        return new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO};
+    }
+
+    private static List<Agg> agg(Map<Long, BigDecimal[]> by, Map<Long, ?> keys, Map<Long, BigDecimal> ship) {
+        BigDecimal max = by.values().stream().map(v -> v[0]).max(Comparator.naturalOrder()).orElse(BigDecimal.ONE).max(BigDecimal.ONE);
+        return by.entrySet().stream()
+                .sorted((a, b) -> b.getValue()[0].compareTo(a.getValue()[0]))
+                .map(e -> new Agg(keys.get(e.getKey()), e.getValue()[2].intValue(), e.getValue()[0], e.getValue()[1],
+                        ship.get(e.getKey()), e.getValue()[0].doubleValue() / max.doubleValue() * 100))
+                .toList();
     }
 
     @GetMapping("/{id}")
@@ -121,7 +219,7 @@ public class AdminReturnController {
         model.addAttribute("clientId", clientId);
         model.addAttribute("orderId", orderId);
         model.addAttribute("orders", clientId == null ? List.of() : orderRepository.findByClientIdOrderByCreatedAtDesc(clientId).stream()
-                .filter(o -> o.getStatus().isShipped()).limit(30).toList());
+                .filter(o -> o.getStatus() != OrderStatus.CANCELLED && o.getStatus() != OrderStatus.PLACED).limit(30).toList());
         model.addAttribute("date", date);
         model.addAttribute("reasons", REASONS);
         model.addAttribute("reason", reason);

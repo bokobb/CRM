@@ -143,6 +143,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "and o.shippedAt >= :start and o.shippedAt < :end group by i.product.id")
     List<Object[]> soldByProduct(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
+    /** Возвраты, «доля от отгруженного»: [clientId, productId, сумма штук] по выданным заказам за период. */
+    @Query("select o.client.id, i.product.id, sum(i.quantity) from Order o join o.items i " +
+            "where o.status in (com.confectionery.crm.domain.OrderStatus.DELIVERED, com.confectionery.crm.domain.OrderStatus.COMPLETED) " +
+            "and o.shippedAt >= :start and o.shippedAt < :end group by o.client.id, i.product.id")
+    List<Object[]> soldByClientProduct(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     List<Order> findByStatusIn(java.util.Collection<OrderStatus> statuses);
 
     /** Ждут фоновой отправки в 1С (см. OneCQueue). */

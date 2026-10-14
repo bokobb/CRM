@@ -146,6 +146,11 @@ public class AdminFormat {
     }
 
     /** Вторник, 13 октября */
+    /** Штук в возврате — сумма количеств по строкам. */
+    public BigDecimal retPcs(com.confectionery.crm.domain.ProductReturn r) {
+        return r.getItems().stream().map(com.confectionery.crm.domain.ProductReturnItem::getQuantity).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     public String dayTitle(LocalDate d) {
         return cap(wdayLong(d)) + ", " + dml(d);
     }

@@ -20,11 +20,7 @@
 
     <div class="dash-col c-7">
     <section class="card" aria-labelledby="h-win">
-        <div class="card-h"><div><h2 id="h-win">Выдача</h2><p>рабочий день 7:00–18:00: заказы, когда заберут и наши действия</p></div>
-            <div class="seg" role="group" aria-label="День выдачи">
-                <a th:each="d, it : ${dayTabs}" class="seg-a" th:href="${'/admin/dashboard?day=' + d}" th:attr="aria-pressed=${d == day}"
-                   th:text="${it.index == 0 ? 'Сегодня' : it.index == 1 ? 'Завтра' : @fmt.cap(@fmt.wday(d)) + ', ' + @fmt.dm(d)}">Сегодня</a>
-            </div>
+        <div class="card-h"><div><h2 id="h-win">Выдача</h2><p th:text="${(@fmt.isToday(day.toString()) ? 'сегодня' : @fmt.wday(day) + ', ' + @fmt.dm(day)) + ' · 7:00–18:00: заказы, когда заберут и наши действия'}"></p></div>
         </div>
         <div class="wins">
             <div th:each="w : ${wins}" class="win" th:classappend="${(w.evs.isEmpty() ? '' : ' has-o') + (w.past ? ' is-past' : '') + (w.now ? ' is-now' : '')}">
@@ -32,11 +28,14 @@
                     <span class="cap" th:title="${'Заберут: ' + w.pickups + ' из ' + capacity}"><i th:each="c : ${#numbers.sequence(1, capacity)}" th:classappend="${c <= w.pickups} ? 'on'"></i></span>
                     <span th:if="${w.now}" class="tag tag--now">сейчас</span></div>
                 <div class="win-o">
-                    <a th:each="e : ${w.evs}" class="och ev" th:classappend="${'ev--' + e.kind}" th:href="${'/admin/orders/' + e.row.id}"
-                       th:title="${e.label + ' · ' + e.row.client.name}">
+                    <a th:each="e : ${w.evs}" class="och ev" th:classappend="${'ev--' + e.kind}" th:href="${'/admin/orders/' + e.row.id}">
                         <span class="dot" th:classappend="${'ev-d--' + e.kind}" th:utext="${i15[e.icon]}"></span>
-                        <b th:text="${e.row.id}">1049</b><span class="ev-c" th:text="${e.row.client.name}">Кафе</span>
-                        <small><th:block th:text="${e.label}"></th:block> <b class="ev-t" th:text="${e.time}">10:24</b><th:block th:if="${e.by != null}" th:text="${' · ' + e.by}"></th:block><th:block th:if="${e.kind == 'pickup'}" th:text="${' · ' + e.row.totals.boxes + ' кор.'}"></th:block></small>
+                        <b th:text="${'№' + e.row.id}">№1049</b><span class="ev-c" th:text="${e.row.client.name}">Кафе</span>
+                        <span class="ev-tip" role="tooltip"><b th:text="${e.label + ' · ' + e.time}">Заказ с сайта · 10:24</b>
+                            <th:block th:text="${'№ ' + e.row.id + ' · ' + e.row.client.name}"></th:block>
+                            <th:block th:if="${e.by != null}"><br><th:block th:text="${'Кто: ' + e.by}"></th:block></th:block>
+                            <br><th:block th:text="${e.row.totals.positions + ' поз. · ' + e.row.totals.boxes + ' кор. · ' + @fmt.money(e.row.totals.net())}"></th:block>
+                            <br><th:block th:text="${'Сейчас: ' + e.row.badgeLabel}"></th:block></span>
                     </a>
                     <span th:if="${w.evs.isEmpty()}" class="win-free" th:text="${w.past ? '—' : 'пусто'}">пусто</span>
                 </div>
@@ -56,9 +55,9 @@
     </section>
 
     <section class="card" aria-labelledby="h-top">
-        <div class="card-h"><div><h2 id="h-top">Что берут</h2><p>коробок за 14 дней, по выданным заказам</p></div></div>
+        <div class="card-h"><div><h2 id="h-top">Что берут</h2><p>штук за 14 дней, по выданным заказам</p></div></div>
         <ol class="top card-b">
-            <li th:each="t : ${top}"><img th:if="${t.product.imageUrl != null and !#strings.isEmpty(t.product.imageUrl)}" class="th" th:src="${t.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${t.product.imageUrl != null and !#strings.isEmpty(t.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p th:title="${t.product.name}" th:text="${t.product.name}"></p><b><th:block th:text="${@fmt.num(t.boxes)}"></th:block>&nbsp;<small>кор.</small></b><span class="track" aria-hidden="true"><i th:style="${'width:' + #numbers.formatDecimal(t.share, 1, 1, 'POINT') + '%'}"></i></span></li>
+            <li th:each="t : ${top}"><img th:if="${t.product.imageUrl != null and !#strings.isEmpty(t.product.imageUrl)}" class="th" th:src="${t.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${t.product.imageUrl != null and !#strings.isEmpty(t.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p th:title="${t.product.name}" th:text="${t.product.name}"></p><b><th:block th:text="${@fmt.num(t.pcs)}"></th:block>&nbsp;<small>шт</small></b><span class="track" aria-hidden="true"><i th:style="${'width:' + #numbers.formatDecimal(t.share, 1, 1, 'POINT') + '%'}"></i></span></li>
             <li th:if="${top.isEmpty()}" class="empty">Пока нет выданных заказов.</li>
         </ol>
     </section>
@@ -79,6 +78,7 @@
 <th:block th:fragment="scripts">
 <script type="application/json" id="rev-data" th:utext="${revJson}"></script>
 <script src="/admin/assets/chart.js?v=1"></script>
+<script src="/admin/assets/daypick.js?v=1"></script>
 </th:block>
 </body>
 </html>

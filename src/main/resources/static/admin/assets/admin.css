@@ -623,8 +623,11 @@ a.kpi--alert:hover{box-shadow:var(--shadow),0 0 0 2px var(--crimson-deep)}
 .ev .dot{width:26px;height:26px}
 .ev .dot .i{width:15px;height:15px}
 .ev .ev-c{max-width:16em}
-.ev small{display:inline-flex;gap:4px;align-items:baseline}
-.ev small .ev-t{font-weight:600;color:var(--ink)}
+/* плашка коротко: значок, № и клиент; подробно — по наведению */
+.ev{position:relative}
+.ev .ev-tip{position:absolute;left:0;bottom:calc(100% + 8px);z-index:20;display:none;min-width:220px;max-width:320px;padding:9px 12px;border-radius:10px;background:var(--ink);color:#fff;font-size:13px;line-height:1.45;white-space:normal;overflow:visible;box-shadow:0 12px 24px -12px rgba(42,23,18,.6);pointer-events:none}
+.ev .ev-tip b{display:block;margin-bottom:2px;font-size:14px;color:var(--yolk)}
+.ev:hover .ev-tip,.ev:focus-visible .ev-tip{display:block}
 .ev-d--order{background:var(--white);box-shadow:inset 0 0 0 1.5px var(--crimson);color:var(--crimson-deep)}
 .ev-d--pickup{background:var(--ink);color:var(--yolk)}
 .ev-d--accepted{background:var(--cream);box-shadow:inset 0 0 0 1.5px var(--line-strong);color:var(--ink)}
@@ -633,3 +636,73 @@ a.kpi--alert:hover{box-shadow:var(--shadow),0 0 0 2px var(--crimson-deep)}
 .ev-d--completed{background:var(--caramel);color:#fff}
 .ev--pickup{background:var(--cream);box-shadow:inset 0 0 0 1.5px var(--yolk-deep)}
 .kpi-v small{white-space:nowrap}
+/* дашборд: серая дата в шапке — кнопка, под ней календарь в цветах сайта */
+.dpick{position:relative;flex:1 1 0;min-width:0}
+.dpick-b{display:inline-flex;align-items:center;gap:7px;max-width:100%;min-height:34px;padding:0 10px;margin-left:-10px;border:0;border-radius:999px;background:none;color:var(--ink-soft);font:400 14px/1 var(--body);white-space:nowrap}
+.dpick-b span{overflow:hidden;text-overflow:ellipsis}
+.dpick-b .i{width:16px;height:16px}
+.dpick-b:hover,.dpick-b[aria-expanded="true"]{background:var(--paper-deep);color:var(--ink)}
+.cal{position:absolute;left:-10px;top:calc(100% + 8px);z-index:45;width:300px;padding:14px;border-radius:20px;background:var(--white);box-shadow:0 24px 44px -22px rgba(42,23,18,.5),0 0 0 1px var(--line)}
+.cal-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.cal-h b{font:700 19px/1.1 var(--display)}
+.cal-nav{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1.5px solid var(--line-strong);border-radius:50%;background:var(--white);font:700 18px/1 var(--body);color:var(--ink)}
+.cal-nav:hover:not(:disabled){border-color:var(--ink)}
+.cal-nav:disabled{opacity:.3;cursor:default}
+.cal-g{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.cal-w{padding:4px 0 6px;text-align:center;font:600 12px/1 var(--body);color:var(--ink-mute)}
+.cal-w.is-we{color:var(--crimson)}
+.cal-d{height:36px;padding:0;border:0;border-radius:10px;background:none;font:500 14.5px/1 var(--body);font-variant-numeric:tabular-nums;color:var(--ink)}
+.cal-d:hover:not(:disabled){background:var(--cream)}
+.cal-d.is-today{box-shadow:inset 0 0 0 1.5px var(--crimson);color:var(--crimson-deep);font-weight:700}
+.cal-d.is-sel{background:var(--yolk);color:var(--ink);font-weight:700;box-shadow:none}
+.cal-d:disabled{color:var(--line-strong);cursor:default}
+.cal-f{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+@media (max-width:760px){.dpick-b span{display:none}.dpick-b{margin-left:0}.cal{position:fixed;left:16px;right:16px;top:calc(64px + env(safe-area-inset-top,0px));width:auto}}
+/* возврат в карточке заказа и раздел «Возвраты» — как в макете: считаем в штуках */
+.card-acts{display:flex;flex-wrap:wrap;gap:8px}
+.kv dd small{display:block;margin-top:1px;font-size:13px;color:var(--ink-soft)}
+.ret-add{display:flex;align-items:center;gap:14px;width:100%;padding:16px 20px;border:1.5px dashed var(--ink-mute);background:var(--paper);box-shadow:none;color:var(--ink);text-align:left;text-decoration:none;font:inherit}
+.ret-add:hover{border-color:var(--crimson);background:var(--white)}
+.ret-add>.i{width:26px;height:26px;color:var(--crimson-deep)}
+.ret-add b{display:block;font:700 18px/1.2 var(--display)}
+.ret-add small{display:block;margin-top:2px;font-size:13.5px;color:var(--ink-soft)}
+.tbl--ret .l-s{color:var(--crimson-deep)}
+.tbl--ret tfoot td{color:var(--crimson-deep)}
+.kpis.kpis--3{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px}
+.rt-seg{margin-bottom:12px;background:var(--paper-deep)}
+.rt-seg a{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border-radius:999px;font:600 13px/1 var(--body);color:var(--ink-soft);text-decoration:none}
+.rt-seg a[aria-pressed="true"]{background:var(--white);color:var(--ink);box-shadow:0 1px 2px rgba(42,23,18,.18)}
+.tbl--r .r-no a{font-weight:700;font-size:15.5px;font-variant-numeric:tabular-nums}
+.tbl--r .r-cl b,.tbl--r .r-or{font-weight:600}
+.tbl--r .r-or small{font-weight:400}
+.tbl--rp .rp-p .prod p{display:grid;gap:4px;min-width:0;flex:1 1 auto}
+.tbl--rp .rp-p .track{height:8px;max-width:280px}
+.tbl--rp .rp-p small{margin:0}
+.tbl--rp tfoot td{font-weight:700}
+.cl-n{display:flex;align-items:center;gap:12px;min-width:0}
+.cl-n p{min-width:0}
+.cl-n a{font-weight:600}
+.cl-n small{display:block;margin-top:2px;font-size:13px;color:var(--ink-soft)}
+.cav{display:inline-grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;background:var(--cream);color:var(--crimson-deep);font:800 17px/1 var(--display);box-shadow:inset 0 0 0 1.5px rgba(150,23,46,.22)}
+@media (max-width:760px){
+  .kpis.kpis--3{grid-template-columns:minmax(0,1fr);gap:10px}
+  .kpis--3 .kpi{grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:2px 12px}
+  .kpis--3 .kpi-l,.kpis--3 .kpi-s{grid-column:1/-1}
+  .kpis--3 .kpi-v{font-size:26px}
+  .rt-seg{display:flex;width:100%}
+  .rt-seg a{flex:1 1 0;justify-content:center;padding:0 8px}
+  .card-acts .btn{flex:1 1 auto}
+  .tbl--r thead,.tbl--rp .rp-x,.tbl--rk .rp-x{display:none}
+  .tbl--r,.tbl--r tbody{display:block}
+  .tbl--r tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"no pcs" "cl sum" "or .";gap:6px 12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .tbl--r td{padding:0!important;border:0}
+  .tbl--r .r-no{grid-area:no;display:flex;align-items:baseline;gap:10px}
+  .tbl--r .r-no small{margin:0}
+  .tbl--r .r-cl{grid-area:cl}
+  .tbl--r .r-or{grid-area:or}
+  .tbl--r .r-pos{display:none}
+  .tbl--r .r-pcs{grid-area:pcs;text-align:right}
+  .tbl--r .r-sum{grid-area:sum;align-self:start;text-align:right;color:var(--ink-soft)}
+}
+.bar-t h1{flex:none}
+.bar-t p{flex:1 1 0;min-width:0}
