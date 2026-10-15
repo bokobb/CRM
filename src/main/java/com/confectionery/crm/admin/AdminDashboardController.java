@@ -96,6 +96,8 @@ public class AdminDashboardController {
         model.addAttribute("sub", fmt.dayTitle(shown));
         model.addAttribute("subPick", shown.toString());
         model.addAttribute("subKeep", period == 14 ? null : "p=" + period);
+        model.addAttribute("subBase", "/admin/dashboard");
+        model.addAttribute("subParam", "day");
         model.addAttribute("sec", "dashboard");
         model.addAttribute("dayLbl", lbl);
         model.addAttribute("isToday", shown.equals(today));

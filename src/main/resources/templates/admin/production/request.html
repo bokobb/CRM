@@ -1,43 +1,97 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<a class="back" th:href="${'/admin/production?date=' + r.date}"><th:block th:utext="${i['back']}"></th:block>Производство за день</a>
-<div class="oh"><div class="oh-t"><h2 th:text="${'Заявка № ' + r.request.id}">Заявка</h2><span class="tag" th:text="${r.request.statusLabel}"></span></div>
-    <p class="oh-m" th:text="${r.request.title + ' · ' + @fmt.dml(r.date)}"></p>
-    <div class="acts"><a class="btn btn-soft" th:href="${'/admin/requests/' + r.request.id}">Открыть заявку</a></div></div>
-<div class="two">
-    <div class="section-gap">
-    <section class="card">
-        <div class="card-h"><h2>Сырьё: норма и выдано</h2></div>
-        <div class="tbl-w"><table class="tbl tbl--cards">
-            <thead><tr><th>Сырьё</th><th class="r">Норма</th><th class="r">Выдано</th><th class="r">Цена</th><th class="r">По норме</th><th class="r">Выдано, ₸</th></tr></thead>
-            <tbody><tr th:each="g : ${r.ingredients}">
-                <td class="c-full"><b th:text="${g.name}"></b><small th:if="${g.originalName != null}" th:text="${'вместо ' + g.originalName}"></small></td>
-                <td class="r num" th:text="${@fmt.num(g.normQuantity) + ' ' + g.unit}"></td>
-                <td class="r num" th:classappend="${g.issuedQuantity != null and g.normQuantity != null and g.issuedQuantity.compareTo(g.normQuantity) > 0} ? 'low'" th:text="${@fmt.num(g.issuedQuantity) + ' ' + g.unit}"></td>
-                <td class="r num"><th:block th:text="${g.unitPrice != null ? @fmt.money(g.unitPrice) : 'нет цены'}"></th:block><small th:if="${g.priceDate != null}" th:text="${'от ' + @fmt.dm(g.priceDate)}"></small></td>
-                <td class="r num" th:text="${@fmt.money(g.normCost)}"></td>
-                <td class="r num" th:text="${@fmt.money(g.issuedCost)}"></td></tr></tbody>
-            <tfoot><tr><td colspan="4">Итого</td><td class="r num" th:text="${@fmt.money(r.request.normCost)}"></td><td class="r num" th:text="${@fmt.money(r.request.issuedCost)}"></td></tr></tfoot>
-        </table></div>
-    </section>
-    </div>
-    <aside class="two-side">
-        <section class="card card-b box"><h3>Бригада</h3>
-            <p class="muted" th:if="${labor}" th:text="${'Зарплата за смену: ' + @fmt.money(r.request.laborCost)}"></p>
-            <form th:if="${canBrigade}" th:action="${'/admin/production/requests/' + r.request.id + '/brigade'}" method="post">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <div style="display:grid;gap:2px;max-height:360px;overflow:auto">
-                    <label class="check" th:each="e : ${employees}"><input type="checkbox" name="employee" th:value="${e.id}" th:checked="${inBrigade.contains(e.id)}"><span><th:block th:text="${e.fullName}"></th:block> <small class="muted" th:text="${e.position}"></small></span></label>
-                </div>
-                <p class="hint">Один сотрудник — в одной бригаде за день.</p>
-                <p style="margin-top:8px"><button class="btn btn-primary btn-sm" type="submit">Сохранить бригаду</button></p>
-            </form>
-            <ul th:unless="${canBrigade}" class="prose"><li th:each="m : ${r.request.brigade}" th:text="${m.fullName}"></li></ul>
-        </section>
-    </aside>
+<th:block th:if="${missing != null}"><a class="back" href="/admin/production"><th:block th:utext="${i['back']}"></th:block>Производство</a>
+    <div class="card empty" th:text="${'Заявки № ' + missing + ' нет.'}"></div></th:block>
+<th:block th:if="${missing == null}">
+<a class="back" th:href="${'/admin/production?date=' + date}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${'Производство за ' + @fmt.dml(date)}"></th:block></a>
+<section th:if="${key == 'off'}" class="card soon"><h2 th:text="${'Заявка № ' + req.id + ' отменена'}"></h2>
+    <p>Отменённые заявки в себестоимость не входят: сырьё вернули на склад, документы в 1С помечены на удаление.</p>
+    <p><a class="btn btn-soft" th:href="${'/admin/requests/' + req.id}">Открыть заявку</a></p></section>
+<th:block th:if="${key != 'off'}">
+<div class="oh">
+    <div class="oh-t"><h2 th:text="${'Себестоимость · № ' + req.id}"></h2>
+        <span class="st" th:classappend="${badge.cls}"><th:block th:utext="${i16[badge.icon]}"></th:block><span th:text="${badge.label}"></span></span><span class="tag tag--pf" th:text="${req.title}"></span></div>
+    <p class="oh-m" th:text="${'Заявка на сырьё от ' + @fmt.dml(date) + ' · ' + @fmt.count(main, 'изделие', 'изделия', 'изделий') + ' · ' + zamText + ' · по плану ' + @fmt.num(plan) + ' шт'}"></p>
+    <div class="acts"><a class="btn btn-soft" th:href="${'/admin/requests/' + req.id}">Открыть заявку</a>
+        <button th:if="${canBrigade}" class="btn btn-soft" type="button" th:attr="data-brig=${req.id}"><th:block th:utext="${i['clients']}"></th:block>Бригада</button></div>
 </div>
+<div class="ckpis">
+    <div class="kpi"><span class="kpi-l">Себестоимость</span><span class="kpi-v"><th:block th:text="${@fmt.dec(cost, 0)}"></th:block> <small>₸</small></span>
+        <span class="kpi-s" th:text="${labor ? 'сырьё ' + @fmt.money(x.issuedCost) + ' + зарплата ' + @fmt.money(x.laborCost) + ' + накладные ' + @fmt.money(x.overheadCost) : 'по сырью — зарплату и накладные видят администратор и бухгалтер'}"></span></div>
+    <div class="kpi"><span class="kpi-l">По цене продажи</span>
+        <span class="kpi-v"><th:block th:if="${anyFg}"><th:block th:text="${@fmt.dec(sale, 0)}"></th:block> <small>₸</small></th:block><th:block th:unless="${anyFg}">—</th:block></span>
+        <span class="kpi-s"><th:block th:if="${anyFg and mk != null}">наценка <b th:classappend="${mk.signum() < 0} ? 'pay-bad'" th:text="${@fmt.pct(mk, 0)}"></b> к себестоимости</th:block><th:block th:unless="${anyFg}">полуфабрикат — не продаётся</th:block></span></div>
+    <div class="kpi" th:classappend="${devP.doubleValue() > 0.5} ? 'kpi--warm'"><span class="kpi-l">Сырьё: выдано / норма</span><span class="kpi-v"><th:block th:text="${@fmt.dec(x.issuedCost, 0)}"></th:block> <small>₸</small></span>
+        <span class="kpi-s"><th:block th:text="${'норма ' + @fmt.money(x.normCost) + ' · '}"></th:block><th:block th:if="${dev.abs().doubleValue() < 1}">по норме</th:block>
+            <b th:unless="${dev.abs().doubleValue() < 1}" th:class="${dev.signum() > 0 ? 'pay-bad' : 'ok-t'}" th:text="${(dev.signum() > 0 ? '+' : '−') + @fmt.money(dev.abs()) + ' (' + @fmt.pct(devP, 1) + ')'}"></b></span></div>
+    <div class="kpi"><span class="kpi-l">Выпуск</span><span class="kpi-v"><th:block th:text="${@fmt.num(outQty)}"></th:block> <small>шт</small></span>
+        <span class="kpi-s" th:text="${got == x.lines.size() ? 'всё оприходовано' : got > 0 ? 'оприходовано ' + got + ' из ' + x.lines.size() + ' — остальное по плану' : 'ещё не оприходовано — по плану'}"></span></div>
+</div>
+<p th:if="${!unpriced.isEmpty()}" class="warn-s" style="margin-bottom:18px"><th:block th:utext="${i['alert']}"></th:block><span th:text="${'Нет цены (ни одной покупки с суммой): ' + #strings.listJoin(unpriced, ', ') + '. В себестоимость вошли как 0 ₸ — оформите покупку.'}"></span></p>
+<div class="cgrid"><div class="cmain">
+    <section class="card" aria-labelledby="h-cu"><div class="card-h"><div><h2 id="h-cu">Себестоимость за единицу</h2><p>план — норма техкарты на плановый выпуск; факт — выданное сырьё на оприходованное</p></div></div>
+        <div class="tbl-w"><table class="tbl tbl--cu">
+            <thead><tr><th>Изделие</th><th class="r">Всего</th><th class="r">План</th><th class="r">Факт</th><th class="r">Цена продажи</th></tr></thead>
+            <tbody><tr th:each="y : ${units}">
+                <td class="cu-p"><div class="prod"><img th:if="${y.photo != null and !#strings.isEmpty(y.photo)}" class="th" th:src="${y.photo}" alt="" width="30" height="40" loading="lazy"><span th:unless="${y.photo != null and !#strings.isEmpty(y.photo)}" class="th th-none" th:utext="${i['cookie']}"></span>
+                    <p><b th:text="${y.l.name}"></b><th:block th:if="${y.l.semiFinished}"> <span class="tag tag--pf">п/ф</span></th:block>
+                        <small th:text="${(y.extra ? 'сверх заявки' : @fmt.qn(y.l.batches) + ' зам.') + ' · ' + (y.l.received ? 'оприходовано ' + @fmt.num(y.l.quantity) + ' шт' : 'план ' + @fmt.num(y.l.quantity) + ' шт')}"></small></p></div></td>
+                <td class="r num cu-s"><b th:text="${@fmt.money(y.l.cost)}"></b><small th:text="${'сырьё ' + @fmt.dec(y.l.rawCost, 0) + (labor and y.l.laborCost != null and y.l.laborCost.signum() > 0 ? ' + зарплата ' + @fmt.dec(y.l.laborCost, 0) : '') + (labor and y.l.overheadCost != null and y.l.overheadCost.signum() > 0 ? ' + накладные ' + @fmt.dec(y.l.overheadCost, 0) : '')}"></small></td>
+                <td class="r num cu-pl"><span class="mob">план </span><th:block th:text="${y.l.planUnitCost != null ? @fmt.money(y.l.planUnitCost) : '—'}"></th:block></td>
+                <td class="r num cu-f"><span class="mob" th:text="${y.l.received ? 'факт ' : 'на план '}"></span><b th:classappend="${y.diff != null and y.diff.doubleValue() >= 0.5 ? 'pay-bad' : y.diff != null and y.diff.doubleValue() <= -0.5 ? 'ok-t' : ''}" th:text="${y.l.unitCost != null ? @fmt.money(y.l.unitCost) : '—'}"></b>
+                    <small th:text="${y.diff != null and y.diff.abs().doubleValue() >= 0.5 ? (y.diff.signum() > 0 ? '+' : '−') + @fmt.dec(y.diff.abs(), 1) + ' ₸ · ' + @fmt.pct(y.diffP, 1) : y.l.received ? 'как в плане' : 'ещё не оприходовано'}"></small></td>
+                <td class="r num cu-sp"><span th:if="${y.l.semiFinished}" class="muted">в товар при упаковке</span>
+                    <th:block th:unless="${y.l.semiFinished}"><th:block th:if="${y.l.salePrice != null}"><span class="mob">цена </span><th:block th:text="${@fmt.money(y.l.salePrice)}"></th:block>
+                        <small th:if="${y.markup != null}" th:classappend="${y.markup.signum() < 0} ? 'pay-bad'" th:text="${'наценка ' + @fmt.pct(y.markup, 0)}"></small></th:block><th:block th:if="${y.l.salePrice == null}">—</th:block></th:block></td>
+            </tr></tbody>
+        </table></div>
+        <p class="card-f">Сырьё<th:block th:if="${labor}">, зарплата и накладные</th:block> заявки делятся по изделиям пропорционально норме сырья. Убыток — красным.</p>
+    </section>
+    <section class="card" aria-labelledby="h-cr"><div class="card-h"><div><h2 id="h-cr">Рецептура: норма и выдано</h2><p th:text="${'норма — техкарта × замесы; цена — последняя покупка на ' + @fmt.dml(date)}"></p></div></div>
+        <div class="tbl-w"><table class="tbl tbl--cr">
+            <thead><tr><th>Сырьё</th><th class="r">Норма</th><th class="r">Выдано</th><th class="r">Цена</th><th class="r">Сумма</th></tr></thead>
+            <tbody><tr th:each="y : ${raw}" th:classappend="${y.quiet} ? 'is-quiet'">
+                <td class="cr-m"><b th:text="${y.i.name}"></b><small th:if="${y.note != null}" th:text="${y.note}"></small></td>
+                <td class="r num cr-n"><span class="mob">норма </span><th:block th:text="${y.norm != null and y.norm.signum() > 0 ? @fmt.qu(y.norm, y.unit) : '—'}"></th:block></td>
+                <td class="r num cr-i"><span class="mob">выдано </span><b th:classappend="${y.more} ? 'pay-bad'" th:text="${y.i.issuedQuantity != null and y.i.issuedQuantity.signum() > 0 ? @fmt.qu(y.i.issuedQuantity, y.i.unit) : '—'}"></b></td>
+                <td class="r num cr-p"><span th:if="${y.free}" class="muted">не учитывается</span>
+                    <th:block th:unless="${y.free}"><th:block th:if="${y.i.unitPrice != null}"><th:block th:text="${@fmt.money(y.i.unitPrice)}"></th:block>
+                        <small th:if="${y.i.priceSource == 'SEMI_FINISHED'}">по рецептуре полуфабриката</small>
+                        <small th:if="${y.i.priceSource == 'PURCHASE' and y.ref != null}" th:text="${(y.ref.after ? 'ближайшая покупка ' : 'покупка ') + '№ ' + y.ref.purchaseId + ', ' + @fmt.dm(y.ref.date)}"></small></th:block>
+                        <th:block th:if="${y.i.unitPrice == null}"><span class="pay-bad">нет цены</span><small>войдёт как 0 ₸</small></th:block></th:block></td>
+                <td class="r num cr-s"><b th:text="${@fmt.money(y.cost)}"></b><small th:if="${y.showNormCost}" th:text="${'по норме ' + @fmt.money(y.normCost)}"></small></td>
+            </tr></tbody>
+            <tfoot><tr><td class="cr-m">Итого</td><td class="cr-n"></td><td class="cr-i"></td><td class="r num cr-p"><span class="mob">норма </span><th:block th:text="${@fmt.money(rawNorm)}"></th:block></td><td class="r num cr-s" th:text="${@fmt.money(rawIssued)}"></td></tr></tfoot>
+        </table></div>
+        <p class="card-f">Выдано — состав заявки сейчас: после «Собрано» правки сразу двигают склад сырья.<th:block th:if="${key == 'new'}"> Сырьё ещё не выдано — считаем по составу.</th:block></p>
+    </section>
+</div>
+<aside class="cside">
+    <section class="card card-b box" aria-labelledby="h-cb"><h3 id="h-cb">Бригада</h3>
+        <th:block th:if="${!members.isEmpty()}"><ul class="cb-l"><li th:each="m : ${members}"><span><b th:text="${m.name}"></b><small th:text="${(m.position != null ? m.position : '') + (m.rateNote != null ? ' · ' + m.rateNote : '')}"></small></span><b th:if="${labor}" class="num" th:text="${@fmt.money(m.rate)}"></b></li></ul>
+            <p th:if="${labor}" class="cb-t"><span>Зарплата за смену</span><b class="num" th:text="${@fmt.money(x.laborCost)}"></b></p></th:block>
+        <p th:if="${members.isEmpty()}" class="warn-s"><th:block th:utext="${i['alert']}"></th:block><span th:text="${'Бригада не назначена — в себестоимости нет зарплаты' + (labor and mode == 'пропорционально зарплате бригад' ? ', и накладные цеха ушли на заявки с бригадой' : '') + '.'}"></span></p>
+        <p th:if="${canBrigade}"><button class="btn btn-soft btn-sm" type="button" th:attr="data-brig=${req.id}" th:text="${members.isEmpty() ? 'Назначить бригаду' : 'Изменить бригаду'}"></button></p></section>
+    <section th:if="${labor}" class="card card-b box" aria-labelledby="h-co"><h3 id="h-co">Накладные цеха</h3>
+        <dl class="sum-k"><div><dt>Фонд цеха за день</dt><dd th:text="${@fmt.money(fund)}"></dd></div><div><dt>Заявок в этот день</dt><dd th:text="${dayCount}"></dd></div>
+            <div><dt>Доля заявки</dt><dd th:text="${@fmt.money(x.overheadCost) + ' · ' + @fmt.dec(share, 0) + ' %'}"></dd></div></dl>
+        <p class="hint" th:text="${overHint}"></p></section>
+    <section class="card card-b box" aria-labelledby="h-cg"><h3 id="h-cg">Оприходовано</h3>
+        <ul class="cg-l"><li th:each="g : ${outs}"><span><b th:text="${g.name}"></b><small th:text="${g.sub}"></small></span>
+            <b th:if="${g.fact != null}" class="num"><th:block th:text="${g.fact}"></th:block><small th:if="${g.diff != null}" th:class="${g.diffCls}" th:text="${g.diff}"></small></b>
+            <span th:if="${g.fact == null}" class="muted">не оприходовано</span></li></ul></section>
+</aside></div>
+</th:block>
+</th:block>
+</th:block>
+<th:block th:fragment="scripts">
+<th:block th:if="${missing == null and key != 'off'}">
+<script type="application/json" id="brig-data" th:utext="${brigJson}"></script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/prod.js?v=1"></script>
+</th:block>
 </th:block>
 </body>
 </html>

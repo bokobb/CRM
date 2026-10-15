@@ -1,4 +1,5 @@
-/* Дашборд: серая дата в шапке открывает календарь в цветах сайта; выбранный день — /admin/dashboard?day=… */
+/* Серая дата в шапке открывает календарь в цветах сайта; выбранный день — /admin/dashboard?day=… (дашборд) или
+   страница из data-base с параметром data-param (производство: /admin/production?date=…). */
 (function () {
   'use strict';
   var b = document.getElementById('dpick-b'), cal = document.getElementById('cal');
@@ -9,6 +10,7 @@
   function iso(y, m, d) { return y + '-' + pad(m + 1) + '-' + pad(d); }
   var now = new Date(), today = iso(now.getFullYear(), now.getMonth(), now.getDate());
   var sel = b.getAttribute('data-day'), min = b.getAttribute('data-min'), max = b.getAttribute('data-max'), keep = b.getAttribute('data-keep');
+  var base = b.getAttribute('data-base') || '/admin/dashboard', param = b.getAttribute('data-param') || 'day';
   var y = +sel.slice(0, 4), m = +sel.slice(5, 7) - 1;
 
   function render() {
@@ -24,7 +26,7 @@
         (off ? ' disabled' : '') + (v === sel ? ' aria-pressed="true"' : '') + '>' + d + '</button>';
     }
     h += '</div><div class="cal-f"><button type="button" class="link" data-d="' + today + '">Сегодня</button>' +
-      '<button type="button" class="link" data-d="' + tomorrow() + '">Завтра</button></div>';
+      (tomorrow() <= max ? '<button type="button" class="link" data-d="' + tomorrow() + '">Завтра</button>' : '') + '</div>';
     cal.innerHTML = h;
   }
   function tomorrow() { var t = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1); return iso(t.getFullYear(), t.getMonth(), t.getDate()); }
@@ -38,9 +40,9 @@
     if (mv && !mv.disabled) { m += +mv.getAttribute('data-mv'); if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } render(); return; }
     if (d && !d.disabled) {
       var q = [];
-      if (d.getAttribute('data-d') !== today) q.push('day=' + d.getAttribute('data-d'));
+      if (d.getAttribute('data-d') !== today) q.push(param + '=' + d.getAttribute('data-d'));
       if (keep) q.push(keep);                                     // период выручки (p=7 / p=30) остаётся
-      location.href = '/admin/dashboard' + (q.length ? '?' + q.join('&') : '');
+      location.href = base + (q.length ? '?' + q.join('&') : '');
     }
   });
   document.addEventListener('click', function () { if (!cal.hidden) close(); });

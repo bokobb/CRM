@@ -43,7 +43,7 @@
     <div class="main">
         <header class="bar" id="bar">
             <button class="ibtn burger" type="button" id="burger" aria-label="Открыть меню" aria-expanded="false" aria-controls="side" th:utext="${i['menu']}"></button>
-            <div class="bar-t"><h1 id="title" tabindex="-1" th:text="${title}">Дашборд</h1><p id="subtitle" th:unless="${subPick != null}" th:text="${sub}"></p><div class="dpick" th:if="${subPick != null}"><button class="dpick-b" type="button" id="dpick-b" aria-haspopup="dialog" aria-expanded="false" th:attr="data-day=${subPick},data-min=${dayMin},data-max=${dayMax},data-keep=${subKeep}"><span th:text="${sub}">Среда, 14 октября</span><th:block th:utext="${i['calendar']}"></th:block></button><div class="cal" id="cal" role="dialog" aria-label="Выбрать день" hidden></div></div></div>
+            <div class="bar-t"><h1 id="title" tabindex="-1" th:text="${title}">Дашборд</h1><p id="subtitle" th:unless="${subPick != null}" th:text="${sub}"></p><div class="dpick" th:if="${subPick != null}"><button class="dpick-b" type="button" id="dpick-b" aria-haspopup="dialog" aria-expanded="false" th:attr="data-day=${subPick},data-min=${dayMin},data-max=${dayMax},data-keep=${subKeep},data-base=${subBase},data-param=${subParam}"><span th:text="${sub}">Среда, 14 октября</span><th:block th:utext="${i['calendar']}"></th:block></button><div class="cal" id="cal" role="dialog" aria-label="Выбрать день" hidden></div></div></div>
             <form class="search" id="gsearch" role="search" action="/admin/orders" method="get">
                 <th:block th:utext="${i['search']}"></th:block>
                 <input class="inp" id="gq" name="q" type="search" placeholder="№ заказа, магазин, телефон" aria-label="Найти заказ" autocomplete="off">

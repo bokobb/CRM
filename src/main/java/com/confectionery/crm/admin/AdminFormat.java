@@ -81,6 +81,11 @@ public class AdminFormat {
         return AdminRequests.qu(v, unit);
     }
 
+    /** Наценка, отклонение: «+61 %», «−0,6 %» (digits — знаков после запятой). */
+    public String pct(BigDecimal v, int digits) {
+        return AdminProduction.pct(v, digits);
+    }
+
     public String plural(long n, String one, String few, String many) {
         long d = n % 10, h = n % 100;
         return d == 1 && h != 11 ? one : d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
