@@ -230,9 +230,18 @@ public class AdminRequestController {
 
     // ================================================================== новая / изменить
 
+    public String newForm(Long from, Model model, RedirectAttributes ra) {
+        return newForm(from, null, null, model, ra);
+    }
+
+    /**
+     * Новая заявка: ?from= — повторить заявку, ?product=&batches= — «Заявка на производство» со склада готовой
+     * продукции (товара не хватает на заказы): строка с этим товаром и замесами уже в форме.
+     */
     @GetMapping("/new")
     @Transactional(readOnly = true)
-    public String newForm(@RequestParam(required = false) Long from, Model model, RedirectAttributes ra) {
+    public String newForm(@RequestParam(required = false) Long from, @RequestParam(required = false) Long product, @RequestParam(required = false) BigDecimal batches,
+                          Model model, RedirectAttributes ra) {
         if (!can(Role.ADMIN, Role.ACCOUNTANT, Role.TECHNOLOGIST)) {
             fail(ra, new IllegalStateException("Создавать заявки могут бухгалтер, технолог и администратор"));
             return "redirect:/admin/requests";
@@ -243,6 +252,15 @@ public class AdminRequestController {
                 src = requestService.findById(from);
             } catch (IllegalArgumentException e) {
                 src = null;
+            }
+        } else if (product != null) {
+            Recipe rc = requestService.recipesWithProducts().stream().filter(x -> x.getProduct().getId().equals(product)).findFirst().orElse(null);
+            if (rc != null) {
+                ProductionRequestLine l = new ProductionRequestLine();
+                l.setProduct(rc.getProduct());
+                l.setBatches(batches != null && batches.signum() > 0 ? batches : BigDecimal.ONE);
+                src = new ProductionRequest();
+                src.getLines().add(l);
             }
         }
         return form(null, src, model);

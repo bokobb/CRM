@@ -1,11 +1,13 @@
-/* Склад сырья (vMaterials/vMaterial из макета): документ «Поступление»/«Списание» в окне — несколько позиций,
-   остаток до и после, причина; строки журнала «13 позиций» раскрываются; минимальный остаток в карточке.
+/* Склад сырья и склад готовой продукции (vMaterials/vStock из макета): документ «Поступление»/«Списание» в окне —
+   несколько позиций, остаток до и после (у товара — и сколько в заказах), причина; строки журнала «13 позиций»
+   раскрываются; минимальный остаток в карточке сырья. Подписи, адрес и штучный ввод — из JSON страницы (#mt-doc).
    Документ уходит обычной формой POST — сервер проводит его как приложение (StockService) и отправляет в 1С. */
 (function () {
   'use strict';
   var $ = Admin.$, esc = Admin.esc, icon = Admin.icon, O = window.Ops, NB = O.NB;
   var D = O.json('mt-doc') || {};
-  var ITEMS = (D.items || []).map(function (m) { return { key: String(m.id), label: m.name, unit: m.unit, stock: m.stock }; });
+  var ITEMS = (D.items || []).map(function (m) { return { key: String(m.id), label: m.name, unit: m.unit, stock: +m.stock || 0, res: +m.res || 0 }; });
+  var NOUN = D.noun || 'Сырьё', INT = !!D.int;
   var IM = {}; ITEMS.forEach(function (m) { IM[m.key] = m; });
 
   /* ---- журнал: раскрыть строку документа ---- */
@@ -51,18 +53,19 @@
       '<div class="dlg-acts"><button class="btn btn-soft" type="button" data-close>Отмена</button><button class="btn btn-primary" type="submit">Провести</button></div></form>', 'is-wide');
     function head() {
       var off = S.type === 'off';
-      $('dlg-h').textContent = off ? 'Списание сырья' : 'Поступление сырья';
+      $('dlg-h').textContent = off ? (D.offTitle || 'Списание сырья') : (D.inTitle || 'Поступление сырья');
       $('dd-why').innerHTML = (off ? D.offWhy : D.inWhy).map(function (w) { return '<option>' + esc(w) + '</option>'; }).join('');
-      $('dd-hint').innerHTML = off ? 'Списанное уходит со склада сразу; документ уйдёт в 1С. Больше, чем есть на складе, списать нельзя.'
-        : 'Закупку у поставщика оформляйте в <a class="link" href="/admin/purchases/new">«Покупках»</a> — там цена и фото накладной. Здесь — приход без покупки.';
+      $('dd-hint').innerHTML = off ? esc(D.offHint || 'Списанное уходит со склада сразу; документ уйдёт в 1С. Больше, чем есть на складе, списать нельзя.')
+        : D.inHint ? esc(D.inHint) : 'Закупку у поставщика оформляйте в <a class="link" href="/admin/purchases/new">«Покупках»</a> — там цена и фото накладной. Здесь — приход без покупки.';
     }
     function after(m, q) { return m && q > 0 ? O.r3(m.stock + (S.type === 'off' ? -q : q)) : null; }
+    function stockText(m, a) { return m ? 'остаток ' + O.qu(m.stock, m.unit) + (a != null ? ' → <b' + (a < 0 ? ' class="pay-bad"' : '') + '>' + O.qu(a, m.unit) + '</b>' : '') + (m.res > 0 ? ' · в заказах ' + O.qn(m.res) : '') : ''; }
     function lines() {
       $('dd-lines').innerHTML = S.rows.map(function (r) {
         var m = r.m ? IM[r.m] : null, q = O.numIn(r.q), off = S.type === 'off', a = after(m, q);
-        return '<div class="dl" data-id="' + r.id + '"><div class="dl-n"><input class="inp' + (S.tried && !r.m ? ' is-bad' : '') + '" aria-label="Сырьё" placeholder="Сырьё" autocomplete="off" spellcheck="false" value="' + esc(r.text) + '"></div>' +
-          '<span class="qin"><input class="inp' + (S.tried && (!(q > 0) || (off && m && q > m.stock + 1e-9)) ? ' is-bad' : '') + '" aria-label="Количество" inputmode="decimal" autocomplete="off" placeholder="0" value="' + esc(r.q) + '"><i>' + esc(m ? m.unit : 'кг') + '</i></span>' +
-          '<span class="dl-s">' + (m ? 'остаток ' + O.qu(m.stock, m.unit) + (a != null ? ' → <b' + (a < 0 ? ' class="pay-bad"' : '') + '>' + O.qu(a, m.unit) + '</b>' : '') : '') + '</span>' +
+        return '<div class="dl" data-id="' + r.id + '"><div class="dl-n"><input class="inp' + (S.tried && !r.m ? ' is-bad' : '') + '" aria-label="' + NOUN + '" placeholder="' + NOUN + '" autocomplete="off" spellcheck="false" value="' + esc(r.text) + '"></div>' +
+          '<span class="qin"><input class="inp' + (S.tried && (!(q > 0) || (off && m && q > m.stock + 1e-9)) ? ' is-bad' : '') + '" aria-label="Количество" inputmode="' + (INT ? 'numeric' : 'decimal') + '" autocomplete="off" placeholder="0" value="' + esc(r.q) + '"><i>' + esc(m ? m.unit : INT ? 'шт' : 'кг') + '</i></span>' +
+          '<span class="dl-s">' + stockText(m, a) + '</span>' +
           '<button class="rx-del" type="button" aria-label="Удалить строку">' + icon('trash') + '</button></div>';
       }).join('');
       $('dd-lines').querySelectorAll('.dl').forEach(function (el) {
@@ -79,11 +82,11 @@
       var el = e.target.closest('.dl'); if (!el) return;
       var r = rowOf(+el.getAttribute('data-id'));
       if (e.target.closest('.dl-n')) { r.text = e.target.value; r.m = O.exact(ITEMS, r.text); return; }
-      var v = e.target.value.replace(/[^0-9.,]/g, '').slice(0, 9);
+      var v = e.target.value.replace(INT ? /\D/g : /[^0-9.,]/g, '').slice(0, 9);
       if (v !== e.target.value) e.target.value = v;
       r.q = v;
       var m = r.m ? IM[r.m] : null, a = after(m, O.numIn(v));
-      el.querySelector('.dl-s').innerHTML = m ? 'остаток ' + O.qu(m.stock, m.unit) + (a != null ? ' → <b' + (a < 0 ? ' class="pay-bad"' : '') + '>' + O.qu(a, m.unit) + '</b>' : '') : '';
+      el.querySelector('.dl-s').innerHTML = stockText(m, a);
     });
     box.addEventListener('click', function (e) {
       var b = e.target.closest('.rx-del'); if (!b) return;
@@ -104,7 +107,7 @@
       if (!filled.length) errs.push('Добавьте хотя бы одну позицию.');
       filled.forEach(function (r) {
         var q = O.numIn(r.q), m = IM[r.m];
-        if (!r.m) errs.push('Выберите сырьё из списка' + (r.text ? ': «' + r.text + '» не нашлось' : '') + '.');
+        if (!r.m) errs.push('Выберите ' + NOUN.toLowerCase() + ' из списка' + (r.text ? ': «' + r.text + '» не ' + (INT ? 'нашёлся' : 'нашлось') : '') + '.');
         else if (!(q > 0)) errs.push(m.label + ': введите количество.');
         else if (off && q > m.stock + 1e-9) errs.push(m.label + ': на складе только ' + O.qu(m.stock, m.unit) + '.');
         if (r.m && seen[r.m]) errs.push(m.label + ' — дважды в документе.');
@@ -118,7 +121,7 @@
       }
       var note = $('dd-note').value.trim(), why = $('dd-why').value;
       Admin.closeDlg();
-      O.post('/admin/materials/doc', {
+      O.post(D.url || '/admin/materials/doc', {
         type: off ? 'off' : 'in', date: $('dd-date').value, reason: why + (note ? ' — ' + note : ''),
         item: filled.map(function (r) { return r.m; }), qty: filled.map(function (r) { return O.numStr(O.numIn(r.q)); }),
         back: location.pathname + location.search

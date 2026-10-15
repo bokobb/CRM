@@ -105,7 +105,7 @@
 <th:block th:fragment="scripts">
 <script type="application/json" id="mt-doc" th:utext="${docJson}"></script>
 <script src="/admin/assets/ops.js?v=1"></script>
-<script src="/admin/assets/mat.js?v=1"></script>
+<script src="/admin/assets/mat.js?v=2"></script>
 </th:block>
 <th:block th:fragment="docRef(m)"><a th:if="${m.href != null}" class="link mv-doc" th:href="${m.href}" th:text="${m.doc}"></a><span th:if="${m.href == null}" class="mv-doc" th:text="${m.doc}"></span><small th:if="${!#strings.isEmpty(m.sub)}" th:text="${m.sub}"></small></th:block>
 </body>
