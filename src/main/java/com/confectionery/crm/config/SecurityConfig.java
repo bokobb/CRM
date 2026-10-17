@@ -189,7 +189,7 @@ public class SecurityConfig {
         http.securityMatcher("/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/promo/**").permitAll()
+                        .requestMatchers("/", "/promo/**", "/robots.txt", "/sitemap.xml").permitAll()
                         .requestMatchers("/contacts", "/vacancies", "/vacancies/reply").permitAll()
                         .requestMatchers("/login", "/images/**", "/h2-console/**", "/firebase-messaging-sw.js", "/error").permitAll()
                         .anyRequest().authenticated())

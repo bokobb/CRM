@@ -12,7 +12,15 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,500;1,600&family=Golos+Text:wght@400;500;600;700&family=Marck+Script&display=swap">
 <link rel="stylesheet" href="/promo/site.css">
 <link rel="stylesheet" href="/promo/pages.css">
+<th:block th:replace="~{site/frame :: seo-meta}"></th:block>
 </head>
+
+<!--/* Для поисковиков (SeoService): коды подтверждения Search Console / Вебмастера и разметка «Кондитерская». Подключает и главная. */-->
+<th:block th:fragment="seo-meta"><th:block th:if="${seo != null}">
+<meta name="google-site-verification" th:if="${seo.googleVerification != null}" th:content="${seo.googleVerification}">
+<meta name="yandex-verification" th:if="${seo.yandexVerification != null}" th:content="${seo.yandexVerification}">
+<script type="application/ld+json" th:if="${seo.jsonLd != null}" th:utext="${seo.jsonLd}"></script>
+</th:block></th:block>
 
 <th:block th:fragment="header">
 <a class="skip" href="#content">Перейти к содержанию</a>
