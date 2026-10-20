@@ -2,13 +2,12 @@
 
 ## Сервер
 
-- Yandex Cloud, облако `cloud-sirocco-179`, зона `kz1-a`, VM `compute-vm-2-2-20-ssd-1788698504289`,
-  статический IP **94.131.90.178**, Ubuntu 24.04, 2 vCPU / 4 ГБ / 20 ГБ SSD.
-- Вход: `ssh -i ~/.ssh/yc_crm_vm bakhodir@94.131.90.178` (ключ `ssh-key-1788454252298`).
-- Адрес: `https://94.131.90.178.nip.io` (сертификат Let's Encrypt, автопродление certbot, до 05.12.2026).
-  Nginx уже знает имя `crm.yug-sladosti.kz` — когда домен будет куплен: A-запись `crm` → `94.131.90.178`,
-  затем `sudo certbot --nginx -d crm.yug-sladosti.kz`.
-- Открытые порты (ufw): 22, 80, 443.
+- Contabo VPS (с 20.10.2026, до этого Yandex Cloud 94.131.90.178), IP **169.58.214.142**,
+  Ubuntu 24.04, 4 vCPU / 8 ГБ / 96 ГБ, swap 2 ГБ.
+- Вход: `ssh -i ~/.ssh/crm_contabo bakhodir@169.58.214.142` (у `bakhodir` sudo без пароля; root — тем же ключом).
+- Адрес: **https://yug-sladosti.kz** (DNS в Hoster.KZ, A-записи `@` и `www` → 169.58.214.142),
+  запасной `https://169.58.214.142.nip.io`. Сертификаты Let's Encrypt, автопродление certbot.
+- Открытые порты (ufw): 22, 80, 443. Postgres слушает только `127.0.0.1:5434`.
 
 ### Файлы на сервере
 
@@ -46,9 +45,9 @@ docker exec -it crm-postgres psql -U crm -d crm      # консоль SQL
 # на компьютере, из корня проекта
 export JAVA_HOME=/opt/jdk/jdk-17.0.12 PATH=/opt/jdk/jdk-17.0.12/bin:$PATH
 ./gradlew compileJava                                       # проверка
-rsync -az -e "ssh -i ~/.ssh/yc_crm_vm" src/ bakhodir@94.131.90.178:~/CRM/src/
-ssh -i ~/.ssh/yc_crm_vm bakhodir@94.131.90.178 'sudo systemctl restart crm-backend'
-curl -s -o /dev/null -w "%{http_code}\n" https://94.131.90.178.nip.io/login   # ждать 200
+rsync -az -e "ssh -i ~/.ssh/crm_contabo" src/ bakhodir@169.58.214.142:~/CRM/src/
+ssh -i ~/.ssh/crm_contabo bakhodir@169.58.214.142 'sudo systemctl restart crm-backend'
+curl -s -o /dev/null -w "%{http_code}\n" https://yug-sladosti.kz/login   # ждать 200
 ```
 
 `rsync` без `--delete` (удалённые файлы на сервере остаются — при удалении класса удалить и там).
@@ -77,8 +76,8 @@ ADD CONSTRAINT <t>_<поле>_check CHECK (<поле> IN (...));` — прове
 ### Восстановление базы
 
 ```bash
-scp -i ~/.ssh/yc_crm_vm crm-full.dump bakhodir@94.131.90.178:/tmp/
-ssh -i ~/.ssh/yc_crm_vm bakhodir@94.131.90.178
+scp -i ~/.ssh/crm_contabo crm-full.dump bakhodir@169.58.214.142:/tmp/
+ssh -i ~/.ssh/crm_contabo bakhodir@169.58.214.142
 sudo systemctl stop crm-backend
 docker cp /tmp/crm-full.dump crm-postgres:/tmp/
 docker exec crm-postgres pg_restore -U crm -d crm --clean --if-exists /tmp/crm-full.dump
@@ -98,8 +97,8 @@ sudo systemctl start crm-backend
 5. `cd ~/CRM && docker compose up -d`, восстановить базу (`pg_restore`, см. выше).
 6. `cd whatsapp-gateway && npm ci`; `sudo systemctl daemon-reload && sudo systemctl enable --now crm-backend crm-whatsapp-gateway`.
 7. Сертификат: `sudo certbot --nginx -d <IP>.nip.io` (или домен). Веб-сборку и APK выложить заново (mobile.md).
-8. Если IP сменился — поменять адрес по умолчанию в `mobile/lib/services/api_client.dart` (`defaultBaseUrl`),
-   `crm.public-url` и пересобрать приложение.
+8. Приложение ходит на домен `yug-sladosti.kz`, поэтому при смене сервера достаточно поменять A-записи
+   в Hoster.KZ — пересобирать APK не нужно.
 
 ## Частые проблемы
 
@@ -121,4 +120,5 @@ sudo systemctl start crm-backend
 2. **Бэкапы базы только на VM.** Рекомендуется регулярно копировать `~/backups/` за пределы VM
    (Object Storage Yandex Cloud или на компьютер).
 3. `backend.env` и `firebase-service-account.json` содержат секреты — не публиковать, не отправлять в мессенджеры.
-4. Домен `yug-sladosti.kz` не оформлен — адрес на nip.io зависит от стороннего сервиса.
+4. APK до 20.10.2026 зашиты на `94.131.90.178.nip.io` (старый сервер Yandex) — после его отключения
+   такие телефоны нужно обновить или вписать `https://yug-sladosti.kz/api` в Настройки › Подключение.

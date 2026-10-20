@@ -115,14 +115,10 @@ class ApiClient {
   }
 
   /// Адрес по умолчанию для СВЕЖЕЙ установки (пока никто не менял Base URL в Настройках) —
-  /// реальный боевой backend на Yandex Cloud (см. память проекта yandex_cloud_deployment),
-  /// доступен из любой сети по HTTPS. Временный адрес через nip.io — как только заведётся
-  /// домен yug-sladosti.kz, сменить здесь на него (и на веб-сервере — Nginx server_name уже
-  /// содержит оба варианта, так что смена этой константы не потребует правок на сервере).
-  /// Один и тот же адрес для всех платформ (Android/iOS/web) — localhost:8080 был лишь
-  /// заглушкой со времён, когда веб/iOS ещё не собирались всерьёз (обнаружено 2026-09-22 при
-  /// первой сборке под веб — запросы падали в ERR_CONNECTION_REFUSED на localhost телефона).
-  static String defaultBaseUrl() => 'https://94.131.90.178.nip.io/api';
+  /// боевой backend на домене yug-sladosti.kz (с 20.10.2026 — сервер Contabo; при смене
+  /// сервера меняется только A-запись домена, эта константа остаётся). Один и тот же адрес
+  /// для всех платформ (Android/iOS/web).
+  static String defaultBaseUrl() => 'https://yug-sladosti.kz/api';
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();

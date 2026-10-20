@@ -43,7 +43,7 @@ public class NotificationService {
     @Value("${crm.notifications.email-enabled:false}")
     private boolean emailEnabled;
 
-    @Value("${crm.public-url:https://94.131.90.178.nip.io}")
+    @Value("${crm.public-url:https://yug-sladosti.kz}")
     private String publicUrl;
 
     public Notification notify(String recipient, String message, Order order) {

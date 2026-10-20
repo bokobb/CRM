@@ -18,8 +18,8 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 HERE="$ROOT/scripts/foto"
 WORK="$ROOT/rabota"
 VENV="$ROOT/.venv-foto"
-KEY=${FOTO_SSH_KEY:-$HOME/.ssh/yc_crm_vm}
-HOST=${FOTO_HOST:-bakhodir@94.131.90.178}
+KEY=${FOTO_SSH_KEY:-$HOME/.ssh/crm_contabo}
+HOST=${FOTO_HOST:-bakhodir@169.58.214.142}
 APP=${FOTO_APP_DIR:-CRM}                       # папка приложения на сервере, от домашней
 SSH=(ssh -i "$KEY" "$HOST")
 

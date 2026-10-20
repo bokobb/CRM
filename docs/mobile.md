@@ -1,7 +1,7 @@
 # Мобильное приложение и веб-версия
 
 Flutter 3.47 (`mobile/`), один код для Android (APK) и браузера (`/app/`, на iPhone — «На экран Домой»).
-Адрес сервера зашит по умолчанию (`https://94.131.90.178.nip.io/api`), меняется в Настройки › Подключение.
+Адрес сервера зашит по умолчанию (`https://yug-sladosti.kz/api`), меняется в Настройки › Подключение.
 
 ## Структура `mobile/lib`
 
@@ -57,9 +57,9 @@ flutter analyze lib                               # проверка
 flutter build apk --release                        # → build/app/outputs/flutter-apk/app-release.apk
 flutter build web --release --base-href /app/      # → build/web
 # выкладка
-scp -i ~/.ssh/yc_crm_vm build/app/outputs/flutter-apk/app-release.apk \
-    bakhodir@94.131.90.178:/home/bakhodir/downloads/46a256c7720157c0/crm.apk
-rsync -az -e "ssh -i ~/.ssh/yc_crm_vm" build/web/ bakhodir@94.131.90.178:~/CRM/web-app/
+scp -i ~/.ssh/crm_contabo build/app/outputs/flutter-apk/app-release.apk \
+    bakhodir@169.58.214.142:/home/bakhodir/downloads/46a256c7720157c0/crm.apk
+rsync -az -e "ssh -i ~/.ssh/crm_contabo" build/web/ bakhodir@169.58.214.142:~/CRM/web-app/
 ```
 
 Веб-версия отдаётся без кеша — iPhone видит новую сборку при следующем открытии. Если менялся контракт

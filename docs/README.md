@@ -20,10 +20,10 @@
 
 ## Коротко
 
-- **Адрес:** https://94.131.90.178.nip.io — веб-интерфейс (вход по логину), `/app/` — приложение в
+- **Адрес:** https://yug-sladosti.kz — веб-интерфейс (вход по логину), `/app/` — приложение в
   браузере (для iPhone), `/shop` — сайт клиентов, APK для Android:
-  https://94.131.90.178.nip.io/downloads/46a256c7720157c0/crm.apk
-- **Сервер:** Yandex Cloud, VM `94.131.90.178` (Ubuntu 24.04, 2 vCPU / 4 ГБ / 20 ГБ SSD), пользователь `bakhodir`.
+  https://yug-sladosti.kz/downloads/46a256c7720157c0/crm.apk
+- **Сервер:** Contabo VPS `169.58.214.142` (Ubuntu 24.04, 4 vCPU / 8 ГБ / 96 ГБ), пользователь `bakhodir`.
 - **Код:** `~/IdeaProjects/CRM` на компьютере владельца. Удалённого git-репозитория **нет** — это
   единственная копия кода (см. «Риски» в [operations.md](operations.md)).
 - **Стек:** Java 17 + Spring Boot 4.1.1 (Gradle), PostgreSQL 16 в Docker, Thymeleaf (веб), Flutter 3.47
