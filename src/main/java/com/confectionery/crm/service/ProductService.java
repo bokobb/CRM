@@ -90,12 +90,7 @@ public class ProductService {
     @Transactional
     public DeleteOutcome delete(Long id) {
         Product product = findById(id);
-        boolean hasHistory = orderRepository.existsByItems_Product_Id(id)
-                || stockMovementRepository.existsByProductId(id)
-                || productionRequestRepository.existsByLinesProductId(id)
-                || whatsAppInboundMessageRepository.existsByItems_Product_Id(id)
-                || productReturnRepository.existsByItems_Product_Id(id);
-        if (hasHistory) {
+        if (hasHistory(id)) {
             product.setActive(false);
             productRepository.save(product);
             return DeleteOutcome.ARCHIVED;
@@ -104,6 +99,20 @@ public class ProductService {
         productAliasRepository.deleteAll(productAliasRepository.findByProductId(id));
         productRepository.delete(product); // рецепт (Recipe) каскадится автоматически — см. Product.recipe
         return DeleteOutcome.DELETED;
+    }
+
+    /**
+     * Встречался ли товар где-нибудь (заказы, движения склада, заявки на производство, разобранные
+     * WhatsApp-сообщения, возвраты) — тогда {@link #delete} не удаляет его, а переносит в архив.
+     * Админка показывает по нему, какая кнопка будет: «В архив» или «Удалить».
+     */
+    @Transactional(readOnly = true)
+    public boolean hasHistory(Long id) {
+        return orderRepository.existsByItems_Product_Id(id)
+                || stockMovementRepository.existsByProductId(id)
+                || productionRequestRepository.existsByLinesProductId(id)
+                || whatsAppInboundMessageRepository.existsByItems_Product_Id(id)
+                || productReturnRepository.existsByItems_Product_Id(id);
     }
 
     /** Товары, которые видят клиенты (витрина /shop, разбор заказов из WhatsApp) — см. Product#hiddenFromClients. */

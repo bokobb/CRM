@@ -45,6 +45,7 @@
                 </tr>
                 </tbody>
             </table></div>
+            <p th:if="${!#strings.isEmpty(stockLack)}" class="warn-s od-stock"><th:block th:utext="${i['alert']}"></th:block><span><th:block th:text="${'На складе не хватает на все открытые заказы: ' + stockLack + '.'}"></th:block><th:block th:if="${seesStock}"> <a class="link" href="/admin/stock?seg=short">Склад</a></th:block></span></p>
             <dl class="spec">
                 <div><dt>позиций</dt><dd th:text="${t.positions}">6</dd></div>
                 <div><dt>коробок</dt><dd th:text="${t.boxes + (t.boxesKnown ? '' : '+')}">10</dd></div>

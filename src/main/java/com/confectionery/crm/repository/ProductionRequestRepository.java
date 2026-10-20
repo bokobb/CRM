@@ -23,6 +23,12 @@ public interface ProductionRequestRepository extends JpaRepository<ProductionReq
     /** Заявки смены за период по дате документа — себестоимость на экране «Производство». */
     List<ProductionRequest> findByDocumentDateBetweenAndStatusNot(LocalDate from, LocalDate to, ProductionRequestStatus status);
 
+    /** То же вместе с отменёнными — «Производство» в админке: число заявок по дням и отменённые за день. */
+    List<ProductionRequest> findByDocumentDateBetween(LocalDate from, LocalDate to);
+
+    /** Заявки в работе (новые и собранные) — что уже идёт в производство, для нехватки на складе ГП. */
+    List<ProductionRequest> findByStatusIn(java.util.Collection<ProductionRequestStatus> statuses);
+
     /**
      * SELECT ... FOR UPDATE — для всех изменений заявки. Без блокировки параллельные запросы
      * (зав. ГП оприходует, пока зав. сырья правит состав) затирали друг другу поля заявки:

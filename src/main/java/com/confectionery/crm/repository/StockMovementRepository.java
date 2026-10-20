@@ -16,8 +16,14 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
     /** Все движения сырья за период (ручные и по заявкам) — журнал «Склада сырья», расход в цех. */
     List<StockMovement> findByIngredientIsNotNullAndCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime from, LocalDateTime to);
 
+    /** Журнал склада готовой продукции в админке: оприходование заявок, документы, исправления. */
+    List<StockMovement> findByProductIsNotNullAndCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime from, LocalDateTime to);
+
     /** Движения одного сырья с даты — карточка сырья. */
     List<StockMovement> findByIngredientIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(Long ingredientId, LocalDateTime from);
+
+    /** Движения одного товара с даты — карточка товара в админке. */
+    List<StockMovement> findByProductIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(Long productId, LocalDateTime from);
 
     /**
      * Только ручные движения (см. StockMovement.manual) — тип/период необязательны

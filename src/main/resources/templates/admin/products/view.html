@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/products"><th:block th:utext="${i['back']}"></th:block>Все товары</a>
+<div th:if="${missing != null}" class="card empty">Такого товара нет.</div>
+<th:block th:if="${missing == null}">
+<div class="ch pc-h"><span class="pc-ph"><img th:if="${photo != null}" th:src="${photo}" alt=""><th:block th:if="${photo == null}" th:utext="${i['cookie']}"></th:block></span>
+    <div><h2 th:text="${p.name}">Товар</h2>
+        <p class="ch-m"><span class="vt" th:classappend="${site.cls}"><th:block th:if="${site.icon != null}" th:utext="${i16[site.icon]}"></th:block><th:block th:text="${site.text}"></th:block></span>
+            <span th:if="${pf}" class="tag tag--pf">полуфабрикат</span><span th:text="${p.group != null ? p.group : 'без группы производства'}"></span>
+            <span th:if="${p.oneCCode != null and !#strings.isEmpty(p.oneCCode)}" th:text="${'код 1С ' + p.oneCCode}"></span></p></div>
+    <div class="ch-acts">
+        <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/products/' + p.id + '/edit'}"><th:block th:utext="${i['edit']}"></th:block>Изменить</a>
+        <button th:if="${canEdit and !pf and p.active and !hidden}" class="btn btn-soft" type="button" id="pc-hide"
+                th:attr="data-id=${p.id},data-name=${p.name},data-m1=${m1},data-m2=${m2},data-m1t=${@fmt.dml(m1)},data-m2t=${@fmt.dml(m2)},data-today=${today}"><th:block th:utext="${i['eye-off']}"></th:block>Скрыть с витрины</button>
+        <form th:if="${canEdit and !pf and p.active and hidden}" th:action="${'/admin/products/' + p.id + '/visibility'}" method="post" style="display:contents">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="hidden" value="false">
+            <button class="btn btn-soft" type="submit"><th:block th:utext="${i['eye']}"></th:block>Вернуть на витрину</button></form>
+        <a th:if="${canMake and p.active}" class="btn btn-soft" th:href="${'/admin/requests/new?product=' + p.id + '&batches=1'}"><th:block th:utext="${i['requests']}"></th:block>Заявка на производство</a>
+        <button th:if="${canDoc and !pf and p.active}" class="btn btn-soft" type="button" data-doc="off">Списать со склада</button>
+        <form th:if="${canEdit and p.active}" th:action="${'/admin/products/' + p.id + '/delete'}" method="post" style="display:contents">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button th:if="${used}" class="btn btn-danger" type="submit" th:attr="data-confirm-title=${'В архив «' + p.name + '»?'}"
+                    data-confirm="Товар уже был в заказах или заявках, поэтому не удаляется, а уходит в архив: пропадёт с сайта и из новых заказов. Старые заказы и отчёты не меняются, вернуть можно в любой момент." data-confirm-ok="В архив">В архив</button>
+            <button th:unless="${used}" class="btn btn-danger" type="submit" th:attr="data-confirm-title=${'Удалить «' + p.name + '»?'}"
+                    data-confirm="Товар нигде не встречался — ни в заказах, ни в заявках, — поэтому удалится совсем." data-confirm-ok="Удалить">Удалить</button></form>
+        <form th:if="${canEdit and !p.active}" th:action="${'/admin/products/' + p.id + '/restore'}" method="post" style="display:contents">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="btn btn-soft" type="submit">Вернуть из архива</button></form>
+    </div>
+</div>
+<div class="ckpis">
+    <div th:each="k : ${kpis}" class="kpi" th:classappend="${k.cls}"><span class="kpi-l" th:text="${k.label}"></span>
+        <span class="kpi-v"><th:block th:text="${k.value}"></th:block><th:block th:if="${k.unit != null}"> <small th:text="${k.unit}"></small></th:block></span>
+        <span class="kpi-s" th:utext="${k.sub}"></span></div>
+</div>
+<div class="cgrid"><div class="cmain">
+    <section th:if="${!pf}" class="card" aria-labelledby="h-pm"><div class="card-h"><div><h2 id="h-pm">Склад: движения</h2><p>за две недели · из цеха, выдача заказов, документы</p></div>
+        <a th:if="${seesStock}" class="link" th:href="${movesHref}">Все движения</a></div>
+        <p th:if="${moves.isEmpty()}" class="card-b muted">За две недели движений не было.</p>
+        <div th:unless="${moves.isEmpty()}" class="tbl-w"><table class="tbl tbl--pmv">
+            <thead><tr><th>Когда</th><th>Движение</th><th class="r">Количество</th><th>Документ</th></tr></thead>
+            <tbody><tr th:each="m : ${moves}">
+                <td class="pm-at" th:text="${@fmt.when(m.at)}"></td>
+                <td class="pm-t"><span class="mt" th:classappend="${m.kind.cls}" th:text="${m.kind.label}"></span></td>
+                <td class="r num pm-q"><b class="mq" th:classappend="${m.qcls()}" th:text="${m.qty()}"></b></td>
+                <td class="pm-d"><th:block th:replace="~{admin/warehouse/stock :: fgRef(${m})}"></th:block></td>
+            </tr></tbody>
+        </table></div>
+        <p th:if="${movesTotal > 12}" class="card-f" th:text="${'Показаны последние 12 из ' + movesTotal + '.'}"></p>
+    </section>
+    <section th:if="${!pf}" class="card" aria-labelledby="h-po"><div class="card-h"><div><h2 id="h-po">Заказы в работе</h2><p>резерв: новые, принятые, собираемые, готовые и не забранные</p></div></div>
+        <p th:if="${orders.isEmpty()}" class="card-b muted">В открытых заказах этого товара нет.</p>
+        <div th:unless="${orders.isEmpty()}" class="tbl-w"><table class="tbl tbl--po">
+            <thead><tr><th>Заказ</th><th>Выдача</th><th class="r">Кол-во</th><th>Статус</th></tr></thead>
+            <tbody><tr th:each="r : ${orders}" class="rowlink" th:attr="data-href=${'/admin/orders/' + r.o.id}">
+                <td class="po-n"><a th:href="${'/admin/orders/' + r.o.id}" th:text="${'№ ' + r.o.id}"></a><small th:text="${r.client()}"></small></td>
+                <td class="po-w" th:text="${r.when()}"></td>
+                <td class="r num po-q" th:text="${@fmt.num(r.q) + ' шт'}"></td>
+                <td class="po-s"><span class="st" th:classappend="${'st--' + r.o.status.badge()}"><th:block th:utext="${i16['s-' + r.o.status.badge()]}"></th:block><span th:text="${r.o.status.badgeLabel()}"></span></span></td>
+            </tr></tbody>
+            <tfoot><tr><td class="po-n">Всего</td><td class="po-w"></td><td class="r num po-q" th:text="${@fmt.num(ordersTotal) + ' шт'}"></td><td class="po-s"></td></tr></tfoot>
+        </table></div>
+    </section>
+    <section class="card" aria-labelledby="h-pp"><div class="card-h"><div><h2 id="h-pp">Выпуск и себестоимость</h2><p>заявки на сырьё с этим товаром за три месяца</p></div></div>
+        <p th:if="${made.isEmpty()}" class="card-b muted" th:text="${madeEmpty}"></p>
+        <div th:unless="${made.isEmpty()}" class="tbl-w"><table class="tbl tbl--pp">
+            <thead><tr><th>День</th><th>Заявка</th><th class="r">Замесов</th><th class="r">План → факт</th><th th:if="${canCost}" class="r">За 1 шт</th></tr></thead>
+            <tbody><tr th:each="m : ${made}" th:classappend="${madeHref != null} ? 'rowlink'" th:attr="data-href=${madeHref != null ? madeHref + m.r.id : null}">
+                <td class="pp-d" th:text="${@fmt.dm(m.r.documentDate)}"></td>
+                <td class="pp-r"><a th:if="${madeHref != null}" th:href="${madeHref + m.r.id}" th:text="${'№ ' + m.r.id}"></a><b th:if="${madeHref == null}" th:text="${'№ ' + m.r.id}"></b><small th:text="${m.status()}"></small></td>
+                <td class="r num pp-b" th:text="${m.extra() ? '—' : @fmt.num(m.l.batches)}"></td>
+                <td class="r num pp-f"><th:block th:unless="${m.extra()}" th:text="${@fmt.num(m.l.plannedQuantity) + ' → '}"></th:block><b th:if="${m.l.received}" th:text="${@fmt.num(m.l.receivedQuantity)}"></b><span th:unless="${m.l.received}" class="muted">ждём</span></td>
+                <td th:if="${canCost}" class="r num pp-u"><th:block th:if="${m.unitCost() != null}"><th:block th:text="${@fmt.dec(m.unitCost(), 0) + ' ₸'}"></th:block><small th:if="${m.markup() != null}" th:classappend="${m.markup().signum() < 0} ? 'pay-bad'" th:text="${@fmt.pct(m.markup(), 0)}"></small></th:block><th:block th:if="${m.unitCost() == null}">—</th:block></td>
+            </tr></tbody>
+        </table></div>
+    </section>
+</div>
+<aside class="cside">
+    <section class="card card-b box" aria-labelledby="h-pk"><h3 id="h-pk">Карточка</h3><dl class="kv kv--w">
+        <th:block th:if="${!pf}">
+            <div><dt>Цена</dt><dd><b th:text="${@fmt.money(p.price)}"></b> <th:block th:text="${'за ' + (p.unit != null ? p.unit : 'шт')}"></th:block></dd></div>
+            <div><dt>Группа на сайте</dt><dd th:text="${p.category != null and !#strings.isEmpty(p.category) ? p.category : '—'}"></dd></div>
+        </th:block>
+        <div><dt>Группа производства</dt><dd><th:block th:text="${p.group != null ? p.group : 'не задана'}"></th:block><small>заявки на сырьё делятся по ней</small></dd></div>
+        <th:block th:if="${!pf}">
+            <div><dt>В коробке</dt><dd th:if="${box != null}"><th:block th:text="${@fmt.num(box) + ' шт' + (boxAuto ? ' · по названию' : '')}"></th:block><small th:if="${p.unitsPerBox2 != null and p.unitsPerBox2.signum() > 0}" th:text="${'вторая коробка: ' + @fmt.num(p.unitsPerBox2) + ' шт' + (p.boxVolume2M3 != null ? ' · ' + @fmt.dec(p.boxVolume2M3, 3) + ' м³' : '')}"></small></dd>
+                <dd th:if="${box == null}" class="pay-bad">не задано</dd></div>
+            <div><dt>Объём коробки</dt><dd th:if="${p.boxVolumeM3 != null and p.boxVolumeM3.signum() > 0}" th:text="${@fmt.dec(p.boxVolumeM3, 3) + ' м³'}"></dd>
+                <dd th:unless="${p.boxVolumeM3 != null and p.boxVolumeM3.signum() > 0}" class="pay-bad">не задан — «Объём и масса» его не посчитает</dd></div>
+            <div><dt th:text="${'Вес 1 ' + (p.unit != null ? p.unit : 'шт')}">Вес 1 шт</dt><dd th:if="${p.unitWeightKg != null and p.unitWeightKg.signum() > 0}"><th:block th:text="${@fmt.dec(p.unitWeightKg, 2) + ' кг'}"></th:block><small>с упаковкой — для накладной</small></dd>
+                <dd th:unless="${p.unitWeightKg != null and p.unitWeightKg.signum() > 0}"><span class="pay-bad">не задан</span></dd></div>
+        </th:block>
+        <div th:if="${p.netWeightGrams != null and p.netWeightGrams.signum() > 0}"><dt>Сверка массы</dt><dd><th:block th:text="${@fmt.num(p.netWeightGrams) + ' г нетто'}"></th:block><small th:if="${p.massReferenceProduct}">эталон группы: недостача кг → шт</small></dd></div>
+        <div th:if="${p.description != null and !#strings.isEmpty(p.description)}"><dt>Описание</dt><dd th:text="${p.description}"></dd></div>
+    </dl></section>
+    <section th:if="${!pf}" class="card card-b box" aria-labelledby="h-ps"><h3 id="h-ps">Витрина</h3>
+        <p th:if="${!p.active}" class="muted">В архиве: на сайте и в новых заказах его нет. Старые заказы и отчёты не меняются.</p>
+        <th:block th:if="${p.active and hidden}">
+            <p class="pay-bad"><b th:text="${hidTo != null ? 'Скрыт по ' + @fmt.dml(hidTo) + ' включительно' : 'Скрыт, пока не вернёте'}"></b></p>
+            <p class="hint" th:text="${'Покупатели не видят его на сайте и в заказах WhatsApp. ' + (hidNext != null ? 'С ' + @fmt.dml(hidNext) + ' снова виден сам. ' : '') + 'Сотрудники видят и могут продать вручную.'}"></p>
+        </th:block>
+        <p th:if="${p.active and !hidden}" class="muted">Покупатели видят товар на сайте и в заказах WhatsApp.</p>
+    </section>
+    <section class="card card-b box" aria-labelledby="h-pt"><h3 id="h-pt">Рецептура и техкарта</h3>
+        <dl th:if="${rc != null}" class="kv kv--w">
+            <div><dt>Замес</dt><dd><th:block th:if="${rcKg != null}" th:text="${@fmt.fix(rcKg, 3) + ' кг → '}"></th:block><b th:text="${@fmt.num(rc.yieldQuantity) + ' ' + (p.unit != null ? p.unit : 'шт')}"></b></dd></div>
+            <div th:if="${rcPer != null}"><dt th:text="${'Тесто на 1 ' + (p.unit != null ? p.unit : 'шт')}">Тесто на 1 шт</dt><dd th:text="${@fmt.num(rcPer) + ' г'}"></dd></div>
+            <div><dt>Техкарта</dt><dd><span class="tcs" th:classappend="${tcDraft ? 'tcs--draft' : 'tcs--approved'}" th:text="${tcDraft ? 'Черновик' : 'Готова'}"></span></dd></div>
+        </dl>
+        <p th:if="${rc == null}" class="muted">Рецептура не заполнена — в заявку на сырьё товар не добавить.</p>
+        <p th:if="${seesRecipes or seesTech or (seesPhotos and !pf)}" class="pc-links"><a th:if="${seesRecipes}" class="link" th:href="${'/admin/recipes/' + p.id}">Рецептура</a><a th:if="${seesTech and rc != null}" class="link" th:href="${'/admin/techcards/' + p.id}">Техкарта</a><a th:if="${seesPhotos and !pf}" class="link" th:href="${'/admin/photos/' + p.id}">Фото товаров</a></p>
+    </section>
+    <section class="card card-b box" aria-labelledby="h-p1"><h3 id="h-p1">1С</h3><dl class="kv kv--w">
+        <div><dt>Код</dt><dd class="num"><th:block th:text="${p.oneCCode != null and !#strings.isEmpty(p.oneCCode) ? p.oneCCode : '—'}"></th:block><small>сверяется с 1С раз в сутки</small></dd></div>
+        <div><dt>Номенклатура</dt><dd th:if="${p.oneCNomenclatureKey != null}">связана</dd>
+            <dd th:if="${p.oneCNomenclatureKey == null}" class="pay-bad">не найдена по названию<small>свяжется сама по точному названию при первой выгрузке</small></dd></div>
+        <div><dt>Подразделение</dt><dd th:if="${dep != null}" th:text="${dep}"></dd>
+            <dd th:if="${dep == null}" class="pay-bad">не задано<small>в отчёт производства уйдёт общее по умолчанию</small></dd></div>
+    </dl></section>
+</aside></div>
+</th:block>
+</th:block>
+<th:block th:fragment="scripts">
+<script th:if="${docJson != null}" type="application/json" id="mt-doc" th:utext="${docJson}"></script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script th:if="${docJson != null}" src="/admin/assets/mat.js?v=2"></script>
+<script src="/admin/assets/prodcat.js?v=1"></script>
+</th:block>
+</body>
+</html>

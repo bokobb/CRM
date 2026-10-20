@@ -39,6 +39,7 @@ public class AdminDashboardController {
     private final ProductReturnRepository productReturnRepository;
     private final IngredientService ingredientService;
     private final ProductionRequestService productionRequestService;
+    private final com.confectionery.crm.repository.ProductionRequestRepository productionRequestRepository;
     private final CurrentUserService currentUserService;
     private final PickupSlotService pickupSlotService;
     private final AdminFormat fmt;
@@ -96,6 +97,8 @@ public class AdminDashboardController {
         model.addAttribute("sub", fmt.dayTitle(shown));
         model.addAttribute("subPick", shown.toString());
         model.addAttribute("subKeep", period == 14 ? null : "p=" + period);
+        model.addAttribute("subBase", "/admin/dashboard");
+        model.addAttribute("subParam", "day");
         model.addAttribute("sec", "dashboard");
         model.addAttribute("dayLbl", lbl);
         model.addAttribute("isToday", shown.equals(today));
@@ -261,6 +264,18 @@ public class AdminDashboardController {
                         "по счёту · " + o.getClient().getName() + " · выдача сегодня"
                                 + (o.getPickupHour() != null ? " " + fmt.win(o.getPickupHour()) : ""),
                         "/admin/orders/" + o.getId(), "Открыть"));
+            }
+        }
+        // склад готовой продукции: не хватит на открытые заказы (часть 3)
+        if (AdminSections.byKey("stock").visibleTo(role)) {
+            List<AdminStock.Row> sh = AdminStock.shortages(productRepository.findAll(), orderRepository.findByStatusInOrderByCreatedAtAsc(AdminStock.OPEN),
+                    productionRequestRepository.findByStatusIn(AdminStock.IN_WORK));
+            if (!sh.isEmpty()) {
+                att.add(new Attention(sh.stream().anyMatch(r -> !r.covered()) ? "d-crim" : "d-yolk", "stock",
+                        "Не хватит на заказы: " + fmt.count(sh.size(), "товар", "товара", "товаров"),
+                        String.join(", ", sh.stream().map(r -> AdminRequests.shortName(r.p().getName()) + " −" + fmt.num(r.free().negate())
+                                + (r.covered() ? " (в заявке " + r.work().nos() + ")" : "")).toList()),
+                        "/admin/stock?seg=short", "Склад"));
             }
         }
         if (AdminSections.byKey("requests").visibleTo(role)) {

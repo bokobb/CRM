@@ -70,7 +70,7 @@
             </dl>
         </div>
         <button class="btn btn-line btn-sm" type="button" id="open" th:disabled="${card.photos.isEmpty()}">Открыть альбом</button>
-        <a class="btn btn-soft btn-sm" th:href="${'/admin/products/' + p.id}">Вес и коробка — в карточке товара</a>
+        <a class="btn btn-soft btn-sm" th:href="${'/admin/products/' + p.id + '/edit'}">Вес и коробка — в карточке товара</a>
         <p class="st-note">На сайте и в магазине альбом открывается по нажатию на фото в карточке.</p>
     </aside>
 </div>

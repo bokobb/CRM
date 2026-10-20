@@ -1,76 +1,62 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<a class="back" href="/admin/products"><th:block th:utext="${i['back']}"></th:block>Все товары</a>
-<div class="oh">
-    <div class="oh-t"><h2 th:text="${p.id != null ? p.name : 'Новый товар'}">Товар</h2>
-        <span th:if="${p.id != null and !p.active}" class="tag">в архиве</span>
-        <span th:if="${p.semiFinished}" class="tag tag--pf">полуфабрикат</span></div>
-    <div class="acts" th:if="${p.id != null}">
-        <a class="btn btn-soft" th:href="${'/admin/recipes/' + p.id}">Рецептура</a>
-        <a class="btn btn-soft" th:href="${'/admin/techcards/' + p.id}">Техкарта</a>
-        <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/photos/' + p.id}"><th:block th:utext="${i['photo']}"></th:block>Фото</a>
-    </div>
-</div>
-<div class="errs errs-top" role="alert" th:if="${!errors.isEmpty()}"><span th:each="e : ${errors}" th:text="${e}"></span></div>
-<div class="two">
-<form method="post" th:action="${p.id != null ? '/admin/products/' + p.id : '/admin/products'}" data-guard="Товар не сохранён.">
+<a class="back" th:href="${isNew ? '/admin/products' : '/admin/products/' + p.id}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${isNew ? 'Все товары' : p.name}"></th:block></a>
+<div class="oh"><div class="oh-t"><h2 th:text="${isNew ? 'Новый товар' : 'Изменить товар'}">Изменить товар</h2><span th:if="${!isNew and f.semi}" class="tag tag--pf">полуфабрикат</span></div>
+    <p class="oh-m" th:text="${isNew ? 'Карточку можно дополнить потом; в 1С товар свяжется сам по точному названию' : 'Код 1С ' + (p.oneCCode != null and !#strings.isEmpty(p.oneCCode) ? p.oneCCode : '—') + ' · изменения сразу видны в заказах, на складе и на сайте'}"></p></div>
+<form class="pfm" id="pf" method="post" th:action="${isNew ? '/admin/products' : '/admin/products/' + p.id}" novalidate data-guard="В карточке товара есть несохранённые изменения.">
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-    <fieldset class="fs" th:disabled="${!canEdit}">
-    <section class="card form-card">
-        <h3 class="big" style="font-size:19px">Карточка</h3>
+    <div class="pfm-main">
+    <section class="card card-b"><h3 class="pf-h">Основное</h3><div class="fgrid">
+        <label class="field wide" id="pf-w-name"><span>Название</span><input class="inp" id="pf-name" name="name" maxlength="200" autocomplete="off" required th:value="${f.name}" th:classappend="${errors.containsKey('name')} ? 'is-bad'" th:attr="aria-invalid=${errors.containsKey('name')}"><small class="hint">как в 1С: «(12 шт)» в конце — штук в коробке</small></label>
+        <label class="field" id="pf-w-cat" th:hidden="${f.semi}"><span>Группа на сайте</span><input class="inp" id="pf-cat" name="category" list="pf-cats" maxlength="100" autocomplete="off" th:value="${f.category}"><small class="hint">раздел каталога на сайте</small></label>
+        <label class="field" id="pf-w-grp"><span>Группа производства</span><select class="sel" id="pf-grp" name="group" th:classappend="${errors.containsKey('group')} ? 'is-bad'">
+                <option th:if="${f.group == ''}" value="" selected>Выберите группу</option>
+                <option th:each="g : ${groupList}" th:value="${g}" th:text="${g}" th:selected="${g == f.group}"></option>
+                <option value="__new" th:selected="${f.group == '__new'}">Новая группа…</option></select><small class="hint">по ней заявки на сырьё делятся на отдельные</small></label>
+        <label class="field wide" id="pf-w-gnew" th:hidden="${f.group != '__new'}"><span>Новая группа производства</span><input class="inp" id="pf-gnew" name="groupNew" maxlength="100" autocomplete="off" th:value="${f.groupNew}" th:classappend="${errors.containsKey('group')} ? 'is-bad'"></label>
+        <label class="field" id="pf-w-price" th:hidden="${f.semi}"><span>Цена</span><span class="qin"><input class="inp" id="pf-price" name="price" inputmode="decimal" autocomplete="off" th:value="${f.price}" th:classappend="${errors.containsKey('price')} ? 'is-bad'" th:attr="aria-invalid=${errors.containsKey('price')}"><i>₸</i></span></label>
+        <label class="field"><span>Единица</span><select class="sel" id="pf-unit" name="unit"><option th:each="u : ${units}" th:value="${u}" th:text="${u}" th:selected="${u == f.unit}"></option></select></label>
+        <label class="field wide"><span>Описание</span><textarea class="ta" id="pf-desc" name="description" maxlength="1000" rows="2" th:text="${f.description}"></textarea></label>
+        <label class="switch wide"><input type="checkbox" id="pf-semi" name="semiFinished" value="true" th:checked="${f.semi}" th:disabled="${!isNew}"> Полуфабрикат — не продаётся, идёт в другие изделия
+            <small class="hint" th:text="${isNew ? 'не на витрине и не в «Остатках»; остаток ведётся как сырьё, в 1С — на склад сырья' : 'меняется только у нового товара'}"></small></label>
+    </div></section>
+    <section class="card card-b" id="pf-pack" th:hidden="${f.semi}"><h3 class="pf-h">Упаковка — для накладной «Объём и масса»</h3><div class="fgrid">
+        <label class="field" id="pf-w-g"><span>Вес 1 шт с упаковкой</span><span class="qin"><input class="inp" id="pf-g" name="unitWeightKg" inputmode="decimal" autocomplete="off" placeholder="0,45" th:value="${f.weight}" th:classappend="${errors.containsKey('weight')} ? 'is-bad'"><i>кг</i></span><small class="hint">брутто: масса в накладной = штук × вес</small></label>
+        <label class="field" id="pf-w-box"><span>Штук в коробке</span><span class="qin"><input class="inp" id="pf-box" name="unitsPerBox" inputmode="numeric" autocomplete="off" placeholder="например 12" th:value="${f.box}" th:classappend="${errors.containsKey('box')} ? 'is-bad'"><i>шт</i></span><small class="hint">пусто — из названия «(12 шт)»</small></label>
+        <label class="field" id="pf-w-vol"><span>Объём коробки</span><span class="qin"><input class="inp" id="pf-vol" name="boxVolumeM3" inputmode="decimal" autocomplete="off" placeholder="0,026" th:value="${f.vol}" th:classappend="${errors.containsKey('vol')} ? 'is-bad'"><i>м³</i></span><small class="hint"><button class="link pf-dim" type="button" id="pf-dim">Посчитать по размерам</button></small></label>
+        <div class="field pf-dims" id="pf-dims" hidden><span>Длина × ширина × высота коробки, см</span>
+            <div class="pf-dim3"><input class="inp" id="pf-dl" inputmode="decimal" aria-label="Длина, см" placeholder="40"><i>×</i><input class="inp" id="pf-dw" inputmode="decimal" aria-label="Ширина, см" placeholder="30"><i>×</i><input class="inp" id="pf-dh" inputmode="decimal" aria-label="Высота, см" placeholder="22"></div>
+            <small class="hint" id="pf-dimr"></small></div>
+        <label class="field" id="pf-w-box2"><span>Вторая коробка: штук</span><span class="qin"><input class="inp" id="pf-box2" name="unitsPerBox2" inputmode="numeric" autocomplete="off" placeholder="необязательно" th:value="${f.box2}" th:classappend="${errors.containsKey('box2')} ? 'is-bad'"><i>шт</i></span><small class="hint">клиент выбирает при отгрузке, например по 12 или по 24</small></label>
+        <label class="field" id="pf-w-vol2"><span>Вторая коробка: объём</span><span class="qin"><input class="inp" id="pf-vol2" name="boxVolume2M3" inputmode="decimal" autocomplete="off" placeholder="необязательно" th:value="${f.vol2}" th:classappend="${errors.containsKey('vol2')} ? 'is-bad'"><i>м³</i></span></label>
+    </div></section>
+    <section class="card card-b"><h3 class="pf-h">Сверка массы при оприходовании</h3>
+        <p class="hint">Только для изделий, которые режут из одного замеса на разные фасовки (как чак-чак Б, мини и резанный): норму сверяют по общей массе, а не по штукам.</p>
         <div class="fgrid">
-            <label class="field wide"><span>Название</span><input class="inp" name="name" maxlength="200" required th:value="${p.name}"></label>
-            <label class="field"><span>Группа на сайте</span><input class="inp" name="category" list="cats" th:value="${p.category}"></label>
-            <label class="field"><span>Группа производства</span><input class="inp" name="group" list="groups" th:value="${p.group}"></label>
-            <label class="field"><span>Цена, ₸</span><input class="inp" name="price" inputmode="decimal" required th:value="${p.price != null ? p.price.stripTrailingZeros().toPlainString() : ''}"></label>
-            <label class="field"><span>Единица</span><input class="inp" name="unit" maxlength="10" th:value="${p.unit}"></label>
-            <label class="field wide"><span>Описание</span><textarea class="ta" name="description" maxlength="1000" th:text="${p.description}"></textarea></label>
-            <label class="switch wide"><input type="checkbox" name="semiFinished" value="true" th:checked="${p.semiFinished}"> Полуфабрикат (не продаётся, идёт в другие изделия)</label>
-        </div>
-    </section>
-    <section class="card form-card" style="margin-top:18px">
-        <h3 class="big" style="font-size:19px">Упаковка</h3>
-        <div class="fgrid">
-            <label class="field"><span>Вес нетто 1 шт, г</span><input class="inp" name="netWeightGrams" inputmode="decimal" th:value="${p.netWeightGrams != null ? p.netWeightGrams.stripTrailingZeros().toPlainString() : ''}"></label>
-            <label class="field"><span>Вес брутто 1 шт, кг</span><input class="inp" name="unitWeightKg" inputmode="decimal" th:value="${p.unitWeightKg != null ? p.unitWeightKg.stripTrailingZeros().toPlainString() : ''}"></label>
-            <label class="field"><span>Штук в коробке</span><input class="inp" name="unitsPerBox" inputmode="decimal" th:value="${p.unitsPerBox != null ? p.unitsPerBox.stripTrailingZeros().toPlainString() : ''}" th:placeholder="${box != null ? 'по названию: ' + @fmt.num(box) : ''}"></label>
-            <label class="field"><span>Объём коробки, м³</span><input class="inp" name="boxVolumeM3" inputmode="decimal" th:value="${p.boxVolumeM3 != null ? p.boxVolumeM3.stripTrailingZeros().toPlainString() : ''}"></label>
-            <label class="field"><span>Вторая коробка: штук</span><input class="inp" name="unitsPerBox2" inputmode="decimal" th:value="${p.unitsPerBox2 != null ? p.unitsPerBox2.stripTrailingZeros().toPlainString() : ''}"></label>
-            <label class="field"><span>Вторая коробка: объём, м³</span><input class="inp" name="boxVolume2M3" inputmode="decimal" th:value="${p.boxVolume2M3 != null ? p.boxVolume2M3.stripTrailingZeros().toPlainString() : ''}"></label>
-        </div>
-        <div class="form-acts" th:if="${canEdit}"><a class="btn btn-soft" href="/admin/products">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div>
-    </section>
-    </fieldset>
-    <datalist id="cats"><option th:each="c : ${cats}" th:value="${c}"></option></datalist>
-    <datalist id="groups"><option th:each="g : ${groups}" th:value="${g}"></option></datalist>
+        <label class="field" id="pf-w-netG"><span>Вес нетто 1 шт</span><span class="qin"><input class="inp" id="pf-netG" name="netWeightGrams" inputmode="decimal" autocomplete="off" placeholder="необязательно" th:value="${f.netG}" th:classappend="${errors.containsKey('netG')} ? 'is-bad'"><i>г</i></span></label>
+        <label class="switch"><input type="checkbox" id="pf-mref" name="massReferenceProduct" value="true" th:checked="${f.mref}"> Эталон группы<small class="hint" id="pf-mrefh">в заявке «не хватает N кг» переведётся в «≈ M шт этого товара»</small></label>
+    </div></section>
+    <section class="card card-b"><h3 class="pf-h">1С</h3><div class="fgrid">
+        <div class="field"><span>Код номенклатуры</span><p class="pf-ro num" th:text="${!isNew and p.oneCCode != null and !#strings.isEmpty(p.oneCCode) ? p.oneCCode : (isNew ? 'появится после первой выгрузки' : '—')}"></p><small class="hint">сверяется с 1С раз в сутки</small></div>
+        <label class="field"><span>Подразделение (корпус)</span><select class="sel" id="pf-dep" name="oneCDepartmentKey" th:classappend="${errors.containsKey('dep')} ? 'is-bad'">
+            <option value="">Не задано — общее по умолчанию</option>
+            <option th:each="d : ${deps}" th:value="${d.key}" th:text="${d.value}" th:selected="${d.key == f.dep}"></option></select></label>
+    </div></section>
+    <p class="errs" id="pf-e" role="alert" th:hidden="${errorList.isEmpty()}"><span th:each="e : ${errorList}" th:text="${e}"></span></p>
+    <div class="form-acts"><a class="btn btn-soft" th:href="${isNew ? '/admin/products' : '/admin/products/' + p.id}">Отмена</a><button class="btn btn-primary" type="submit" th:text="${isNew ? 'Создать товар' : 'Сохранить'}">Сохранить</button></div>
+    </div>
+    <aside class="pfm-side"><section class="card card-b box pf-prev" id="pf-prev" aria-live="polite">
+        <div class="pf-pv"><span class="th-none" th:utext="${i['cookie']}"></span><p><b th:text="${f.name != '' ? f.name : 'Новый товар'}"></b><small th:text="${f.group}"></small></p></div>
+    </section></aside>
 </form>
-<aside class="two-side" th:if="${p.id != null}">
-    <section class="card card-b box"><h3>Фото</h3>
-        <img th:if="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" th:src="${p.imageUrl}" alt="" style="border-radius:12px;aspect-ratio:3/4;object-fit:cover">
-        <p th:unless="${p.imageUrl != null and !#strings.isEmpty(p.imageUrl)}" class="muted">Фото нет.</p>
-        <p th:text="${'В альбоме: ' + p.photos.size()}" class="muted"></p></section>
-    <section class="card card-b box"><h3>На сайте</h3>
-        <p th:if="${p.visibleToClients}" class="muted">Покупатели видят товар на витрине и в WhatsApp.</p>
-        <p th:if="${p.active and !p.visibleToClients}" class="pay-bad" th:text="${p.hiddenFromClientsUntil != null ? 'Скрыт до ' + @fmt.dml(p.hiddenFromClientsUntil) : 'Скрыт от покупателей'}"></p>
-        <form th:if="${canEdit and p.active and p.visibleToClients}" th:action="${'/admin/products/' + p.id + '/visibility'}" method="post" class="field">
-            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="hidden" value="true">
-            <label class="field"><span>Скрыть до (необязательно)</span><input class="inp" type="date" name="until" th:min="${today}"></label>
-            <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['eye-hide']}"></th:block>Скрыть с витрины</button></form>
-        <form th:if="${canEdit and p.active and !p.visibleToClients}" th:action="${'/admin/products/' + p.id + '/visibility'}" method="post">
-            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="hidden" value="false">
-            <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['eye']}"></th:block>Вернуть на витрину</button></form>
-    </section>
-    <section class="card card-b box" th:if="${canEdit}"><h3>Архив</h3>
-        <form th:if="${p.active}" th:action="${'/admin/products/' + p.id + '/delete'}" method="post"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-            <p class="hint">Товар с историей заказов уходит в архив, без истории — удаляется.</p>
-            <button class="btn btn-danger btn-sm" type="submit" data-confirm="Если по товару были заказы, он уйдёт в архив и пропадёт из продажи." data-confirm-title="Удалить товар?">Удалить товар</button></form>
-        <form th:if="${!p.active}" th:action="${'/admin/products/' + p.id + '/restore'}" method="post"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-            <button class="btn btn-soft btn-sm" type="submit">Вернуть из архива</button></form>
-    </section>
-</aside>
-</div>
+<datalist id="pf-cats"><option th:each="c : ${cats}" th:value="${c}"></option></datalist>
+</th:block>
+<th:block th:fragment="scripts">
+<script type="application/json" id="pf-data" th:utext="${formJson}"></script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/prodcat.js?v=1"></script>
 </th:block>
 </body>
 </html>

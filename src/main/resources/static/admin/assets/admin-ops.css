@@ -402,6 +402,9 @@ a.mv-doc:hover{text-decoration:underline}
 .pd{display:grid;gap:18px}
 .pd .dday,.pd .kpis{grid-column:auto}
 .pd-acts{display:flex;flex-wrap:wrap;gap:8px}
+.pd-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px 16px}
+.pd-day{display:none;font-size:15px;color:var(--ink-soft)}
+.pd-day b{font:700 20px/1.2 var(--display);color:var(--ink)}
 .chart .tk{stroke:var(--ink);stroke-width:2.5;stroke-linecap:round}
 .chart .col:hover .tk,.chart .col.is-on .tk{stroke:var(--crimson-deep)}
 .lgd{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:2px 0 0 60px;font-size:12.5px;color:var(--ink-soft)}
@@ -489,6 +492,8 @@ a.mv-doc:hover{text-decoration:underline}
 .tbl--pr .pr-b b,.tbl--pr .pr-s b{font-weight:600}
 .tbl--pr tr.is-quiet td{color:var(--ink-soft)}
 .pr-wl{display:none}
+.tc-warn{display:inline-flex;align-items:center;gap:5px;color:var(--crimson-deep);font-size:13px;font-weight:600}
+.tc-warn .i{width:16px;height:16px}
 .pc-h{grid-template-columns:auto minmax(0,1fr)}
 .pc-ph{display:grid;place-items:center;width:68px;height:90px;border-radius:12px;overflow:hidden;background:var(--cream);color:var(--kraft);box-shadow:0 0 0 1px var(--line)}
 .pc-ph img{width:100%;height:100%;object-fit:cover}
@@ -510,6 +515,8 @@ a.mv-doc:hover{text-decoration:underline}
 .pfm-side{position:sticky;top:84px}
 .pf-h{margin-bottom:12px;font:700 19px/1.2 var(--display);font-variant-numeric:lining-nums}
 .pfm .card-b>.hint{margin:-6px 0 12px}
+.pfm .fgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pfm .field{align-content:start}
 .field>small.hint,.switch>small.hint{display:block;margin-top:2px;font-weight:400}
 .switch:has(small){align-items:flex-start;flex-wrap:wrap}
 .switch:has(small) input{margin-top:1px}
@@ -622,6 +629,7 @@ a.mv-doc:hover{text-decoration:underline}
   .kpis--4 .kpi-v{font-size:26px}
 }
 @media (max-width:760px){
+  .pd-day{display:block;flex-basis:100%}
   .pd-acts{width:100%}
   .pd-acts .btn{flex:1 1 auto}
   .lgd{padding-left:12px}
@@ -630,6 +638,7 @@ a.mv-doc:hover{text-decoration:underline}
   .kv--w div{grid-template-columns:112px minmax(0,1fr)}
   .pc-ph{width:56px;height:74px}
   .pf-dim3 .inp{width:76px}
+  .pfm .fgrid{grid-template-columns:minmax(0,1fr)}
   .od-stock{margin-inline:16px}
   .tools .grow{display:none}
 }
