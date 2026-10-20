@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -116,9 +117,11 @@ class ApiClient {
 
   /// Адрес по умолчанию для СВЕЖЕЙ установки (пока никто не менял Base URL в Настройках) —
   /// боевой backend на домене yug-sladosti.kz (с 20.10.2026 — сервер Contabo; при смене
-  /// сервера меняется только A-запись домена, эта константа остаётся). Один и тот же адрес
-  /// для всех платформ (Android/iOS/web).
-  static String defaultBaseUrl() => 'https://yug-sladosti.kz/api';
+  /// сервера меняется только A-запись домена, эта константа остаётся).
+  /// Веб-версия (/app/) ходит на тот же сайт, с которого открыта: запрос на другой адрес
+  /// браузер режет CORS-ом — так 20.10 сломался iPhone с иконкой «Домой» на старом nip.io.
+  static String defaultBaseUrl() =>
+      kIsWeb ? '${Uri.base.origin}/api' : 'https://yug-sladosti.kz/api';
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
