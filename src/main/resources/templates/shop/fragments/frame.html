@@ -6,7 +6,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <title th:text="${title} + ' — ' + (${company.name} ?: 'Юг Сладости')">Онлайн-заказ</title>
-    <link rel="icon" href="/promo/img/logo.svg">
+    <th:block th:if="${seo != null}">
+    <meta name="description" th:content="${seo.description}">
+    <link rel="canonical" th:href="${seo.canonical}">
+    <meta name="robots" th:content="${seo.noindex} ? 'noindex, follow' : 'index, follow'">
+    <meta property="og:type" content="website"><meta property="og:locale" content="ru_RU"><meta property="og:site_name" content="Юг Сладости">
+    <meta property="og:title" th:content="${seo.title}"><meta property="og:description" th:content="${seo.description}">
+    <meta property="og:url" th:content="${seo.canonical}"><meta property="og:image" th:content="${seo.ogImage}">
+    <script type="application/ld+json" th:if="${seo.jsonLd != null}" th:utext="${seo.jsonLd}"></script>
+    </th:block>
+    <th:block th:replace="~{site/frame :: icons}"></th:block>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,500;1,600&amp;family=Golos+Text:wght@400;500;600;700&amp;family=Marck+Script&amp;display=swap">
     <link rel="stylesheet" href="/promo/album.css">
@@ -575,7 +584,7 @@
             <a class="tab-link" href="/shop/catalog" id="tab-cart" th:attr="aria-current=${active == 'cart'} ? 'page' : null">Корзина <span class="badge" id="badge" th:hidden="${cartCount == 0}" th:text="${cartCount}">0</span></a>
             <a class="tab-link" href="/shop/orders" th:attr="aria-current=${active == 'orders'} ? 'page' : null"><span class="t-long">История заказов</span><span class="t-short">История</span></a>
         </nav>
-        <div class="top-side">
+        <div class="top-side" data-nosnippet>
             <a class="back" href="/" th:unless="${signedIn}">← На сайт</a>
             <span class="help" th:if="${!signedIn and company.phone != null}"><span>Помощь: </span><b th:text="${firstPhone}">телефон</b></span>
             <span class="user" th:if="${signedIn}"><b th:text="${clientName}">Клиент</b>

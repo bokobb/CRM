@@ -189,6 +189,8 @@ button.shot:hover .frame{transform:translateY(-3px)}
 .contact-list{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.55fr);margin:0;padding:26px 0 0;border-top:1px solid var(--line-strong);list-style:none}
 .contact-list li{display:flex;align-items:flex-start;gap:12px;min-width:0;padding:2px clamp(14px,1.8vw,24px);border-left:1px solid var(--line-strong)}
 .contact-list li:first-child{padding-left:0;border-left:0}
+/* три пункта (нет «Почты») — три колонки, иначе адрес сжимается в узкую колонку «Почты» */
+@media (min-width:1081px){.contact-list:not(:has(>li:nth-child(4))){grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1.55fr)}}
 .c-ic{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:var(--ink);color:#fff}
 .c-t{display:grid;gap:2px;min-width:0}
 .c-l{display:block;font-size:13.5px;line-height:1.3}

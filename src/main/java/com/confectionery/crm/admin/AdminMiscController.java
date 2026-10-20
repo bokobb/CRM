@@ -104,6 +104,16 @@ public class AdminMiscController {
         return v == null || v.isBlank() ? null : v.trim();
     }
 
+    /** Год основания из формы: пусто — 0 (очистить), не число — понятная ошибка. */
+    private static Integer year(String v) {
+        if (v == null) return 0;
+        try {
+            return Integer.valueOf(v);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Год основания — четыре цифры, например 2018");
+        }
+    }
+
     @PostMapping("/admin/jobs/{id:\\d+}/active")
     public String jobActive(@PathVariable Long id, @RequestParam boolean active, RedirectAttributes ra) {
         try {
@@ -227,7 +237,8 @@ public class AdminMiscController {
             if (!currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT)) throw new IllegalStateException("Реквизиты меняет администратор или бухгалтер");
             CompanyProfile p = profileService.save(t(f, "name"), t(f, "address"), t(f, "phone"), t(f, "email"), t(f, "pickupHours"),
                     t(f, "about"), t(f, "legalInfo"), t(f, "instagramUrl"), t(f, "whatsappPhone"), t(f, "tiktokUrl"),
-                    t(f, "workHours"), t(f, "jobsPhone"), t(f, "mapPoint"));
+                    t(f, "workHours"), t(f, "jobsPhone"), t(f, "mapPoint"), year(t(f, "foundedYear")),
+                    f.containsKey("externalLinks") ? f.get("externalLinks").strip() : null);
             ok(ra, "Настройки «" + (p.getName() == null ? "компании" : p.getName()) + "» сохранены");
         } catch (RuntimeException e) {
             fail(ra, e);

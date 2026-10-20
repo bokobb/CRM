@@ -1,5 +1,5 @@
 <!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{site/frame :: head('Вакансии — «Юг Сладости», Шымкент', 'Работа на кондитерском производстве «Юг Сладости» в Шымкенте: открытые вакансии, график и зарплата. Откликнуться можно прямо на сайте.', '/promo/img/og-vakansii.png', '/vacancies')}"></head>
+<head th:replace="~{site/frame :: head}"></head>
 <body>
 <th:block th:replace="~{site/frame :: header}"></th:block>
 
@@ -7,7 +7,7 @@
 <section class="page-head">
   <span class="wheat" aria-hidden="true"></span>
   <div class="wrap page-head-in">
-    <nav class="crumbs" aria-label="Вы здесь"><a href="/">Главная</a><span aria-current="page">Вакансии</span></nav>
+    <nav class="crumbs" aria-label="Вы здесь"><a href="/">Главная</a> <span aria-current="page">Вакансии</span></nav>
     <div class="jobs-top">
       <header class="sec-head">
         <p class="eyebrow">Вакансии</p>
@@ -16,7 +16,7 @@
       </header>
       <div class="jobs-call" th:if="${page.jobsPhone}">
         <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"></path></svg></span>
-        <span class="c-t"><span class="c-l">Звонки по вакансиям</span><a class="c-v" th:href="${'tel:+' + page.jobsPhone.replaceAll('[^0-9]', '')}" th:text="${page.jobsPhone}">+7 778 700 39 02</a></span>
+        <span class="c-t"><span class="c-l">Звонки по вакансиям</span> <a class="c-v" th:href="${'tel:+' + page.jobsPhone.replaceAll('[^0-9]', '')}" th:text="${page.jobsPhone}">+7 778 700 39 02</a></span>
       </div>
     </div>
   </div>
@@ -30,14 +30,14 @@
           <h2 class="job-t" th:id="${'job-' + v.id}" th:text="${v.title}">Пекарь</h2>
           <p class="job-note" th:if="${v.summary}" th:text="${v.summary}">строка под названием</p>
         </div>
-        <dl class="spec"><div class="sp-time"><dt>график</dt><dd th:text="${v.schedule}">5/2</dd></div><div class="sp-exp"><dt>опыт</dt><dd th:text="${v.experience}">от 1 года</dd></div><div class="sp-pay"><dt>зарплата</dt><dd th:text="${v.salary}">по договорённости</dd></div></dl>
+        <dl class="spec"><div class="sp-time"><dt>график</dt> <dd th:text="${v.schedule}">5/2</dd></div><div class="sp-exp"><dt>опыт</dt> <dd th:text="${v.experience}">от 1 года</dd></div><div class="sp-pay"><dt>зарплата</dt> <dd th:text="${v.salary}">по договорённости</dd></div></dl>
         <button class="btn btn-primary btn-sm" type="button" th:attr="data-apply=${v.id},aria-describedby=${'job-' + v.id}">Откликнуться</button>
         <details class="job-more" th:if="${v.hasMore()}">
           <summary>Подробнее о вакансии <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></summary>
           <div class="job-cols">
-            <div th:unless="${v.duties.isEmpty()}"><h3>Что делать</h3><ul><li th:each="p : ${v.duties}" th:text="${p}">пункт</li></ul></div>
-            <div th:unless="${v.requirements.isEmpty()}"><h3>Кого ищем</h3><ul><li th:each="p : ${v.requirements}" th:text="${p}">пункт</li></ul></div>
-            <div th:unless="${v.conditions.isEmpty()}"><h3>Что предлагаем</h3><ul><li th:each="p : ${v.conditions}" th:text="${p}">пункт</li></ul></div>
+            <div th:unless="${v.duties.isEmpty()}"><h3>Что делать</h3> <ul><th:block th:each="p : ${v.duties}"><li th:text="${p}">пункт</li> </th:block></ul></div>
+            <div th:unless="${v.requirements.isEmpty()}"><h3>Кого ищем</h3> <ul><th:block th:each="p : ${v.requirements}"><li th:text="${p}">пункт</li> </th:block></ul></div>
+            <div th:unless="${v.conditions.isEmpty()}"><h3>Что предлагаем</h3> <ul><th:block th:each="p : ${v.conditions}"><li th:text="${p}">пункт</li> </th:block></ul></div>
           </div>
         </details>
       </li>

@@ -1,6 +1,7 @@
 package com.confectionery.crm.web;
 
 import com.confectionery.crm.service.PromoPageService;
+import com.confectionery.crm.service.SeoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -18,13 +19,16 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class HomeController {
 
     private final PromoPageService promoPageService;
+    private final SeoService seoService;
 
     @GetMapping("/")
     public String home(Model model, Authentication authentication) {
         if (authentication != null && authentication.isAuthenticated() && !(authentication instanceof AnonymousAuthenticationToken)) {
             return "redirect:/admin";
         }
-        model.addAttribute("page", promoPageService.build());
+        PromoPageService.Page page = promoPageService.build();
+        model.addAttribute("page", page);
+        model.addAttribute("seo", seoService.home(SeoAdvice.baseUrl(), page));
         return "promo";
     }
 }

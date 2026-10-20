@@ -28,6 +28,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   final _workHours = TextEditingController();
   final _jobsPhone = TextEditingController();
   final _mapPoint = TextEditingController();
+  final _foundedYear = TextEditingController();
+  final _externalLinks = TextEditingController();
   bool _initialLoading = true;
   bool _loading = false;
   bool _saved = false;
@@ -50,6 +52,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
       _workHours.text = p.workHours ?? '';
       _jobsPhone.text = p.jobsPhone ?? '';
       _mapPoint.text = p.mapPoint ?? '';
+      _foundedYear.text = p.foundedYear?.toString() ?? '';
+      _externalLinks.text = p.externalLinks ?? '';
       setState(() => _initialLoading = false);
     });
   }
@@ -75,6 +79,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         workHours: _workHours.text.trim(),
         jobsPhone: _jobsPhone.text.trim(),
         mapPoint: _mapPoint.text.trim(),
+        foundedYear: int.tryParse(_foundedYear.text.trim()),
+        externalLinks: _externalLinks.text.trim(),
       ));
       setState(() {
         _loading = false;
@@ -130,7 +136,16 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                 const SizedBox(height: 12),
                 TextField(
                     controller: _legalInfo,
-                    decoration: const InputDecoration(labelText: 'Юр. лицо и БИН', hintText: 'ТОО «…» · БИН …')),
+                    decoration: const InputDecoration(
+                        labelText: 'Юр. лицо и БИН',
+                        hintText: 'ИП Фамилия И. О., ИИН …',
+                        helperText: 'Первая строка видна в подвале сайта')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _foundedYear,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                        labelText: 'Год основания', hintText: '2018', helperText: 'На сайте — «на рынке с …»')),
                 const SizedBox(height: 12),
                 TextField(
                     controller: _instagram,
@@ -167,6 +182,16 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                         labelText: 'Ворота на карте: широта, долгота',
                         hintText: '42.300000, 69.600000',
                         helperText: 'Пусто — на «Контактах» без карты, кнопки маршрута ищут адрес')),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: _externalLinks,
+                    keyboardType: TextInputType.multiline,
+                    minLines: 2,
+                    maxLines: 6,
+                    decoration: const InputDecoration(
+                        labelText: 'Компания в интернете',
+                        hintText: 'https://2gis.kz/shymkent/firm/…',
+                        helperText: '2ГИС, Яндекс Карты, Google Карты, маркетплейсы — по одной ссылке в строке')),
                 const SizedBox(height: 20),
                 FilledButton(
                   onPressed: _loading ? null : _save,

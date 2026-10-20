@@ -21,9 +21,13 @@ class CompanyProfile {
   final String? jobsPhone;
   final String? mapPoint;
 
+  /// Для поисковиков: год основания и карточки компании на 2ГИС, картах и т.п. (по ссылке в строке).
+  final int? foundedYear;
+  final String? externalLinks;
+
   CompanyProfile({this.name, this.address, this.phone, this.email, this.warehouseName, this.warehouseManagerName,
       this.pickupHours, this.about, this.legalInfo, this.instagramUrl, this.whatsappPhone, this.tiktokUrl,
-      this.workHours, this.jobsPhone, this.mapPoint});
+      this.workHours, this.jobsPhone, this.mapPoint, this.foundedYear, this.externalLinks});
 
   factory CompanyProfile.fromJson(Map<String, dynamic> json) => CompanyProfile(
         name: json['name'] as String?,
@@ -41,6 +45,8 @@ class CompanyProfile {
         workHours: json['workHours'] as String?,
         jobsPhone: json['jobsPhone'] as String?,
         mapPoint: json['mapPoint'] as String?,
+        foundedYear: (json['foundedYear'] as num?)?.toInt(),
+        externalLinks: json['externalLinks'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -57,5 +63,8 @@ class CompanyProfile {
         'workHours': workHours,
         'jobsPhone': jobsPhone,
         'mapPoint': mapPoint,
+        // 0 — очистить: null сервер понимает как «старое приложение, не трогать».
+        'foundedYear': foundedYear ?? 0,
+        'externalLinks': externalLinks,
       };
 }

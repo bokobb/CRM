@@ -1,10 +1,5 @@
-<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><head><meta charset="utf-8"><title th:text="${(page.company.name ?: 'Юг Сладости') + ' — кондитерская в Шымкенте, выпечка к чаю оптом'}">Юг Сладости — кондитерская в Шымкенте, выпечка к чаю оптом</title><meta name="description" content="Кондитерская «Юг Сладости», Шымкент: коржики, пряники, кексы, булочки, чак-чак и песочное печенье оптом прямо с производства. Онлайн-заказ на сайте.">
-<th:block th:if="${seo != null}"><link rel="canonical" th:href="${seo.baseUrl + '/'}">
-<meta property="og:type" content="website"><meta property="og:locale" content="ru_RU"><meta property="og:site_name" content="Юг Сладости">
-<meta property="og:title" content="Юг Сладости — кондитерская в Шымкенте, выпечка к чаю оптом"><meta property="og:description" content="Коржики, пряники, кексы и булочки оптом прямо с производства. Онлайн-заказ на сайте.">
-<meta property="og:url" th:content="${seo.baseUrl + '/'}"><meta property="og:image" th:content="${seo.baseUrl + '/promo/img/og-glavnaya.png'}">
-<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"></th:block>
-<th:block th:replace="~{site/frame :: seo-meta}"></th:block><link rel="icon" href="/promo/img/logo.svg"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><head><meta charset="utf-8">
+<th:block th:replace="~{site/frame :: seo-meta}"></th:block><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,500;1,600&family=Golos+Text:wght@400;500;600;700&family=Marck+Script&display=swap">
 <link rel="stylesheet" href="/promo/album.css">
 <style>
@@ -197,6 +192,8 @@ button.shot:hover .frame{transform:translateY(-3px)}
 .contact-list{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.55fr);margin:0;padding:26px 0 0;border-top:1px solid var(--line-strong);list-style:none}
 .contact-list li{display:flex;align-items:flex-start;gap:12px;min-width:0;padding:2px clamp(14px,1.8vw,24px);border-left:1px solid var(--line-strong)}
 .contact-list li:first-child{padding-left:0;border-left:0}
+/* три пункта (нет «Почты») — три колонки, иначе адрес сжимается в узкую колонку «Почты» */
+@media (min-width:1081px){.contact-list:not(:has(>li:nth-child(4))){grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1.55fr)}}
 .c-ic{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:var(--ink);color:#fff}
 .c-t{display:grid;gap:2px;min-width:0}
 .c-l{display:block;font-size:13.5px;line-height:1.3}
@@ -430,13 +427,13 @@ a.c-v:hover{text-decoration:underline}
       </div>
       <p class="hero-note kolos-text">Вход в онлайн-заказ — по номеру телефона.</p>
       <dl class="spec kolos-text">
-        <div><dt>в каталоге</dt><dd th:text="${page.positions(page.productCount)}">43 позиции</dd></div>
-        <div th:if="${page.weightRange}"><dt>фасовка</dt><dd th:text="${page.weightRange}">200 г – 1,75 кг</dd></div>
-        <div><dt>групп выпечки</dt><dd th:text="${page.groups.size()}">8</dd></div>
-        <div><dt>заказ</dt><dd>онлайн</dd></div>
+        <div><dt>в каталоге</dt> <dd th:text="${page.positions(page.productCount)}">43 позиции</dd></div>
+        <div th:if="${page.weightRange}"><dt>фасовка</dt> <dd th:text="${page.weightRange}">200 г – 1,75 кг</dd></div>
+        <div><dt>групп выпечки</dt> <dd th:text="${page.groups.size()}">8</dd></div>
+        <div><dt>заказ</dt> <dd>онлайн</dd></div>
         <!--/* Выбор времени выдачи и оплаты в магазине временно отключён (09.10, shop/app.html) — вернуть вместе с ним:
-        <div><dt>выдача</dt><dd>по времени</dd></div>
-        <div><dt>оплата</dt><dd>Kaspi, безнал</dd></div>
+        <div><dt>выдача</dt> <dd>по времени</dd></div>
+        <div><dt>оплата</dt> <dd>Kaspi, безнал</dd></div>
         */-->
       </dl>
     </div>
@@ -446,7 +443,7 @@ a.c-v:hover{text-decoration:underline}
       <div class="hcard h3"><div class="hcard-in"><span class="frame"><img src="/promo/img/p-kukuruznoe.webp" alt="" width="660" height="880"></span><img class="hcut" src="/promo/img/c-kukuruznoe.webp" alt="" width="560" height="262"></div></div>
       <!--/* у булочек с клубникой нет вырезанного товара в макете — только фото на скотче */-->
       <div class="hcard h4 tr"><div class="hcard-in"><span class="frame"><img src="/promo/img/p-bulochki-klubnika.webp" alt="" width="660" height="880"></span></div></div>
-      <span class="sticker">каталог<b th:text="${page.year}">2026</b></span>
+      <span class="sticker">каталог <b th:text="${page.year}">2026</b></span>
     </div>
   </div>
 </section>
@@ -455,7 +452,7 @@ a.c-v:hover{text-decoration:underline}
 <div class="kolos" aria-hidden="true"></div>
 <div class="wrap cats">
   <nav class="cats-in" aria-label="Группы выпечки">
-    <a class="cat" href="#catalog" th:each="g : ${page.groups}" th:attr="data-cat-link=${g.key}"><span class="cat-pic" th:classappend="${g.cutout or g.imageUrl == null} ? '' : 'is-photo'"><img th:src="${g.imageUrl ?: '/promo/img/logo.svg'}" alt="" width="104" height="104" loading="lazy"></span><span class="cat-name" th:text="${g.name}">Группа</span><span class="cat-n" th:text="${page.positions(g.count)}">5 позиций</span></a>
+    <th:block th:each="g : ${page.groups}"><a class="cat" href="#catalog" th:attr="data-cat-link=${g.key}"><span class="cat-pic" th:classappend="${g.cutout or g.imageUrl == null} ? '' : 'is-photo'"><img th:src="${g.imageUrl ?: '/promo/img/logo.svg'}" alt="" width="104" height="104" loading="lazy"></span><span class="cat-name" th:text="${g.name}">Группа</span> <span class="cat-n" th:text="${page.positions(g.count)}">5 позиций</span></a> </th:block>
   </nav>
 </div>
 
@@ -480,9 +477,9 @@ a.c-v:hover{text-decoration:underline}
         </div>
         <h3 th:text="${c.name}">Товар</h3>
         <dl class="spec" th:if="${c.weight != null or c.perBox != null}">
-          <div th:if="${c.weight}"><dt>вес</dt><dd th:text="${c.weight}">550 г</dd></div>
-          <div th:if="${c.perBox}"><dt>в коробке</dt><dd th:text="${c.perBox}">12 шт</dd></div>
-          <div th:if="${c.boxWeight}"><dt>вес коробки</dt><dd th:text="${c.boxWeight}">6,6 кг</dd></div>
+          <div th:if="${c.weight}"><dt>вес</dt> <dd th:text="${c.weight}">550 г</dd></div>
+          <div th:if="${c.perBox}"><dt>в коробке</dt> <dd th:text="${c.perBox}">12 шт</dd></div>
+          <div th:if="${c.boxWeight}"><dt>вес коробки</dt> <dd th:text="${c.boxWeight}">6,6 кг</dd></div>
         </dl>
       </article>
     </div>
@@ -549,14 +546,14 @@ a.c-v:hover{text-decoration:underline}
       <h2>Заказ за четыре шага</h2>
     </header>
     <ol class="steps">
-      <li><h3>Войдите по номеру телефона</h3><p>Откройте онлайн-заказ. В первый раз укажите ещё и имя.</p></li>
-      <li><h3>Выберите товары</h3><p>Отметьте позиции и количество, целую коробку — одной кнопкой.</p></li>
-      <li><h3>Оформите заказ</h3><p>Проверьте корзину и при необходимости оставьте комментарий.</p></li>
-      <li><h3>Заберите заказ</h3><p>Соберём партию на производстве, статус видно в истории заказов.</p></li>
+      <li><h3>Войдите по номеру телефона</h3> <p>Откройте онлайн-заказ. В первый раз укажите ещё и имя.</p></li>
+      <li><h3>Выберите товары</h3> <p>Отметьте позиции и количество, целую коробку — одной кнопкой.</p></li>
+      <li><h3>Оформите заказ</h3> <p>Проверьте корзину и при необходимости оставьте комментарий.</p></li>
+      <li><h3>Заберите заказ</h3> <p>Соберём партию на производстве, статус видно в истории заказов.</p></li>
       <!--/* Выбор времени выдачи и оплаты в магазине временно отключён (09.10, shop/app.html) — вернуть вместе с ним:
-      <li><h3>Выберите товары</h3><p>Отметьте позиции и количество.</p></li>
-      <li><h3>Выберите время выдачи</h3><p>Подготовим партию к вашему приезду.</p></li>
-      <li><h3>Заберите заказ</h3><p>Оплата через Kaspi или по счёту, документы — сразу.</p></li>
+      <li><h3>Выберите товары</h3> <p>Отметьте позиции и количество.</p></li>
+      <li><h3>Выберите время выдачи</h3> <p>Подготовим партию к вашему приезду.</p></li>
+      <li><h3>Заберите заказ</h3> <p>Оплата через Kaspi или по счёту, документы — сразу.</p></li>
       */-->
     </ol>
     <div class="how-cta">
@@ -578,9 +575,10 @@ a.c-v:hover{text-decoration:underline}
       <p>«<th:block th:text="${page.company.name ?: 'Юг Сладости'}">Юг Сладости</th:block>» — кондитерская с собственным производством. В каталоге <th:block th:text="${page.positions(page.productCount)}">43 позиции</th:block>: <th:block th:text="${page.groupList()}">группы</th:block>.</p>
       <p th:if="${page.company.about}" th:text="${page.company.about}" style="white-space:pre-line">О нас</p>
       <dl class="spec">
-        <div><dt>в каталоге</dt><dd th:text="${page.positions(page.productCount)}">43 позиции</dd></div>
-        <div><dt>групп выпечки</dt><dd th:text="${page.groups.size()}">8</dd></div>
-        <div th:if="${page.weightRange}"><dt>фасовка</dt><dd th:text="${page.weightRange}">200 г – 1,75 кг</dd></div>
+        <div th:if="${page.company.foundedYear}"><dt>на рынке с</dt> <dd th:text="${page.company.foundedYear + ' года'}">2018 года</dd></div>
+        <div><dt>в каталоге</dt> <dd th:text="${page.positions(page.productCount)}">43 позиции</dd></div>
+        <div><dt>групп выпечки</dt> <dd th:text="${page.groups.size()}">8</dd></div>
+        <div th:if="${page.weightRange}"><dt>фасовка</dt> <dd th:text="${page.weightRange}">200 г – 1,75 кг</dd></div>
       </dl>
     </div>
   </div>
@@ -618,23 +616,23 @@ a.c-v:hover{text-decoration:underline}
     <ul class="contact-list">
       <li th:if="${page.company.phone}">
         <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"></path></svg></span>
-        <span class="c-t"><span class="c-l">Телефон / сотрудничество</span><a class="c-v" th:each="tel : ${#strings.arraySplit(page.company.phone, ',;')}" th:href="${'tel:+' + tel.replaceAll('[^0-9]', '')}" th:text="${#strings.trim(tel)}">+7</a></span>
+        <span class="c-t"><span class="c-l">Телефон / сотрудничество</span><th:block th:each="tel : ${#strings.arraySplit(page.company.phone, ',;')}"> <a class="c-v" th:href="${'tel:+' + tel.replaceAll('[^0-9]', '')}" th:text="${#strings.trim(tel)}">+7</a></th:block></span>
       </li>
       <li class="c-soc" th:with="ig=${!#strings.isEmpty(page.company.instagramUrl)}, tt=${!#strings.isEmpty(page.company.tiktokUrl)}" th:if="${!#strings.isEmpty(page.company.instagramUrl) or !#strings.isEmpty(page.company.tiktokUrl)}">
         <!--/* официальные белые значки: Instagram — Meta Brand Resource Center (Glyph White), TikTok — TikTok for Developers logo pack (кнопка Button_Black) */-->
-        <span class="c-t"><span class="c-l">Соцсети</span><span class="c-net"><a class="c-net-a" th:if="${ig}" th:href="${page.company.instagramUrl}" target="_blank" rel="noopener"><span class="c-net-i" aria-hidden="true"><svg viewBox="0 0 1000 1000" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M295.42,6c-53.2,2.51-89.53,11-121.29,23.48-32.87,12.81-60.73,30-88.45,57.82S40.89,143,28.17,175.92c-12.31,31.83-20.65,68.19-23,121.42S2.3,367.68,2.56,503.46,3.42,656.26,6,709.6c2.54,53.19,11,89.51,23.48,121.28,12.83,32.87,30,60.72,57.83,88.45S143,964.09,176,976.83c31.8,12.29,68.17,20.67,121.39,23s70.35,2.87,206.09,2.61,152.83-.86,206.16-3.39S799.1,988,830.88,975.58c32.87-12.86,60.74-30,88.45-57.84S964.1,862,976.81,829.06c12.32-31.8,20.69-68.17,23-121.35,2.33-53.37,2.88-70.41,2.62-206.17s-.87-152.78-3.4-206.1-11-89.53-23.47-121.32c-12.85-32.87-30-60.7-57.82-88.45S862,40.87,829.07,28.19c-31.82-12.31-68.17-20.7-121.39-23S637.33,2.3,501.54,2.56,348.75,3.4,295.42,6m5.84,903.88c-48.75-2.12-75.22-10.22-92.86-17-23.36-9-40-19.88-57.58-37.29s-28.38-34.11-37.5-57.42c-6.85-17.64-15.1-44.08-17.38-92.83-2.48-52.69-3-68.51-3.29-202s.22-149.29,2.53-202c2.08-48.71,10.23-75.21,17-92.84,9-23.39,19.84-40,37.29-57.57s34.1-28.39,57.43-37.51c17.62-6.88,44.06-15.06,92.79-17.38,52.73-2.5,68.53-3,202-3.29s149.31.21,202.06,2.53c48.71,2.12,75.22,10.19,92.83,17,23.37,9,40,19.81,57.57,37.29s28.4,34.07,37.52,57.45c6.89,17.57,15.07,44,17.37,92.76,2.51,52.73,3.08,68.54,3.32,202s-.23,149.31-2.54,202c-2.13,48.75-10.21,75.23-17,92.89-9,23.35-19.85,40-37.31,57.56s-34.09,28.38-57.43,37.5c-17.6,6.87-44.07,15.07-92.76,17.39-52.73,2.48-68.53,3-202.05,3.29s-149.27-.25-202-2.53m407.6-674.61a60,60,0,1,0,59.88-60.1,60,60,0,0,0-59.88,60.1M245.77,503c.28,141.8,115.44,256.49,257.21,256.22S759.52,643.8,759.25,502,643.79,245.48,502,245.76,245.5,361.22,245.77,503m90.06-.18a166.67,166.67,0,1,1,167,166.34,166.65,166.65,0,0,1-167-166.34" transform="translate(-2.5 -2.5)"/></svg></span>Instagram</a><a class="c-net-a" th:if="${tt}" th:href="${page.company.tiktokUrl}" target="_blank" rel="noopener"><span class="c-net-i" aria-hidden="true"><svg viewBox="12 12 20 20" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M25.5172 25.0575C25.4647 26.4295 24.3093 27.5306 22.8929 27.5306C22.5691 27.5306 22.2591 27.4729 21.9727 27.3675C22.2591 27.4729 22.5692 27.5306 22.893 27.5306C24.3094 27.5306 25.4648 26.4295 25.5174 25.0576L25.5224 12.8063H27.8124C28.0331 13.971 28.7405 14.9704 29.7205 15.5948C29.7208 15.5952 29.7212 15.5956 29.7215 15.596C30.4037 16.0305 31.2171 16.284 32.0903 16.284V16.9645C32.0903 16.9645 32.0903 16.9645 32.0904 16.9646V19.3405C30.4684 19.3405 28.9654 18.8334 27.7386 17.9728V24.1852C27.7386 27.2878 25.1559 29.8119 21.9812 29.8119C20.7545 29.8119 19.6169 29.4338 18.6818 28.7921C18.6813 28.7916 18.6808 28.791 18.6802 28.7905C17.1964 27.7717 16.224 26.0876 16.224 24.1846C16.224 21.0821 18.8067 18.5579 21.9814 18.5579C22.2448 18.5579 22.503 18.5791 22.7572 18.6128V19.337C19.861 19.4031 17.4865 21.5682 17.1713 24.3333C17.4868 21.5685 19.8611 19.4037 22.7571 19.3376V21.7342C22.5115 21.6591 22.2519 21.6154 21.9812 21.6154C20.5314 21.6154 19.3519 22.7683 19.3519 24.1852C19.3519 25.1719 19.9247 26.0292 20.7616 26.4596C20.7616 26.4597 20.7616 26.4597 20.7616 26.4597C21.1265 26.6474 21.541 26.7549 21.9811 26.7549C23.3975 26.7549 24.5529 25.6538 24.6055 24.2819L24.6105 12.0305H27.7385C27.7385 12.2955 27.7646 12.5545 27.8123 12.8063H25.5223L25.5172 25.0575Z"/></svg></span>TikTok</a></span></span>
+        <span class="c-t"><span class="c-l">Соцсети</span> <span class="c-net"><a class="c-net-a" th:if="${ig}" th:href="${page.company.instagramUrl}" target="_blank" rel="noopener"><span class="c-net-i" aria-hidden="true"><svg viewBox="0 0 1000 1000" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M295.42,6c-53.2,2.51-89.53,11-121.29,23.48-32.87,12.81-60.73,30-88.45,57.82S40.89,143,28.17,175.92c-12.31,31.83-20.65,68.19-23,121.42S2.3,367.68,2.56,503.46,3.42,656.26,6,709.6c2.54,53.19,11,89.51,23.48,121.28,12.83,32.87,30,60.72,57.83,88.45S143,964.09,176,976.83c31.8,12.29,68.17,20.67,121.39,23s70.35,2.87,206.09,2.61,152.83-.86,206.16-3.39S799.1,988,830.88,975.58c32.87-12.86,60.74-30,88.45-57.84S964.1,862,976.81,829.06c12.32-31.8,20.69-68.17,23-121.35,2.33-53.37,2.88-70.41,2.62-206.17s-.87-152.78-3.4-206.1-11-89.53-23.47-121.32c-12.85-32.87-30-60.7-57.82-88.45S862,40.87,829.07,28.19c-31.82-12.31-68.17-20.7-121.39-23S637.33,2.3,501.54,2.56,348.75,3.4,295.42,6m5.84,903.88c-48.75-2.12-75.22-10.22-92.86-17-23.36-9-40-19.88-57.58-37.29s-28.38-34.11-37.5-57.42c-6.85-17.64-15.1-44.08-17.38-92.83-2.48-52.69-3-68.51-3.29-202s.22-149.29,2.53-202c2.08-48.71,10.23-75.21,17-92.84,9-23.39,19.84-40,37.29-57.57s34.1-28.39,57.43-37.51c17.62-6.88,44.06-15.06,92.79-17.38,52.73-2.5,68.53-3,202-3.29s149.31.21,202.06,2.53c48.71,2.12,75.22,10.19,92.83,17,23.37,9,40,19.81,57.57,37.29s28.4,34.07,37.52,57.45c6.89,17.57,15.07,44,17.37,92.76,2.51,52.73,3.08,68.54,3.32,202s-.23,149.31-2.54,202c-2.13,48.75-10.21,75.23-17,92.89-9,23.35-19.85,40-37.31,57.56s-34.09,28.38-57.43,37.5c-17.6,6.87-44.07,15.07-92.76,17.39-52.73,2.48-68.53,3-202.05,3.29s-149.27-.25-202-2.53m407.6-674.61a60,60,0,1,0,59.88-60.1,60,60,0,0,0-59.88,60.1M245.77,503c.28,141.8,115.44,256.49,257.21,256.22S759.52,643.8,759.25,502,643.79,245.48,502,245.76,245.5,361.22,245.77,503m90.06-.18a166.67,166.67,0,1,1,167,166.34,166.65,166.65,0,0,1-167-166.34" transform="translate(-2.5 -2.5)"/></svg></span>Instagram</a> <a class="c-net-a" th:if="${tt}" th:href="${page.company.tiktokUrl}" target="_blank" rel="noopener"><span class="c-net-i" aria-hidden="true"><svg viewBox="12 12 20 20" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M25.5172 25.0575C25.4647 26.4295 24.3093 27.5306 22.8929 27.5306C22.5691 27.5306 22.2591 27.4729 21.9727 27.3675C22.2591 27.4729 22.5692 27.5306 22.893 27.5306C24.3094 27.5306 25.4648 26.4295 25.5174 25.0576L25.5224 12.8063H27.8124C28.0331 13.971 28.7405 14.9704 29.7205 15.5948C29.7208 15.5952 29.7212 15.5956 29.7215 15.596C30.4037 16.0305 31.2171 16.284 32.0903 16.284V16.9645C32.0903 16.9645 32.0903 16.9645 32.0904 16.9646V19.3405C30.4684 19.3405 28.9654 18.8334 27.7386 17.9728V24.1852C27.7386 27.2878 25.1559 29.8119 21.9812 29.8119C20.7545 29.8119 19.6169 29.4338 18.6818 28.7921C18.6813 28.7916 18.6808 28.791 18.6802 28.7905C17.1964 27.7717 16.224 26.0876 16.224 24.1846C16.224 21.0821 18.8067 18.5579 21.9814 18.5579C22.2448 18.5579 22.503 18.5791 22.7572 18.6128V19.337C19.861 19.4031 17.4865 21.5682 17.1713 24.3333C17.4868 21.5685 19.8611 19.4037 22.7571 19.3376V21.7342C22.5115 21.6591 22.2519 21.6154 21.9812 21.6154C20.5314 21.6154 19.3519 22.7683 19.3519 24.1852C19.3519 25.1719 19.9247 26.0292 20.7616 26.4596C20.7616 26.4597 20.7616 26.4597 20.7616 26.4597C21.1265 26.6474 21.541 26.7549 21.9811 26.7549C23.3975 26.7549 24.5529 25.6538 24.6055 24.2819L24.6105 12.0305H27.7385C27.7385 12.2955 27.7646 12.5545 27.8123 12.8063H25.5223L25.5172 25.0575Z"/></svg></span>TikTok</a></span></span>
       </li>
-      <li th:if="${page.company.email}">
+      <li th:if="${page.company.siteEmail()}">
         <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="m4 7 8 6 8-6"></path></svg></span>
-        <span class="c-t"><span class="c-l">Почта</span><a class="c-v" th:if="${#strings.contains(page.company.email, '@')}" th:href="${'mailto:' + page.company.email}" th:text="${page.company.email}">почта</a><span class="c-v" th:unless="${#strings.contains(page.company.email, '@')}" th:text="${page.company.email}">почта</span></span>
+        <span class="c-t"><span class="c-l">Почта</span> <a class="c-v" th:href="${'mailto:' + page.company.siteEmail()}" th:text="${page.company.siteEmail()}">почта</a></span>
       </li>
       <li th:if="${page.company.pickupHours}">
         <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
-        <span class="c-t"><span class="c-l">Выдача заказов</span><span class="c-v" th:text="${page.company.pickupHours}">часы</span></span>
+        <span class="c-t"><span class="c-l">Выдача заказов</span> <span class="c-v" th:text="${page.company.pickupHours}">часы</span></span>
       </li>
       <li th:if="${page.company.address}">
         <span class="c-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg></span>
-        <span class="c-t"><span class="c-l">Адрес производства</span><span class="c-v" th:text="${page.company.addressMain()}">адрес</span><span class="c-sub" th:if="${page.company.addressSub()}" th:text="${page.company.addressSub()}">уточнение</span></span>
+        <span class="c-t"><span class="c-l">Адрес производства</span> <span class="c-v" th:text="${page.company.addressMain()}">адрес</span> <span class="c-sub" th:if="${page.company.addressSub()}" th:text="${page.company.addressSub()}">уточнение</span></span>
       </li>
     </ul>
   </div>
@@ -673,7 +671,7 @@ a.c-v:hover{text-decoration:underline}
     </div>
   </div>
   <div class="wrap"><div class="foot-end">
-    <span>© <th:block th:text="${page.year + ' ' + (page.company.name ?: 'Юг Сладости')}">2026 Юг Сладости</th:block><span class="foot-dev">Сайт разработан — <a href="https://www.instagram.com/bilalov_bakhodir" target="_blank" rel="noopener">@bilalov_bakhodir</a></span><span class="foot-dev" th:if="${page.company.legalInfo}" th:text="${page.company.legalInfo}">реквизиты</span></span>
+    <span>© <th:block th:text="${page.year + ' ' + (page.company.name ?: 'Юг Сладости')}">2026 Юг Сладости</th:block> <span class="foot-dev">Сайт разработан — <a href="https://www.instagram.com/bilalov_bakhodir" target="_blank" rel="noopener">@bilalov_bakhodir</a></span><span class="foot-dev" th:if="${page.company.legalLine()}" th:text="${page.company.legalLine()}">реквизиты</span></span>
     <a href="/admin/login">Вход для сотрудников</a>
   </div></div>
 </footer>

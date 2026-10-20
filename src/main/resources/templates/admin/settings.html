@@ -19,8 +19,10 @@
             <label class="field"><span>Instagram</span><input class="inp" name="instagramUrl" th:value="${p.instagramUrl}"></label>
             <label class="field"><span>TikTok</span><input class="inp" name="tiktokUrl" th:value="${p.tiktokUrl}"></label>
             <label class="field"><span>Точка на карте (широта, долгота)</span><input class="inp" name="mapPoint" th:value="${p.mapPoint}"></label>
+            <label class="field"><span>Год основания</span><input class="inp" name="foundedYear" type="number" min="1900" max="2100" placeholder="2018" th:value="${p.foundedYear}"></label>
             <label class="field wide"><span>О компании</span><textarea class="ta" name="about" th:text="${p.about}"></textarea></label>
-            <label class="field wide"><span>Реквизиты (БИН, банк, счёт)</span><textarea class="ta" name="legalInfo" th:text="${p.legalInfo}"></textarea></label>
+            <label class="field wide"><span>Реквизиты (БИН, банк, счёт) — первая строка видна в подвале сайта</span><textarea class="ta" name="legalInfo" placeholder="ИП Фамилия И. О., ИИН 000000000000" th:text="${p.legalInfo}"></textarea></label>
+            <label class="field wide"><span>Компания в интернете — 2ГИС, Яндекс Карты, Google Карты, маркетплейсы (по одной ссылке в строке)</span><textarea class="ta" name="externalLinks" placeholder="https://2gis.kz/shymkent/firm/…" th:text="${p.externalLinks}"></textarea></label>
         </div>
         <div class="form-acts"><button class="btn btn-primary" type="submit">Сохранить</button></div>
     </section>
