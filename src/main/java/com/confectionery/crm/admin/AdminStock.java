@@ -94,6 +94,44 @@ public final class AdminStock {
         return out;
     }
 
+    /** Заявки, план которых ещё не оприходован (см. {@link #inWork}). */
+    public static final List<ProductionRequestStatus> IN_WORK = List.of(ProductionRequestStatus.NEW, ProductionRequestStatus.COLLECTED);
+
+    /** Товар заказа, которого на складе не хватит на все открытые заказы: есть, в заказах, что уже в работе. */
+    public record Lack(Product p, BigDecimal stock, BigDecimal rq, Work work) {
+        public String text() {
+            return AdminRequests.shortName(p.getName()) + " — есть " + F.num(stock) + ", в заказах " + F.num(rq)
+                    + (work != null ? " (в заявке " + work.nos() + " — " + F.num(work.q()) + NB + "шт)" : "");
+        }
+    }
+
+    /** Для карточки открытого заказа: его товары, которых не хватает на все открытые заказы (как «Не хватит на заказы» на складе). */
+    public static List<Lack> lacks(Order o, List<Order> open, List<ProductionRequest> requests) {
+        if (!OPEN.contains(o.getStatus())) return List.of();
+        Map<Long, Res> res = reserve(open, LocalDate.now());
+        Map<Long, Work> work = null;
+        List<Lack> out = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        for (OrderItem i : o.getItems()) {
+            Product p = i.getProduct();
+            if (p == null || p.isSemiFinished() || !seen.add(p.getId())) continue;
+            BigDecimal stock = nz(p.getQuantityInStock());
+            Res r = res.get(p.getId());
+            BigDecimal rq = r == null ? BigDecimal.ZERO : r.q();
+            if (stock.compareTo(rq) >= 0) continue;
+            if (work == null) work = inWork(requests);
+            out.add(new Lack(p, stock, rq, work.get(p.getId())));
+        }
+        return out;
+    }
+
+    /** Строки «Не хватит на заказы» по всем товарам — для дашборда (сначала, где не хватает больше). */
+    public static List<Row> shortages(List<Product> products, List<Order> open, List<ProductionRequest> requests) {
+        return rows(products, reserve(open, LocalDate.now()), inWork(requests), List.of(), Map.of(), Map.of()).stream()
+                .filter(r -> r.state().equals("short") && r.p().isActive())
+                .sorted(Comparator.comparing(Row::free)).toList();
+    }
+
     // ================================================================== журнал
 
     /** Логин → ФИО сотрудника для колонки «Кто» (один запрос на логин). */

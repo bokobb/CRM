@@ -48,6 +48,7 @@ public class AdminOrderController {
     private final InvoicePdfService invoicePdfService;
     private final OneCInvoiceService oneCInvoiceService;
     private final CompanyProfileService companyProfileService;
+    private final com.confectionery.crm.repository.ProductionRequestRepository productionRequestRepository;
 
     /** Склад в шапке накладной — как он назван в 1С (тот же параметр, что у приложения). */
     @org.springframework.beans.factory.annotation.Value("${crm.invoice.warehouse-name:Гатовая Продукция}")
@@ -214,6 +215,12 @@ public class AdminOrderController {
         model.addAttribute("canPay", stateMachine.canMarkPaid(o, role));
         model.addAttribute("isAdmin", role == Role.ADMIN);
         model.addAttribute("canClient", canClients(role));
+        // склад ГП: хватит ли товаров заказа на все открытые заказы (часть 3)
+        List<AdminStock.Lack> lack = AdminStock.lacks(o, orderRepository.findByStatusInOrderByCreatedAtAsc(AdminStock.OPEN),
+                productionRequestRepository.findByStatusIn(AdminStock.IN_WORK));
+        model.addAttribute("stockLack", String.join("; ", lack.stream().map(AdminStock.Lack::text).toList()));
+        AdminSections.Section stockSec = AdminSections.byKey("stock");
+        model.addAttribute("seesStock", role != null && stockSec != null && stockSec.visibleTo(role));
         model.addAttribute("clientOrders", orderRepository.findByClientIdOrderByCreatedAtDesc(o.getClient().getId()).size());
         model.addAttribute("placedBy", AdminOrders.byClient(o)
                 ? (o.getSource() == OrderSource.WHATSAPP ? "покупателем в WhatsApp" : "покупателем на сайте")
