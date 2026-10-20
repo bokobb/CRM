@@ -1,6 +1,7 @@
 package com.confectionery.crm.admin;
 
 import com.confectionery.crm.domain.*;
+import com.confectionery.crm.repository.UserRepository;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -94,6 +95,16 @@ public final class AdminStock {
     }
 
     // ================================================================== журнал
+
+    /** Логин → ФИО сотрудника для колонки «Кто» (один запрос на логин). */
+    public static Function<String, String> who(UserRepository users) {
+        Map<String, String> cache = new HashMap<>();
+        return u -> {
+            if (u == null || u.isBlank()) return "—";
+            return cache.computeIfAbsent(u, k -> users.findByUsername(k)
+                    .map(x -> x.getFullName() != null && !x.getFullName().isBlank() ? x.getFullName() : x.getUsername()).orElse(k));
+        };
+    }
 
     public record Kind(String key, String label, String cls) {
     }

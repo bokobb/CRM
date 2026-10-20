@@ -69,12 +69,7 @@ public class AdminWarehouseController {
     }
 
     Function<String, String> who() {
-        Map<String, String> cache = new HashMap<>();
-        return u -> {
-            if (u == null || u.isBlank()) return "—";
-            return cache.computeIfAbsent(u, k -> userRepository.findByUsername(k)
-                    .map(x -> x.getFullName() != null && !x.getFullName().isBlank() ? x.getFullName() : x.getUsername()).orElse(k));
-        };
+        return AdminStock.who(userRepository);
     }
 
     static final List<String[]> SORTS = List.of(new String[]{"att", "Сначала важные"}, new String[]{"qd", "Остаток: больше сверху"},
@@ -264,7 +259,9 @@ public class AdminWarehouseController {
     @PostMapping("/doc")
     public String saveDoc(HttpServletRequest req, RedirectAttributes ra) {
         boolean off = "out".equals(req.getParameter("type")) || "off".equals(req.getParameter("type"));
-        String back = Optional.ofNullable(req.getParameter("back")).filter(s -> s.startsWith("/admin/stock")).orElse("/admin/stock?tab=moves");
+        // назад — на склад или в карточку товара («Списать со склада»)
+        String back = Optional.ofNullable(req.getParameter("back")).filter(s -> s.startsWith("/admin/stock") || s.matches("/admin/products/\\d+"))
+                .orElse("/admin/stock?tab=moves");
         try {
             if (!canDoc()) throw new IllegalStateException("Документы склада проводят склад готовой продукции, бухгалтер и администратор");
             LocalDate date = date(req.getParameter("date"), LocalDate.now());

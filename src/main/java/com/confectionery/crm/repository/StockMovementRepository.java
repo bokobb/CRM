@@ -22,6 +22,9 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
     /** Движения одного сырья с даты — карточка сырья. */
     List<StockMovement> findByIngredientIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(Long ingredientId, LocalDateTime from);
 
+    /** Движения одного товара с даты — карточка товара в админке. */
+    List<StockMovement> findByProductIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(Long productId, LocalDateTime from);
+
     /**
      * Только ручные движения (см. StockMovement.manual) — тип/период необязательны
      * (null = без ограничения по этому полю). Фильтр по названию — уже в StockService,
