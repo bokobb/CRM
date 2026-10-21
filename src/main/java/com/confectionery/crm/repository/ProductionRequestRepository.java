@@ -35,12 +35,15 @@ public interface ProductionRequestRepository extends JpaRepository<ProductionReq
      * Hibernate пишет строку целиком, и статус RECEIVED откатывался обратно в COLLECTED.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from ProductionRequest r where r.id = :id")
+    Optional<ProductionRequest> findByIdForUpdate(@Param("id") Long id);
+
     /** Заявки с ошибкой синхронизации с 1С за последние дни — для автоповтора, когда 1С была недоступна. */
     @Query("select r from ProductionRequest r where r.oneCSyncError is not null and r.documentDate >= :since")
     List<ProductionRequest> findWithSyncErrorSince(@Param("since") LocalDate since);
 
-    @Query("select r from ProductionRequest r where r.id = :id")
-    Optional<ProductionRequest> findByIdForUpdate(@Param("id") Long id);
+    /** Оприходованы, но «Завершить» не нажато — кандидаты на автозавершение (ProductionRequestService.dueForAutoComplete). */
+    List<ProductionRequest> findByStatusAndRequisitionCompletedFalseAndDocumentDateGreaterThanEqual(ProductionRequestStatus status, LocalDate from);
 
     /** Ждут фоновой отправки в 1С (см. OneCQueue). */
     @Query("select e.id from ProductionRequest e where e.oneCPending = true order by e.id")

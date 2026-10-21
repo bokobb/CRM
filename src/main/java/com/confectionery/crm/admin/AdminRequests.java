@@ -303,7 +303,10 @@ public final class AdminRequests {
         return switch (key(r)) {
             case "new" -> "ждёт склад сырья";
             case "collected" -> "ждёт оприхода · " + got(r) + " из " + main(r).size();
-            case "received" -> "ждёт «Завершить»";
+            case "received" -> {
+                java.time.LocalDateTime at = com.confectionery.crm.service.ProductionRequestService.autoCompleteAt(r);
+                yield at == null ? "ждёт «Завершить»" : "ждёт «Завершить» · сама " + F.dm(at.toLocalDate()) + " в " + at.toLocalTime();
+            }
             case "done" -> "проведена в 1С";
             default -> {
                 String n = offNote(r);

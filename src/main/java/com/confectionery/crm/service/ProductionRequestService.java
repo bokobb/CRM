@@ -1043,6 +1043,50 @@ public class ProductionRequestService {
         return request;
     }
 
+    /** Кто «нажал» «Завершить» при автозавершении — так подписана запись в истории заявки. */
+    public static final String AUTO_COMPLETE_BY = "Автозавершение";
+
+    /**
+     * С какой даты документа работает автозавершение: более старые незавершённые заявки
+     * разобраны вручную 21.10.2026 (у части требование-накладная в 1С не проведена — решает
+     * владелец), автоматически их проводить в 1С нельзя.
+     */
+    static final LocalDate AUTO_COMPLETE_FROM = LocalDate.of(2026, 10, 21);
+
+    /**
+     * Когда заявка завершится сама, если склад не нажал «Завершить»: в 20:00 следующего дня после
+     * даты документа (заявка за 21.10 — 22.10 в 20:00). Если оприходовали или отменили
+     * завершение позже даты документа — отсчёт от того дня, чтобы склад успел поправить состав.
+     * null — автозавершение заявку не касается (не оприходована целиком, уже завершена, старше
+     * {@link #AUTO_COMPLETE_FROM}).
+     */
+    public static LocalDateTime autoCompleteAt(ProductionRequest request) {
+        if (request.getStatus() != ProductionRequestStatus.RECEIVED || request.isRequisitionCompleted()
+                || request.getDocumentDate().isBefore(AUTO_COMPLETE_FROM)) {
+            return null;
+        }
+        LocalDate day = request.getDocumentDate();
+        for (ProductionRequestLine line : request.getLines()) {
+            if (line.getReceivedAt() != null && line.getReceivedAt().toLocalDate().isAfter(day)) day = line.getReceivedAt().toLocalDate();
+        }
+        for (ProductionRequestRevision rev : request.getRevisions()) {
+            if (rev.getNote() != null && rev.getNote().startsWith("Завершение отменено") && rev.getCreatedAt().toLocalDate().isAfter(day)) {
+                day = rev.getCreatedAt().toLocalDate();
+            }
+        }
+        return day.plusDays(1).atTime(20, 0);
+    }
+
+    /** Заявки, которым пора завершиться самим (см. {@link #autoCompleteAt}), — для ScheduledJobs. */
+    @Transactional(readOnly = true)
+    public List<Long> dueForAutoComplete(LocalDateTime now) {
+        return requestRepository.findByStatusAndRequisitionCompletedFalseAndDocumentDateGreaterThanEqual(ProductionRequestStatus.RECEIVED, AUTO_COMPLETE_FROM)
+                .stream().filter(r -> {
+                    LocalDateTime at = autoCompleteAt(r);
+                    return at != null && !at.isAfter(now);
+                }).map(ProductionRequest::getId).sorted().toList();
+    }
+
     /**
      * "Отменить" (после "Завершить") — распроводит требование-накладную в 1С и снова разрешает
      * редактировать/удалять/добавлять позиции сырья (см. {@link #completeRequisition}).
