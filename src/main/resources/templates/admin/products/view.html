@@ -13,7 +13,8 @@
     <div class="ch-acts">
         <a th:if="${canEdit}" class="btn btn-soft" th:href="${'/admin/products/' + p.id + '/edit'}"><th:block th:utext="${i['edit']}"></th:block>Изменить</a>
         <button th:if="${canEdit and !pf and p.active and !hidden}" class="btn btn-soft" type="button" id="pc-hide"
-                th:attr="data-id=${p.id},data-name=${p.name},data-m1=${m1},data-m2=${m2},data-m1t=${@fmt.dml(m1)},data-m2t=${@fmt.dml(m2)},data-today=${today}"><th:block th:utext="${i['eye-off']}"></th:block>Скрыть с витрины</button>
+                th:with="m1t=${@fmt.dml(m1)},m2t=${@fmt.dml(m2)}"
+                th:attr="data-id=${p.id},data-name=${p.name},data-m1=${m1},data-m2=${m2},data-m1t=${m1t},data-m2t=${m2t},data-today=${today}"><th:block th:utext="${i['eye-off']}"></th:block>Скрыть с витрины</button>
         <form th:if="${canEdit and !pf and p.active and hidden}" th:action="${'/admin/products/' + p.id + '/visibility'}" method="post" style="display:contents">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="hidden" value="false">
             <button class="btn btn-soft" type="submit"><th:block th:utext="${i['eye']}"></th:block>Вернуть на витрину</button></form>

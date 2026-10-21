@@ -45,7 +45,7 @@
                     <small th:unless="${o.dev.signum() < 0}" th:text="${o.extra ? 'сверх заявки' : (o.dev.signum() > 0 ? '+' + @fmt.num(o.dev) + ' к норме' : 'по норме')}"></small>
                     <small th:text="${o.by + ', ' + @fmt.when(o.l.receivedAt)}"></small>
                     <button th:if="${canFix}" class="link q-fix" type="button" th:attr="data-fix=${o.l.id},data-name=${o.name},data-q=${o.l.receivedQuantity}">исправить</button></th:block>
-                <div th:if="${k != 'new' and !o.received() and canReceive}" class="q-recv"><span class="qin"><label class="sr" th:for="${'qi-' + o.l.id}" th:text="${'Факт, шт: ' + o.name}"></label><input class="inp" th:id="${'qi-' + o.l.id}" th:attr="data-recv=${o.l.id},data-plan=${o.l.plannedQuantity},placeholder=${o.l.plannedQuantity != null ? @fmt.num(o.l.plannedQuantity).replace(' ', '') : ''}" inputmode="numeric" autocomplete="off"><i>шт</i></span>
+                <div th:if="${k != 'new' and !o.received() and canReceive}" class="q-recv"><span class="qin"><label class="sr" th:for="${'qi-' + o.l.id}" th:text="${'Факт, шт: ' + o.name}"></label><input class="inp" th:id="${'qi-' + o.l.id}" th:with="planPh=${o.l.plannedQuantity != null ? @fmt.num(o.l.plannedQuantity).replace(' ', '') : ''}" th:attr="data-recv=${o.l.id},data-plan=${o.l.plannedQuantity},placeholder=${planPh}" inputmode="numeric" autocomplete="off"><i>шт</i></span>
                     <button class="btn btn-primary btn-sm" type="button" th:attr="data-rok=${o.l.id}">Оприходовать</button><small class="q-dev" th:id="${'qd-' + o.l.id}"></small></div>
                 <span th:if="${k != 'new' and !o.received() and !canReceive}" class="muted">—</span>
             </td>

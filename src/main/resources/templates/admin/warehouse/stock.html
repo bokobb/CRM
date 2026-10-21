@@ -120,6 +120,6 @@
 <th:block th:fragment="fgRef(m)"><a th:if="${m.href != null}" class="link mv-doc" th:href="${m.href}" th:text="${m.doc}"></a><span th:if="${m.href == null}" class="mv-doc" th:text="${m.doc}"></span><small th:if="${!#strings.isEmpty(m.sub)}" th:text="${m.sub}"></small></th:block>
 <th:block th:fragment="fgDel(m)"><form th:if="${canDel and m.del != null}" th:action="${'/admin/stock/movements/' + m.del + '/delete'}" method="post" style="display:contents">
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="back" th:value="${back}">
-    <button class="ibtn sm-del" type="submit" th:attr="aria-label=${'Удалить строку: ' + m.p.name},data-confirm=${m.doc + ': ' + m.p.name + ' — ' + @fmt.num(m.q) + ' шт. Остаток пересчитается обратно (' + (m.plus() ? '−' : '+') + @fmt.num(m.q) + ' шт), документ в 1С перепроведётся без этой строки.'}" data-confirm-title="Удалить строку?" data-confirm-ok="Удалить" title="Удалить строку документа" th:utext="${i16['trash']}"></button></form></th:block>
+    <button class="ibtn sm-del" type="submit" th:with="mq=${@fmt.num(m.q)}" th:attr="aria-label=${'Удалить строку: ' + m.p.name},data-confirm=${m.doc + ': ' + m.p.name + ' — ' + mq + ' шт. Остаток пересчитается обратно (' + (m.plus() ? '−' : '+') + mq + ' шт), документ в 1С перепроведётся без этой строки.'}" data-confirm-title="Удалить строку?" data-confirm-ok="Удалить" title="Удалить строку документа" th:utext="${i16['trash']}"></button></form></th:block>
 </body>
 </html>

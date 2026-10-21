@@ -16,7 +16,7 @@
         <label class="field wide"><span>Адрес</span><input class="inp" id="st-address" name="address" maxlength="300" th:value="${p.address}"><small class="hint">уточнение в скобках сайт покажет второй строкой</small></label>
         <label class="field"><span>Телефон</span><input class="inp" id="st-phone" name="phone" maxlength="100" th:value="${phones}"><small class="hint">несколько — через запятую</small></label>
         <label class="field"><span>Почта</span><input class="inp" id="st-email" name="email" maxlength="100" placeholder="необязательно" th:value="${p.email}"></label></div>
-        <aside class="sg-prev" aria-label="Как в накладной"><p class="sg-pl">Шапка накладной</p><div class="inv-mini" id="st-inv" th:attr="data-no=${invNo},data-date=${@fmt.dml(today)},data-buyer=${invBuyer}"></div></aside></div></div>
+        <aside class="sg-prev" aria-label="Как в накладной"><p class="sg-pl">Шапка накладной</p><div class="inv-mini" id="st-inv" th:with="invDate=${@fmt.dml(today)}" th:attr="data-no=${invNo},data-date=${invDate},data-buyer=${invBuyer}"></div></aside></div></div>
     <div class="card-f sg-f"><span class="muted sg-m">Изменений нет</span><button class="btn btn-primary btn-sm" type="submit">Сохранить</button></div>
 </form>
 
