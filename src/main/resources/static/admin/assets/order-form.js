@@ -70,7 +70,7 @@
     if (F.client && CL[F.client]) {
       var c = CL[F.client];
       var late = c.late == null ? null : +c.late;
-      box.innerHTML = '<div class="cl-card"><p><b>' + esc(c.org) + '</b><span>' + esc([c.person, c.phone].filter(Boolean).join(' · ')).replace(/ /g, NB) + '</span>' +
+      box.innerHTML = '<div class="cl-card"><p><b>' + esc(c.org) + '</b><span>' + esc(c.person || '').replace(/ /g, NB) + (c.person && c.phone ? ' · ' : '') + (c.phone ? '<span class="phn">' + esc(c.phone).replace(/ /g, NB) + '</span>' : '') + '</span>' +
         (+c.debt > 0 ? '<small class="cl-debt' + (late != null && late >= 0 ? ' pay-bad' : '') + '">Долг ' + money(+c.debt) +
           (late > 0 ? ', просрочен ' + late + NB + 'дн.' : late === 0 ? ', срок сегодня' : '') + '</small>' : '') + '</p>' +
         '<button class="btn btn-soft btn-sm" type="button" id="f-cl-x">Другой клиент</button></div>';
@@ -127,7 +127,7 @@
     box.innerHTML = '<div class="sug" role="listbox" style="margin-left:0">' + found.map(function (m, i) {
       var c = CL[m.key];
       return '<button type="button" tabindex="-1" role="option" data-key="' + m.key + '" aria-selected="' + (i === curI) + '"><span>' + (m.len ? hl(m) : esc(m.label)) +
-        '</span><small class="muted" style="margin-left:auto;white-space:nowrap">' + esc(c.phone).replace(/ /g, NB) + '</small></button>';
+        '</span><small class="muted phn" style="margin-left:auto;white-space:nowrap">' + esc(c.phone).replace(/ /g, NB) + '</small></button>';
     }).join('') + '</div>';
   }
   function cPick(id) {

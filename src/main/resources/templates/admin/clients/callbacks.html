@@ -5,10 +5,10 @@
 <a class="back" href="/admin/clients"><th:block th:utext="${i['back']}"></th:block>Клиенты</a>
 <section class="card"><div class="tbl-w">
     <div th:if="${rows.isEmpty()}" class="empty">Заявок пока нет.</div>
-    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards"><thead><tr><th>Когда</th><th>Кто</th><th>Телефон</th><th>Статус и заметка</th></tr></thead>
+    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards"><thead><tr><th>Когда</th><th>Кто</th><th><span class="th-m">Телефон<th:block th:replace="~{admin/mask :: btn('phones')}"></th:block></span></th><th>Статус и заметка</th></tr></thead>
     <tbody><tr th:each="r : ${rows}"><td th:text="${@fmt.when(r.createdAt)}"></td>
         <td class="c-full"><b th:text="${r.name}"></b><small th:text="${r.business}"></small></td>
-        <td class="num"><span th:text="${@fmt.phone(r.phone)}"></span></td>
+        <td class="num"><span class="phn" th:text="${@fmt.phone(r.phone)}"></span></td>
         <td class="c-full"><form th:action="${'/admin/clients/callbacks/' + r.id}" method="post" class="tbl-actions" style="justify-content:flex-start">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <select class="sel" name="status"><option value="NEW" th:selected="${r.status == 'NEW'}">Новая</option><option value="CONTACTED" th:selected="${r.status == 'CONTACTED'}">Связались</option><option value="ORDERED" th:selected="${r.status == 'ORDERED'}">Сделал заказ</option><option value="REJECTED" th:selected="${r.status == 'REJECTED'}">Не актуально</option></select>

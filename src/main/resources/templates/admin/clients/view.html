@@ -89,7 +89,7 @@
     </section>
     <section class="card card-b box" aria-labelledby="h-cc"><h3 id="h-cc">Контакты</h3><dl class="kv">
         <div><dt>Контакт</dt><dd th:text="${!#strings.isEmpty(c.contactPerson) ? c.contactPerson : '—'}"></dd></div>
-        <div><dt>Телефон</dt><dd th:if="${!#strings.isEmpty(c.phone)}" class="phone"><span th:text="${@fmt.phone(c.phone)}"></span><button class="link" type="button" th:attr="data-copy=${c.phone}"><th:block th:utext="${i['copy']}"></th:block>Копировать</button></dd><dd th:if="${#strings.isEmpty(c.phone)}" class="pay-bad">не указан<small>без телефона на сайт не войти</small></dd></div>
+        <div><dt>Телефон</dt><dd th:if="${!#strings.isEmpty(c.phone)}" class="phone"><span class="phn" th:text="${@fmt.phone(c.phone)}"></span><button class="link" type="button" th:attr="data-copy=${c.phone}"><th:block th:utext="${i['copy']}"></th:block>Копировать</button><th:block th:replace="~{admin/mask :: btn('phones')}"></th:block></dd><dd th:if="${#strings.isEmpty(c.phone)}" class="pay-bad">не указан<small>без телефона на сайт не войти</small></dd></div>
         <div><dt>Сайт</dt><dd th:if="${siteAt != null}">входит по этому номеру<small th:text="${'последний заказ с сайта ' + @fmt.relDay(siteAt)}"></small></dd><dd th:if="${siteAt == null}">не заказывал на сайте<small>заказы — через менеджера</small></dd></div>
         <div th:if="${!#strings.isEmpty(c.bin) or (c.defaultPayment != null and c.defaultPayment.name() == 'INVOICE')}"><dt>БИН / ИИН</dt><dd th:if="${!#strings.isEmpty(c.bin)}" class="num" th:text="${c.bin}"></dd><dd th:if="${#strings.isEmpty(c.bin)}"><span class="pay-bad">не указан</span><small>нужен для счёта и ЭСФ</small></dd></div>
         <div th:if="${!#strings.isEmpty(c.email)}"><dt>Почта</dt><dd th:text="${c.email}"></dd></div>
@@ -108,7 +108,7 @@
 
 <template id="dlg-wa">
     <div class="dlg-in"><h2 id="dlg-h">Напомнить в WhatsApp</h2>
-        <p class="muted" th:text="${c.name + ' · ' + @fmt.phone(c.phone) + '. Текст можно поправить.'}"></p>
+        <p class="muted"><th:block th:text="${c.name + ' · '}"></th:block><span class="phn" th:text="${@fmt.phone(c.phone)}"></span>. Текст можно поправить.</p>
         <label class="sr" for="wa-t">Текст сообщения</label><textarea class="ta wa-t" id="wa-t" th:text="${waText}"></textarea>
         <p class="hint">Откроется WhatsApp с этим текстом на номер клиента. Если WhatsApp не открылся — скопируйте текст.</p>
         <div class="dlg-acts"><button class="btn btn-soft" type="button" data-close>Закрыть</button>

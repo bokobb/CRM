@@ -1,7 +1,8 @@
 /* Серая дата в шапке открывает календарь в цветах сайта; выбранный день — /admin/dashboard?day=… (дашборд) или
    страница из data-base с параметром data-param (производство: /admin/production?date=…).
-   С data-range (заказы) — ещё промежуток: «Промежуток» → первый и последний день (или 7 / 30 дней по сегодня),
-   «Все даты»; параметр пишется всегда: date=2026-10-21, date=2026-10-14..2026-10-21, date=all. */
+   С data-range (заказы, возвраты) — ещё промежуток: «Промежуток» → первый и последний день (или 7 / 30 дней
+   по сегодня, этот месяц), «Все даты»; параметр пишется всегда: date=2026-10-21, date=2026-10-14..2026-10-21,
+   date=all. */
 (function () {
   'use strict';
   var b = document.getElementById('dpick-b'), cal = document.getElementById('cal');
@@ -41,6 +42,7 @@
     if (mode) {
       return '<span class="cal-hint">' + (pickA ? 'Теперь последний день' : 'Нажмите первый день промежутка') + '</span>' +
         '<button type="button" class="link" data-q="7">7 дней</button><button type="button" class="link" data-q="30">30 дней</button>' +
+        '<button type="button" class="link" data-mon>Этот месяц</button>' +
         '<button type="button" class="link cal-rg" data-cancel>Отмена</button>';
     }
     return '<button type="button" class="link" data-d="' + today + '">Сегодня</button>' +
@@ -80,6 +82,11 @@
     if (t.hasAttribute('data-rg')) { mode = true; pickA = hover = null; render(); var f = cal.querySelector('.cal-d:not(:disabled)'); if (f) f.focus(); return; }
     if (t.hasAttribute('data-cancel')) { mode = false; pickA = hover = null; render(); return; }
     if (t.hasAttribute('data-q')) { go(shift(1 - +t.getAttribute('data-q')) + '..' + today); return; }
+    if (t.hasAttribute('data-mon')) {                               // с 1-го по конец месяца, но не дальше последнего доступного дня
+      var mEnd = iso(now.getFullYear(), now.getMonth(), new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate());
+      go(iso(now.getFullYear(), now.getMonth(), 1) + '..' + (mEnd < max ? mEnd : max));
+      return;
+    }
     if (t.hasAttribute('data-all')) { go('all'); return; }
     var v = t.getAttribute('data-d');
     if (!v) return;

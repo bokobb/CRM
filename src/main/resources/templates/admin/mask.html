@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<!--/* Кнопка-глаз: скрыть или показать суммы на дашборде (kind 'money', размываются .mny) или телефоны
+     клиентов (kind 'phones', .phn). Все такие кнопки на странице переключают одно состояние, оно хранится
+     в cookie (admin.js) и сохраняется между страницами и заходами. Вставка:
+     <th:block th:replace="~{admin/mask :: btn('money')}"></th:block> */-->
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<button th:fragment="btn(kind)" class="mask-b" type="button"
+        th:with="h=${kind == 'money' ? hideMoney : hidePhones}, t=${(h ? 'Показать ' : 'Скрыть ') + (kind == 'money' ? 'суммы' : 'телефоны')}"
+        th:attr="data-mask=${kind},title=${t},aria-label=${t}"><span class="mask-v" th:utext="${i16['eye']}"></span><span class="mask-h" th:utext="${i16['eye-off']}"></span></button>
+</body>
+</html>

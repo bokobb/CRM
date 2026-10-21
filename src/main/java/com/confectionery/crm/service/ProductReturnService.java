@@ -53,6 +53,10 @@ public class ProductReturnService {
         return productReturnRepository.findByReturnDateBetweenOrderByCreatedAtDesc(from, to);
     }
 
+    public java.util.Optional<LocalDate> firstReturnDate() {
+        return java.util.Optional.ofNullable(productReturnRepository.findFirstReturnDate());
+    }
+
     public List<ProductReturn> findByOrder(Long orderId) {
         return productReturnRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
     }

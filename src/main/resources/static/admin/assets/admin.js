@@ -102,10 +102,54 @@
     $('gsearch').addEventListener('submit', function (e) { if (!$('gq').value.trim()) e.preventDefault(); });
   }
 
+  /* ---------- суммы и телефоны под размытием ----------
+     Кнопки data-mask="money" (суммы на дашборде, .mny) и data-mask="phones" (телефоны клиентов, .phn) —
+     admin/mask.html. Состояние — в cookie на 400 дней (продлевается при каждом заходе), сервер по нему сразу
+     рисует <html class="hide-money"> и <body class="hide-phones">. Телефоны скрыты, пока их не открыли;
+     нажатие на один размытый номер открывает только его. */
+  var MASK = {
+    money: { el: document.documentElement, cls: 'hide-money', ck: 'adm_money', what: 'суммы', def: false },
+    phones: { el: document.body, cls: 'hide-phones', ck: 'adm_phones', what: 'телефоны', def: true }
+  };
+  function readMask(k) { var m = document.cookie.match(new RegExp('(?:^|; )' + MASK[k].ck + '=(hide|show)')); return m ? m[1] === 'hide' : null; }
+  function saveMask(k, hidden) { document.cookie = MASK[k].ck + '=' + (hidden ? 'hide' : 'show') + '; path=/admin; max-age=34560000; SameSite=Lax'; }
+  function applyMask(k, hidden) {
+    var x = MASK[k];
+    x.el.classList.toggle(x.cls, hidden);
+    if (k === 'phones') document.querySelectorAll('.phn.is-shown').forEach(function (p) { p.classList.remove('is-shown'); });
+    document.querySelectorAll('[data-mask="' + k + '"]').forEach(function (b) {
+      var t = (hidden ? 'Показать ' : 'Скрыть ') + x.what;
+      b.title = t; b.setAttribute('aria-label', t);
+    });
+    document.dispatchEvent(new CustomEvent('admin:mask', { detail: { kind: k, hidden: hidden } }));
+  }
+  Object.keys(MASK).forEach(function (k) { var h = readMask(k); if (h !== null) saveMask(k, h); });
+  // «Назад» в браузере показывает страницу из памяти — состояние могли поменять на другой странице
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    Object.keys(MASK).forEach(function (k) {
+      var h = readMask(k); if (h === null) h = MASK[k].def;
+      if (h !== MASK[k].el.classList.contains(MASK[k].cls)) applyMask(k, h);
+    });
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mask]');
+    if (b) {
+      var k = b.getAttribute('data-mask'), h = !MASK[k].el.classList.contains(MASK[k].cls);
+      saveMask(k, h); applyMask(k, h);
+      return;
+    }
+    var p = e.target.closest('.phn');
+    if (p && document.body.classList.contains('hide-phones') && !p.classList.contains('is-shown') && !e.target.closest('a,button')) {
+      p.classList.add('is-shown');
+      e.preventDefault();                                     // строка-ссылка в таблице не открывается
+    }
+  });
+
   /* ---------- table rows that open a card ---------- */
   document.addEventListener('click', function (e) {
     var tr = e.target.closest('tr[data-href], li[data-href], div[data-href]');
-    if (!tr || e.target.closest('a,button,input,select,label,textarea')) return;
+    if (!tr || e.defaultPrevented || e.target.closest('a,button,input,select,label,textarea')) return;
     if (e.ctrlKey || e.metaKey) window.open(tr.getAttribute('data-href'), '_blank'); else location.href = tr.getAttribute('data-href');
   });
 
@@ -136,11 +180,13 @@
     var v = b.getAttribute('data-copy');
     var sel = function () {
       var sp = b.parentNode.querySelector('span'); if (!sp) return;
+      sp.classList.add('is-shown');                           // размытый номер не выделить
       var r = document.createRange(); r.selectNodeContents(sp);
       var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
       toast('Номер выделен — скопируйте его.');
     };
-    try { navigator.clipboard.writeText(v).then(function () { toast('Телефон скопирован: ' + v); }, sel); } catch (err) { sel(); }
+    var hid = document.body.classList.contains('hide-phones') && !b.parentNode.querySelector('.phn.is-shown');
+    try { navigator.clipboard.writeText(v).then(function () { toast(hid ? 'Телефон скопирован.' : 'Телефон скопирован: ' + v); }, sel); } catch (err) { sel(); }
   });
 
   /* ---------- confirm buttons: data-confirm="текст" — окно на странице вместо confirm() ---------- */

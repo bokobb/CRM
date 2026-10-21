@@ -1,7 +1,8 @@
 /* Дашборд: столбики «Выручка» за 7, 14 или 30 дней по выбранный день из JSON в странице (#rev-data:
    {days: [{d, sum, n, rpcs}], sel, today, p}) — функция dbRevenue() из макета: выручка за вычетом возвратов,
    в подсказке — возвраты в штуках, нажатие на день открывает дашборд за этот день; переключатель
-   «График · Таблица». Без библиотек. */
+   «График · Таблица». Суммы под кнопкой-глазом (admin.js): подписи оси размывает фильтр #mblur, в подсказке — .mny.
+   Без библиотек. */
 (function () {
   'use strict';
   var $ = Admin.$;
@@ -44,8 +45,9 @@
     var max = Math.max.apply(null, days.map(function (x) { return x.sum; }).concat([0])) || 4000;
     var step = niceStep(max / 4), top = Math.ceil(max / step) * step;
     var pw = W - L - R, ph = H - T - B, band = pw / Math.max(1, days.length), bw = Math.min(24, band * 0.62);
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Выручка по дням за ' + P + ' дней, всего ' + money(total) + '. Подробно — во вкладке «Таблица». Нажмите на день, чтобы открыть его.">' +
-      '<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#F3E2C2"/><rect width="2.4" height="6" fill="#A8692B"/></pattern>' +
+    var hid = document.documentElement.classList.contains('hide-money');
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Выручка по дням за ' + P + ' дней' + (hid ? '' : ', всего ' + money(total)) + '. Подробно — во вкладке «Таблица». Нажмите на день, чтобы открыть его.">' +
+      '<defs><filter id="mblur" x="-40%" y="-80%" width="180%" height="260%"><feGaussianBlur stdDeviation="3.5"/></filter><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#F3E2C2"/><rect width="2.4" height="6" fill="#A8692B"/></pattern>' +
       '<pattern id="hatch-on" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#EBCB95"/><rect width="2.6" height="6" fill="#83501E"/></pattern></defs>';
     for (var v = 0; v <= top + step / 2; v += step) {
       var y = T + ph - v / top * ph;
@@ -78,7 +80,7 @@
       var i = +g.getAttribute('data-i'), x = days[i];
       var sc = svg.getBoundingClientRect().width / W;
       var cx = (L + i * band + band / 2) * sc + 4, y = (T + ph - x.sum / top * ph) * sc + 8;
-      tip.innerHTML = cap(WDL[pd(x.d).getUTCDay()]) + ', ' + dml(x.d) + '<b>' + money(x.sum) + '</b>' +
+      tip.innerHTML = cap(WDL[pd(x.d).getUTCDay()]) + ', ' + dml(x.d) + '<b class="mny">' + money(x.sum) + '</b>' +
         (x.n ? x.n + NB + plural(x.n, 'заказ выдан', 'заказа выдано', 'заказов выдано') : 'выдач не было') +
         (x.rpcs ? ' · возврат ' + g3(x.rpcs) + NB + 'шт' : '') + (x.d === TODAY ? ' · день идёт' : '');
       tip.hidden = false;
@@ -111,4 +113,5 @@
   setView(table);
   var rT = null;
   window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(draw, 120); });
+  document.addEventListener('admin:mask', function (e) { if (e.detail.kind === 'money') draw(); });
 })();

@@ -49,31 +49,20 @@ public class AdminReturnController {
         }
     }
 
-    public record Per(String value, String label, boolean on) {
-    }
-
-    private static final String[] MONTHS = {"Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август",
-            "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"};
-
     /** Раздел «Возвраты», как в макете: что привезли клиенты — в штуках, списком, по товарам, по клиентам. */
     @GetMapping
     @Transactional(readOnly = true)
-    public String list(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "30") String per,
+    public String list(@RequestParam(defaultValue = "") String q, @RequestParam(required = false) String date,
                        @RequestParam(defaultValue = "list") String view, @RequestParam(defaultValue = "0") int pick, Model model) {
-        LocalDate today = LocalDate.now(), f, t = today;
-        switch (per) {
-            case "7" -> f = today.minusDays(6);
-            case "month" -> f = today.withDayOfMonth(1);
-            case "prev" -> {
-                f = today.minusMonths(1).withDayOfMonth(1);
-                t = today.withDayOfMonth(1).minusDays(1);
-            }
-            case "all" -> f = LocalDate.of(2000, 1, 1);
-            default -> {
-                per = "30";
-                f = today.minusDays(29);
-            }
+        LocalDate today = LocalDate.now();
+        // без даты в адресе — последние 7 дней; поиск — за все даты, как в заказах
+        String dateKey = date != null && !date.isBlank() ? date.trim() : q.isBlank() ? null : "all";
+        AdminSpan span = dateKey == null || dateKey.equals("all") ? null : AdminSpan.parse(dateKey, today);
+        if (span == null && !"all".equals(dateKey)) {
+            span = AdminSpan.last(7, today);
+            dateKey = span.key();
         }
+        LocalDate f = span == null ? LocalDate.of(2000, 1, 1) : span.from(), t = span == null ? today : span.to();
         if (!List.of("list", "prod", "client").contains(view)) view = "list";
         String nq = AdminOrderController.norm(q);
         String digits = q.replaceAll("\\D", "");
@@ -134,18 +123,17 @@ public class AdminReturnController {
         model.addAttribute("shipped", shipped);
         model.addAttribute("share", shipped.signum() == 0 ? 0.0 : pcs.doubleValue() / shipped.doubleValue() * 100);
         model.addAttribute("q", q);
-        model.addAttribute("per", per);
+        model.addAttribute("date", dateKey);
         model.addAttribute("view", view);
-        int m = today.getMonthValue() - 1;
-        String perSel = per;
-        List<Per> pers = List.of(new Per("7", "7 дней", false), new Per("30", "30 дней", false),
-                        new Per("month", MONTHS[m], false), new Per("prev", MONTHS[(m + 11) % 12], false), new Per("all", "Всё время", false))
-                .stream().map(p -> new Per(p.value(), p.label(), p.value().equals(perSel))).toList();
-        model.addAttribute("pers", pers);
-        model.addAttribute("perLabel", pers.stream().filter(Per::on).map(Per::label).findFirst().orElse("").toLowerCase());
+        model.addAttribute("spanText", span == null ? null : span.label(fmt, today));
         model.addAttribute("picks", picks(today));
         model.addAttribute("pick", pick == 1);
-        page(model, "Возвраты", "что привезли клиенты — всё в списание", "returns");
+        page(model, "Возвраты", null, "returns");
+        // дата под заголовком: день или промежуток, как в «Заказах»; вид и поиск при выборе дня остаются
+        String keep = "view=" + view + (q.isBlank() ? "" : "&q=" + java.net.URLEncoder.encode(q, java.nio.charset.StandardCharsets.UTF_8));
+        LocalDate first = returnService.firstReturnDate().orElse(today);
+        AdminSpan.header(model, fmt, span, "/admin/returns", keep, first.isBefore(today) ? first : today.minusDays(30), today);
+        model.addAttribute("ownSearch", true);
         return "admin/returns/list";
     }
 

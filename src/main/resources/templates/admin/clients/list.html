@@ -22,12 +22,12 @@
 <section class="card" aria-label="Клиенты"><div class="tbl-w">
     <div th:if="${rows.isEmpty()}" class="empty">Никого не нашлось.</div>
     <table th:unless="${rows.isEmpty()}" class="tbl tbl--c">
-        <thead><tr><th>Клиент</th><th class="c-ph">Телефон</th><th>Выдано</th><th>Последний заказ</th><th class="r c-30">За 30 дней</th><th class="r">Долг</th><th>Статус</th></tr></thead>
+        <thead><tr><th>Клиент</th><th class="c-ph"><span class="th-m">Телефон<th:block th:replace="~{admin/mask :: btn('phones')}"></th:block></span></th><th>Выдано</th><th>Последний заказ</th><th class="r c-30">За 30 дней</th><th class="r">Долг</th><th>Статус</th></tr></thead>
         <tbody><tr th:each="r : ${rows}" class="rowlink" th:attr="data-href=${'/admin/clients/' + r.client.id}">
             <td class="c-nm"><div class="cl-n"><span class="cav" aria-hidden="true" th:text="${r.initial}">Б</span>
                 <p><a th:href="${'/admin/clients/' + r.client.id}" th:text="${r.client.name}">Магазин</a>
                     <small th:text="${!#strings.isEmpty(r.client.contactPerson) ? r.client.contactPerson : (!#strings.isEmpty(r.client.address) ? r.client.address : '—')}"></small></p></div></td>
-            <td class="c-ph num" th:text="${r.client.phone != null ? @fmt.phone(r.client.phone) : '—'}"></td>
+            <td class="c-ph num"><span th:if="${r.client.phone != null}" class="phn" th:text="${@fmt.phone(r.client.phone)}"></span><th:block th:if="${r.client.phone == null}">—</th:block></td>
             <td class="c-or"><b th:text="${r.orTitle}"></b><small th:text="${r.orSub}"></small></td>
             <td class="c-last"><b th:text="${r.lastTitle}"></b><small th:classappend="${r.lastBad} ? 'pay-bad'" th:text="${r.lastSub}"></small></td>
             <td class="c-30 r num"><th:block th:if="${r.s.sum30.signum() > 0}" th:text="${@fmt.money(r.s.sum30)}"></th:block><span th:unless="${r.s.sum30.signum() > 0}" class="muted">—</span></td>

@@ -4,7 +4,7 @@
      фрагменты content (внутри <main class="view">) и scripts (в конце body, может быть пустым).
      Из модели: title — крупно в верхней строке, sub — пояснение мелко, sec — подсвеченный пункт меню,
      viewClass — доп. класс <main>, toast/toastUndo — всплывающая строка после POST. */-->
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:fragment="layout(content, scripts)">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:fragment="layout(content, scripts)" th:classappend="${hideMoney} ? 'hide-money'">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -16,12 +16,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,600&family=Golos+Text:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="/admin/assets/admin.css?v=9">
+    <link rel="stylesheet" href="/admin/assets/admin.css?v=10">
     <link rel="stylesheet" href="/admin/assets/admin-more.css?v=1">
     <link rel="stylesheet" href="/admin/assets/admin-ops.css?v=1">
     <link rel="stylesheet" href="/admin/assets/admin-team.css?v=1">
 </head>
-<body>
+<body th:classappend="${hidePhones} ? 'hide-phones'">
 <div class="app" id="app">
     <aside class="side" id="side" aria-label="Меню админки">
         <div class="side-brand">
@@ -73,7 +73,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite" th:attr="data-text=${toast},data-error=${toastError}"><span id="toast-t"></span><form id="toast-undo" method="post" th:action="${toastUndo}" th:if="${toastUndo != null}"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button type="submit" id="toast-b">Вернуть</button></form></div>
 <dialog class="dlg" id="dlg" aria-labelledby="dlg-h"></dialog>
 <script type="application/json" id="admin-icons" th:utext="${iconsJson}"></script>
-<script src="/admin/assets/admin.js?v=3"></script>
+<script src="/admin/assets/admin.js?v=4"></script>
 <th:block th:replace="${scripts}"></th:block>
 </body>
 </html>

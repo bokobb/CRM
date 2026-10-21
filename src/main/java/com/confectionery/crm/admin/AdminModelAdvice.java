@@ -10,6 +10,7 @@ import com.confectionery.crm.service.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
 /** Общее для всех страниц админки: кто вошёл, меню по его роли, число новых заказов у пункта «Заказы». */
@@ -34,7 +35,13 @@ public class AdminModelAdvice {
     }
 
     @ModelAttribute
-    public void common(Model model, jakarta.servlet.http.HttpSession session) {
+    public void common(Model model, jakarta.servlet.http.HttpSession session,
+                       @CookieValue(name = "adm_money", required = false) String money,
+                       @CookieValue(name = "adm_phones", required = false) String phones) {
+        // кнопка-глаз (admin.js) помнит в cookie, скрыты ли суммы на дашборде и телефоны клиентов, —
+        // страница сразу рисуется размытой, без мигания; телефоны скрыты, пока их не открыли
+        model.addAttribute("hideMoney", "hide".equals(money));
+        model.addAttribute("hidePhones", !"show".equals(phones));
         // th:utext в Thymeleaf 3.1 не пускает к бинам — значки отдаются картами из модели: ${i['orders']}
         if (i20 == null) {
             i20 = icons.all(20);

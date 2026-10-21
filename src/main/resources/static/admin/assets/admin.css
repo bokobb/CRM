@@ -185,8 +185,32 @@ a.kpi:hover{box-shadow:var(--shadow),0 0 0 2px var(--yolk)}
 .kpi-s b{color:var(--ink);font-weight:600}
 .kpi--alert{background:var(--crimson);color:#fff}
 .kpi--alert .kpi-l,.kpi--alert .kpi-s,.kpi--alert .kpi-s b{color:rgba(255,255,255,.92)}
-a.kpi--alert:hover{box-shadow:var(--shadow),0 0 0 2px var(--crimson-deep)}
+a.kpi--alert:hover,.kpi--alert.kpi--a:hover{box-shadow:var(--shadow),0 0 0 2px var(--crimson-deep)}
 .kpi--warm{background:var(--cream)}
+/* плитка-ссылка с кнопкой внутри: ссылка растянута на всю плитку, кнопка — поверх */
+.kpi-a{display:flex;align-items:center;gap:8px;min-width:0;color:inherit;text-decoration:none}
+.kpi-a::after{content:"";position:absolute;inset:0;border-radius:18px}
+.kpi-a:focus-visible{outline:none}
+.kpi--a:has(.kpi-a:focus-visible){outline:3px solid var(--ink);outline-offset:2px}
+
+/* суммы и телефоны под размытием: кнопка-глаз admin/mask.html, состояние в cookie (admin.js) */
+.mask-b{position:relative;z-index:1;display:inline-grid;place-items:center;flex:none;width:30px;height:30px;margin:-6px -6px -6px auto;padding:0;border:0;border-radius:9px;background:none;color:inherit;cursor:pointer}
+.mask-b:hover{background:var(--paper);color:var(--ink)}
+.mask-b .i{width:18px;height:18px}
+.mask-b span{display:inline-grid}
+.mask-b .mask-h,.hide-money [data-mask=money] .mask-v,.hide-phones [data-mask=phones] .mask-v{display:none}
+.hide-money [data-mask=money] .mask-h,.hide-phones [data-mask=phones] .mask-h{display:inline-grid}
+.kpi--alert .mask-b:hover{background:rgba(255,255,255,.16);color:#fff}
+.phone .mask-b{margin:-4px 0 -4px -4px;color:var(--ink-soft)}
+.card-ht{display:flex;align-items:center;gap:6px}
+.card-ht .mask-b{margin:0;color:var(--ink-soft)}
+.th-m{display:inline-flex;align-items:center;gap:4px}
+.th-m .mask-b{width:26px;height:26px;margin:-6px 0;color:var(--ink-soft)}
+.th-m .mask-b .i{width:16px;height:16px}
+.mny,.phn{transition:filter .15s}
+.hide-money .mny{filter:blur(.3em);user-select:none}
+.hide-money #db-chart .yl{filter:url(#mblur)}
+.hide-phones .phn:not(.is-shown){filter:blur(.32em);user-select:none;cursor:pointer}
 .delta{display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--ink)}
 .c-7{grid-column:span 7}
 .c-5{grid-column:span 5}

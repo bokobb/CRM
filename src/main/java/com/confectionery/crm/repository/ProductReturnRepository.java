@@ -17,6 +17,10 @@ public interface ProductReturnRepository extends JpaRepository<ProductReturn, Lo
 
     List<ProductReturn> findAllByOrderByCreatedAtDesc();
 
+    /** Самый ранний день возврата — с него календарь в админке «Возвраты». */
+    @Query("select min(r.returnDate) from ProductReturn r")
+    java.time.LocalDate findFirstReturnDate();
+
     List<ProductReturn> findByClientIdOrderByCreatedAtDesc(Long clientId);
 
     /** Возвраты клиента, ещё не закреплённые ни за одним заказом — выбор в карточке заказа. */
