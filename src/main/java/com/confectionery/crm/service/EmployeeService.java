@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /** Сотрудники цеха (меню «Сотрудники»). Ставку меняет только тот, кому она видна (canSeeRates). */
@@ -36,16 +37,31 @@ public class EmployeeService {
         }
         Employee e = id == null ? new Employee()
                 : employeeRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Сотрудник не найден"));
-        e.setFullName(fullName.trim());
+        e.setFullName(fullName.trim().replaceAll("\\s+", " "));
         e.setPosition(blankToNull(position));
         e.setPhone(blankToNull(phone));
-        e.setActive(active);
+        if (e.getId() == null && e.getHiredAt() == null) e.setHiredAt(LocalDate.now());
+        working(e, active);
         if (canSetRate) {
             e.setDailyRate(dailyRate);
             e.setMonthlySalary(monthlySalary);
             e.setCostGroup(costGroup);
         }
         return employeeRepository.save(e);
+    }
+
+    /** Уволить (working=false) или вернуть на работу: день увольнения — сегодня, возврат его сбрасывает. */
+    @Transactional
+    public Employee setWorking(Long id, boolean working) {
+        Employee e = employeeRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Сотрудник не найден"));
+        working(e, working);
+        return employeeRepository.save(e);
+    }
+
+    private static void working(Employee e, boolean working) {
+        if (working) e.setFiredAt(null);
+        else if (e.isActive()) e.setFiredAt(LocalDate.now());
+        e.setActive(working);
     }
 
     private static String blankToNull(String s) {

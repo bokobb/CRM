@@ -103,6 +103,21 @@ public class NotificationService {
         return notificationRepository.save(notification);
     }
 
+    /** Подключён ли push (Firebase) — для «Настроек»; без него уведомления пишутся только в журнал. */
+    public boolean pushEnabled() {
+        try {
+            return !com.google.firebase.FirebaseApp.getApps().isEmpty();
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /** Последние записи журнала уведомлений сотрудникам («role:…») и складу. */
+    public java.util.List<Notification> recentStaff() {
+        return notificationRepository.findTop50ByOrderByCreatedAtDesc().stream()
+                .filter(n -> n.getRecipient() != null && (n.getRecipient().startsWith("role:") || n.getRecipient().equals("склад"))).toList();
+    }
+
     /** [order] может быть null — например, пуш "нужно уточнить заказ из WhatsApp" шлётся ещё до его создания. */
     private boolean sendPush(Role role, String message, Order order) {
         try {

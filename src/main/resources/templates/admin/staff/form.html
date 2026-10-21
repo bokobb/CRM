@@ -1,24 +1,44 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<a class="back" href="/admin/staff"><th:block th:utext="${i['back']}"></th:block>Сотрудники</a>
-<div class="oh"><div class="oh-t"><h2 th:text="${e.id != null ? e.fullName : 'Новый сотрудник'}">Сотрудник</h2></div>
-    <p class="oh-m" th:if="${e.id != null}" th:text="${(e.iin != null ? 'ИИН ' + e.iin + ' · ' : '') + (e.hiredAt != null ? 'принят ' + @fmt.date(e.hiredAt) : '')}"></p></div>
-<form method="post" th:action="${e.id != null ? '/admin/staff/' + e.id : '/admin/staff'}" data-guard="Сотрудник не сохранён." style="max-width:860px">
+<a class="back" th:href="${e.id != null ? '/admin/staff/' + e.id : '/admin/staff'}"><th:block th:utext="${i['back']}"></th:block><th:block th:text="${e.id != null ? e.fullName : 'Сотрудники'}"></th:block></a>
+<div class="oh"><div class="oh-t"><h2 th:text="${e.id != null ? 'Изменить сотрудника' : 'Новый сотрудник'}">Новый сотрудник</h2></div>
+    <p class="oh-m" th:text="${e.id == null ? 'Рабочим цеха вход в CRM не нужен — их ставят в бригады и табель. Вход заводят во «Входах в CRM»' : e.oneCKey != null ? 'Связан с 1С: ФИО, должность и оклад при загрузке из 1С перепишутся оттуда; ставку и группу затрат CRM ведёт сама' : 'Только в CRM — при загрузке из 1С свяжется по фамилии и имени'}"></p></div>
+<form class="pfm" id="ef" method="post" th:action="${e.id == null ? '/admin/staff' : '/admin/staff/' + e.id}" novalidate data-guard="В карточке сотрудника есть несохранённые изменения." th:attr="data-tried=${tried}">
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-    <section class="card form-card"><div class="fgrid">
-        <label class="field wide"><span>ФИО</span><input class="inp" name="fullName" required maxlength="200" th:value="${e.fullName}"></label>
-        <label class="field"><span>Должность</span><input class="inp" name="position" maxlength="200" th:value="${e.position}"></label>
-        <label class="field"><span>Телефон</span><input class="inp" name="phone" type="tel" maxlength="40" th:value="${e.phone}"></label>
-        <label class="field" th:if="${money}"><span>Группа затрат</span><select class="sel full" name="costGroup"><option value="">по должности</option>
-            <option th:each="g : ${groups}" th:value="${g.name()}" th:text="${g.label}" th:selected="${e.costGroup == g}"></option></select></label>
-        <label class="field" th:if="${money}"><span>Ставка за смену, ₸</span><input class="inp" name="dailyRate" inputmode="decimal" th:value="${e.dailyRate != null ? e.dailyRate.stripTrailingZeros().toPlainString() : ''}"></label>
-        <label class="field" th:if="${money}"><span>Оклад в месяц, ₸</span><input class="inp" name="monthlySalary" inputmode="decimal" th:value="${e.monthlySalary != null ? e.monthlySalary.stripTrailingZeros().toPlainString() : ''}"></label>
-        <label class="switch wide" th:if="${e.id != null}"><input type="checkbox" name="active" value="true" th:checked="${e.active}"> Работает (уволенные не попадают в бригады и табель)</label>
+    <div class="pfm-main">
+        <section class="card card-b"><h3 class="pf-h">Сотрудник</h3><div class="fgrid fgrid--2">
+            <label class="field wide" id="ef-w-name"><span>ФИО</span><input class="inp" id="ef-name" name="name" maxlength="200" autocomplete="off" required th:value="${f.name}" th:classappend="${errors.containsKey('name')} ? 'is-bad'" th:attr="aria-invalid=${errors.containsKey('name')}"><small class="hint">фамилия и имя — как в 1С, по ним сотрудник свяжется при загрузке</small></label>
+            <label class="field" id="ef-w-pos"><span>Должность</span><input class="inp" id="ef-pos" name="pos" maxlength="100" autocomplete="off" list="ef-poss" th:value="${f.pos}"><small class="hint">по должности подбирается группа затрат</small></label>
+            <label class="field" id="ef-w-phone"><span>Телефон</span><input class="inp" id="ef-phone" name="phone" inputmode="tel" autocomplete="off" placeholder="+7 700 000 00 00" th:value="${f.phone}" th:classappend="${errors.containsKey('phone')} ? 'is-bad'" th:attr="aria-invalid=${errors.containsKey('phone')}"></label>
+            <label th:if="${e.id != null and !money}" class="switch wide"><input type="checkbox" id="ef-on" name="on" value="true" th:checked="${f.on}"><input type="hidden" name="on" value="false"> Работает<small class="hint">снимите, когда человек уволился: уйдёт из бригад и табеля, история останется</small></label>
+        </div></section>
+        <section class="card card-b" th:if="${money}"><h3 class="pf-h">Оплата и затраты</h3><p class="hint">Ставки и оклады видят только администратор и бухгалтер. Это начисления — удержаний (ИПН, ОПВ) в CRM нет.</p><div class="fgrid fgrid--2">
+            <label class="field wide"><span>Группа затрат</span><select class="sel" id="ef-grp" name="grp">
+                <option value="" th:text="${'По должности — ' + autoLabel}" th:selected="${f.grp.isEmpty()}">По должности</option>
+                <option th:each="o : ${grpOpts}" th:value="${o[0]}" th:text="${o[1]}" th:selected="${f.grp == o[0]}"></option></select>
+                <small class="hint" id="ef-grph" th:text="${groupHintText}"></small></label>
+            <label class="field" id="ef-w-rate"><span>Ставка за смену</span><span class="qin"><input class="inp" id="ef-rate" name="rate" inputmode="numeric" autocomplete="off" placeholder="например 12000" th:value="${f.rate}" th:classappend="${errors.containsKey('rate')} ? 'is-bad'"><i>₸</i></span><small class="hint">для бригады: день в бригаде заявки = эта сумма в её себестоимости</small></label>
+            <label class="field" id="ef-w-sal"><span>Оклад в месяц</span><span class="qin"><input class="inp" id="ef-sal" name="sal" inputmode="numeric" autocomplete="off" placeholder="необязательно" th:value="${f.sal}" th:classappend="${errors.containsKey('sal')} ? 'is-bad'"><i>₸</i></span><small class="hint">без ставки за смену день считается как оклад ÷ рабочие дни месяца</small></label>
+            <label th:if="${e.id != null}" class="switch wide"><input type="checkbox" id="ef-on" name="on" value="true" th:checked="${f.on}"><input type="hidden" name="on" value="false"> Работает<small class="hint">снимите, когда человек уволился: уйдёт из бригад и табеля, история останется</small></label>
+        </div></section>
+        <p class="errs" id="ef-e" th:attr="hidden=${errors.isEmpty()} ? 'hidden' : null"><span th:each="x : ${errors.values()}" th:text="${x}"></span></p>
+        <div class="form-acts"><a class="btn btn-soft" th:href="${e.id != null ? '/admin/staff/' + e.id : '/admin/staff'}">Отмена</a><button class="btn btn-primary" type="submit" th:text="${e.id != null ? 'Сохранить' : 'Добавить сотрудника'}">Добавить сотрудника</button></div>
     </div>
-    <div class="form-acts"><a class="btn btn-soft" href="/admin/staff">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div></section>
+    <aside class="pfm-side"><section class="card card-b box pf-prev" id="ef-prev" aria-live="polite">
+        <div class="pf-pv"><span class="cav cav--lg" aria-hidden="true" th:text="${initials.isEmpty() ? '?' : initials}">?</span><p><b th:text="${f.name.isEmpty() ? 'Новый сотрудник' : f.name}">Новый сотрудник</b><small th:text="${f.pos.isEmpty() ? 'должность не указана' : f.pos}"></small></p></div>
+        <p class="ef-g"><span class="gt" th:classappend="${'gt--' + effKey}" th:text="${f.effective().label}"></span><span th:text="${f.grp.isEmpty() ? 'по должности' : 'задана вручную'}"></span></p>
+        <p class="hint ef-how" th:if="${money}" th:utext="${how}"></p>
+        <p class="warn-s" th:if="${e.id != null and !f.on}"><th:block th:utext="${i16['alert']}"></th:block><span>Уволен: уйдёт из бригад и табеля следующих дней.</span></p>
+    </section></aside>
 </form>
+<datalist id="ef-poss"><option th:each="p : ${positions}" th:value="${p}"></option></datalist>
+<script type="application/json" id="ef-data" th:utext="${formJson}"></script>
+</th:block>
+<th:block th:fragment="scripts">
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/team.js?v=1"></script>
 </th:block>
 </body>
 </html>

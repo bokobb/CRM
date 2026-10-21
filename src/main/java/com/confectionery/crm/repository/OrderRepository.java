@@ -158,4 +158,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @org.springframework.data.jpa.repository.Modifying
     @Query("update Order e set e.oneCPending = false where e.id = :id")
     int clearOneCPending(@Param("id") Long id);
+
+    /** Сколько документов не ушло в 1С (есть ошибка выгрузки) — «Настройки › 1С». */
+    long countByOneCSyncErrorIsNotNull();
 }

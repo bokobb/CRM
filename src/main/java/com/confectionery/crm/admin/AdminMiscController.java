@@ -1,8 +1,5 @@
 package com.confectionery.crm.admin;
 
-import com.confectionery.crm.api.dto.ReportDto;
-import com.confectionery.crm.api.dto.WhatsAppSessionDto;
-import com.confectionery.crm.domain.CompanyProfile;
 import com.confectionery.crm.domain.Role;
 import com.confectionery.crm.domain.Vacancy;
 import com.confectionery.crm.domain.VacancyReply;
@@ -20,8 +17,7 @@ import java.util.*;
 import static com.confectionery.crm.admin.AdminSupport.*;
 
 /**
- * Вакансии (страница /vacancies на сайте и отклики), отчёты (те же, что в приложении — по роли) и
- * настройки (реквизиты и контакты для сайта и накладных, окна выдачи, WhatsApp).
+ * Вакансии (страница /vacancies на сайте и отклики). Отчёты — AdminReportController, настройки — AdminSettingsController.
  */
 @Controller
 @RequiredArgsConstructor
@@ -29,10 +25,6 @@ public class AdminMiscController {
 
     private final VacancyService vacancyService;
     private final VacancyReplyService replyService;
-    private final ReportService reportService;
-    private final CompanyProfileService profileService;
-    private final PickupSlotService pickupSlotService;
-    private final WhatsAppGatewayClient whatsAppGatewayClient;
     private final CurrentUserService currentUserService;
 
     // ------------------------------------------------------------------ вакансии
@@ -104,16 +96,6 @@ public class AdminMiscController {
         return v == null || v.isBlank() ? null : v.trim();
     }
 
-    /** Год основания из формы: пусто — 0 (очистить), не число — понятная ошибка. */
-    private static Integer year(String v) {
-        if (v == null) return 0;
-        try {
-            return Integer.valueOf(v);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Год основания — четыре цифры, например 2018");
-        }
-    }
-
     @PostMapping("/admin/jobs/{id:\\d+}/active")
     public String jobActive(@PathVariable Long id, @RequestParam boolean active, RedirectAttributes ra) {
         try {
@@ -163,100 +145,5 @@ public class AdminMiscController {
             fail(ra, e);
         }
         return "redirect:/admin/jobs?tab=replies";
-    }
-
-    // ------------------------------------------------------------------ отчёты
-
-    @GetMapping("/admin/reports")
-    public String reports(Model model) {
-        String role = currentUserService.role().map(Enum::name).orElse("");
-        model.addAttribute("kinds", ReportService.available(role).stream().map(ReportService.Kind::info).toList());
-        model.addAttribute("canTimesheet", currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT, Role.TECHNOLOGIST));
-        page(model, "Отчёты", "продажи, производство, закупки, сотрудники", "reports");
-        return "admin/reports/list";
-    }
-
-    @GetMapping("/admin/reports/{key}")
-    @Transactional(readOnly = true)
-    public String report(@PathVariable String key, @RequestParam(required = false) String from, @RequestParam(required = false) String to,
-                         Model model, RedirectAttributes ra) {
-        String role = currentUserService.role().map(Enum::name).orElse("");
-        ReportService.Kind kind;
-        try {
-            kind = ReportService.Kind.of(key);
-        } catch (IllegalArgumentException e) {
-            fail(ra, e);
-            return "redirect:/admin/reports";
-        }
-        if (!ReportService.available(role).contains(kind)) {
-            fail(ra, new IllegalStateException("Этот отчёт вам недоступен"));
-            return "redirect:/admin/reports";
-        }
-        if (kind == ReportService.Kind.EMPLOYEES) return "redirect:/admin/staff/timesheet";
-        ReportDto.Info info = kind.info();
-        LocalDate today = LocalDate.now();
-        boolean day = "DAY".equals(info.period());
-        LocalDate f = AdminSupport.date(from, day || "TODAY".equals(info.defaultRange()) ? today : today.withDayOfMonth(1));
-        LocalDate t = day ? f : AdminSupport.date(to, today);
-        try {
-            model.addAttribute("r", reportService.build(kind, f, t, currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT)));
-        } catch (RuntimeException e) {
-            model.addAttribute("error", e.getMessage());
-        }
-        model.addAttribute("info", info);
-        model.addAttribute("day", day);
-        model.addAttribute("from", f);
-        model.addAttribute("to", t);
-        page(model, "Отчёты", info.title(), "reports");
-        return "admin/reports/view";
-    }
-
-    // ------------------------------------------------------------------ настройки
-
-    @GetMapping("/admin/settings")
-    @Transactional(readOnly = true)
-    public String settings(Model model) {
-        model.addAttribute("p", profileService.get());
-        model.addAttribute("firstHour", pickupSlotService.firstHour());
-        model.addAttribute("lastHour", pickupSlotService.lastHour());
-        model.addAttribute("capacity", pickupSlotService.capacity());
-        WhatsAppSessionDto wa;
-        try {
-            wa = whatsAppGatewayClient.getStatus();
-        } catch (RuntimeException e) {
-            wa = null;
-        }
-        model.addAttribute("wa", wa);
-        page(model, "Настройки", "реквизиты, контакты сайта, окна выдачи", "settings");
-        return "admin/settings";
-    }
-
-    @PostMapping("/admin/settings/profile")
-    public String saveProfile(@RequestParam Map<String, String> f, RedirectAttributes ra) {
-        try {
-            if (!currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT)) throw new IllegalStateException("Реквизиты меняет администратор или бухгалтер");
-            CompanyProfile p = profileService.save(t(f, "name"), t(f, "address"), t(f, "phone"), t(f, "email"), t(f, "pickupHours"),
-                    t(f, "about"), t(f, "legalInfo"), t(f, "instagramUrl"), t(f, "whatsappPhone"), t(f, "tiktokUrl"),
-                    t(f, "workHours"), t(f, "jobsPhone"), t(f, "mapPoint"), year(t(f, "foundedYear")),
-                    f.containsKey("externalLinks") ? f.get("externalLinks").strip() : null);
-            ok(ra, "Настройки «" + (p.getName() == null ? "компании" : p.getName()) + "» сохранены");
-        } catch (RuntimeException e) {
-            fail(ra, e);
-        }
-        return "redirect:/admin/settings";
-    }
-
-    @PostMapping("/admin/settings/shop")
-    public String saveShop(@RequestParam(required = false) String pickupChoice,
-                           @RequestParam(required = false) String paymentChoice, RedirectAttributes ra) {
-        try {
-            if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Настройки магазина меняет администратор");
-            CompanyProfile p = profileService.saveShopOptions(pickupChoice != null, paymentChoice != null);
-            ok(ra, "Магазин: выбор времени выдачи " + (p.pickupChoiceOn() ? "включён" : "выключен")
-                    + ", выбор оплаты " + (p.paymentChoiceOn() ? "включён" : "выключен"));
-        } catch (RuntimeException e) {
-            fail(ra, e);
-        }
-        return "redirect:/admin/settings";
     }
 }

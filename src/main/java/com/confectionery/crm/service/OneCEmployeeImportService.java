@@ -102,8 +102,9 @@ public class OneCEmployeeImportService {
                     || (fired != null && !fired.isAfter(LocalDate.now()))
                     || (h != null && h.dismissed);
 
+            LocalDate firedOn = !dismissed ? null : fired != null ? fired : h != null && h.dismissed ? h.lastPeriod : null;
             Candidate c = new Candidate(personKey != null ? personKey : ref, name.trim().replaceAll("\\s+", " "), position, phone, iin,
-                    hired, born, salaries.get(ref), !dismissed);
+                    hired, born, salaries.get(ref), !dismissed, firedOn);
             byPerson.merge(c.key, c, (a, b) -> b.active && !a.active ? b : a);
         }
 
@@ -134,6 +135,10 @@ public class OneCEmployeeImportService {
             if (c.hired != null) emp.setHiredAt(c.hired);
             if (c.born != null) emp.setBirthDate(c.born);
             if (c.salary != null) emp.setMonthlySalary(c.salary);
+            // день увольнения: из 1С; если 1С его не знает — когда увольнение пришло в CRM (уволенного раньше не трогаем)
+            if (c.active) emp.setFiredAt(null);
+            else if (c.fired != null) emp.setFiredAt(c.fired);
+            else if (emp.isActive() && emp.getId() != null) emp.setFiredAt(LocalDate.now());
             emp.setActive(c.active);
             employeeRepository.save(emp);
         }
@@ -147,7 +152,7 @@ public class OneCEmployeeImportService {
     }
 
     private record Candidate(String key, String name, String position, String phone, String iin, LocalDate hired,
-                             LocalDate born, BigDecimal salary, boolean active) {
+                             LocalDate born, BigDecimal salary, boolean active, LocalDate fired) {
     }
 
     private static final class History {

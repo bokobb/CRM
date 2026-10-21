@@ -20,4 +20,7 @@ public interface StockDocumentRepository extends JpaRepository<StockDocument, Lo
     @Modifying
     @Query("update StockDocument e set e.oneCPending = true where e.id = :id")
     int markOneCPending(@Param("id") Long id);
+
+    /** Сколько документов не ушло в 1С (есть ошибка выгрузки) — «Настройки › 1С». */
+    long countByOneCSyncErrorIsNotNull();
 }

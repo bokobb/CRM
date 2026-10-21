@@ -77,6 +77,22 @@ public class CompanyProfile {
     private Boolean shopPickupChoice;
     private Boolean shopPaymentChoice;
 
+    /**
+     * Окна выдачи (Настройки › Окна выдачи): первое окно с часа, последнее — до часа, сколько заказов
+     * успевают выдать в одном окне; null — как в crm.pickup.* (application.properties). См. PickupSlotService.
+     */
+    private Integer pickupFirstHour;
+    private Integer pickupLastHour;
+    private Integer pickupCapacity;
+
+    /** Дни выдачи пн…вс строкой из 7 знаков: «1111110» — без воскресенья; null — каждый день. */
+    @Column(length = 7)
+    private String pickupDays;
+
+    public boolean pickupDayOn(java.time.DayOfWeek day) {
+        return pickupDays == null || pickupDays.length() != 7 || pickupDays.charAt(day.getValue() - 1) == '1';
+    }
+
     public boolean pickupChoiceOn() {
         return Boolean.TRUE.equals(shopPickupChoice);
     }

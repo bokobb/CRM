@@ -27,4 +27,21 @@ public interface ProductionBrigadeMemberRepository extends JpaRepository<Product
             """)
     List<ProductionBrigadeMember> findForDay(@Param("date") LocalDate date,
                                              @Param("cancelled") ProductionRequestStatus cancelled);
+
+    /** Бригады неотменённых заявок за период — табель, список сотрудников, последняя смена. */
+    @Query("""
+            select m from ProductionBrigadeMember m join fetch m.employee join fetch m.request r
+            where r.documentDate between :from and :to and r.status <> :cancelled
+            """)
+    List<ProductionBrigadeMember> findForPeriod(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                                                @Param("cancelled") ProductionRequestStatus cancelled);
+
+    /** Бригады сотрудника — новые сверху (карточка сотрудника). */
+    @Query("""
+            select m from ProductionBrigadeMember m join fetch m.request r
+            where m.employee.id = :employeeId and r.status <> :cancelled and r.documentDate <= :to
+            order by r.documentDate desc, r.id desc
+            """)
+    List<ProductionBrigadeMember> findForEmployee(@Param("employeeId") Long employeeId, @Param("to") LocalDate to,
+                                                  @Param("cancelled") ProductionRequestStatus cancelled);
 }

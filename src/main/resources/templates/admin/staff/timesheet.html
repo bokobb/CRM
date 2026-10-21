@@ -2,51 +2,52 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<a class="back" href="/admin/staff"><th:block th:utext="${i['back']}"></th:block>Сотрудники</a>
-<div class="tools">
-    <a class="btn btn-soft btn-sm" th:href="${'/admin/staff/timesheet?month=' + prev}">← Месяц назад</a>
-    <h2 class="big" th:text="${s.title}" style="font-size:22px">Октябрь 2026</h2>
-    <a class="btn btn-soft btn-sm" th:href="${'/admin/staff/timesheet?month=' + next}">Месяц вперёд →</a>
-    <span class="grow"></span>
-    <a class="btn btn-soft btn-sm" th:href="${'/admin/staff/timesheet.xlsx?month=' + ym}"><th:block th:utext="${i['download']}"></th:block>Excel</a>
+<div class="seg rt-seg" role="group" aria-label="Что показать">
+    <a href="/admin/staff" aria-pressed="false">Сотрудники</a><a href="/admin/staff/timesheet" aria-pressed="true">Табель</a><a th:if="${canUsers}" href="/admin/staff/users" aria-pressed="false">Входы в CRM</a>
 </div>
-<form method="post" action="/admin/staff/timesheet" id="ts-form" data-guard="Табель не сохранён.">
-    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="month" th:value="${ym}">
-    <section class="card"><div class="ts-wrap"><table class="ts">
-        <thead><tr><th>Сотрудник</th><th th:each="d : ${s.days}" th:classappend="${d.sunday} ? 'we'"><th:block th:text="${d.day}"></th:block><br><small th:text="${d.weekday}"></small></th><th>Дней</th><th th:if="${money}">К выплате</th></tr></thead>
-        <tbody><tr th:each="r : ${s.rows}">
-            <td><b th:text="${r.name}"></b><br><small class="muted" th:text="${r.position}"></small></td>
-            <td th:each="c, it : ${r.cells}" th:classappend="${s.days[it.index].sunday} ? 'we'">
-                <button type="button" class="m" th:classappend="${c == 'P' ? 'm-w' : c == 'A' ? 'm-a' : c == 'O' ? 'm-o' : c == 'H' ? 'm-w' : ''}" th:disabled="${s.days[it.index].future}"
-                        th:attr="data-c=${'c_' + r.employeeId + '_' + s.days[it.index].date},data-v=${c},data-auto=${r.auto[it.index]}"
-                        th:title="${r.auto[it.index] ? 'по бригаде в заявке' : ''}" th:text="${c == 'P' ? '✓' : c == 'A' ? '✗' : c == 'O' ? 'В' : c == 'H' ? '½' : '·'}"></button></td>
-            <td class="num"><b th:text="${@fmt.num(r.worked)}"></b></td>
-            <td class="num" th:if="${money}" th:text="${@fmt.money(r.pay)}"></td></tr></tbody>
-        <tfoot th:if="${money}"><tr><td>Итого</td><td th:attr="colspan=${s.days.size() + 1}"></td><td class="num"><b th:text="${@fmt.money(s.totalPay)}"></b></td></tr></tfoot>
-    </table></div>
-    <div class="card-f"><span>Нажатие меняет отметку: ✓ пришёл → ½ полдня → ✗ не пришёл → В выходной → пусто. ✓ по бригаде ставится сам.</span><button class="btn btn-primary" type="submit">Сохранить табель</button></div></section>
-    <div id="ts-changed"></div>
+<div class="tools ts-tools">
+    <div class="mnav mnav--t"><a class="ibtn" th:href="${'/admin/staff/timesheet?month=' + prev}" aria-label="Месяц назад" th:utext="${i['back']}"></a>
+        <h2 class="ts-m" th:text="${title2}">Октябрь 2026</h2>
+        <a th:if="${next != null}" class="ibtn mnav-f" th:href="${'/admin/staff/timesheet?month=' + next}" aria-label="Месяц вперёд" th:utext="${i['back']}"></a><button th:if="${next == null}" class="ibtn mnav-f" type="button" disabled aria-label="Месяц вперёд" th:utext="${i['back']}"></button></div>
+    <span class="ts-sub" th:text="${wd + ' ' + @fmt.plural(wd, 'рабочий день', 'рабочих дня', 'рабочих дней') + (passed >= 0 ? ', прошло ' + passed : '') + ' · без воскресений'}"></span>
+    <span class="grow"></span>
+    <a class="btn btn-soft btn-sm" id="ts-x" th:href="${'/admin/staff/timesheet.xlsx?month=' + ym}"><th:block th:utext="${i['download']}"></th:block><span>Excel</span></a>
+    <button class="btn btn-primary btn-sm" type="submit" form="ts-form" id="ts-save">Сохранить табель</button>
+</div>
+<div class="chips" id="ts-g" role="group" aria-label="Группа">
+    <button th:each="c : ${chips}" class="chip" type="button" th:attr="data-g=${c.key},aria-pressed=${c.on}"><th:block th:text="${c.title}"></th:block> <span th:text="${c.n}"></span></button>
+</div>
+<p class="warn-s ts-warn" id="ts-warn" th:attr="hidden=${empty == 0} ? 'hidden' : null"><th:block th:utext="${i16['alert']}"></th:block><span th:text="${'Пустых прошедших дней: ' + empty + ' — при сохранении станут «не пришёл». Сначала отметьте, кто был.'}"></span></p>
+<form id="ts-form" method="post" action="/admin/staff/timesheet" data-guard="В табеле есть несохранённые отметки." th:attr="data-month=${monthName},data-money=${money},data-today=${today}">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <input type="hidden" name="month" th:value="${ym}">
+    <div id="ts-in"></div>
+    <section class="card" aria-label="Табель"><div class="tbl-w ts-w" id="ts-box">
+        <div th:if="${rows.isEmpty()}" class="empty">В этом месяце в табеле никого нет.</div>
+        <table th:unless="${rows.isEmpty()}" class="tsg">
+            <thead><tr><th class="tsg-n">Сотрудник</th><th th:each="d : ${days}" class="tsg-d" th:classappend="${(d.dayOfWeek.value == 7 ? ' is-sun' : '') + (d == today ? ' is-today' : '')}"><b th:text="${d.dayOfMonth}">1</b><small th:text="${@fmt.wday(d)}">чт</small></th><th class="tsg-s">Итог</th></tr></thead>
+            <tbody>
+            <th:block th:each="r : ${rows}">
+                <tr th:if="${r.head != null}" class="tsg-g" th:attr="data-g=${r.key()}"><th th:attr="colspan=${cols}"><span th:text="${r.head.label}"></span></th></tr>
+                <tr th:if="${r.line != null}" th:with="x=${r.line}" th:classappend="${!x.e.active} ? 'is-quiet'" th:attr="data-g=${r.key()},data-rate=${r.rateAttr()}">
+                    <th class="tsg-n" scope="row"><a th:href="${'/admin/staff/' + x.e.id}" th:text="${x.e.fullName}"></a><small th:text="${r.sub()}"></small></th>
+                    <td th:each="c : ${x.cells}" th:classappend="${(c.sun() ? 'is-sun' : '') + (c.today ? ' is-today' : '')}"><button type="button" th:class="${c.cls()}" th:attr="data-c=${x.e.id + '|' + c.d},data-s=${c.code()},data-auto=${c.auto},disabled=${c.locked()} ? 'disabled' : null,aria-label=${x.e.fullName + ', ' + c.title()}" th:text="${c.sym()}">·</button></td>
+                    <td class="tsg-s"><b th:text="${x.workedText() + ' см.'}">0 см.</b><span th:if="${x.absent > 0}" class="pay-bad" th:text="${'✗ ' + x.absent}"></span><small th:text="${money and x.pay.signum() > 0 ? @fmt.money(x.pay) : '—'}"></small></td>
+                </tr>
+            </th:block>
+            </tbody>
+            <tfoot><tr><th class="tsg-n">Итого</th><td class="tsg-ft" th:attr="colspan=${days.size()}" id="ts-ft" th:text="${ftText}"></td>
+                <td class="tsg-s"><b id="ts-tot" th:text="${money ? @fmt.money(pay) : workedText + ' см.'}"></b><small th:text="${money ? 'начислено' : 'отработано'}"></small></td></tr></tfoot>
+        </table>
+    </div>
+    <div class="card-f ts-f"><p class="ecal-l"><span><i class="cm cm--P">✓</i>пришёл</span><span><i class="cm cm--H">½</i>полдня</span><span><i class="cm cm--A">✗</i>не пришёл</span><span><i class="cm cm--O">В</i>выходной</span><span><i class="cm cm--E">·</i>пусто</span><span><i class="cm cm--P is-auto">✓</i>по бригаде заявки — ставится само</span></p>
+        <span>Нажатие меняет отметку: ✓ → ½ → ✗ → В → пусто.</span></div></section>
 </form>
+<p class="cnt" id="ts-cnt" th:text="${'Отмечают бухгалтер или технолог; «пришёл» по бригаде заявки ставится сам, воскресенье — выходной.' + (money ? ' Начислено — ставка за смену (или оклад ÷ ' + wd + ' рабочих дней) за каждый день «пришёл», половина — за «полдня»: это начислено, не к выдаче.' : '')}"></p>
 </th:block>
 <th:block th:fragment="scripts">
-<script th:inline="none">
-(function () {
-  var order = ['P', 'H', 'A', 'O', ''], label = { P: '✓', H: '½', A: '✗', O: 'В', '': '·' }, cls = { P: 'm-w', H: 'm-w', A: 'm-a', O: 'm-o', '': '' };
-  var changed = {};
-  document.querySelector('.ts').addEventListener('click', function (e) {
-    var b = e.target.closest('button[data-c]'); if (!b || b.disabled) return;
-    var v = b.getAttribute('data-v') || '', n = order[(order.indexOf(v) + 1) % order.length];
-    b.setAttribute('data-v', n); b.textContent = label[n]; b.className = 'm ' + cls[n];
-    changed[b.getAttribute('data-c')] = n;
-    Admin.guard.set(true);
-  });
-  document.getElementById('ts-form').addEventListener('submit', function () {
-    var h = '';
-    Object.keys(changed).forEach(function (k) { h += '<input type="hidden" name="' + k + '" value="' + changed[k] + '">'; });
-    document.getElementById('ts-changed').innerHTML = h;
-  });
-})();
-</script>
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/team.js?v=1"></script>
 </th:block>
 </body>
 </html>

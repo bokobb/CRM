@@ -137,7 +137,7 @@ public class AdminProductController {
     }
 
     @PostMapping("/admin/products/departments-1c")
-    public String importDepartments(RedirectAttributes ra) {
+    public String importDepartments(@RequestParam(required = false) String next, RedirectAttributes ra) {
         try {
             if (!isAdmin()) throw new IllegalStateException("Корпуса из 1С загружает администратор");
             OneCDepartmentImportService.ImportResult r = departmentImportService.importAll();
@@ -146,7 +146,7 @@ public class AdminProductController {
         } catch (RuntimeException e) {
             fail(ra, e);
         }
-        return "redirect:/admin/products";
+        return AdminSupport.back(next, "/admin/products");
     }
 
     // ================================================================== карточка

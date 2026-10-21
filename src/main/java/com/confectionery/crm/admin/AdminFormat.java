@@ -100,6 +100,16 @@ public class AdminFormat {
         return hour == null ? "" : PickupSlotService.label(hour);
     }
 
+    /** «октября» — родительный падеж месяца (1–12): «рабочих дней октября». */
+    public static String monthGen(int month) {
+        return MON[month - 1];
+    }
+
+    /** «8,4 млн» / «640 тыс» / «980» — для крупной цифры плитки. */
+    public String shortMoney(BigDecimal v) {
+        return v == null ? "—" : AdminWarehouseController.shortMoney(v.abs());
+    }
+
     /** 15 окт */
     public String dm(LocalDate d) {
         return d == null ? "" : d.getDayOfMonth() + NB + MON3[d.getMonthValue() - 1];
