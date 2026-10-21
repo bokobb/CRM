@@ -25,10 +25,10 @@
     var draw = function () {
       var box = $('pd-chart');
       if (box.hidden || !days.length) return;
-      var W = Math.max(300, Math.round(box.clientWidth - 16)), H = 236, L = 60, R = 8, T = 14, B = 40;
+      var W = Math.max(300, Math.round(box.clientWidth - 16)), H = W > 640 ? 280 : 236, L = 60, R = 8, T = 14, B = 40;
       var max = Math.max.apply(null, days.map(function (x) { return Math.max(x.fg, x.sale); })) || 1;
       var step = niceStep(max / 4), top = Math.ceil(max / step) * step;
-      var pw = W - L - R, ph = H - T - B, band = pw / days.length, bw = Math.min(24, band * 0.56), fg = 0;
+      var pw = W - L - R, ph = H - T - B, band = pw / days.length, bw = Math.min(64, band * 0.72), fg = 0;
       days.forEach(function (x) { fg += x.fg; });
       var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Себестоимость готовой продукции по дням, ' + dml(days[0].d) + ' — ' +
         dml(days[days.length - 1].d) + ', всего ' + money(fg) + '; черта — та же продукция по цене продажи. Подробно — во вкладке «Таблица».">' +
@@ -41,7 +41,7 @@
       }
       var every = band < 15 ? 3 : band < 28 ? 2 : 1;
       days.forEach(function (x, i) {
-        var cx = L + i * band + band / 2, h = x.fg / top * ph, y = T + ph - h, bx = cx - bw / 2, r = Math.min(4, h), sel = x.d === D.sel;
+        var cx = L + i * band + band / 2, h = x.fg / top * ph, y = T + ph - h, bx = cx - bw / 2, r = Math.min(bw > 30 ? 7 : 4, h, bw / 2), sel = x.d === D.sel;
         s += '<g class="col' + (sel ? ' is-sel' : '') + '" data-i="' + i + '"><rect class="hit" x="' + (L + i * band).toFixed(1) + '" y="' + T + '" width="' + band.toFixed(1) + '" height="' + ph + '"/>';
         if (h > 0) {
           s += '<path class="b' + (x.d === D.today ? ' today' : '') + (sel ? ' sel' : '') + '" d="M' + bx.toFixed(1) + ' ' + (T + ph) + 'V' + (y + r).toFixed(1) +
