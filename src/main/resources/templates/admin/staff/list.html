@@ -1,27 +1,56 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
+<div class="seg rt-seg" role="group" aria-label="Что показать">
+    <a href="/admin/staff" aria-pressed="true">Сотрудники</a><a href="/admin/staff/timesheet" aria-pressed="false">Табель</a><a th:if="${canUsers}" href="/admin/staff/users" aria-pressed="false">Входы в CRM</a>
+</div>
+<div class="kpis kpis--4">
+    <div class="kpi"><span class="kpi-l"><th:block th:utext="${i['staff']}"></th:block>Работают</span><span class="kpi-v" th:text="${onCount}">29</span><span class="kpi-s" th:text="${onText}"></span></div>
+    <a class="kpi" href="/admin/production"><span class="kpi-l"><th:block th:utext="${i['production']}"></th:block>Сегодня в бригадах</span><span class="kpi-v"><th:block th:text="${inBrig}"></th:block> <small th:text="${'из ' + brigOf}"></small></span><span class="kpi-s" th:text="${reqsText}"></span></a>
+    <div class="kpi" th:if="${money}"><span class="kpi-l"><th:block th:utext="${i['cash']}"></th:block><th:block th:text="${'Начислено за ' + monthName}"></th:block></span><span class="kpi-v"><th:block th:text="${@fmt.shortMoney(pay)}"></th:block> <small>₸</small></span><span class="kpi-s" th:text="${'по табелю на ' + @fmt.dml(today) + ' · бригады ' + @fmt.money(payB) + ', оклады ' + @fmt.money(pay.subtract(payB))}"></span></div>
+    <a class="kpi" th:classappend="${emptyCells > 0} ? 'kpi--warm'" href="/admin/staff/timesheet"><span class="kpi-l"><th:block th:utext="${i['calendar']}"></th:block>Табель</span><span class="kpi-v"><th:block th:if="${emptyCells > 0}"><th:block th:text="${emptyCells}"></th:block> <small th:text="${@fmt.plural(emptyCells, 'день', 'дня', 'дней') + ' пусто'}"></small></th:block><th:block th:unless="${emptyCells > 0}">заполнен</th:block></span><span class="kpi-s" th:text="${emptyText}"></span></a>
+</div>
 <form class="tools" method="get" action="/admin/staff" data-autosubmit>
-    <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block><input class="inp" name="q" type="search" placeholder="ФИО или должность" autocomplete="off" th:value="${q}"></label>
-    <label class="switch"><input type="checkbox" name="inactive" value="1" th:checked="${inactive}"> С уволенными</label>
+    <input type="hidden" name="g" th:value="${g}">
+    <label class="search"><span class="sr">Поиск сотрудника</span><th:block th:utext="${i['search']}"></th:block>
+        <input class="inp" id="sf-q" name="q" type="search" placeholder="ФИО или должность" autocomplete="off" th:value="${q}"></label>
+    <label class="pick"><span class="sr">Порядок</span><select class="sel" id="sf-s" name="sort">
+        <option th:each="o : ${sorts}" th:value="${o[0]}" th:text="${o[1]}" th:selected="${o[0] == sort}"></option></select></label>
+    <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
     <span class="grow"></span>
-    <a class="btn btn-soft btn-sm" href="/admin/staff/timesheet">Табель</a>
-    <a th:if="${canUsers}" class="btn btn-soft btn-sm" href="/admin/staff/users">Входы в CRM</a>
-    <a class="btn btn-primary btn-sm" href="/admin/staff/new"><th:block th:utext="${i['plus']}"></th:block>Сотрудник</a>
+    <button th:if="${money}" class="btn btn-soft btn-sm" type="button" id="sf-1c"><th:block th:utext="${i['refresh']}"></th:block><span>Загрузить из 1С</span></button>
+    <a class="btn btn-primary btn-sm" href="/admin/staff/new"><th:block th:utext="${i['plus']}"></th:block><span>Новый сотрудник</span></a>
 </form>
-<section class="card"><div class="tbl-w">
-    <div th:if="${rows.isEmpty()}" class="empty">Ничего не нашлось.</div>
-    <table th:unless="${rows.isEmpty()}" class="tbl tbl--cards"><thead><tr><th>Сотрудник</th><th>Должность</th><th>Группа затрат</th><th>Телефон</th><th class="r" th:if="${money}">Ставка за смену</th><th class="r" th:if="${money}">Оклад</th></tr></thead>
-    <tbody><tr th:each="e : ${rows}" class="rowlink" th:attr="data-href=${'/admin/staff/' + e.id}">
-        <td class="c-full"><a th:href="${'/admin/staff/' + e.id}" style="text-decoration:none"><b th:text="${e.fullName}"></b></a><small th:if="${!e.active}">уволен</small><small th:if="${e.oneCKey != null}">из 1С</small></td>
-        <td th:text="${e.position}"></td><td th:text="${e.effectiveCostGroup().label}"></td><td class="num" th:text="${@fmt.phone(e.phone)}"></td>
-        <td class="r num" th:if="${money}" th:text="${e.dailyRate != null ? @fmt.money(e.dailyRate) : '—'}"></td>
-        <td class="r num" th:if="${money}" th:text="${e.monthlySalary != null ? @fmt.money(e.monthlySalary) : '—'}"></td></tr></tbody></table>
+<div class="chips" id="sf-g" role="group" aria-label="Кого показать">
+    <a th:each="c : ${chips}" class="chip" th:classappend="${c.alert} ? 'chip--alert'" th:href="${c.href}" th:attr="aria-pressed=${c.on},data-g=${c.key}"><th:block th:text="${c.title}"></th:block> <span th:text="${c.n}"></span></a>
+</div>
+<section class="card" aria-label="Сотрудники"><div class="tbl-w" id="sf-list">
+    <div th:if="${items.isEmpty()}" class="empty">Никого не нашлось.</div>
+    <table th:unless="${items.isEmpty()}" class="tbl tbl--sf">
+        <thead><tr><th>Сотрудник</th><th>Группа затрат</th><th class="r" th:if="${money}">Ставка</th><th class="r" th:text="${'Смен в ' + inMonth}">Смен</th><th>Последняя смена</th><th>1С</th></tr></thead>
+        <tbody>
+        <th:block th:each="it : ${items}">
+            <tr th:if="${it.head != null}" class="grp"><th th:attr="colspan=${money ? 6 : 5}"><th:block th:text="${it.head.label}"></th:block><span th:text="${it.headText()}"></span></th></tr>
+            <tr th:if="${it.row != null}" th:with="r=${it.row},e=${it.row.e}" class="rowlink" th:classappend="${!e.active} ? 'is-quiet'" th:attr="data-href=${'/admin/staff/' + e.id},data-id=${e.id}">
+                <td class="sf-p"><div class="prod"><span class="cav cav--s" aria-hidden="true" th:text="${r.initials()}">АС</span>
+                    <p><a th:href="${'/admin/staff/' + e.id}" th:text="${e.fullName}"></a><small th:text="${r.sub()}"></small></p></div></td>
+                <td class="sf-g"><span class="gt" th:classappend="${'gt--' + r.t.group()}" th:text="${e.effectiveCostGroup().label}"></span><small th:text="${e.costGroup != null ? 'задана вручную' : 'по должности'}"></small></td>
+                <td class="r num sf-r" th:if="${money}"><th:block th:if="${e.dailyRate != null}"><b th:text="${@fmt.money(e.dailyRate)}"></b><small>за смену</small></th:block><th:block th:if="${e.dailyRate == null and e.monthlySalary != null}"><b th:text="${@fmt.money(e.monthlySalary)}"></b><small th:text="${'в месяц · ≈ ' + @fmt.money(r.dayRate()) + ' в день'}"></small></th:block><th:block th:if="${e.dailyRate == null and e.monthlySalary == null}"><span class="pay-bad">не задана</span><small>смены не попадут в себестоимость</small></th:block></td>
+                <td class="r num sf-n"><b th:text="${r.t.worked.signum() > 0 ? r.t.workedText() : '—'}"></b><small th:if="${r.t.absent > 0}" class="pay-bad" th:text="${'пропусков ' + r.t.absent}"></small></td>
+                <td class="sf-l"><th:block th:if="${r.last != null}"><th:block th:text="${@fmt.cap(@fmt.relDay(r.last.d))}"></th:block><small th:if="${r.last.r != null}" th:text="${'заявка № ' + r.last.r.id + ' «' + r.last.r.title + '»'}"></small><small th:if="${r.last.r == null}">по табелю</small></th:block><span th:if="${r.last == null}" class="muted">—</span></td>
+                <td class="sf-1"><span th:if="${e.oneCKey != null}" class="muted">связан</span><span th:if="${e.oneCKey == null}" class="tag tag--warn">только в CRM</span></td>
+            </tr>
+        </th:block>
+        </tbody>
+    </table>
 </div></section>
-<form method="post" action="/admin/staff/import-1c" class="pager"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-    <p class="cnt" th:text="${'Сотрудников: ' + rows.size() + '. Цех — ставка за смену в себестоимости; офис и продажи — оклад.'}"></p>
-    <button class="btn btn-soft btn-sm" type="submit"><th:block th:utext="${i['refresh']}"></th:block>Загрузить из 1С</button></form>
+<p class="cnt" id="sf-cnt" th:text="${'Работают ' + onCount + ', уволены ' + offCount + '. Смены — дни «пришёл» в табеле за ' + monthName + ' (полдня — 0,5); бригада ставится в табель сама по бригадам заявок.' + (money ? ' Ставки и оклады видят администратор и бухгалтер.' : '')}"></p>
+<form id="sf-1c-form" method="post" action="/admin/staff/import-1c" hidden><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"></form>
+</th:block>
+<th:block th:fragment="scripts">
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/team.js?v=1"></script>
 </th:block>
 </body>
 </html>

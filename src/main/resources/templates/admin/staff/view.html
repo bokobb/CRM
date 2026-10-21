@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<body>
+<th:block th:fragment="content">
+<a class="back" href="/admin/staff"><th:block th:utext="${i['back']}"></th:block>Сотрудники</a>
+<div class="ch"><span class="cav cav--lg" aria-hidden="true" th:text="${initials}">АС</span>
+    <div><h2 th:text="${e.fullName}">Айгуль Сейтказиева</h2>
+        <p class="ch-m"><span th:text="${e.position != null ? e.position : 'должность не указана'}"></span><span class="gt" th:classappend="${'gt--' + t.group()}" th:text="${e.effectiveCostGroup().label}"></span><span th:if="${!e.active}" class="tag tag--bad" th:text="${'уволен' + a}"></span><span th:if="${e.phone != null}" class="num" th:text="${e.phone}"></span><span th:if="${e.oneCKey != null}">из 1С</span><span th:if="${e.oneCKey == null}" class="tag tag--warn">только в CRM</span></p></div>
+    <form class="ch-acts" method="post" th:action="${e.active ? '/admin/staff/' + e.id + '/fire' : '/admin/staff/' + e.id + '/return'}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <a class="btn btn-soft" th:href="${'/admin/staff/' + e.id + '/edit'}"><th:block th:utext="${i['edit']}"></th:block>Изменить</a>
+        <a class="btn btn-soft" th:href="${'/admin/staff/timesheet?month=' + ym}"><th:block th:utext="${i['calendar']}"></th:block>Табель</a>
+        <button th:if="${e.active}" class="btn btn-danger" type="submit" id="ea-fire" th:attr="data-confirm-title=${'Уволить «' + e.fullName + '»?'},data-confirm=${'Сотрудник уйдёт из списка работающих, из бригад и табеля следующих дней. Прошлые бригады, смены и себестоимость не меняются, вернуть можно в любой момент.' + (e.oneCKey != null ? ' В 1С увольнение оформляет бухгалтер — при загрузке из 1С отметка придёт и оттуда.' : '')}" data-confirm-ok="Уволить">Уволить</button>
+        <button th:unless="${e.active}" class="btn btn-soft" type="submit" id="ea-back">Вернуть на работу</button>
+    </form>
+</div>
+<div class="ckpis">
+    <div class="kpi" th:classappend="${cur.absent > 2} ? 'kpi--warm'"><span class="kpi-l" th:text="${'Смен в ' + inMonth}">Смен</span><span class="kpi-v" th:text="${cur.workedText()}">9</span>
+        <span class="kpi-s"><b th:if="${cur.absent > 0}" class="pay-bad" th:text="${'пропусков ' + cur.absent}"></b><th:block th:if="${cur.absent == 0}">без пропусков</th:block><th:block th:if="${cur.half() > 0}" th:text="${' · полдня ' + cur.half()}"></th:block><th:block th:text="${' · ' + asOf}"></th:block></span></div>
+    <th:block th:if="${money}">
+    <div class="kpi" th:classappend="${e.dailyRate == null and e.monthlySalary == null} ? 'kpi--alert'"><span class="kpi-l" th:text="${e.dailyRate != null ? 'Ставка за смену' : e.monthlySalary != null ? 'Оклад' : 'Ставка'}">Ставка</span>
+        <span class="kpi-v" th:text="${e.dailyRate != null ? @fmt.money(e.dailyRate) : e.monthlySalary != null ? @fmt.money(e.monthlySalary) : '—'}"></span>
+        <span class="kpi-s"><th:block th:if="${e.dailyRate != null}" th:text="${e.effectiveCostGroup().name() == 'BRIGADE' ? 'идёт в себестоимость заявки' : 'за отработанный день'}"></th:block><th:block th:if="${e.dailyRate == null and e.monthlySalary != null}" th:text="${'÷ ' + workDays + ' рабочих дней ' + monthGen + ' = ' + @fmt.money(dayRate) + ' в день'}"></th:block><th:block th:if="${e.dailyRate == null and e.monthlySalary == null}"><b class="pay-bad">не задана</b> — смены не попадут в себестоимость и табель</th:block></span></div>
+    <div class="kpi"><span class="kpi-l" th:text="${'Начислено за ' + baseName}">Начислено</span><span class="kpi-v" th:text="${@fmt.money(cur.pay)}"></span><span class="kpi-s" th:text="${'по табелю ' + asOf + ' · начислено, не к выдаче'}"></span></div>
+    </th:block>
+    <th:block th:unless="${money}">
+    <div class="kpi"><span class="kpi-l">Группа затрат</span><span class="kpi-v kpi-v--t" th:text="${e.effectiveCostGroup().label}"></span><span class="kpi-s" th:text="${e.costGroup != null ? 'задана вручную' : 'по должности'}"></span></div>
+    <div class="kpi" th:classappend="${cur.absent > 2} ? 'kpi--warm'"><span class="kpi-l">Пропусков</span><span class="kpi-v" th:text="${cur.absent}"></span><span class="kpi-s" th:text="${'«не пришёл» в ' + inMonth}"></span></div>
+    </th:block>
+    <div class="kpi"><span class="kpi-l">Последняя смена</span><span class="kpi-v" th:text="${last != null ? @fmt.cap(@fmt.relDay(last.d)) : '—'}"></span>
+        <span class="kpi-s" th:text="${last == null ? 'смен не было' : last.r != null ? 'заявка № ' + last.r.id + ' «' + last.r.title + '»' : 'по табелю'}"></span></div>
+</div>
+<div class="cgrid"><div class="cmain">
+    <section class="card" aria-labelledby="h-ec">
+        <div class="card-h"><div><h2 id="h-ec" th:text="${'Табель: ' + ymTitle}">Табель</h2><p th:text="${t.shiftsText() + (t.absent > 0 ? ' · пропусков ' + t.absent : '') + (money ? ' · начислено ' + @fmt.money(t.pay) : '')}"></p></div>
+            <div class="mnav"><a class="ibtn" th:href="${'/admin/staff/' + e.id + '?month=' + prev}" aria-label="Месяц назад" th:utext="${i['back']}"></a><a th:if="${next != null}" class="ibtn mnav-f" th:href="${'/admin/staff/' + e.id + '?month=' + next}" aria-label="Месяц вперёд" th:utext="${i['back']}"></a><button th:if="${next == null}" class="ibtn mnav-f" type="button" disabled aria-label="Месяц вперёд" th:utext="${i['back']}"></button></div></div>
+        <div class="card-b">
+            <div class="ecal" role="table" aria-label="Табель за месяц"><div class="ecal-h" role="row"><span role="columnheader">пн</span><span role="columnheader">вт</span><span role="columnheader">ср</span><span role="columnheader">чт</span><span role="columnheader">пт</span><span role="columnheader">сб</span><span role="columnheader">вс</span></div>
+                <div class="ecal-g"><span th:each="b : ${blanks}" class="ecal-x" aria-hidden="true"></span><span th:each="c : ${t.cells}" class="ecal-d" th:classappend="${(c.today ? ' is-today' : '') + (c.fut ? ' is-fut' : '') + (c.out() ? ' is-out' : '')}" th:title="${c.title()}"><b th:text="${c.day()}">1</b><i th:if="${c.out()}" class="cm cm--X" aria-hidden="true"></i><i th:unless="${c.out()}" th:class="${c.calCls()}" th:text="${c.sym()}">✓</i></span></div></div>
+            <p class="ecal-l"><span><i class="cm cm--P">✓</i>пришёл</span><span><i class="cm cm--H">½</i>полдня</span><span><i class="cm cm--A">✗</i>не пришёл</span><span><i class="cm cm--O">В</i>выходной</span><span><i class="cm cm--P is-auto">✓</i>по бригаде — ставится само</span></p>
+        </div>
+    </section>
+    <section class="card" aria-labelledby="h-eb" th:if="${e.effectiveCostGroup().name() == 'BRIGADE' or !shifts.isEmpty()}">
+        <div class="card-h"><div><h2 id="h-eb">Бригады</h2><p th:text="${'заявки на сырьё, где ' + (a == 'а' ? 'она стояла' : 'он стоял') + ' в бригаде, — по ним считаются смены и себестоимость'}"></p></div></div>
+        <div class="tbl-w" th:unless="${shifts.isEmpty()}"><table class="tbl tbl--eb">
+            <thead><tr><th>День</th><th>Заявка</th><th>Что выпускали</th><th class="r">Бригада</th><th class="r" th:if="${money}">В себестоимость</th></tr></thead>
+            <tbody><tr th:each="x : ${shifts}" class="rowlink" th:attr="data-href=${'/admin/production/requests/' + x.r.id}">
+                <td class="eb-d" th:text="${@fmt.cap(@fmt.relDay(x.r.documentDate))}"></td>
+                <td class="eb-r"><a th:href="${'/admin/production/requests/' + x.r.id}" th:text="${'№ ' + x.r.id}"></a><small th:text="${x.r.title}"></small></td>
+                <td class="eb-w" th:text="${x.what}"></td>
+                <td class="r num eb-n" th:text="${x.people + ' чел.'}"></td>
+                <td class="r num eb-m" th:if="${money}" th:text="${@fmt.money(x.cost)}"></td></tr></tbody></table></div>
+        <p class="card-f" th:if="${shiftCount > 10}" th:text="${'Показаны последние 10 из ' + shiftCount + '.'}"></p>
+        <p class="card-b muted" th:if="${shifts.isEmpty()}" th:text="${'В бригадах заявок не стоял' + a + '.'}"></p>
+    </section>
+</div>
+<aside class="cside">
+    <section class="card card-b box" aria-labelledby="h-ek"><h3 id="h-ek">Карточка</h3><dl class="kv kv--w">
+        <div><dt>Должность</dt><dd th:text="${e.position != null ? e.position : '—'}"></dd></div>
+        <div><dt>Телефон</dt><dd class="num" th:text="${e.phone != null ? e.phone : '—'}"></dd></div>
+        <div><dt>Группа затрат</dt><dd><th:block th:text="${e.effectiveCostGroup().label}"></th:block><small th:text="${(e.costGroup != null ? 'задана вручную' : 'по должности') + ' · ' + groupHint}"></small></dd></div>
+        <th:block th:if="${money}"><div><dt>Ставка за смену</dt><dd th:text="${e.dailyRate != null ? @fmt.money(e.dailyRate) : '—'}"></dd></div>
+        <div><dt>Оклад</dt><dd th:text="${e.monthlySalary != null ? @fmt.money(e.monthlySalary) + ' в месяц' : '—'}"></dd></div></th:block>
+        <div><dt th:text="${'Принят' + a}">Принят</dt><dd th:text="${e.hiredAt != null ? @fmt.dml(e.hiredAt) + ' ' + e.hiredAt.year : '—'}"></dd></div>
+        <div th:if="${e.firedAt != null}"><dt th:text="${'Уволен' + a}">Уволен</dt><dd th:text="${@fmt.dml(e.firedAt) + ' ' + e.firedAt.year}"></dd></div>
+    </dl></section>
+    <section class="card card-b box" aria-labelledby="h-e1"><h3 id="h-e1">1С</h3>
+        <p class="muted" th:if="${e.oneCKey != null}">Связан. ФИО, должность, дата приёма, оклад и увольнение приходят из 1С; ставку за смену и группу затрат CRM ведёт сама.</p>
+        <p class="muted" th:if="${e.oneCKey == null}">Заведён только в CRM. При загрузке из 1С свяжется по фамилии и имени — история бригад и ставка сохранятся.</p></section>
+    <section class="card card-b box" aria-labelledby="h-eu"><h3 id="h-eu">Вход в CRM</h3>
+        <th:block th:if="${user != null}"><dl class="kv kv--w"><div><dt>Логин</dt><dd class="num" th:text="${user.username}"></dd></div><div><dt>Роль</dt><dd><th:block th:text="${user.role.label}"></th:block><small th:unless="${user.enabled}" class="pay-bad">вход закрыт</small></dd></div></dl>
+            <p class="pc-links" th:if="${money}"><a class="link" href="/admin/staff/users">Входы в CRM</a></p></th:block>
+        <p class="muted" th:if="${user == null}" th:text="${'Нет. ' + (e.effectiveCostGroup().name() == 'BRIGADE' ? 'Рабочим цеха вход не нужен — в табель и бригады их ставят технолог и бухгалтер.' : 'Если нужен — заведите во «Входах в CRM».')}"></p></section>
+</aside></div>
+</th:block>
+<th:block th:fragment="scripts"></th:block>
+</body>
+</html>

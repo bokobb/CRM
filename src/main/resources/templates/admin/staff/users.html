@@ -1,17 +1,34 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<a class="back" href="/admin/staff"><th:block th:utext="${i['back']}"></th:block>Сотрудники</a>
-<div class="tools"><span class="grow"></span><a class="btn btn-primary btn-sm" href="/admin/staff/users/new"><th:block th:utext="${i['plus']}"></th:block>Новый вход</a></div>
-<section class="card"><div class="tbl-w"><table class="tbl tbl--cards">
-    <thead><tr><th>Сотрудник</th><th>Логин</th><th>Роль</th><th>Доступ</th></tr></thead>
-    <tbody><tr th:each="u : ${rows}" class="rowlink" th:attr="data-href=${'/admin/staff/users/' + u.id}">
-        <td class="c-full"><a th:href="${'/admin/staff/users/' + u.id}" style="text-decoration:none"><b th:text="${u.fullName}"></b></a></td>
-        <td th:text="${u.username}"></td><td th:text="${u.role.label}"></td>
-        <td><span th:if="${u.enabled}" class="tag tag--ok">входит</span><span th:unless="${u.enabled}" class="tag tag--bad">отключён</span></td></tr></tbody>
+<div class="seg rt-seg" role="group" aria-label="Что показать">
+    <a href="/admin/staff" aria-pressed="false">Сотрудники</a><a href="/admin/staff/timesheet" aria-pressed="false">Табель</a><a href="/admin/staff/users" aria-pressed="true">Входы в CRM</a>
+</div>
+<div class="tools"><p class="muted us-t">Один вход — для админки на компьютере и для приложения на телефоне. Роль решает, какие разделы видны.</p><span class="grow"></span>
+    <a class="btn btn-soft btn-sm" href="/admin/me/password"><th:block th:utext="${i['settings']}"></th:block><span>Сменить свой пароль</span></a>
+    <button class="btn btn-primary btn-sm" type="button" id="us-new"><th:block th:utext="${i['plus']}"></th:block><span>Новый вход</span></button></div>
+<section class="card us-card" aria-label="Входы"><div class="tbl-w"><table class="tbl tbl--us">
+    <thead><tr><th>Кто</th><th>Роль</th><th>Что видит</th><th>Вход</th><th class="us-a"><span class="sr">Изменить</span></th></tr></thead>
+    <tbody><tr th:each="u : ${rows}" th:classappend="${!u.enabled} ? 'is-quiet'">
+        <td class="us-n"><b><th:block th:text="${u.fullName}"></th:block><th:block th:if="${u.id == meId}"> <span class="tag tag--now">вы</span></th:block></b><small class="num" th:text="${'логин ' + u.username}"></small></td>
+        <td class="us-r" th:text="${u.role.label}"></td>
+        <td class="us-s" th:text="${seesBy[u.role.name()]}"></td>
+        <td class="us-o"><span th:if="${u.enabled}" class="tag tag--ok">открыт</span><span th:unless="${u.enabled}" class="tag tag--bad">закрыт</span></td>
+        <td class="us-a"><button class="btn btn-soft btn-sm" type="button" th:attr="data-u=${u.id},data-id=${u.id},data-name=${u.fullName},data-login=${u.username},data-role=${u.role.name()},data-on=${u.enabled},data-self=${u.id == meId}"><th:block th:utext="${i['edit']}"></th:block><span>Изменить</span></button></td></tr></tbody>
 </table></div></section>
-<p class="cnt">Один логин и пароль — и для админки, и для приложения на телефоне. Разделы меню зависят от роли.</p>
+<section class="card" aria-labelledby="h-mx"><div class="card-h"><div><h2 id="h-mx">Что видит каждая роль</h2><p>разделы меню; администратор видит всё</p></div></div>
+    <div class="tbl-w"><table class="tbl mx"><thead><tr><th>Раздел</th><th th:each="r : ${roleShorts}" class="c" th:text="${r}"></th></tr></thead>
+        <tbody><tr th:each="s : ${matrix}"><td th:text="${s.title}"></td><td th:each="y : ${s.sees}" class="c"><span th:if="${y}" class="mx-y" aria-label="видит" th:utext="${i16['check']}"></span><span th:unless="${y}" class="mx-n" aria-label="не видит">—</span></td></tr></tbody></table></div>
+    <ul class="card-b mx-notes"><li><b>Деньги.</b> Ставки, оклады и начисления, себестоимость с зарплатой и накладными видят администратор и бухгалтер. Технолог ведёт сотрудников, бригады и табель без сумм.</li>
+        <li><b>Правка.</b> Товары, цены и витрину меняет администратор; входы заводят администратор и бухгалтер, роль «Администратор» даёт только администратор.</li>
+        <li><b>Свой вход.</b> Свою роль и доступ изменить нельзя — только другой администратор. Пароль каждый меняет сам.</li></ul></section>
+<datalist id="ud-names"><option th:each="n : ${names}" th:value="${n}"></option></datalist>
+<script type="application/json" id="us-data" th:utext="${usersJson}"></script>
+</th:block>
+<th:block th:fragment="scripts">
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/team.js?v=1"></script>
 </th:block>
 </body>
 </html>

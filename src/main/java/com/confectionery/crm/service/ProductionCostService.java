@@ -86,6 +86,18 @@ public class ProductionCostService {
         return new ProductionCostDto.Totals(norm, issued, labor, fg, sale, semi, overhead, fund);
     }
 
+    /** Дни периода, в которые были заявки, — заявки и строки, как на «Производстве» (для отчётов админки). */
+    @Transactional(readOnly = true)
+    public List<ProductionCostDto> days(LocalDate from, LocalDate to, boolean showLabor) {
+        Map<Long, Recipe> recipes = recipes();
+        Map<LocalDate, List<ProductionRequest>> byDate = new TreeMap<>(requestRepository
+                .findByDocumentDateBetweenAndStatusNot(from, to, ProductionRequestStatus.CANCELLED)
+                .stream().collect(Collectors.groupingBy(ProductionRequest::getDocumentDate)));
+        List<ProductionCostDto> out = new ArrayList<>();
+        byDate.forEach((d, list) -> out.add(computeDay(d, list, recipes, showLabor)));
+        return out;
+    }
+
     @Transactional(readOnly = true)
     public ProductionCostDto.RequestDetail request(Long requestId, boolean showLabor) {
         ProductionRequest req = requestRepository.findById(requestId)

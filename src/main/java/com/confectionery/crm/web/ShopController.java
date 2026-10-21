@@ -415,6 +415,7 @@ public class ShopController {
         boolean pickup = companyProfileService.get().pickupChoiceOn();
         for (int i = 0; pickup && i < PICKUP_DAYS; i++) {
             LocalDate d = today.plusDays(i);
+            if (!pickupSlotService.open(d)) continue;           // выключенный в «Окнах выдачи» день
             List<Map<String, Object>> slots = new ArrayList<>();
             for (PickupSlotService.Slot s : pickupSlotService.day(d, null).slots()) {
                 slots.add(Map.of("hour", s.hour(), "label", String.format("%02d:00–%02d:00", s.hour(), s.hour() + 1),
@@ -436,7 +437,7 @@ public class ShopController {
         return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    /** Дни выдачи на выбор — сегодня + 5; часы и вместимость окон — PickupSlotService (crm.pickup.*). */
+    /** Дни выдачи на выбор — сегодня + 5, кроме выключенных; часы и вместимость окон — PickupSlotService (Настройки › Окна выдачи). */
     private static final int PICKUP_DAYS = 6;
     private static final DateTimeFormatter DAY_TITLE = DateTimeFormatter.ofPattern("EE", new Locale("ru"));
     private static final DateTimeFormatter DAY_SUB = DateTimeFormatter.ofPattern("d MMM", new Locale("ru"));
@@ -459,7 +460,7 @@ public class ShopController {
         LocalDate pickupDay = null;
         Integer pickupHour = null;
         if (company.pickupChoiceOn() && day != null) {
-            if (day.isBefore(today) || day.isAfter(today.plusDays(PICKUP_DAYS - 1))) {
+            if (day.isBefore(today) || day.isAfter(today.plusDays(PICKUP_DAYS - 1)) || !pickupSlotService.open(day)) {
                 redirectAttributes.addFlashAttribute("error", "Этот день выдачи недоступен — выберите другой");
                 return "redirect:/shop/catalog";
             }
