@@ -416,7 +416,7 @@ public class AdminPurchaseController {
     }
 
     @PostMapping("/suppliers/sync-1c")
-    public String syncSuppliers(RedirectAttributes ra) {
+    public String syncSuppliers(@RequestParam(required = false) String next, RedirectAttributes ra) {
         try {
             if (!currentUserService.hasRole(Role.ADMIN)) throw new IllegalStateException("Загрузить поставщиков из 1С может администратор");
             CounterpartyService.SyncResult r = counterpartyService.syncFromOneC();
@@ -425,6 +425,6 @@ public class AdminPurchaseController {
         } catch (RuntimeException e) {
             fail(ra, e);
         }
-        return "redirect:/admin/purchases/suppliers";
+        return AdminSupport.back(next, "/admin/purchases/suppliers");
     }
 }

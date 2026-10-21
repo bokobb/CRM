@@ -227,14 +227,14 @@ public class AdminStaffController {
     }
 
     @PostMapping("/admin/staff/import-1c")
-    public String import1c(RedirectAttributes ra) {
+    public String import1c(@RequestParam(required = false) String next, RedirectAttributes ra) {
         try {
             OneCEmployeeImportService.ImportResult r = importService.importAll();
             ok(ra, "Из 1С: всего " + r.total() + ", добавлено " + r.created() + ", обновлено " + r.updated());
         } catch (RuntimeException e) {
             fail(ra, e);
         }
-        return "redirect:/admin/staff";
+        return AdminSupport.back(next, "/admin/staff");
     }
 
     // ------------------------------------------------------------------ карточка

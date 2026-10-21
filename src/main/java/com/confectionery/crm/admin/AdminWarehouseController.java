@@ -303,7 +303,7 @@ public class AdminWarehouseController {
     }
 
     @PostMapping("/sync-1c")
-    public String syncStock(RedirectAttributes ra) {
+    public String syncStock(@RequestParam(required = false) String next, RedirectAttributes ra) {
         try {
             if (!can(Role.ADMIN)) throw new IllegalStateException("Сверку с 1С запускает администратор");
             OneCStockSyncService.SyncResult r = oneCStockSyncService.sync();
@@ -311,7 +311,7 @@ public class AdminWarehouseController {
         } catch (RuntimeException e) {
             fail(ra, e);
         }
-        return "redirect:/admin/stock";
+        return AdminSupport.back(next, "/admin/stock");
     }
 
     /** Старые адреса: журнал и форма документа — теперь вкладка «Движения» и окно на странице. */

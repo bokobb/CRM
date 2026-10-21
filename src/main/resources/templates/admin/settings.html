@@ -1,52 +1,123 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
-<div class="two">
-<form method="post" action="/admin/settings/profile" data-guard="Настройки не сохранены.">
+<div class="sg">
+<nav class="sg-nav" aria-label="Разделы настроек"><a href="#st-co">Компания</a><a href="#st-site">Сайт</a><a href="#st-shop">Магазин</a><a href="#st-slots">Окна выдачи</a><a href="#st-wa">WhatsApp</a><a href="#st-onec">1С</a><a href="#st-ntf">Уведомления</a><a href="#st-usr">Входы и пароли</a></nav>
+<div class="sg-main">
+
+<!-- компания -->
+<form class="card sg-card" id="st-co" method="post" action="/admin/settings/company" novalidate aria-labelledby="h-st-co" data-guard="В настройках есть несохранённые изменения.">
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-    <section class="card form-card">
-        <h3 class="big" style="font-size:19px">Компания — на сайте, в магазине и в накладных</h3>
-        <div class="fgrid">
-            <label class="field wide"><span>Название</span><input class="inp" name="name" th:value="${p.name}"></label>
-            <label class="field wide"><span>Адрес</span><input class="inp" name="address" th:value="${p.address}"></label>
-            <label class="field"><span>Телефон</span><input class="inp" name="phone" th:value="${p.phone}"></label>
-            <label class="field"><span>WhatsApp</span><input class="inp" name="whatsappPhone" th:value="${p.whatsappPhone}"></label>
-            <label class="field"><span>Почта</span><input class="inp" name="email" th:value="${p.email}"></label>
-            <label class="field"><span>Телефон по вакансиям</span><input class="inp" name="jobsPhone" th:value="${p.jobsPhone}"></label>
-            <label class="field"><span>Часы работы</span><input class="inp" name="workHours" th:value="${p.workHours}"></label>
-            <label class="field"><span>Часы выдачи заказов</span><input class="inp" name="pickupHours" th:value="${p.pickupHours}"></label>
-            <label class="field"><span>Instagram</span><input class="inp" name="instagramUrl" th:value="${p.instagramUrl}"></label>
-            <label class="field"><span>TikTok</span><input class="inp" name="tiktokUrl" th:value="${p.tiktokUrl}"></label>
-            <label class="field"><span>Точка на карте (широта, долгота)</span><input class="inp" name="mapPoint" th:value="${p.mapPoint}"></label>
-            <label class="field wide"><span>О компании</span><textarea class="ta" name="about" th:text="${p.about}"></textarea></label>
-            <label class="field wide"><span>Реквизиты (БИН, банк, счёт)</span><textarea class="ta" name="legalInfo" th:text="${p.legalInfo}"></textarea></label>
-        </div>
-        <div class="form-acts"><button class="btn btn-primary" type="submit">Сохранить</button></div>
-    </section>
+    <div class="card-h"><div><h2 id="h-st-co">Компания</h2><p>название, реквизиты и контакты — в накладных, на сайте и в магазине</p></div></div>
+    <div class="card-b"><div class="sg-two"><div class="fgrid fgrid--2">
+        <label class="field"><span>Название</span><input class="inp" id="st-name" name="name" maxlength="100" th:value="${p.name}"><small class="hint">в шапке накладной и на сайте</small></label>
+        <label class="field"><span>Юр. лицо и БИН</span><input class="inp" id="st-legal" name="legal" maxlength="200" placeholder="ТОО «…» · БИН 000000000000" th:value="${p.legalInfo}"><small class="hint">в накладной и в подвале сайта; пусто — только название</small></label>
+        <label class="field wide"><span>Адрес</span><input class="inp" id="st-address" name="address" maxlength="300" th:value="${p.address}"><small class="hint">уточнение в скобках сайт покажет второй строкой</small></label>
+        <label class="field"><span>Телефон</span><input class="inp" id="st-phone" name="phone" maxlength="100" th:value="${phones}"><small class="hint">несколько — через запятую</small></label>
+        <label class="field"><span>Почта</span><input class="inp" id="st-email" name="email" maxlength="100" placeholder="необязательно" th:value="${p.email}"></label></div>
+        <aside class="sg-prev" aria-label="Как в накладной"><p class="sg-pl">Шапка накладной</p><div class="inv-mini" id="st-inv" th:attr="data-no=${invNo},data-date=${@fmt.dml(today)},data-buyer=${invBuyer}"></div></aside></div></div>
+    <div class="card-f sg-f"><span class="muted sg-m">Изменений нет</span><button class="btn btn-primary btn-sm" type="submit">Сохранить</button></div>
 </form>
-<aside class="two-side">
-    <form class="card card-b box" method="post" action="/admin/settings/shop">
-        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-        <h3>Магазин для клиентов</h3>
-        <label class="check-row"><input type="checkbox" name="pickupChoice" th:checked="${p.pickupChoiceOn()}"> <span>Клиент может указать день и время выдачи</span></label>
-        <label class="check-row"><input type="checkbox" name="paymentChoice" th:checked="${p.paymentChoiceOn()}"> <span>Клиент может выбрать способ оплаты</span></label>
-        <p class="hint">По умолчанию выключено. Включённые поля в корзине необязательны: можно оформить заказ и без них.</p>
-        <div class="form-acts"><button class="btn btn-soft" type="submit">Сохранить</button></div>
-    </form>
-    <section class="card card-b box"><h3>Окна выдачи</h3>
-        <dl class="kv"><div><dt>Часы</dt><dd th:text="${@fmt.win(firstHour).substring(0, 5) + ' — ' + lastHour + ':00'}"></dd></div>
-            <div><dt>Окно</dt><dd>1 час</dd></div><div><dt>Заказов в окне</dt><dd th:text="${capacity}"></dd></div></dl>
-        <p class="hint">Пока задаются в настройках сервера (crm.pickup.*). Отдельная таблица окон и рабочие дни — следующим шагом.</p></section>
-    <section class="card card-b box"><h3>WhatsApp</h3>
-        <p th:if="${wa == null}" class="pay-bad">Шлюз WhatsApp не отвечает.</p>
-        <p th:if="${wa != null}" th:text="${'Состояние: ' + wa.status + (wa.phone != null ? ' · ' + wa.phone : '')}"></p>
-        <p class="hint">Подключение и QR-код — в приложении, раздел «WhatsApp».</p></section>
-    <section class="card card-b box"><h3>Пользователи и пароли</h3>
-        <p><a class="link" href="/admin/staff/users">Входы в CRM</a> — роли и пароли сотрудников.</p>
-        <p><a class="link" href="/admin/me/password">Сменить свой пароль</a></p></section>
-</aside>
-</div>
+
+<!-- сайт -->
+<form class="card sg-card" id="st-site" method="post" action="/admin/settings/site" novalidate aria-labelledby="h-st-site" data-guard="В настройках есть несохранённые изменения.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <div class="card-h"><div><h2 id="h-st-site">Сайт</h2><p>страницы для покупателей: главная, «Контакты», «Вакансии»</p></div></div>
+    <div class="card-b"><div class="fgrid fgrid--2">
+        <label class="field wide"><span>О компании</span><textarea class="ta" id="st-about" name="about" rows="2" maxlength="300" th:text="${p.about}"></textarea><small class="hint">пара предложений на главной и в подвале</small></label>
+        <label class="field"><span>Время работы</span><input class="inp" id="st-work" name="work" maxlength="100" th:value="${p.workHours}"><small class="hint">на странице «Контакты»</small></label>
+        <label class="field"><span>Дни и часы выдачи</span><input class="inp" id="st-pickup" name="pickup" maxlength="100" placeholder="например: Пн–Сб, 8:00–18:00" th:value="${p.pickupHours}"><small class="hint">текст для главной; окна в магазине — ниже, в «Окнах выдачи»</small></label>
+        <label class="field"><span>WhatsApp для кнопки</span><input class="inp" id="st-whatsapp" name="whatsapp" inputmode="tel" placeholder="+7 700 000 00 00" th:value="${p.whatsappPhone}"><small class="hint">пусто — кнопки WhatsApp на сайте нет</small></label>
+        <label class="field"><span>Телефон по вакансиям</span><input class="inp" id="st-jobs" name="jobs" inputmode="tel" th:value="${p.jobsPhone}"><small class="hint">на странице «Вакансии»</small></label>
+        <label class="field"><span>Instagram</span><input class="inp" id="st-insta" name="insta" inputmode="url" th:value="${p.instagramUrl}"></label>
+        <label class="field"><span>TikTok</span><input class="inp" id="st-tiktok" name="tiktok" inputmode="url" placeholder="необязательно" th:value="${p.tiktokUrl}"><small class="hint">на сайте — рядом с Instagram</small></label>
+        <label class="field wide"><span>Точка на карте</span><input class="inp" id="st-map" name="map" placeholder="широта, долгота — например 42.3, 69.6" th:value="${p.mapPoint}"><small class="hint">ворота производства на «Контактах»; пусто — карты нет, кнопки «Маршрут» ищут адрес</small></label></div></div>
+    <div class="card-f sg-f"><span class="muted sg-m">Изменений нет</span><button class="btn btn-primary btn-sm" type="submit">Сохранить</button></div>
+</form>
+
+<!-- магазин -->
+<form class="card sg-card" id="st-shop" method="post" action="/admin/settings/shop" aria-labelledby="h-st-shop" data-guard="В настройках есть несохранённые изменения.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <div class="card-h"><div><h2 id="h-st-shop">Магазин для клиентов</h2><p>что клиент может выбрать сам, когда заказывает на сайте</p></div></div>
+    <div class="card-b"><div class="sg-sw">
+        <label class="switch"><input type="checkbox" id="st-pick" name="pickupChoice" value="on" th:checked="${p.pickupChoiceOn()}"> Клиент выбирает день и время выдачи<small class="hint">необязательно для клиента: окна — как в «Окнах выдачи». Выключено — день и окно назначает менеджер, когда принимает заказ</small></label>
+        <label class="switch"><input type="checkbox" id="st-pay" name="paymentChoice" value="on" th:checked="${p.paymentChoiceOn()}"> Клиент выбирает способ оплаты<small class="hint">наличные, Kaspi, перевод, по счёту. Выключено — способ из карточки клиента</small></label></div></div>
+    <div class="card-f sg-f"><span class="muted sg-m">Изменений нет</span><button class="btn btn-primary btn-sm" type="submit">Сохранить</button></div>
+</form>
+
+<!-- окна выдачи -->
+<form class="card sg-card" id="st-slots" method="post" action="/admin/settings/slots" novalidate aria-labelledby="h-st-slots" data-guard="В настройках есть несохранённые изменения.">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <div class="card-h"><div><h2 id="h-st-slots">Окна выдачи</h2><p>по одному часу; сколько заказов успевают выдать в одном окне</p></div></div>
+    <div class="card-b"><div class="fgrid sg-sl">
+        <label class="field"><span>Первое окно с</span><select class="sel" id="st-from" name="from"><option th:each="h : ${hours}" th:value="${h}" th:selected="${h == slots.firstHour}" th:text="${(h < 10 ? '0' : '') + h + ':00'}"></option></select></label>
+        <label class="field"><span>Последнее до</span><select class="sel" id="st-to" name="to"><option th:each="h : ${hours}" th:value="${h}" th:selected="${h == slots.lastHour}" th:text="${(h < 10 ? '0' : '') + h + ':00'}"></option></select></label>
+        <label class="field"><span>Заказов в окне</span><span class="qin"><input class="inp" id="st-cap" name="cap" inputmode="numeric" th:value="${slots.capacity}"><i>шт</i></span></label>
+        <div class="field wide"><span>Дни выдачи</span><div class="sg-days" role="group" aria-label="Дни выдачи">            <label class="dchip"><input type="checkbox" name="wd" value="0" th:checked="${slotDays.charAt(0) == '1'}"><span>пн</span></label><label class="dchip"><input type="checkbox" name="wd" value="1" th:checked="${slotDays.charAt(1) == '1'}"><span>вт</span></label><label class="dchip"><input type="checkbox" name="wd" value="2" th:checked="${slotDays.charAt(2) == '1'}"><span>ср</span></label><label class="dchip"><input type="checkbox" name="wd" value="3" th:checked="${slotDays.charAt(3) == '1'}"><span>чт</span></label><label class="dchip"><input type="checkbox" name="wd" value="4" th:checked="${slotDays.charAt(4) == '1'}"><span>пт</span></label><label class="dchip"><input type="checkbox" name="wd" value="5" th:checked="${slotDays.charAt(5) == '1'}"><span>сб</span></label><label class="dchip"><input type="checkbox" name="wd" value="6" th:checked="${slotDays.charAt(6) == '1'}"><span>вс</span></label></div>
+            <small class="hint">в выключенный день окон нет ни в магазине, ни в форме заказа</small></div></div>
+        <p class="sg-sum" id="st-slsum"></p><div class="sg-wk" id="st-wk"></div>
+        <script type="application/json" id="st-slots-data" th:utext="${slotJson}"></script></div>
+    <div class="card-f sg-f"><span class="muted sg-m">Изменений нет</span><button class="btn btn-primary btn-sm" type="submit">Сохранить</button></div>
+</form>
+
+<!-- WhatsApp -->
+<section class="card sg-card" id="st-wa" aria-labelledby="h-st-wa">
+    <div class="card-h"><div><h2 id="h-st-wa">WhatsApp</h2><p>заказы, которые клиенты пишут в WhatsApp, разбираются сами и приходят в «WhatsApp-заказы» приложения</p></div></div>
+    <div class="card-b"><div class="sg-wa">
+        <p class="sg-wst"><span class="dot" th:classappend="${waOn ? 'dot--ok' : 'dot--bad'}" aria-hidden="true"></span><b th:text="${waTitle}">Подключён</b><span class="muted" th:text="${waText}"></span></p>
+        <div class="sg-acts" th:if="${waOn}"><button class="btn btn-soft btn-sm" type="button" id="wa-again">Подключить заново (новый QR)</button><button class="btn btn-danger btn-sm" type="button" id="wa-off">Отключить</button></div>
+        <div class="sg-acts" th:unless="${waOn}"><button class="btn btn-primary btn-sm" type="button" id="wa-qr" th:attr="data-open=${openQr}">Показать QR для подключения</button></div></div></div>
+    <form id="wa-logout" method="post" action="/admin/settings/whatsapp/logout" hidden><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="again" value="" disabled></form>
+</section>
+
+<!-- 1С -->
+<section class="card sg-card" id="st-onec" aria-labelledby="h-st-onec">
+    <div class="card-h"><div><h2 id="h-st-onec">1С</h2><p>что CRM отправляет в 1С и что забирает оттуда</p></div></div>
+    <div class="card-b">
+        <p class="sg-wst"><span class="dot" th:classappend="${onecOn ? 'dot--ok' : 'dot--bad'}" aria-hidden="true"></span><b th:text="${onecOn ? 'Подключено к 1С:Fresh' : '1С не подключена'}"></b><span class="muted" th:text="${onecOn ? 'CRM пишет в 1С только эти документы; справочники и остатки читает' : 'адрес 1С не задан на сервере — документы копятся в очереди'}"></span></p>
+        <div class="tbl-w"><table class="tbl sg-1t"><thead><tr><th>Из CRM</th><th>В 1С</th><th class="r">В очереди</th><th class="r">Не ушли</th></tr></thead><tbody>
+            <tr th:each="r : ${onec}"><td class="s1-a"><a class="link" th:href="${r.href}" th:text="${r.what}"></a></td><td class="s1-b" th:text="${r.doc}"></td>
+                <td class="r num s1-q" data-l="в очереди" th:text="${r.queue > 0 ? r.queue : '—'}"></td><td class="r num s1-e" data-l="не ушли"><b th:if="${r.err > 0}" class="pay-bad" th:text="${r.err}"></b><th:block th:unless="${r.err > 0}">—</th:block></td></tr></tbody></table></div>
+        <div class="sg-two sg-1c"><div><h3 class="sg-h3">Что CRM забирает из 1С</h3><ul class="sg-ul"><li><b>Остатки</b> товаров и сырья — каждые 5 минут</li><li><b>Документы, заведённые прямо в 1С</b> — реализации и поступления, каждые 5 минут с 7:00 до 18:55</li>
+            <li><b>Возвраты</b> из 1С — каждые 5 минут</li><li><b>Коды товаров</b> — раз в сутки</li></ul><p class="hint">Если в CRM 10 минут никто не работает, опросы 1С пропускаются — сервер не тратит время зря.</p></div>
+            <div><h3 class="sg-h3">Загрузить из 1С сейчас</h3><div class="sg-load">
+                <button class="sg-lb" type="button" data-l="/admin/stock/sync-1c" data-t="Сверить остатки с 1С?" data-x="Остатки товаров и сырья обновятся из 1С. Обычно сверка идёт сама каждые 5 минут."><th:block th:utext="${i['refresh']}"></th:block><span><b>Остатки</b><small>сверить товары и сырьё</small></span></button>
+                <button class="sg-lb" type="button" data-l="/admin/staff/import-1c" data-t="Загрузить сотрудников из 1С?" data-x="ФИО, должность, дата приёма, оклад и увольнение обновятся. Ставку за смену и группу затрат CRM ведёт сама."><th:block th:utext="${i['refresh']}"></th:block><span><b>Сотрудники</b><small>ФИО, должности, оклады</small></span></button>
+                <button class="sg-lb" type="button" data-l="/admin/purchases/suppliers/sync-1c" data-t="Загрузить поставщиков из 1С?" data-x="Новые контрагенты-поставщики добавятся; у связанных обновятся названия и договоры."><th:block th:utext="${i['refresh']}"></th:block><span><b>Поставщики</b><small>контрагенты и договоры</small></span></button>
+                <button class="sg-lb" type="button" data-l="/admin/products/departments-1c" data-t="Определить корпуса из 1С?" data-x="Подразделение (Корпус А, B, С, D) каждого товара — по документам «Отчёт производства за смену», заведённым в 1С вручную. У товара с такой историей корпус заменится на самый частый."><th:block th:utext="${i['refresh']}"></th:block><span><b>Корпуса товаров</b><small>подразделение по отчётам производства</small></span></button>
+                <button class="sg-lb" type="button" data-l="/admin/settings/recipes-1c" data-danger="1" data-t="Загрузить рецептуры из 1С?" data-x="Рецептуры всех товаров заменятся спецификациями из 1С. Правки, сделанные в CRM, пропадут."><th:block th:utext="${i['refresh']}"></th:block><span><b>Рецептуры</b><small>спецификации номенклатуры</small></span></button>
+            </div></div></div></div>
+    <form id="st-load" method="post" hidden><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><input type="hidden" name="next" value="/admin/settings#st-onec"></form>
+</section>
+
+<!-- уведомления -->
+<section class="card sg-card" id="st-ntf" aria-labelledby="h-st-ntf">
+    <div class="card-h"><div><h2 id="h-st-ntf">Уведомления</h2><p>push в приложение на телефоне — Android и iPhone («На экран Домой»): кому что приходит</p></div></div>
+    <div class="card-b">
+        <p class="sg-wst"><span class="dot" th:classappend="${pushOn ? 'dot--ok' : 'dot--bad'}" aria-hidden="true"></span><b th:text="${pushOn ? 'Push подключён' : 'Push не подключён'}"></b><span class="muted" th:text="${pushOn ? 'приходит всем, кто вошёл в приложение с этой ролью и разрешил уведомления на телефоне' : 'на сервере не настроен Firebase — уведомления пишутся только в журнал'}"></span></p>
+        <div class="tbl-w"><table class="tbl mx nt"><thead><tr><th>Событие</th><th th:each="r : ${ntRoleShort}" class="c" th:text="${r}"></th></tr></thead><tbody>
+            <tr th:each="n : ${ntf}"><td><th:block th:text="${n.event}"></th:block><small th:if="${n.note != null}" class="nt-n" th:text="${n.note}"></small></td>
+                <th:block th:if="${n.to != null}"><th:block th:each="r, s : ${ntRoles}"><td th:if="${n.has(r)}" class="c is-y" th:attr="data-l=${ntRoleShort[s.index]}"><span class="mx-y" title="приходит" th:utext="${i16['check']}"></span></td><td th:unless="${n.has(r)}" class="c"><span class="mx-n">—</span></td></th:block></th:block>
+                <td th:if="${n.to == null}" th:attr="colspan=${ntRoles.size()}" class="nt-log"><span class="tag tag--warn">только в журнал</span> push никому не уходит</td></tr></tbody></table></div>
+        <p class="hint sg-nh">Склад сырья и технолог push не получают. Кому что приходит, задано в CRM — если нужно иначе, например чтобы «сырьё ниже минимума» приходило складу сырья, это настраивается здесь после доработки.</p>
+        <h3 class="sg-h3">Журнал — последние</h3>
+        <p th:if="${log.isEmpty()}" class="muted">Уведомлений пока не было.</p>
+        <ul class="nt-l" th:unless="${log.isEmpty()}"><li th:each="x : ${log}"><span class="nt-at num" th:text="${@fmt.when(x.at)}"></span><span class="nt-t" th:text="${x.text}"></span>
+            <span class="nt-to"><th:block th:text="${x.to}"></th:block><span th:if="${x.log}" class="tag tag--warn">журнал</span></span></li></ul></div>
+</section>
+
+<!-- входы -->
+<section class="card sg-card" id="st-usr" aria-labelledby="h-st-usr">
+    <div class="card-h"><div><h2 id="h-st-usr">Входы и пароли</h2><p>кто входит в админку и приложение</p></div></div>
+    <div class="card-b"><p class="muted">Логины, роли и пароли сотрудников — в «Сотрудниках», вкладка «Входы в CRM». Там же видно, какие разделы открыты каждой роли.</p>
+        <p class="pc-links"><a class="link" href="/admin/staff/users">Входы в CRM</a><a class="link" href="/admin/me/password">Сменить свой пароль</a></p></div>
+</section>
+</div></div>
+</th:block>
+<th:block th:fragment="scripts">
+<script src="/admin/assets/ops.js?v=1"></script>
+<script src="/admin/assets/settings.js?v=1"></script>
 </th:block>
 </body>
 </html>

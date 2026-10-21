@@ -61,4 +61,7 @@ public interface ProductReturnRepository extends JpaRepository<ProductReturn, Lo
     @org.springframework.data.jpa.repository.Modifying
     @Query("update ProductReturn e set e.oneCPending = false where e.id = :id")
     int clearOneCPending(@Param("id") Long id);
+
+    /** Сколько документов не ушло в 1С (есть ошибка выгрузки) — «Настройки › 1С». */
+    long countByOneCSyncErrorIsNotNull();
 }

@@ -65,4 +65,9 @@ public final class AdminSupport {
     public static String at(String[] a, int i) {
         return i < a.length ? a[i] : "";
     }
+
+    /** Куда вернуться после действия: в «Настройки», если пришли оттуда (next), иначе — в свой раздел. */
+    public static String back(String next, String fallback) {
+        return "redirect:" + (next != null && next.matches("/admin/settings(#[\\w-]+)?") ? next : fallback);
+    }
 }
