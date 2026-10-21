@@ -109,7 +109,9 @@ public class AdminSettingsController {
         model.addAttribute("hours", hours);
         model.addAttribute("slots", st);
         String days = st.days() == null || st.days().length() != 7 ? "1111111" : st.days();
-        model.addAttribute("slotDays", days);
+        List<Boolean> dayOn = new ArrayList<>();
+        for (int i = 0; i < 7; i++) dayOn.add(days.charAt(i) == '1');
+        model.addAttribute("dayOn", dayOn);
         List<Map<String, Object>> week = new ArrayList<>();
         for (int i = 0; i < PickupSlotService.DAYS; i++) {
             LocalDate d = today.plusDays(i);
