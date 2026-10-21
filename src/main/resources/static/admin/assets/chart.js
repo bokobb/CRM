@@ -1,7 +1,9 @@
 /* Дашборд: столбики «Выручка» за 7, 14 или 30 дней по выбранный день из JSON в странице (#rev-data:
    {days: [{d, sum, n, rpcs}], sel, today, p}) — функция dbRevenue() из макета: выручка за вычетом возвратов,
    в подсказке — возвраты в штуках, нажатие на день открывает дашборд за этот день; переключатель
-   «График · Таблица». Суммы под кнопкой-глазом (admin.js): подписи оси размывает фильтр #mblur, в подсказке — .mny.
+   «График · Таблица». Карточка всегда слева: на всю ширину под обеими колонками, а если правая колонка
+   («Требуют внимания», «Что берут») кончается намного ниже «Выдачи» — в левой колонке под «Выдачей», до правой
+   (place). Суммы под кнопкой-глазом (admin.js): подписи оси размывает фильтр #mblur, в подсказке — .mny.
    Без библиотек. */
 (function () {
   'use strict';
@@ -41,10 +43,10 @@
     var box = $('db-chart');
     if (!box || box.hidden) return;
     var total = days.reduce(function (s, x) { return s + x.sum; }, 0);
-    var W = Math.max(300, Math.round(box.clientWidth - 16)), H = 236, L = 60, R = 8, T = 14, B = 40;
+    var W = Math.max(300, Math.round(box.clientWidth - 16)), H = W > 640 ? 280 : 236, L = 60, R = 8, T = 14, B = 40;
     var max = Math.max.apply(null, days.map(function (x) { return x.sum; }).concat([0])) || 4000;
     var step = niceStep(max / 4), top = Math.ceil(max / step) * step;
-    var pw = W - L - R, ph = H - T - B, band = pw / Math.max(1, days.length), bw = Math.min(24, band * 0.62);
+    var pw = W - L - R, ph = H - T - B, band = pw / Math.max(1, days.length), bw = Math.min(64, band * 0.72);
     var hid = document.documentElement.classList.contains('hide-money');
     var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Выручка по дням за ' + P + ' дней' + (hid ? '' : ', всего ' + money(total)) + '. Подробно — во вкладке «Таблица». Нажмите на день, чтобы открыть его.">' +
       '<defs><filter id="mblur" x="-40%" y="-80%" width="180%" height="260%"><feGaussianBlur stdDeviation="3.5"/></filter><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#F3E2C2"/><rect width="2.4" height="6" fill="#A8692B"/></pattern>' +
@@ -56,7 +58,7 @@
     }
     var every = band < 15 ? 3 : band < 28 ? 2 : 1;
     days.forEach(function (x, i) {
-      var cx = L + i * band + band / 2, h = x.sum / top * ph, y = T + ph - h, bx = cx - bw / 2, r = Math.min(4, h), sel = x.d === SEL;
+      var cx = L + i * band + band / 2, h = x.sum / top * ph, y = T + ph - h, bx = cx - bw / 2, r = Math.min(bw > 30 ? 7 : 4, h, bw / 2), sel = x.d === SEL;
       s += '<g class="col' + (sel ? ' is-sel' : '') + '" data-i="' + i + '"><rect class="hit" x="' + (L + i * band).toFixed(1) + '" y="' + T + '" width="' + band.toFixed(1) + '" height="' + ph + '"/>';
       if (h > 0) {
         s += '<path class="b' + (x.d === TODAY ? ' today' : '') + (sel ? ' sel' : '') + '" d="M' + bx.toFixed(1) + ' ' + (T + ph) + 'V' + (y + r).toFixed(1) +
@@ -97,6 +99,18 @@
     });
   }
 
+  // куда поставить карточку: сравниваем низ «Выдачи» и последней карточки справа (сами колонки тянутся по ряду)
+  var card = $('db-rev'), left = $('db-left'), right = $('db-right'), win = $('db-win'), dash = card && card.parentNode;
+  function place() {
+    if (!card || !left || !right || !win) return;
+    var stacked = left.offsetWidth > dash.clientWidth * 0.8;           // телефон и узкий экран — всё друг под другом
+    var rb = right.lastElementChild ? right.lastElementChild.getBoundingClientRect().bottom : 0;
+    var want = !stacked && rb - win.getBoundingClientRect().bottom > 220 ? left : dash;
+    if (card.parentNode !== want) { want.appendChild(card); return true; }
+    return false;
+  }
+  function relayout() { if (place()) draw(); }
+
   var KEY = 'admin-db-view', table = false;
   try { table = localStorage.getItem(KEY) === 'table'; } catch (e) { table = false; }
   function setView(t) {
@@ -110,8 +124,11 @@
     var b = e.target.closest('button'); if (!b) return;
     setView(b.getAttribute('data-v') === 'table');
   });
+  place();
   setView(table);
   var rT = null;
-  window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(draw, 120); });
+  window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(function () { place(); draw(); }, 120); });
+  window.addEventListener('load', relayout);                         // картинки и шрифты меняют высоту колонок
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);
   document.addEventListener('admin:mask', function (e) { if (e.detail.kind === 'money') draw(); });
 })();

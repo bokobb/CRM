@@ -214,6 +214,7 @@ a.kpi--alert:hover,.kpi--alert.kpi--a:hover{box-shadow:var(--shadow),0 0 0 2px v
 .delta{display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--ink)}
 .c-7{grid-column:span 7}
 .c-5{grid-column:span 5}
+.db-rev{grid-column:1/-1;min-width:0}
 .c-top{align-self:start}
 /* pickup windows of a day */
 .wins{display:grid;padding:4px 12px 12px}

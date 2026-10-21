@@ -27,8 +27,8 @@
             <span class="kpi-s" th:text="${planN == 0 ? 'заказов на этот день пока нет' : 'сумма ' + @fmt.count(planN, 'заказа', 'заказов', 'заказов') + ' на этот день'}"></span></div>
     </div>
 
-    <div class="dash-col c-7">
-    <section class="card" aria-labelledby="h-win">
+    <div class="dash-col c-7" id="db-left">
+    <section class="card" id="db-win" aria-labelledby="h-win">
         <div class="card-h"><div><h2 id="h-win">Выдача</h2><p th:text="${(@fmt.isToday(day.toString()) ? 'сегодня' : @fmt.wday(day) + ', ' + @fmt.dm(day)) + ' · 7:00–18:00: заказы, когда заберут и наши действия'}"></p></div>
         </div>
         <div class="wins">
@@ -54,7 +54,7 @@
     </section>
 
     </div>
-    <div class="dash-col c-5">
+    <div class="dash-col c-5" id="db-right">
     <section class="card" aria-labelledby="h-att">
         <div class="card-h"><h2 id="h-att">Требуют внимания</h2><p>сейчас</p></div>
         <ul class="att card-b">
@@ -70,7 +70,10 @@
             <li th:if="${top.isEmpty()}" class="empty">За эти дни выданных заказов нет.</li>
         </ol>
     </section>
-    <section class="card" aria-labelledby="h-rev">
+    </div>
+    <!--/* «Выручка» — всегда слева: на всю ширину под колонками или, если правая колонка намного длиннее,
+         в левой под «Выдачей» (переставляет chart.js) */-->
+    <section class="card db-rev" id="db-rev" aria-labelledby="h-rev">
         <div class="card-h"><div><div class="card-ht"><h2 id="h-rev">Выручка</h2><th:block th:replace="~{admin/mask :: btn('money')}"></th:block></div><p th:text="${'по выданным заказам, за вычетом возвратов, ' + @fmt.dml(revFrom) + ' — ' + @fmt.dml(revEnd)}"></p></div>
             <div class="db-segs"><div class="seg" role="group" aria-label="Период для выручки и «Что берут»"><a th:each="x : ${periods}" th:href="${x.href}" th:attr="aria-pressed=${x.on}" th:text="${x.days + ' дней'}">14 дней</a></div>
             <div class="seg" role="group" aria-label="Вид" id="db-view"><button type="button" data-v="chart" aria-pressed="true">График</button><button type="button" data-v="table" aria-pressed="false">Таблица</button></div></div></div>
@@ -83,12 +86,11 @@
         </div>
         <div class="card-f"><span><th:block th:text="${'За ' + period + ' дней: '}">За 14 дней: </th:block><b class="num mny" style="color:var(--ink)" th:text="${@fmt.money(revTotal)}"></b> · <th:block th:text="${@fmt.count(revCount, 'заказ', 'заказа', 'заказов') + ' · возвраты ' + @fmt.num(revRetPcs) + ' шт на '}"></th:block><span class="mny" th:text="${@fmt.money(revRetSum)}"></span></span><a class="link" href="/admin/returns">Все возвраты</a></div>
     </section>
-    </div>
 </div>
 </th:block>
 <th:block th:fragment="scripts">
 <script type="application/json" id="rev-data" th:utext="${revJson}"></script>
-<script src="/admin/assets/chart.js?v=4"></script>
+<script src="/admin/assets/chart.js?v=5"></script>
 <script src="/admin/assets/daypick.js?v=5"></script>
 </th:block>
 </body>
