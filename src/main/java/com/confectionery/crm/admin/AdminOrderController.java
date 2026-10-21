@@ -71,9 +71,59 @@ public class AdminOrderController {
 
     // ------------------------------------------------------------------ список
 
+    /** Дни выдачи в списке: с from по to включительно (один день — from = to). */
+    record Span(LocalDate from, LocalDate to) {
+        boolean has(LocalDate d) {
+            return !d.isBefore(from) && !d.isAfter(to);
+        }
+    }
+
+    /** Ссылка «вне выбранных дат»: сколько и куда. */
+    public record Out(String label, String href) {
+    }
+
+    /**
+     * date из адреса: today, tomorrow, 2026-10-21 или промежуток 2026-10-14..2026-10-21; all — все даты (null).
+     * Непонятное — тоже null, вызывающий подставит сегодня.
+     */
+    static Span span(String date, LocalDate today) {
+        if (date.equals("today")) return new Span(today, today);
+        if (date.equals("tomorrow")) return new Span(today.plusDays(1), today.plusDays(1));
+        try {
+            String[] p = date.split("\\.\\.", 2);
+            LocalDate a = LocalDate.parse(p[0]), b = p.length > 1 ? LocalDate.parse(p[1]) : a;
+            return a.isAfter(b) ? new Span(b, a) : new Span(a, b);
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    /** «Сегодня, 21 октября», «Среда, 15 октября», «14 — 21 октября», «28 сентября — 4 октября». */
+    private String spanLabel(Span s, LocalDate today) {
+        if (s.from().equals(s.to())) {
+            LocalDate d = s.from();
+            String rel = d.equals(today) ? "Сегодня" : d.equals(today.plusDays(1)) ? "Завтра" : d.equals(today.minusDays(1)) ? "Вчера" : fmt.cap(fmt.wdayLong(d));
+            return rel + ", " + fmt.dml(d) + (d.getYear() != today.getYear() ? " " + d.getYear() : "");
+        }
+        boolean years = s.from().getYear() != s.to().getYear() || s.to().getYear() != today.getYear();
+        String a = s.from().getMonth() == s.to().getMonth() && !years ? String.valueOf(s.from().getDayOfMonth())
+                : fmt.dml(s.from()) + (years ? " " + s.from().getYear() : "");
+        return a + " — " + fmt.dml(s.to()) + (years ? " " + s.to().getYear() : "");
+    }
+
+    /** То же коротко — для телефона, где в шапке мало места: «Сегодня», «15 окт», «14–21 окт», «28.09–4.10». */
+    private String spanShort(Span s) {
+        if (s.from().equals(s.to())) return fmt.cap(fmt.relDay(s.from()));
+        if (s.from().getMonth() == s.to().getMonth() && s.from().getYear() == s.to().getYear()) {
+            return s.from().getDayOfMonth() + "–" + fmt.dm(s.to());
+        }
+        return s.from().getDayOfMonth() + "." + String.format("%02d", s.from().getMonthValue()) + "–"
+                + s.to().getDayOfMonth() + "." + String.format("%02d", s.to().getMonthValue());
+    }
+
     @GetMapping("/orders")
     @Transactional(readOnly = true)
-    public String list(@RequestParam(defaultValue = "all") String status, @RequestParam(defaultValue = "all") String date,
+    public String list(@RequestParam(defaultValue = "all") String status, @RequestParam(required = false) String date,
                        @RequestParam(defaultValue = "all") String source, @RequestParam(defaultValue = "") String q,
                        @RequestParam(required = false) Long client, @RequestParam(defaultValue = "1") int page,
                        @RequestParam(defaultValue = "0") int unpaid, Model model) {
@@ -85,22 +135,32 @@ public class AdminOrderController {
         }
         List<Order> all = orderRepository.findAllByOrderByCreatedAtDesc();
         LocalDate today = LocalDate.now();
+        // без даты в адресе — сегодня; поиск, заказы клиента и «Неоплаченные» — за все даты, иначе нужное не найдётся
+        String dateKey = date != null && !date.isBlank() ? date.trim()
+                : query.isEmpty() && client == null && unpaid != 1 ? "today" : "all";
+        Span span = dateKey.equals("all") ? null : span(dateKey, today);
+        if (span == null && !dateKey.equals("all")) {
+            dateKey = "today";
+            span = new Span(today, today);
+        }
         List<AdminOrders.Row> base = new ArrayList<>();
+        Map<String, Integer> outside = new HashMap<>();
+        int outN = 0;
+        LocalDate first = today, last = today.plusDays(30);
         for (Order o : all) {
+            LocalDate d = AdminOrders.day(o);
+            if (d.isBefore(first)) first = d;
+            if (d.isAfter(last)) last = d;
             if (client != null && !o.getClient().getId().equals(client)) continue;
             if (!matchQ(o, query)) continue;
             if (unpaid == 1 && !AdminOrders.unpaid(o)) continue;
-            LocalDate d = AdminOrders.day(o);
-            boolean dayOk = switch (date) {
-                case "today" -> d.equals(today);
-                case "tomorrow" -> d.equals(today.plusDays(1));
-                case "week" -> !d.isBefore(today) && !d.isAfter(today.plusDays(6));
-                case "past" -> d.isBefore(today);
-                default -> true;
-            };
-            if (!dayOk) continue;
             boolean site = AdminOrders.byClient(o);
             if (source.equals("site") && !site || source.equals("crm") && site) continue;
+            if (span != null && !span.has(d)) {
+                outside.merge(o.getStatus().badge(), 1, Integer::sum);
+                outN++;
+                continue;
+            }
             base.add(AdminOrders.row(o));
         }
         Map<String, Integer> counts = new HashMap<>();
@@ -111,7 +171,7 @@ public class AdminOrderController {
             int n = t[0].equals("all") ? base.size() : counts.getOrDefault(t[0], 0);
             if (!t[0].equals("all") && n == 0 && !tab.equals(t[0]) && (t[0].equals("noshow") || t[0].equals("off"))) continue;
             tabs.add(new Tab(t[0], t[1], n, (t[0].equals("noshow") || t[0].equals("sent")) && n > 0,
-                    link(t[0], date, source, query, client, 1), tab.equals(t[0])));
+                    link(t[0], dateKey, source, query, client, 1), tab.equals(t[0])));
         }
         List<AdminOrders.Row> list = new ArrayList<>(base.stream().filter(r -> tab.equals("all") || r.badge().equals(tab)).toList());
         if (ACTIVE_TABS.contains(tab)) {
@@ -128,20 +188,46 @@ public class AdminOrderController {
         model.addAttribute("allCount", all.size());
         model.addAttribute("page", p);
         model.addAttribute("pages", pages);
-        model.addAttribute("prevHref", p > 1 ? link(tab, date, source, query, client, p - 1) : null);
-        model.addAttribute("nextHref", p < pages ? link(tab, date, source, query, client, p + 1) : null);
+        model.addAttribute("prevHref", p > 1 ? link(tab, dateKey, source, query, client, p - 1) : null);
+        model.addAttribute("nextHref", p < pages ? link(tab, dateKey, source, query, client, p + 1) : null);
         model.addAttribute("tabs", tabs);
         model.addAttribute("status", tab);
         model.addAttribute("q", query);
         model.addAttribute("client", client);
         model.addAttribute("clientName", client == null ? null : clientRepository.findById(client).map(Client::getName).orElse(null));
-        model.addAttribute("dates", List.of(opt("all", "Выдача: любая", date), opt("today", "Выдача: сегодня", date),
-                opt("tomorrow", "Выдача: завтра", date), opt("week", "Выдача: 7 дней", date), opt("past", "Выдача: прошла", date)));
         model.addAttribute("sources", List.of(opt("all", "Откуда: все", source), opt("site", "Откуда: сайт", source),
                 opt("crm", "Откуда: менеджер", source)));
-        model.addAttribute("filtered", !query.isEmpty() || !date.equals("all") || !source.equals("all") || client != null || !tab.equals("all"));
+        model.addAttribute("filtered", !query.isEmpty() || !source.equals("all") || client != null || !tab.equals("all"));
+        model.addAttribute("date", dateKey);
+        model.addAttribute("spanText", span == null ? null : spanLabel(span, today));
+        model.addAttribute("allDatesHref", link(tab, "all", source, query, client, 1));
+        model.addAttribute("resetHref", link("all", dateKey, "all", "", null, 1));
+
+        // вне выбранных дат: при поиске — сколько ещё нашлось; всегда — новые с сайта и незабранные, чтобы их не пропустить
+        List<Out> outs = new ArrayList<>();
+        if (span != null && (!query.isEmpty() || client != null) && outN > 0) {
+            outs.add(new Out("ещё " + outN + AdminFormat.NB + fmt.plural(outN, "заказ", "заказа", "заказов"), link(tab, "all", source, query, client, 1)));
+        } else if (span != null) {
+            int sent = outside.getOrDefault("sent", 0), noshow = outside.getOrDefault("noshow", 0);
+            if (sent > 0) outs.add(new Out(sent + AdminFormat.NB + fmt.plural(sent, "новый", "новых", "новых"), link("sent", "all", source, query, client, 1)));
+            if (noshow > 0) outs.add(new Out(noshow + AdminFormat.NB + "не забрали", link("noshow", "all", source, query, client, 1)));
+        }
+        model.addAttribute("outs", outs);
+        model.addAttribute("outsFound", span != null && (!query.isEmpty() || client != null));
+
+        // шапка: дата под «Заказами», календарь — день или промежуток (daypick.js, data-range)
         model.addAttribute("title", "Заказы");
-        model.addAttribute("sub", "");
+        model.addAttribute("sub", span == null ? "Все даты" : spanLabel(span, today));
+        model.addAttribute("subShort", span == null ? "Все даты" : spanShort(span));
+        model.addAttribute("subPick", span == null ? "" : span.from().toString());
+        model.addAttribute("subTo", span == null ? null : span.to().toString());
+        model.addAttribute("subRange", "1");
+        model.addAttribute("subBase", "/admin/orders");
+        model.addAttribute("subParam", "date");
+        model.addAttribute("subKeep", link(tab, "all", source, query, client, 1).replaceFirst("^/admin/orders\\?", "").replace("&date=all", ""));
+        model.addAttribute("dayMin", first.toString());
+        model.addAttribute("dayMax", last.toString());
+        model.addAttribute("ownSearch", true);                        // свой поиск на странице — на телефоне лупа в шапке не нужна
         model.addAttribute("sec", "orders");
         return "admin/orders/list";
     }
@@ -150,9 +236,10 @@ public class AdminOrderController {
         return new Option(v, l, v.equals(cur));
     }
 
+    /** Дата пишется всегда: без неё список открывается на сегодня (или на все даты при поиске). */
     private static String link(String status, String date, String source, String q, Long client, int page) {
         StringBuilder sb = new StringBuilder("/admin/orders?status=").append(status);
-        if (!date.equals("all")) sb.append("&date=").append(date);
+        sb.append("&date=").append(date);
         if (!source.equals("all")) sb.append("&source=").append(source);
         if (!q.isEmpty()) sb.append("&q=").append(java.net.URLEncoder.encode(q, java.nio.charset.StandardCharsets.UTF_8));
         if (client != null) sb.append("&client=").append(client);

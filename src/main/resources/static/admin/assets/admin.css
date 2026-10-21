@@ -638,8 +638,8 @@ a.kpi--alert:hover{box-shadow:var(--shadow),0 0 0 2px var(--crimson-deep)}
 .ev--pickup{background:var(--cream);box-shadow:inset 0 0 0 1.5px var(--yolk-deep)}
 .kpi-v small{white-space:nowrap}
 /* дашборд: серая дата в шапке — кнопка, под ней календарь в цветах сайта */
-.dpick{position:relative;flex:1 1 0;min-width:0}
-.dpick-b{display:inline-flex;align-items:center;gap:7px;max-width:100%;min-height:34px;padding:0 10px;margin-left:-10px;border:0;border-radius:999px;background:none;color:var(--ink-soft);font:400 14px/1 var(--body);white-space:nowrap}
+.dpick{position:relative;flex:0 1 auto;min-width:0}
+.dpick-b{display:inline-flex;align-items:center;gap:7px;max-width:calc(100% + 10px);min-height:34px;padding:0 10px;margin-left:-10px;border:0;border-radius:999px;background:none;color:var(--ink-soft);font:400 14px/1 var(--body);white-space:nowrap}
 .dpick-b span{overflow:hidden;text-overflow:ellipsis}
 .dpick-b .i{width:16px;height:16px}
 .dpick-b:hover,.dpick-b[aria-expanded="true"]{background:var(--paper-deep);color:var(--ink)}
@@ -657,8 +657,18 @@ a.kpi--alert:hover{box-shadow:var(--shadow),0 0 0 2px var(--crimson-deep)}
 .cal-d.is-today{box-shadow:inset 0 0 0 1.5px var(--crimson);color:var(--crimson-deep);font-weight:700}
 .cal-d.is-sel{background:var(--yolk);color:var(--ink);font-weight:700;box-shadow:none}
 .cal-d:disabled{color:var(--line-strong);cursor:default}
-.cal-f{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
-@media (max-width:760px){.dpick-b span{display:none}.dpick-b{margin-left:0}.cal{position:fixed;left:16px;right:16px;top:calc(64px + env(safe-area-inset-top,0px));width:auto}}
+.cal-f{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.cal-d.is-in{background:var(--cream);font-weight:600}
+.cal-hint{flex:1 0 100%;font-size:13px;line-height:1.35;color:var(--ink-soft)}
+.cal-rg{margin-left:auto}
+.dpick-s{display:none}
+@media (max-width:760px){.dpick-b span{display:none}.dpick-b{margin-left:0;max-width:100%}.cal{position:fixed;left:16px;right:16px;top:calc(64px + env(safe-area-inset-top,0px));width:auto}
+  .dpick-b .dpick-s{display:inline}.dpick-b--s{padding:0 12px;background:var(--paper-deep);color:var(--ink)}.dpick-b--s .i{display:none}
+  .bar.bar--own-q .s-btn{display:none}}
+@media (min-width:761px){.bar-t--pick{flex-shrink:0}}
+.o-out{margin:0 0 14px}
+.o-out .link{min-height:0;font-size:13.5px}
+.o-out.is-q{background:var(--cream);color:var(--ink)}
 /* возврат в карточке заказа и раздел «Возвраты» — как в макете: считаем в штуках */
 .card-acts{display:flex;flex-wrap:wrap;gap:8px}
 .kv dd small{display:block;margin-top:1px;font-size:13px;color:var(--ink-soft)}

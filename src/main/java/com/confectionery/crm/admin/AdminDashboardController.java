@@ -232,7 +232,7 @@ public class AdminDashboardController {
         if (!sent.isEmpty()) {
             att.add(new Attention("d-cream", "s-sent",
                     sent.size() + AdminFormat.NB + fmt.plural(sent.size(), "новый заказ", "новых заказа", "новых заказов") + " с сайта",
-                    "ждут подтверждения: № " + model.getAttribute("sentNos"), "/admin/orders?status=sent", "Открыть"));
+                    "ждут подтверждения: № " + model.getAttribute("sentNos"), "/admin/orders?status=sent&date=all", "Открыть"));
         }
         for (Order o : noShow) {
             AdminOrders.Totals t = AdminOrders.totals(o);

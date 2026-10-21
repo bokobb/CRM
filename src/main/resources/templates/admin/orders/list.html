@@ -1,25 +1,28 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <body>
 <th:block th:fragment="content">
 <form class="tools" method="get" action="/admin/orders" data-autosubmit>
     <input type="hidden" name="status" th:value="${status}">
+    <input type="hidden" name="date" th:value="${date}">
     <input type="hidden" name="client" th:if="${client != null}" th:value="${client}">
     <label class="search"><span class="sr">Поиск</span><th:block th:utext="${i['search']}"></th:block>
         <input class="inp" name="q" type="search" placeholder="№, магазин, телефон" autocomplete="off" th:value="${q}"></label>
-    <label class="pick"><span class="sr">Дата выдачи</span><select class="sel" name="date">
-        <option th:each="o : ${dates}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
     <label class="pick"><span class="sr">Откуда заказ</span><select class="sel" name="source">
         <option th:each="o : ${sources}" th:value="${o.value}" th:text="${o.label}" th:selected="${o.on}"></option></select></label>
     <noscript><button class="btn btn-soft btn-sm" type="submit">Показать</button></noscript>
-    <a th:if="${clientName != null}" class="chip" aria-pressed="true" th:href="@{/admin/orders(status=${status},q=${q})}" title="Убрать фильтр по клиенту"><th:block th:text="${'Клиент: ' + clientName}"></th:block> <span>✕</span></a>
+    <a th:if="${clientName != null}" class="chip" aria-pressed="true" th:href="@{/admin/orders(status=${status},date=${date},q=${q})}" title="Убрать фильтр по клиенту"><th:block th:text="${'Клиент: ' + clientName}"></th:block> <span>✕</span></a>
 </form>
 <div class="chips" role="group" aria-label="Статус заказа">
     <a th:each="t : ${tabs}" class="chip" th:classappend="${t.alert} ? 'chip--alert'" th:href="${t.href}" th:attr="aria-pressed=${t.on}"><th:block th:text="${t.label}"></th:block> <span th:text="${t.count}">0</span></a>
 </div>
+<p class="warn-s o-out" th:unless="${outs.isEmpty()}" th:classappend="${outsFound} ? 'is-q'"><th:block th:utext="${i16[outsFound ? 'search' : 'alert']}"></th:block><span th:text="${outsFound ? 'На другие даты нашлось' : 'На другие даты:'}">На другие даты:</span><span>
+    <th:block th:each="o, st : ${outs}"><a class="link" th:href="${o.href}" th:text="${o.label}"></a><th:block th:unless="${st.last}"> · </th:block></th:block></span></p>
 <section class="card" aria-label="Список заказов">
     <div class="tbl-w">
-        <div th:if="${rows.isEmpty()}" class="empty"><p>Заказов не найдено.</p><p style="margin-top:10px" th:if="${filtered}"><a class="btn btn-soft btn-sm" href="/admin/orders">Сбросить фильтры</a></p></div>
+        <div th:if="${rows.isEmpty()}" class="empty"><p th:text="${spanText != null ? 'На эти даты заказов нет.' : 'Заказов не найдено.'}">Заказов не найдено.</p>
+            <p style="margin-top:10px"><a th:if="${spanText != null}" class="btn btn-soft btn-sm" th:href="${allDatesHref}">Все даты</a>
+                <a th:if="${filtered}" class="btn btn-soft btn-sm" th:href="${resetHref}">Сбросить фильтры</a></p></div>
         <table th:unless="${rows.isEmpty()}" class="tbl tbl--o">
             <thead><tr><th>№</th><th>Клиент</th><th>Выдача</th><th class="r o-sz">Состав</th><th class="r">Сумма</th><th>Оплата</th><th>Статус</th></tr></thead>
             <tbody>
@@ -45,6 +48,9 @@
     <a th:if="${prevHref != null}" class="btn btn-soft btn-sm" th:href="${prevHref}">← Назад</a>
     <a th:if="${nextHref != null}" class="btn btn-soft btn-sm" th:href="${nextHref}">Дальше →</a>
 </div>
+</th:block>
+<th:block th:fragment="scripts">
+<script src="/admin/assets/daypick.js?v=4"></script>
 </th:block>
 </body>
 </html>
