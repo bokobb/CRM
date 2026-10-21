@@ -1,6 +1,5 @@
 package com.confectionery.crm.admin;
 
-import com.confectionery.crm.api.dto.ReportDto;
 import com.confectionery.crm.api.dto.WhatsAppSessionDto;
 import com.confectionery.crm.domain.CompanyProfile;
 import com.confectionery.crm.domain.Role;
@@ -29,7 +28,6 @@ public class AdminMiscController {
 
     private final VacancyService vacancyService;
     private final VacancyReplyService replyService;
-    private final ReportService reportService;
     private final CompanyProfileService profileService;
     private final PickupSlotService pickupSlotService;
     private final WhatsAppGatewayClient whatsAppGatewayClient;
@@ -153,52 +151,6 @@ public class AdminMiscController {
             fail(ra, e);
         }
         return "redirect:/admin/jobs?tab=replies";
-    }
-
-    // ------------------------------------------------------------------ отчёты
-
-    @GetMapping("/admin/reports")
-    public String reports(Model model) {
-        String role = currentUserService.role().map(Enum::name).orElse("");
-        model.addAttribute("kinds", ReportService.available(role).stream().map(ReportService.Kind::info).toList());
-        model.addAttribute("canTimesheet", currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT, Role.TECHNOLOGIST));
-        page(model, "Отчёты", "продажи, производство, закупки, сотрудники", "reports");
-        return "admin/reports/list";
-    }
-
-    @GetMapping("/admin/reports/{key}")
-    @Transactional(readOnly = true)
-    public String report(@PathVariable String key, @RequestParam(required = false) String from, @RequestParam(required = false) String to,
-                         Model model, RedirectAttributes ra) {
-        String role = currentUserService.role().map(Enum::name).orElse("");
-        ReportService.Kind kind;
-        try {
-            kind = ReportService.Kind.of(key);
-        } catch (IllegalArgumentException e) {
-            fail(ra, e);
-            return "redirect:/admin/reports";
-        }
-        if (!ReportService.available(role).contains(kind)) {
-            fail(ra, new IllegalStateException("Этот отчёт вам недоступен"));
-            return "redirect:/admin/reports";
-        }
-        if (kind == ReportService.Kind.EMPLOYEES) return "redirect:/admin/staff/timesheet";
-        ReportDto.Info info = kind.info();
-        LocalDate today = LocalDate.now();
-        boolean day = "DAY".equals(info.period());
-        LocalDate f = AdminSupport.date(from, day || "TODAY".equals(info.defaultRange()) ? today : today.withDayOfMonth(1));
-        LocalDate t = day ? f : AdminSupport.date(to, today);
-        try {
-            model.addAttribute("r", reportService.build(kind, f, t, currentUserService.hasRole(Role.ADMIN, Role.ACCOUNTANT)));
-        } catch (RuntimeException e) {
-            model.addAttribute("error", e.getMessage());
-        }
-        model.addAttribute("info", info);
-        model.addAttribute("day", day);
-        model.addAttribute("from", f);
-        model.addAttribute("to", t);
-        page(model, "Отчёты", info.title(), "reports");
-        return "admin/reports/view";
     }
 
     // ------------------------------------------------------------------ настройки

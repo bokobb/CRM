@@ -2,12 +2,21 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{})}">
 <body>
 <th:block th:fragment="content">
-<div class="mini-kpis" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
-    <a th:each="k : ${kinds}" class="kpi" th:href="${'/admin/reports/' + k.key}"><span class="kpi-l"><th:block th:utext="${i['reports']}"></th:block><th:block th:text="${k.title}"></th:block></span><span class="kpi-s" th:text="${k.description}"></span></a>
-    <a class="kpi" href="/admin/requests"><span class="kpi-l"><th:block th:utext="${i['print']}"></th:block>Отчёт производства (PDF)</span><span class="kpi-s">что выпустили за день — в разделе «Заявки на сырьё»</span></a>
-    <a class="kpi" href="/admin/production"><span class="kpi-l"><th:block th:utext="${i['production']}"></th:block>Себестоимость дня</span><span class="kpi-s">норма сырья, выдано, зарплата бригад</span></a>
+<th:block th:if="${money}">
+<div class="kpis kpis--4">
+    <a th:each="k, st : ${kpis}" class="kpi" th:classappend="${k.cls}" th:href="${kpiHrefs[st.index]}"><span class="kpi-l"><th:block th:utext="${i[kpiIcons[st.index]]}"></th:block><th:block th:text="${k.label}"></th:block></span><span class="kpi-v" th:utext="${k.value}"></span><span class="kpi-s" th:utext="${k.sub}"></span></a>
 </div>
-<p class="cnt" th:if="${kinds.isEmpty()}">Для вашей роли отчётов нет.</p>
+<p class="rp-per" th:text="${perText}"></p>
+</th:block>
+<section th:each="g : ${groups}" class="rp-g" th:attr="aria-label=${g.title}"><h2 class="rp-gh" th:text="${g.title}">Продажи</h2>
+    <div class="rp-list">
+        <a th:each="c : ${g.cards}" class="card rp-c" th:href="${c.rep.link()}"><span class="rp-i" aria-hidden="true" th:utext="${i[c.rep.icon]}"></span>
+            <span class="rp-t"><b th:text="${c.rep.title}"></b><span th:text="${c.rep.desc}"></span><small class="rp-n" th:if="${c.head != null}" th:text="${c.head}"></small><small class="rp-w" th:text="${'Видят: администратор, ' + c.rep.who}"></small></span>
+            <span th:if="${c.rep.href != null}" class="rp-go" th:utext="${i['chev']}"></span></a>
+    </div>
+</section>
+<p class="cnt" th:if="${groups.isEmpty()}">Для вашей роли отчётов нет.</p>
+<p class="cnt" th:unless="${groups.isEmpty()}">Продажа — выданные заказы по дню выдачи, возвраты — по дню возврата. Деньги в отчётах видят администратор и бухгалтер; технологу и складу ГП открыты свои отчёты без зарплат и расходов.</p>
 </th:block>
 </body>
 </html>
