@@ -137,6 +137,15 @@ public class AdminRequestController {
         return String.join(", ", list.stream().map(r -> "№ " + r.getId() + " «" + r.getTitle() + "»").toList());
     }
 
+    /** Подпись плитки — не больше трёх заявок, дальше «и ещё N»: длинный перечень растягивал весь ряд плиток. */
+    static String few(List<String> parts, String sep) {
+        return parts.size() <= 3 ? String.join(sep, parts) : String.join(sep, parts.subList(0, 3)) + " и ещё " + (parts.size() - 3);
+    }
+
+    static String fewNos(List<ProductionRequest> list) {
+        return few(list.stream().map(r -> "№ " + r.getId() + " «" + r.getTitle() + "»").toList(), ", ");
+    }
+
     static List<Tile> tiles(List<ProductionRequest> all) {
         List<ProductionRequest> nw = all.stream().filter(r -> AdminRequests.key(r).equals("new")).sorted(Comparator.comparing(ProductionRequest::getId)).toList();
         List<ProductionRequest> col = all.stream().filter(r -> AdminRequests.key(r).equals("collected")).sorted(Comparator.comparing(ProductionRequest::getId)).toList();
@@ -148,11 +157,11 @@ public class AdminRequestController {
             BigDecimal has = AdminRequests.nz(n.ingredient().getQuantityInStock());
             if (n.q().compareTo(has) > 0) shortTxt.add(n.ingredient().getName() + " " + AdminRequests.qu(n.q().subtract(has), AdminRequests.unit(n.ingredient())));
         });
-        String s1 = nw.isEmpty() ? "новых заявок нет" : nos(nw) + (shortTxt.isEmpty() ? " · сырья хватает"
-                : " · на " + (nw.size() > 1 ? "все" : "неё") + " не хватает: " + String.join(", ", shortTxt));
-        String s2 = col.isEmpty() ? "выданного сырья без оприхода нет" : String.join(" · ", col.stream().map(r -> "№ " + r.getId() + " — оприходовано "
-                + AdminRequests.got(r) + " из " + AdminRequests.main(r).size() + (AdminRequests.diff(r).isEmpty() ? "" : ", состав изменён после выдачи")).toList());
-        String s3 = rec.isEmpty() ? "всё оприходованное завершено" : nos(rec) + " — требование-накладная в 1С не проведена";
+        String s1 = nw.isEmpty() ? "новых заявок нет" : fewNos(nw) + (shortTxt.isEmpty() ? " · сырья хватает"
+                : " · на " + (nw.size() > 1 ? "все" : "неё") + " не хватает: " + few(shortTxt, ", "));
+        String s2 = col.isEmpty() ? "выданного сырья без оприхода нет" : few(col.stream().map(r -> "№ " + r.getId() + " — оприходовано "
+                + AdminRequests.got(r) + " из " + AdminRequests.main(r).size() + (AdminRequests.diff(r).isEmpty() ? "" : ", состав изменён после выдачи")).toList(), " · ");
+        String s3 = rec.isEmpty() ? "всё оприходованное завершено" : fewNos(rec) + " — требование-накладная в 1С не проведена";
         return List.of(
                 new Tile("/admin/requests?st=new", !shortTxt.isEmpty() ? "kpi--alert" : !nw.isEmpty() ? "kpi--warm" : "", "materials", "Ждут сырья со склада", nw.size(), s1),
                 new Tile("/admin/requests?st=collected", "", "stock", "Ждут оприхода", col.size(), s2),
