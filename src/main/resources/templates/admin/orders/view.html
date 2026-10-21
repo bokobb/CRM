@@ -30,49 +30,9 @@
 </div>
 <div class="od">
     <div class="od-main">
-        <section class="card" aria-labelledby="h-comp">
-            <div class="card-h"><div><h2 id="h-comp">Состав</h2><p th:text="${@fmt.count(t.positions, 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(t.packs) + ' шт'}"></p></div>
-                <button th:if="${o.status.name() != 'CANCELLED'}" class="btn btn-soft btn-sm" type="button" id="inv-open"><th:block th:utext="${i['doc']}"></th:block>Накладная</button></div>
-            <div class="tbl-w"><table class="tbl tbl--l">
-                <thead><tr><th>Товар</th><th class="r">Кол-во</th><th class="r">Коробок</th><th class="r">Сумма</th></tr></thead>
-                <tbody>
-                <tr th:each="l : ${lines}">
-                    <td class="l-p"><div class="prod"><img th:if="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th" th:src="${l.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span>
-                        <p><b th:text="${l.product.name}"></b><small th:text="${@fmt.money(l.price) + ' за ' + l.unit + (l.perBox != null ? ' · в коробке ' + @fmt.num(l.perBox) : '')}"></small></p></div></td>
-                    <td class="r num l-q"><th:block th:text="${@fmt.num(l.qty) + ' ' + l.unit}"></th:block><span class="mob" th:if="${!#strings.isEmpty(l.boxText)}" th:text="${' · ' + l.boxText}"></span></td>
-                    <td class="r num l-b" th:text="${l.boxText}"></td>
-                    <td class="r num l-s" th:text="${@fmt.money(l.sum)}"></td>
-                </tr>
-                </tbody>
-            </table></div>
-            <p th:if="${!#strings.isEmpty(stockLack)}" class="warn-s od-stock"><th:block th:utext="${i['alert']}"></th:block><span><th:block th:text="${'На складе не хватает на все открытые заказы: ' + stockLack + '.'}"></th:block><th:block th:if="${seesStock}"> <a class="link" href="/admin/stock?seg=short">Склад</a></th:block></span></p>
-            <dl class="spec">
-                <div><dt>позиций</dt><dd th:text="${t.positions}">6</dd></div>
-                <div><dt>коробок</dt><dd th:text="${t.boxes + (t.boxesKnown ? '' : '+')}">10</dd></div>
-                <div><dt>вес</dt><dd th:text="${@fmt.dec(t.kg, 1) + ' кг'}">69,0 кг</dd></div>
-                <div><dt>объём</dt><dd th:text="${t.volumeKnown ? @fmt.dec(t.volume, 2) + ' м³' : '—'}">0,33 м³</dd></div>
-            </dl>
-        </section>
-        <section class="card" th:each="r : ${o.returns}" th:id="${'ret-' + r.id}" th:attr="aria-labelledby=${'h-ret' + r.id}">
-            <div class="card-h"><div><h2 th:id="${'h-ret' + r.id}" th:text="${'Возврат № ' + r.id}">Возврат № 111</h2>
-                <p th:text="${@fmt.when(r.createdAt) + ' · ' + (retBy[r.createdBy] != null ? retBy[r.createdBy] : r.createdBy) + ' · ' + @fmt.count(r.items.size(), 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(@fmt.retPcs(r)) + ' шт · всё в списание'}"></p></div>
-                <div class="card-acts"><a th:if="${canReturn}" class="btn btn-soft btn-sm" th:href="${'/admin/orders/' + o.id + '/return?r=' + r.id}">Изменить</a><a class="btn btn-soft btn-sm" th:href="${'/admin/orders/' + o.id + '/return/' + r.id + '/act'}" target="_blank"><th:block th:utext="${i['print']}"></th:block>Акт возврата</a></div></div>
-            <div class="tbl-w"><table class="tbl tbl--l tbl--ret">
-                <thead><tr><th>Товар</th><th class="r">Кол-во</th><th class="r">Цена</th><th class="r">Сумма</th></tr></thead>
-                <tbody>
-                <tr th:each="l : ${r.items}">
-                    <td class="l-p"><div class="prod"><img th:if="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th" th:src="${l.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p><b th:text="${l.product.name}"></b></p></div></td>
-                    <td class="r num l-q" th:text="${@fmt.num(l.quantity) + ' шт'}"></td>
-                    <td class="r num l-b" th:text="${@fmt.money(l.price)}"></td>
-                    <td class="r num l-s" th:text="${@fmt.money(l.price.multiply(l.quantity).negate())}"></td>
-                </tr>
-                </tbody>
-                <tfoot><tr><td class="l-p">Возврат</td><td class="r num l-q" th:text="${@fmt.num(@fmt.retPcs(r)) + ' шт'}"></td><td class="l-b"></td><td class="r num l-s" th:text="${@fmt.money(r.totalSum.negate())}"></td></tr></tfoot>
-            </table></div>
-        </section>
-        <a th:if="${o.returns.isEmpty() and canReturn}" class="card ret-add" th:href="${'/admin/orders/' + o.id + '/return'}">
-            <th:block th:utext="${i['returns']}"></th:block><span><b>Добавить возврат</b><small>Клиент привёз возврат — он вычтется из суммы этого заказа и сразу уйдёт в списание.</small></span></a>
-        <section class="card" aria-labelledby="h-calc"><div class="card-h"><h2 id="h-calc">Расчёт</h2></div>
+        <!--/* Итог — сразу под шапкой: сумма, возвраты, к оплате, коробки, вес, объём; состав и возвраты ниже, длинные свёрнуты */-->
+        <section class="card od-sum" aria-labelledby="h-calc">
+            <div class="card-h"><h2 id="h-calc">Итог</h2></div>
             <div class="rcpt">
                 <th:block th:if="${t.ret.signum() > 0}">
                     <p class="rcpt-r"><span th:text="${'Сумма заказа · ' + @fmt.num(t.packs) + ' шт'}">Сумма заказа</span><i></i><b th:text="${@fmt.money(t.sum)}"></b></p>
@@ -82,7 +42,54 @@
                 <p class="warn-s" th:if="${overpay.signum() > 0}"><th:block th:utext="${i['alert']}"></th:block><span th:text="${'Заказ оплатили до возврата — переплату ' + @fmt.money(overpay) + ' нужно вернуть клиенту.'}"></span></p>
                 <p class="warn-s" th:if="${overpay.signum() == 0 and t.net().signum() < 0}"><th:block th:utext="${i['alert']}"></th:block><span th:text="${'Возврат больше заказа на ' + @fmt.money(t.net().negate()) + ' — разницу нужно вернуть клиенту.'}"></span></p>
             </div>
+            <dl class="spec">
+                <div><dt>позиций</dt><dd th:text="${t.positions}">6</dd></div>
+                <div><dt>коробок</dt><dd th:text="${t.boxes + (t.boxesKnown ? '' : '+')}">10</dd></div>
+                <div><dt>вес</dt><dd th:text="${@fmt.dec(t.kg, 1) + ' кг'}">69,0 кг</dd></div>
+                <div><dt>объём</dt><dd th:text="${t.volumeKnown ? @fmt.dec(t.volume, 2) + ' м³' : (t.volume.signum() > 0 ? @fmt.dec(t.volume, 2) + '+ м³' : '—')}">0,33 м³</dd></div>
+            </dl>
+            <p class="hint od-novol" th:unless="${t.noVolume.isEmpty()}"><th:block th:text="${'Объём больше: у ' + (t.noVolume.size() == 1 ? 'товара ' : 'товаров ')}"></th:block><th:block th:each="p, st : ${t.noVolume}"><a th:if="${me.isAdmin()}" class="link" th:href="${'/admin/products/' + p.id + '/edit'}" th:text="${p.name}"></a><th:block th:unless="${me.isAdmin()}" th:text="${p.name}"></th:block><th:block th:unless="${st.last}">, </th:block></th:block> не указано, сколько штук в коробке или объём коробки.</p>
         </section>
+        <section class="card" aria-labelledby="h-comp">
+            <div class="card-h"><div><h2 id="h-comp">Состав</h2><p th:text="${@fmt.count(t.positions, 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(t.packs) + ' шт'}"></p></div>
+                <button th:if="${o.status.name() != 'CANCELLED'}" class="btn btn-soft btn-sm" type="button" id="inv-open"><th:block th:utext="${i['doc']}"></th:block>Накладная</button></div>
+            <div class="tbl-w" id="od-comp"><table class="tbl tbl--l">
+                <thead><tr><th>Товар</th><th class="r">Кол-во</th><th class="r">Коробок</th><th class="r">Сумма</th></tr></thead>
+                <tbody>
+                <tr th:each="l, st : ${lines}" th:classappend="${lines.size() > 8 and st.index >= 6} ? 'fold-x'">
+                    <td class="l-p"><div class="prod"><img th:if="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th" th:src="${l.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span>
+                        <p><b th:text="${l.product.name}"></b><small th:text="${@fmt.money(l.price) + ' за ' + l.unit + (l.perBox != null ? ' · в коробке ' + @fmt.num(l.perBox) : '')}"></small></p></div></td>
+                    <td class="r num l-q"><th:block th:text="${@fmt.num(l.qty) + ' ' + l.unit}"></th:block><span class="mob" th:if="${!#strings.isEmpty(l.boxText)}" th:text="${' · ' + l.boxText}"></span></td>
+                    <td class="r num l-b" th:text="${l.boxText}"></td>
+                    <td class="r num l-s" th:text="${@fmt.money(l.sum)}"></td>
+                </tr>
+                </tbody>
+            </table></div>
+            <button th:if="${lines.size() > 8}" class="fold-b" type="button" hidden data-fold="od-comp" data-fold-key="comp" aria-controls="od-comp" data-less="Свернуть состав"
+                    th:with="more=${'Показать ещё ' + @fmt.count(lines.size() - 6, 'позицию', 'позиции', 'позиций')}" th:attr="data-more=${more}"><span></span><th:block th:utext="${i16['chev']}"></th:block></button>
+            <p th:if="${!#strings.isEmpty(stockLack)}" class="warn-s od-stock"><th:block th:utext="${i['alert']}"></th:block><span><th:block th:text="${'На складе не хватает на все открытые заказы: ' + stockLack + '.'}"></th:block><th:block th:if="${seesStock}"> <a class="link" href="/admin/stock?seg=short">Склад</a></th:block></span></p>
+        </section>
+        <section class="card" th:each="r : ${o.returns}" th:id="${'ret-' + r.id}" th:attr="aria-labelledby=${'h-ret' + r.id}">
+            <div class="card-h"><div><h2 th:id="${'h-ret' + r.id}" th:text="${'Возврат № ' + r.id}">Возврат № 111</h2>
+                <p th:text="${@fmt.when(r.createdAt) + ' · ' + (retBy[r.createdBy] != null ? retBy[r.createdBy] : r.createdBy) + ' · ' + @fmt.count(r.items.size(), 'позиция', 'позиции', 'позиций') + ' · ' + @fmt.num(@fmt.retPcs(r)) + ' шт · всё в списание'}"></p></div>
+                <div class="card-acts"><a th:if="${canReturn}" class="btn btn-soft btn-sm" th:href="${'/admin/orders/' + o.id + '/return?r=' + r.id}">Изменить</a><a class="btn btn-soft btn-sm" th:href="${'/admin/orders/' + o.id + '/return/' + r.id + '/act'}" target="_blank"><th:block th:utext="${i['print']}"></th:block>Акт возврата</a></div></div>
+            <div class="tbl-w" th:id="${'od-ret' + r.id}"><table class="tbl tbl--l tbl--ret">
+                <thead th:classappend="${r.items.size() > 3} ? 'fold-x'"><tr><th>Товар</th><th class="r">Кол-во</th><th class="r">Цена</th><th class="r">Сумма</th></tr></thead>
+                <tbody>
+                <tr th:each="l : ${r.items}" th:classappend="${r.items.size() > 3} ? 'fold-x'">
+                    <td class="l-p"><div class="prod"><img th:if="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th" th:src="${l.product.imageUrl}" alt="" width="30" height="40" loading="lazy"><span th:unless="${l.product.imageUrl != null and !#strings.isEmpty(l.product.imageUrl)}" class="th th-none" th:utext="${i['cookie']}"></span><p><b th:text="${l.product.name}"></b></p></div></td>
+                    <td class="r num l-q" th:text="${@fmt.num(l.quantity) + ' шт'}"></td>
+                    <td class="r num l-b" th:text="${@fmt.money(l.price)}"></td>
+                    <td class="r num l-s" th:text="${@fmt.money(l.price.multiply(l.quantity).negate())}"></td>
+                </tr>
+                </tbody>
+                <tfoot><tr><td class="l-p">Возврат</td><td class="r num l-q" th:text="${@fmt.num(@fmt.retPcs(r)) + ' шт'}"></td><td class="l-b"></td><td class="r num l-s" th:text="${@fmt.money(r.totalSum.negate())}"></td></tr></tfoot>
+            </table></div>
+            <button th:if="${r.items.size() > 3}" class="fold-b" type="button" hidden data-fold-key="ret" data-less="Свернуть состав возврата"
+                    th:with="more=${'Показать состав возврата · ' + @fmt.count(r.items.size(), 'позиция', 'позиции', 'позиций')}" th:attr="data-fold=${'od-ret' + r.id},aria-controls=${'od-ret' + r.id},data-more=${more}"><span></span><th:block th:utext="${i16['chev']}"></th:block></button>
+        </section>
+        <a th:if="${o.returns.isEmpty() and canReturn}" class="card ret-add" th:href="${'/admin/orders/' + o.id + '/return'}">
+            <th:block th:utext="${i['returns']}"></th:block><span><b>Добавить возврат</b><small>Клиент привёз возврат — он вычтется из суммы этого заказа и сразу уйдёт в списание.</small></span></a>
     </div>
     <aside class="od-side">
         <section class="card card-b box" aria-labelledby="h-pick"><h3 id="h-pick">Выдача</h3>

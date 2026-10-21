@@ -63,10 +63,12 @@ public final class AdminOrders {
     /**
      * Итоги заказа. Коробки по каждой строке с округлением вверх — как в истории заказов у покупателя.
      * ret / retPcs — закреплённые возвраты (сумма и штуки); net — сумма минус возврат, pay — к оплате (не меньше нуля:
-     * если возврат больше заказа, разницу возвращают клиенту).
+     * если возврат больше заказа, разницу возвращают клиенту). volume — объём позиций, у которых он известен;
+     * noVolume — товары без коробки или её объёма (тогда volumeKnown = false и настоящий объём больше).
      */
     public record Totals(int positions, BigDecimal packs, int boxes, boolean boxesKnown, BigDecimal kg,
-                         BigDecimal volume, boolean volumeKnown, BigDecimal sum, BigDecimal ret, BigDecimal retPcs) {
+                         BigDecimal volume, boolean volumeKnown, BigDecimal sum, BigDecimal ret, BigDecimal retPcs,
+                         List<Product> noVolume) {
         public BigDecimal net() {
             return sum.subtract(ret);
         }
@@ -92,6 +94,7 @@ public final class AdminOrders {
         BigDecimal packs = BigDecimal.ZERO, grams = BigDecimal.ZERO, vol = BigDecimal.ZERO, sum = BigDecimal.ZERO;
         int boxes = 0;
         boolean boxesKnown = true, volKnown = true;
+        List<Product> noVolume = new ArrayList<>();
         for (Object[] r : rows) {
             Product p = (Product) r[0];
             BigDecimal q = (BigDecimal) r[1];
@@ -106,16 +109,18 @@ public final class AdminOrders {
                     vol = vol.add(p.getBoxVolumeM3().multiply(BigDecimal.valueOf(b)));
                 } else {
                     volKnown = false;
+                    if (!noVolume.contains(p)) noVolume.add(p);
                 }
             } else {
                 boxesKnown = false;
                 volKnown = false;
+                if (!noVolume.contains(p)) noVolume.add(p);
             }
             BigDecimal g = grams(p);
             if (g != null) grams = grams.add(g.multiply(q));
         }
         return new Totals(rows.size(), packs, boxes, boxesKnown, grams.movePointLeft(3), vol, volKnown && !rows.isEmpty(),
-                sum, ret == null ? BigDecimal.ZERO : ret, retPcs == null ? BigDecimal.ZERO : retPcs);
+                sum, ret == null ? BigDecimal.ZERO : ret, retPcs == null ? BigDecimal.ZERO : retPcs, noVolume);
     }
 
     /** Оплата в списке и карточке: способ, статус, красным ли. Как payInfo в макете. */

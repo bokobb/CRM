@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:ital,wght@0,500;0,700;0,800;1,600&family=Golos+Text:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="/admin/assets/admin.css?v=11">
+    <link rel="stylesheet" href="/admin/assets/admin.css?v=12">
     <link rel="stylesheet" href="/admin/assets/admin-more.css?v=1">
     <link rel="stylesheet" href="/admin/assets/admin-ops.css?v=1">
     <link rel="stylesheet" href="/admin/assets/admin-team.css?v=1">
@@ -73,7 +73,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite" th:attr="data-text=${toast},data-error=${toastError}"><span id="toast-t"></span><form id="toast-undo" method="post" th:action="${toastUndo}" th:if="${toastUndo != null}"><input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"><button type="submit" id="toast-b">Вернуть</button></form></div>
 <dialog class="dlg" id="dlg" aria-labelledby="dlg-h"></dialog>
 <script type="application/json" id="admin-icons" th:utext="${iconsJson}"></script>
-<script src="/admin/assets/admin.js?v=4"></script>
+<script src="/admin/assets/admin.js?v=5"></script>
 <th:block th:replace="${scripts}"></th:block>
 </body>
 </html>

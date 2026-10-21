@@ -146,6 +146,30 @@
     }
   });
 
+  /* ---------- длинные списки: кнопка data-fold="id блока" прячет его строки .fold-x (карточка заказа —
+     состав и возвраты). Раскрыть или свернуть — запоминается в браузере для всех заказов (admin-fold-<data-fold-key>);
+     без скрипта кнопки нет и видно всё ---------- */
+  document.querySelectorAll('[data-fold]').forEach(function (b) {
+    var box = $(b.getAttribute('data-fold')), key = 'admin-fold-' + (b.getAttribute('data-fold-key') || 'list'), open = false;
+    if (!box) return;
+    try { open = localStorage.getItem(key) === 'open'; } catch (e) { open = false; }
+    function set(o) {
+      open = o;
+      box.classList.toggle('is-shut', !o);
+      b.classList.toggle('is-open', o);
+      b.setAttribute('aria-expanded', String(o));
+      b.querySelector('span').textContent = b.getAttribute(o ? 'data-less' : 'data-more');
+    }
+    set(open);
+    b.hidden = false;
+    b.addEventListener('click', function () {
+      set(!open);
+      try { localStorage.setItem(key, open ? 'open' : 'shut'); } catch (e) { /* storage blocked */ }
+      var card = b.closest('.card') || box;                          // свернули далеко внизу — вернуться к началу карточки
+      if (!open && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: 'start' });
+    });
+  });
+
   /* ---------- table rows that open a card ---------- */
   document.addEventListener('click', function (e) {
     var tr = e.target.closest('tr[data-href], li[data-href], div[data-href]');

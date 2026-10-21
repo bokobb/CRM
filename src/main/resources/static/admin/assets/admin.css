@@ -335,6 +335,18 @@ a.kpi--alert:hover,.kpi--alert.kpi--a:hover{box-shadow:var(--shadow),0 0 0 2px v
 .rcpt-ret{color:var(--crimson-deep)}
 .rcpt-tot{margin-top:4px;font-size:17px}
 .rcpt-tot span,.rcpt-tot b{font-weight:700}
+/* карточка заказа: итог сверху, длинный состав и возвраты свёрнуты (admin.js, data-fold) */
+.od-sum .rcpt{padding-top:10px;border-top:0}
+.od-sum .rcpt-tot{font-size:19px}
+.od-sum .spec{padding-top:14px;border-top:1px solid var(--line)}
+.od-novol{margin:-6px 20px 16px;font-size:13px;line-height:1.45}
+.od-novol .link{min-height:0}
+.is-shut .fold-x{display:none}
+.fold-b{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:46px;padding:0 16px;border:0;border-top:1px solid var(--line);background:none;color:var(--crimson-deep);font:600 14px/1.2 var(--body);cursor:pointer}
+.fold-b:hover{background:var(--paper)}
+.fold-b .i{transform:rotate(90deg);transition:transform .15s}
+.fold-b.is-open .i{transform:rotate(-90deg)}
+.card>.fold-b:last-child{border-radius:0 0 18px 18px}
 .spec{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 0;margin:0;padding:4px 20px 16px}
 .spec>div{padding-left:14px;border-left:1px solid var(--line)}
 .spec>div:first-child{padding-left:0;border-left:0}
@@ -636,6 +648,7 @@ a.kpi--alert:hover,.kpi--alert.kpi--a:hover{box-shadow:var(--shadow),0 0 0 2px v
   .od-side,.od-main{gap:14px}
   .retbox{margin-inline:16px}
   .rcpt{padding-inline:16px}
+  .od-novol{margin-inline:16px}
   .spec{padding-inline:16px}
 }
 @media (max-width:359px){
